@@ -6,19 +6,23 @@
   },
   "metadata": {
     "description": "Claude Code skills for building React + Next.js apps with hybrid Clean Architecture, Mantine UI, and TanStack Query.",
-    "version": "0.1.0"
+    "version": "0.1.0",
+    "pluginRoot": "./plugins"
   },
-  "pluginRoot": "./plugins",
   "plugins": [
     {
       "name": "architector",
+      "source": "./plugins/architector",
       "description": "Design and implement features using hybrid Clean Architecture. Domain → Use-Cases → Adapters → UI with Valibot schemas and TanStack Query.",
-      "version": "0.1.0"
+      "version": "0.1.0",
+      "keywords": ["clean-architecture", "nextjs", "react", "valibot", "tanstack-query"]
     },
     {
       "name": "component-creator",
-      "description": "Create React components following Smart/Dumb separation via composeHooks. Enforces Mantine UI, i18n, and the View + lib.ts + interfaces.ts + messages.json + styles.module.css file layout.",
-      "version": "0.1.0"
+      "source": "./plugins/component-creator",
+      "description": "Create React components with Smart/Dumb separation via composeHooks, translations, and a standard file layout (index.tsx, lib.ts, interfaces.ts, messages.json, styles.module.css). UI-library agnostic.",
+      "version": "0.1.0",
+      "keywords": ["react", "composehooks", "components", "clean-architecture"]
     }
   ]
 }

@@ -1,11 +1,11 @@
 ---
 name: architector
-description: Design and implement features using the project's hybrid Clean Architecture. Use when adding features, defining use-cases, creating inbound/outbound adapters, or making architectural decisions for the full-stack Next.js app.
+description: Design and implement features using hybrid Clean Architecture for full-stack Next.js apps. Use when adding features, defining use-cases, creating inbound/outbound adapters, or making architectural decisions. Backend and UI library are project-defined; examples use Supabase + Valibot + TanStack Query, but the layer contract works with any persistence and validation stack.
 ---
 
 # Architector Skill
 
-Guide for architectural decisions and feature implementation in the template.
+Guide for architectural decisions and feature implementation in a Next.js App Router project.
 
 ## Architecture Overview
 
@@ -20,7 +20,7 @@ app/ui -> ui/server-state | feature-local actions.ts -> inbound adapters -> use-
 - `src/ui/server-state/` — TanStack Query keys/hooks, SSR prefetch helpers, cache integration
 - feature-local `actions.ts` — thin direct wrappers around Server Actions when TanStack Query is unnecessary
 - `src/adapters/inbound/next/` — Server Actions and route-handler wiring
-- `src/adapters/outbound/` — Supabase repositories, external APIs, transport
+- `src/adapters/outbound/` — persistence (Supabase, Prisma, Drizzle, etc.), external APIs, transport
 - `src/app/` — thin Next.js entrypoints only
 - `src/ui/` — presentation components and view hooks
 - `src/infrastructure/` — auth, i18n, config, logging, shared technical glue
@@ -78,6 +78,8 @@ src/use-cases/work-items/
 
 ### 3. Outbound Adapters
 
+Implementation varies by backend. Supabase example:
+
 ```ts
 export function createSupabaseWorkItemRepository(
   supabase: SupabaseServerClient
@@ -88,6 +90,8 @@ export function createSupabaseWorkItemRepository(
   }
 }
 ```
+
+Swap in Prisma, Drizzle, a REST client, or any other data source — the port (`WorkItemRepository`) stays the same.
 
 ### 4. Inbound Adapters
 
@@ -128,7 +132,7 @@ export function useWorkItems(filters: WorkItemFilters) {
 | One-off direct Server Action call from UI | feature-local `actions.ts`                  |
 | Server Action                             | `src/adapters/inbound/next/server-actions/` |
 | Route handler                             | `src/adapters/inbound/next/route-handlers/` |
-| Supabase persistence                      | `src/adapters/outbound/supabase/`           |
+| Persistence (Supabase / Prisma / Drizzle) | `src/adapters/outbound/<backend>/`          |
 | External HTTP client                      | `src/adapters/outbound/api/`                |
 | Presentation component                    | `src/ui/` or `src/app/**/_internal/ui/`     |
 
@@ -144,9 +148,17 @@ export function useWorkItems(filters: WorkItemFilters) {
 - [ ] i18n messages added
 - [ ] No `ui/app -> outbound adapter` import leaks
 
-## References
+## Adapting to your stack
 
-- `docs/ARCHITECTURE/ARCHITECTURE.md`
-- `docs/ARCHITECTURE/USE_CASES.md`
-- `docs/ARCHITECTURE/DATA_ACCESS.md`
-- `docs/ARCHITECTURE/FOLDER_STRUCTURE.md`
+| Project convention        | What to change                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| Validation library        | Swap Valibot for Zod, Yup, or Arktype — domain schemas stay the source of truth       |
+| Backend                   | Replace Supabase outbound adapter with Prisma, Drizzle, REST, gRPC, etc.               |
+| Auth                      | `withAdminAuth` / ctx shape depends on your auth stack; keep inbound adapter thin     |
+| Server-state layer        | TanStack Query is assumed; SWR / RTK Query / plain server components also work        |
+
+The invariants are: domain has no framework imports, use-cases have no Next.js imports, UI never reaches outbound adapters.
+
+## Project-specific references
+
+If your repo has architecture docs, reference them here (e.g. `@docs/ARCHITECTURE/ARCHITECTURE.md`). The skill intentionally avoids a hardcoded doc list so it works in any project.

@@ -4,10 +4,10 @@ Claude Code plugin marketplace for building React + Next.js apps with hybrid Cle
 
 ## Plugins
 
-| Plugin              | Purpose                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `architector`       | Design & implement features across Clean Architecture layers (Domain → Use-Cases → Adapters → UI).      |
-| `component-creator` | Create React components with `composeHooks` Smart/Dumb separation, Mantine UI, i18n, and file layout.   |
+| Plugin              | Purpose                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `architector`       | Design & implement features across Clean Architecture layers (Domain → Use-Cases → Adapters → UI).         |
+| `component-creator` | Create React components with `composeHooks` Smart/Dumb separation, translations, and a standard file layout. UI library is project-defined. |
 
 Both are model-invoked: Claude picks them automatically when a task matches their descriptions.
 
@@ -62,15 +62,21 @@ Or just describe a task — Claude picks the right skill based on its frontmatte
 
 ## Assumptions
 
-These skills expect a project shaped like:
+**Required** (skill patterns depend on these):
 
 - **Framework**: Next.js (App Router), React 19, TypeScript
-- **UI**: Mantine UI, CSS Modules
-- **Validation**: Valibot
-- **State**: TanStack Query (server), Zustand (page UI), React Context (global)
 - **Architecture**: hybrid Clean Architecture with `domain/`, `use-cases/`, `adapters/inbound/next/`, `adapters/outbound/`, `ui/`
+- **Component pattern**: Smart/Dumb separation via `composeHooks(View)(useProps)`
 
-A reference template applying these conventions: [clicktronix/fullstack-ai-template](https://github.com/clicktronix/fullstack-ai-template).
+**Illustrative** (shown in examples — swap for your stack):
+
+- **UI library**: Mantine — works equally with Chakra, shadcn/ui, Radix, Tailwind, or plain elements
+- **Validation**: Valibot — Zod / Yup / Arktype fit the same domain role
+- **Backend**: Supabase — Prisma / Drizzle / REST / gRPC fit the same outbound role
+- **Server state**: TanStack Query — SWR / RTK Query work too
+- **i18n**: any library with a message/format primitive
+
+A reference template applying these conventions with Mantine + Supabase + Valibot: [clicktronix/fullstack-ai-template](https://github.com/clicktronix/fullstack-ai-template).
 
 ## Versioning
 

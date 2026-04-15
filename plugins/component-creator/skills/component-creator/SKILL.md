@@ -1,11 +1,11 @@
 ---
 name: component-creator
-description: ALWAYS use when working with React components or hooks. Use for creating, editing, or refactoring UI components, forms, tables, custom hooks, or any React elements. Enforces composeHooks pattern, Mantine UI, translations, and proper file structure.
+description: Use when working with React components or hooks. Creates, edits, or refactors UI components, forms, tables, and custom hooks. Enforces composeHooks Smart/Dumb separation, TanStack Query for server state, translations, and a standard file layout. UI-library agnostic — works with Mantine, Chakra, shadcn/ui, Radix, or plain elements.
 ---
 
 # Component Creator Skill
 
-Creates React components following the template's Smart/Dumb separation.
+Creates React components following Smart/Dumb separation via `composeHooks`. UI library is project-defined; examples below use Mantine, but the pattern is identical for any component library or plain HTML/CSS.
 
 ## Workflow
 
@@ -53,8 +53,10 @@ If the code needs:
 
 ## Core Pattern
 
+The pattern is library-agnostic. Swap `@mantine/core` below for `@chakra-ui/react`, `@/ui/components/*` (shadcn/ui), Radix primitives, or plain `<div>` / `<button>` — the Smart/Dumb split and `composeHooks` call are unchanged.
+
 ```tsx
-// index.tsx
+// index.tsx — Mantine example (pick your UI library)
 import { Button, Card, Stack, Text } from '@mantine/core'
 import { composeHooks } from '@/ui/hooks/compose-hooks'
 import { TranslationText } from '@/ui/components/TranslationText'
@@ -128,11 +130,18 @@ export function useWorkItemCardProps({
 
 - `index.tsx` is presentation only
 - `lib.ts` assembles view props only
-- all user-facing text goes through translations
-- prefer Mantine props or CSS Modules over inline styles
+- all user-facing text goes through translations (e.g. `react-intl`, `next-intl`, or project's own i18n layer)
+- prefer your UI library's component props or CSS Modules over inline styles
 - mock `ui/server-state` in component tests, not adapters
 - add `data-testid` to destructive or workflow-critical controls
 
-## Reference
+## Adapting to your stack
 
-- `docs/ARCHITECTURE/COMPONENT_PATTERNS.md`
+| Project convention     | What to change                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| UI library             | Swap import in `index.tsx`; Smart/Dumb split is unchanged                      |
+| i18n library           | Replace `<TranslationText />` + `messages.json` with your i18n primitive        |
+| State layer (non-TanStack) | Replace `ui/server-state` hooks with your equivalent; pattern still applies |
+| Styling                | CSS Modules, vanilla-extract, Tailwind, Emotion — whatever the project uses    |
+
+The `composeHooks(View)(useProps)` call and the view/lib separation are the invariants.
