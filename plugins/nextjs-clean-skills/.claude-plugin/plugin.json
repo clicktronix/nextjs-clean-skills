@@ -1,0 +1,11 @@
+{
+  "name": "nextjs-clean-skills",
+  "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Clicktronix",
+    "url": "https://github.com/clicktronix"
+  },
+  "homepage": "https://github.com/clicktronix/nextjs-clean-skills",
+  "license": "MIT"
+}

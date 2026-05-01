@@ -1,0 +1,27 @@
+{
+  "name": "nextjs-clean-skills",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs",
+    "sync-version": "node scripts/sync-version.mjs"
+  },
+  "keywords": [
+    "clean-architecture",
+    "nextjs-16",
+    "react-19",
+    "server-components",
+    "cache-components",
+    "server-actions",
+    "next-safe-action",
+    "valibot",
+    "mantine",
+    "supabase",
+    "tanstack-query",
+    "composeHooks",
+    "dal",
+    "rls",
+    "agent-skills"
+  ]
+}

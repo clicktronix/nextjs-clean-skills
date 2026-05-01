@@ -1,107 +1,97 @@
-# react-clean-skills
+# nextjs-clean-skills
 
-Portable Claude Code and Codex plugin marketplace for applying the `fullstack-ai-template` architecture profile: strict Clean Architecture boundaries plus `composeHooks` Smart/Dumb React components.
+Portable Claude Code and Codex plugin marketplace for applying a Next.js 16 Hybrid Clean Architecture profile and React Server/Client Component rules.
 
 ## Plugin
 
-| Plugin                | Skills                               | Purpose                                                                                             |
-| --------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `react-clean-skills`  | `architector`, `component-creator`   | Design feature slices and create React components using the strict Fullstack AI Template profile. |
+| Plugin | Skills | Purpose |
+| --- | --- | --- |
+| `nextjs-clean-skills` | `nextjs-architecture`, `react-component-creator` | Design full-stack Next.js feature slices and React components with explicit architecture and rendering boundaries. |
 
 Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
 ## Claude Code Install
-
-### Option A — committed in your repo (recommended for teams)
 
 Add to `.claude/settings.json`:
 
 ```json
 {
   "extraKnownMarketplaces": {
-    "react-clean-skills": {
-      "source": { "source": "github", "repo": "clicktronix/react-clean-skills" }
+    "nextjs-clean-skills": {
+      "source": { "source": "github", "repo": "clicktronix/nextjs-clean-skills" }
     }
   },
   "enabledPlugins": {
-    "react-clean-skills@react-clean-skills": true
+    "nextjs-clean-skills@nextjs-clean-skills": true
   }
 }
 ```
 
-When a teammate trusts the repo folder, Claude Code prompts them to install the marketplace and plugins automatically.
-
-### Option B — interactive, per-user
+Interactive install:
 
 ```shell
-/plugin marketplace add clicktronix/react-clean-skills
-/plugin install react-clean-skills@react-clean-skills
+/plugin marketplace add clicktronix/nextjs-clean-skills
+/plugin install nextjs-clean-skills@nextjs-clean-skills
 ```
 
-### Option C — CLI, per-user
-
-```bash
-claude plugin marketplace add clicktronix/react-clean-skills
-claude plugin install react-clean-skills@react-clean-skills --scope user
-```
-
-### Claude Code Usage
-
-After install, run `/reload-plugins`. Invoke via:
+After install, run `/reload-plugins`. Invoke directly with:
 
 ```shell
-/react-clean-skills:architector
-/react-clean-skills:component-creator
+/nextjs-clean-skills:nextjs-architecture
+/nextjs-clean-skills:react-component-creator
 ```
-
-Or just describe a task — Claude picks the right skill based on its frontmatter `description`.
 
 ## Codex Install
 
-This repository also contains a Codex marketplace at `.agents/plugins/marketplace.json` and a Codex plugin manifest at `plugins/react-clean-skills/.codex-plugin/plugin.json`.
+This repository contains a Codex marketplace at `.agents/plugins/marketplace.json` and a Codex plugin manifest at `plugins/nextjs-clean-skills/.codex-plugin/plugin.json`.
 
-When this marketplace is available to Codex, install the `react-clean-skills` plugin from `/plugins`. The installed plugin exposes:
+Installed skills:
 
 ```text
-$architector
-$component-creator
+$nextjs-architecture
+$react-component-creator
 ```
 
-You can also let Codex select the matching skill from the task description, or use `@react-clean-skills` when choosing the plugin in the composer.
+## Default Profile
 
-## Architecture Profile
+- **Framework**: Next.js 16 App Router, React 19, TypeScript.
+- **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.
+- **Validation**: Valibot and Standard Schema-compatible action/form validation.
+- **Reads**: Server Components through server-only DAL/read use-cases by default.
+- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared client cache.
+- **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
+- **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
+- **Components**: Server Components by default; `composeHooks(View)(useProps)` for Client Components with logic.
 
-The skills are portable, but they are not generic prompts. They default to the rules from `clicktronix/fullstack-ai-template` and adapt only where the target repository has explicit equivalent conventions.
+## Compatibility
 
-Default profile:
+These skills assume the target app uses the current Next.js 16 App Router model:
 
-- **Framework**: Next.js App Router, React, TypeScript
-- **Architecture**: `domain -> use-cases -> adapters -> ui/server-state -> ui/app` boundaries from the template docs
-- **Validation**: Valibot schemas with inferred types
-- **Backend role**: Supabase outbound adapters, replaceable only by a repository/gateway equivalent
-- **Server state**: TanStack Query in `src/ui/server-state/<feature>/`
-- **UI**: Mantine + CSS Modules
-- **i18n**: `messages.json` + `TranslationText`
-- **Component pattern**: `composeHooks(View)(useProps)` for any component with logic
+| Target stack | Support level | Notes |
+| --- | --- | --- |
+| Next.js 16 + React 19 | Primary | Assumes `cacheComponents: true`, `proxy.ts`, async request APIs, Server Components by default, and RSC-first reads. |
+| Next.js 15 | Migration only | Use the architecture guidance selectively; Cache Components and proxy naming may need migration work first. |
+| Next.js 14 or older | Not a default target | Treat these skills as conceptual guidance, not copy-ready implementation rules. |
+| Non-Next React | Component-only | `react-component-creator` state/styling guidance can apply, but RSC, Server Actions, proxy, and cache rules do not. |
 
-A reference template applying these conventions with Mantine + Supabase + Valibot: [clicktronix/fullstack-ai-template](https://github.com/clicktronix/fullstack-ai-template).
+If the target repo has stricter local architecture docs, follow the target repo first.
+
+## Repository Checks
+
+Run the local checks:
+
+```bash
+npm run validate
+```
 
 ## Versioning
 
-Semver. Breaking changes to skill instructions bump major; additions bump minor; edits bump patch.
+`version.json` is the single source of truth for the release version. The plugin name and folder are intentionally fixed as `nextjs-clean-skills`. Run `npm run sync-version` after changing the release version.
 
-Run `claude plugin update` to pull the latest after a release.
-
-## Contributing
-
-Edit `plugins/react-clean-skills/skills/<name>/SKILL.md`. Bump the plugin `version` in:
-
-- `plugins/react-clean-skills/.claude-plugin/plugin.json`
-- `plugins/react-clean-skills/.codex-plugin/plugin.json`
-- `.claude-plugin/marketplace.json`
-- `.agents/plugins/marketplace.json`
-
-Open a PR.
+Semver:
+- major for breaking skill names, plugin names, or behavior expectations
+- minor for new references or substantial guidance changes
+- patch for wording fixes
 
 ## License
 

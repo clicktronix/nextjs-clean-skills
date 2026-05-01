@@ -1,14 +1,14 @@
 {
-  "name": "react-clean-skills",
+  "name": "nextjs-clean-skills",
   "interface": {
-    "displayName": "React Clean Skills"
+    "displayName": "Next.js Clean Skills"
   },
   "plugins": [
     {
-      "name": "react-clean-skills",
+      "name": "nextjs-clean-skills",
       "source": {
         "source": "local",
-        "path": "./plugins/react-clean-skills"
+        "path": "./plugins/nextjs-clean-skills"
       },
       "policy": {
         "installation": "AVAILABLE",

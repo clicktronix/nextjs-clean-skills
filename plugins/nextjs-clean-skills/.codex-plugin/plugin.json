@@ -1,0 +1,45 @@
+{
+  "name": "nextjs-clean-skills",
+  "version": "1.0.0",
+  "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
+  "author": {
+    "name": "Clicktronix",
+    "url": "https://github.com/clicktronix"
+  },
+  "homepage": "https://github.com/clicktronix/nextjs-clean-skills",
+  "repository": "https://github.com/clicktronix/nextjs-clean-skills",
+  "license": "MIT",
+  "keywords": [
+    "clean-architecture",
+    "nextjs-16",
+    "react-19",
+    "server-components",
+    "cache-components",
+    "server-actions",
+    "next-safe-action",
+    "valibot",
+    "mantine",
+    "supabase",
+    "tanstack-query",
+    "composeHooks",
+    "dal",
+    "rls",
+    "agent-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Next.js Clean Skills",
+    "shortDescription": "Next.js 16 architecture and component skills.",
+    "longDescription": "Codex skills for applying a Next.js 16 Hybrid Clean Architecture profile: server-only DAL reads, Server Actions, Cache Components, client server-state boundaries, and React Server/Client Component rules.",
+    "developerName": "Clicktronix",
+    "category": "Productivity",
+    "capabilities": [
+      "Write"
+    ],
+    "websiteURL": "https://github.com/clicktronix/nextjs-clean-skills",
+    "defaultPrompt": [
+      "Design this Next.js feature with Hybrid Clean Architecture.",
+      "Create this React component with the correct Server/Client boundary."
+    ]
+  }
+}
