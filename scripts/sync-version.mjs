@@ -7,9 +7,9 @@ const pluginName = 'nextjs-clean-skills'
 const pluginPath = `./plugins/${pluginName}`
 const keywords = [
   'clean-architecture',
+  'nextjs',
   'nextjs-16',
-  'react-19',
-  'server-components',
+  'react-server-components',
   'cache-components',
   'server-actions',
   'next-safe-action',

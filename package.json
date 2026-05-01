@@ -1,6 +1,6 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,9 +9,9 @@
   },
   "keywords": [
     "clean-architecture",
+    "nextjs",
     "nextjs-16",
-    "react-19",
-    "server-components",
+    "react-server-components",
     "cache-components",
     "server-actions",
     "next-safe-action",

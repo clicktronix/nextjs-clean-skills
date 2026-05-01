@@ -74,6 +74,18 @@ These skills assume the target app uses the current Next.js 16 App Router model:
 | Next.js 14 or older | Not a default target | Treat these skills as conceptual guidance, not copy-ready implementation rules. |
 | Non-Next React | Component-only | `react-component-creator` state/styling guidance can apply, but RSC, Server Actions, proxy, and cache rules do not. |
 
+Minimum package versions for copy-ready rules:
+
+| Package | Minimum |
+| --- | --- |
+| Next.js | 16.1 |
+| React | 19.2 |
+| Valibot | 1.0 |
+| Mantine | 8.0 |
+| TanStack Query | 5.90 |
+| next-safe-action | 8.0 |
+| Supabase SSR | 0.8 |
+
 If the target repo has stricter local architecture docs, follow the target repo first.
 
 ## Repository Checks

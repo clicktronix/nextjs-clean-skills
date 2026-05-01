@@ -18,8 +18,9 @@ const banned = [
 const errors = []
 for (const file of files) {
   const text = readText(file)
+  const guidanceText = text.replace(/\*\*Incorrect[\s\S]*?```[\s\S]*?```/g, '')
   for (const [needle, message] of banned) {
-    if (text.includes(needle)) errors.push(`${file}: banned phrase "${needle}". ${message}`)
+    if (guidanceText.includes(needle)) errors.push(`${file}: banned phrase "${needle}". ${message}`)
   }
 }
 

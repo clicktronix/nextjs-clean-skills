@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file.
 
 - Placeholder for the next release.
 
+## [1.0.1] - 2026-05-01
+
+### Fixed
+
+- Added explicit minimum package versions to the compatibility matrix.
+- Expanded the Mantine + Standard Schema validator rule with a complete synchronous field-error adapter.
+- Aligned marketplace keywords with the release keyword profile.
+
 ## [1.0.0] - 2026-05-01
 
 ### Added

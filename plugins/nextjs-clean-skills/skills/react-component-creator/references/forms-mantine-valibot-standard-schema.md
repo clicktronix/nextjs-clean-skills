@@ -8,12 +8,34 @@ Use a small adapter that accepts a Standard Schema-compatible validator and retu
 
 Keep the adapter synchronous unless the target form explicitly supports async validation.
 
-**Incorrect (validator tied to one validator library version):** a shared Mantine helper that accepts an internal schema type from one validator package.
+**Incorrect (validator tied to an old Valibot generic):**
+```ts
+function createMantineValidator<T>(schema: BaseSchema<T, T, unknown>) {
+  return valibotResolver(schema)
+}
+```
 
 **Correct (accept a Standard Schema-compatible contract):**
 ```ts
+import type { StandardSchemaV1 } from '@standard-schema/spec'
+
 export function createMantineValidator<T>(schema: StandardSchemaV1<unknown, T>) {
-  // map schema['~standard'].validate(values) issues to Mantine field errors
+  return (values: unknown) => {
+    const result = schema['~standard'].validate(values)
+    if (result instanceof Promise) throw new Error('Use sync schemas for Mantine validate')
+    if (!result.issues) return {}
+    return Object.fromEntries(result.issues.map((issue) => [pathToName(issue.path), issue.message]))
+  }
+}
+```
+
+```ts
+function pathToName(path: StandardSchemaV1.Issue['path']) {
+  return (path ?? [])
+    .map((part) => (typeof part === 'object' && part !== null ? part.key : part))
+    .filter((part) => part !== undefined)
+    .map(String)
+    .join('.')
 }
 ```
 
