@@ -53,21 +53,13 @@ Inbound adapters calling use-cases is correct. The forbidden direction is use-ca
 
 Layering:
 
-- [Domain Is Pure](references/layer-domain-pure.md)
-- [Use-Cases Do Not Import Outbound](references/layer-use-case-no-outbound.md)
-- [Inbound Is Composition Root](references/layer-inbound-is-composition-root.md)
-- [Runtime Flow vs Compile-Time Imports](references/layer-runtime-vs-compile-time.md)
+- [Clean Architecture Boundaries](references/layer-clean-architecture-boundaries.md)
 - [Enforce Boundaries With ESLint](references/layer-eslint-boundaries.md)
-- [Feature Build Order](references/layer-feature-build-order.md)
 - [Route `_internal` Is Private](references/layer-private-internal-folder.md)
-- [Stack Substitutions Preserve Roles](references/layer-stack-substitutions.md)
 
 Security:
 
-- [DAL Is Server-Only](references/security-dal-server-only.md)
-- [Reverify In Server Actions](references/security-reverify-in-action.md)
-- [Proxy Is Not The Auth Boundary](references/security-proxy-not-auth-boundary.md)
-- [Return DTOs, Not Raw Rows](references/security-dto-not-raw-rows.md)
+- [Server Data Boundary](references/security-server-data-boundary.md)
 - [Validate Environment Variables](references/security-env-validation.md)
 
 Data and persistence:
@@ -75,30 +67,22 @@ Data and persistence:
 - [Route Handlers For Service APIs](references/api-route-handlers-for-service-apis.md)
 - [Use Idempotency Keys For Service Commands](references/api-idempotency-key-for-commands.md)
 - [Verify Webhook Signatures Before Parsing](references/api-webhook-signature-verification.md)
-- [RSC Reads Default, TanStack Opt-In](references/data-rsc-default-tanstack-optin.md)
-- [CQRS: Commands vs Reads](references/data-cqrs-actions-vs-rsc.md)
+- [RSC And TanStack Ownership](references/data-rsc-and-tanstack-boundaries.md)
 - [Server Prefetch And Hydration](references/data-server-prefetch-hydration.md)
-- [No TanStack Query In RSC](references/data-no-tanstack-in-rsc.md)
-- [Avoid TanStack Mutations When Reads Are RSC-Owned](references/data-tanstack-mutation-vs-revalidate-tag.md)
-- [Supabase RLS Uses `(select auth.uid())`](references/data-supabase-rls-select-auth-uid.md)
-- [RLS `with check` Locks Identity Columns](references/data-supabase-rls-with-check-locks-self-promotion.md)
-- [Decide The DELETE RLS Policy Explicitly](references/data-supabase-rls-delete-policy-parity.md)
+- [Supabase RLS Policies](references/data-supabase-rls-policies.md)
 
 Cache Components:
 
 - [Enable Cache Components Explicitly](references/cache-components-top-level.md)
-- [Cached Functions Need Stable Inputs](references/cache-stable-imports.md)
-- [Use `revalidateTag(tag, 'max')`](references/cache-revalidate-tag-with-profile.md)
-- [Use `updateTag` For Read-Your-Writes](references/cache-update-tag-read-your-writes.md)
-- [No Blind User-Specific Cache](references/cache-no-blind-user-specific.md)
+- [Cached Functions Need Stable Scoped Inputs](references/cache-stable-user-scoped-inputs.md)
+- [Tag-Based Cache Invalidation](references/cache-tag-invalidation.md)
 - [Suspense Around Dynamic Reads](references/cache-suspense-around-dynamic.md)
 
 Server Actions:
 
 - [Server Actions Are Thin Wrappers](references/actions-thin-wrapper.md)
-- [Use `.inputSchema`, Not Legacy Schema APIs](references/actions-input-schema-not-schema.md)
+- [Validated Input And Authorization](references/actions-validated-input-and-authz.md)
 - [Use State Actions For Progressive Forms](references/actions-state-action-for-forms.md)
-- [Use `.useValidated()` For Input-Dependent Authz](references/actions-use-validated-for-authz.md)
 - [Do Not Bind Secrets To Actions](references/actions-bind-no-secrets.md)
 
 Routes:

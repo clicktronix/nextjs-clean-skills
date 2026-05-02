@@ -32,7 +32,7 @@ Use this skill for React UI work in a Next.js 16 codebase. Prefer target reposit
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
-[^1]: TanStack Query is opt-in for realtime, polling, infinite scroll, optimistic updates, or when many islands must share the same async/server-state cache lifecycle. See [RSC Reads Default, TanStack Opt-In](../nextjs-architecture/references/data-rsc-default-tanstack-optin.md) and [Avoid TanStack Mutations When Reads Are RSC-Owned](../nextjs-architecture/references/data-tanstack-mutation-vs-revalidate-tag.md).
+[^1]: TanStack Query is opt-in for realtime, polling, infinite scroll, optimistic updates, or when many islands must share the same async/server-state cache lifecycle. See [RSC And TanStack Ownership](../nextjs-architecture/references/data-rsc-and-tanstack-boundaries.md).
 [^2]: See [Context First, Zustand Last](references/state-context-first-over-zustand.md). Default to Context with split providers; Zustand earns its place only with measured perf or middleware needs.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
