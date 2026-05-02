@@ -44,10 +44,11 @@ flowchart TD
   Presentation -->|No| Helper["lib/ pure helper"]
 ```
 
-> Disambiguator: a helper that talks to Supabase but is consumed by **multiple** use-cases
-> (env validation, logger, cache tag taxonomy, query client setup) belongs in
-> `infrastructure/`, **not** `adapters/outbound/`. Outbound adapters implement the port of
-> one specific feature; infrastructure is shared plumbing.
+> Disambiguator: shared technical plumbing that does **not** implement a feature use-case port
+> (env validation, logger, cache tag taxonomy, query client setup) belongs in `infrastructure/`
+> or `lib/`, not `adapters/outbound/`. Generic Supabase client factories can live in their own
+> adapter/support folder; feature repositories belong in `adapters/outbound/` because they
+> implement use-case ports.
 
 ## Server Action vs Route Handler
 
