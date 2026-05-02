@@ -35,12 +35,19 @@ flowchart TD
   Framework -->|Yes| InboundOrDAL{"Read or command?"}
   InboundOrDAL -->|Read| DAL["server-only DAL/read entrypoint"]
   InboundOrDAL -->|Command| Inbound["adapters/inbound/next/"]
-  Framework -->|No| Persistence{"Talks to DB/API/queue?"}
+  Framework -->|No| Reusable{"Reusable across many\nuse-cases or features?"}
+  Reusable -->|Yes| Infra["infrastructure/ or lib/"]
+  Reusable -->|No| Persistence{"Implements a use-case's port\n(DB / API / queue)?"}
   Persistence -->|Yes| Outbound["adapters/outbound/"]
   Persistence -->|No| Presentation{"Presentation concern?"}
   Presentation -->|Yes| UI["app/ or ui/"]
-  Presentation -->|No| Infra["infrastructure/ or lib/"]
+  Presentation -->|No| Helper["lib/ pure helper"]
 ```
+
+> Disambiguator: a helper that talks to Supabase but is consumed by **multiple** use-cases
+> (env validation, logger, cache tag taxonomy, query client setup) belongs in
+> `infrastructure/`, **not** `adapters/outbound/`. Outbound adapters implement the port of
+> one specific feature; infrastructure is shared plumbing.
 
 ## Server Action vs Route Handler
 
@@ -72,7 +79,11 @@ flowchart TD
   Tests -->|Yes| Accept["Accept architecture shape"]
 ```
 
-## Minimal Agent Prompt Add-on
+## Copy This Block To Your Agent's System Prompt
+
+> Paste verbatim into the system prompt, agent rules file, or CLAUDE.md instructions.
+> It forces architecture classification before code edits, which catches misplaced files
+> at planning time instead of review time.
 
 ```text
 Before editing, classify the change:
@@ -83,3 +94,8 @@ Before editing, classify the change:
 
 Then implement in layer order. Do not import outbound adapters from use-cases.
 ```
+
+---
+
+*Last reviewed against the live skill set: 2026-05-03 (skill version 1.1.0). When a skill rule
+or template pattern changes, refresh this document in the same PR.*

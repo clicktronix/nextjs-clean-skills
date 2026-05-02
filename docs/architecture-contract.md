@@ -4,6 +4,10 @@ This document is the human-readable model behind the `nextjs-architecture` and
 `react-component-creator` skills. The skills are short operational guardrails; this document is
 the rationale and visual map for teams.
 
+> **Terms:** DAL, port, adapter, composition root, inbound, outbound, server-state — all
+> defined in [`plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
+> Open it side-by-side if any term feels unfamiliar.
+
 ## Purpose
 
 The architecture combines Next.js App Router with ports-and-adapters discipline:
@@ -14,33 +18,79 @@ The architecture combines Next.js App Router with ports-and-adapters discipline:
 
 ## Layer Dependency Graph
 
+Nodes are grouped by the layer they belong to. Solid arrows are compile-time imports; the
+dotted edge is a runtime relationship (implementation, not import).
+
 ```mermaid
 flowchart LR
-  RSC["app/ server entrypoints\npages + layouts + RSC"] --> DAL["server-only DAL/read entrypoints"]
-  ClientUI["client UI components"] --> ServerState["ui/server-state/\nTanStack Query hooks"]
-  ClientUI --> LocalActions["feature-local actions.ts\nthin form/action wrappers"]
-  SharedUI["shared ui/components\npresentation only"] -. "no data access" .-> ClientUI
-  ServerState --> Inbound["adapters/inbound/next/\nServer Actions + Route Handlers"]
+  subgraph Presentation["Presentation"]
+    RSC["app/ server entrypoints\npages + layouts + RSC"]
+    ClientUI["client UI components"]
+    SharedUI["shared ui/components\npresentation only"]
+  end
+  subgraph ClientServerBridge["Client server-state"]
+    ServerState["ui/server-state/\nTanStack Query hooks"]
+    LocalActions["feature-local actions.ts\nthin form/action wrappers"]
+  end
+  subgraph Server["Server entrypoints"]
+    DAL["server-only DAL/read entrypoints"]
+    Inbound["adapters/inbound/next/\nServer Actions + Route Handlers"]
+    OutboundFactories["outbound factories\ncomposition root"]
+  end
+  subgraph Application["Application core"]
+    UseCases["use-cases/\napplication orchestration + ports"]
+    Domain["domain/\nValibot schemas + pure rules"]
+  end
+  subgraph Persistence["Persistence + integrations"]
+    Outbound["adapters/outbound/\nSupabase, APIs, queues"]
+  end
+
+  RSC --> DAL
+  ClientUI --> ServerState
+  ClientUI --> LocalActions
+  SharedUI -. "no data access" .-> ClientUI
+  ServerState --> Inbound
   LocalActions --> Inbound
-  DAL --> UseCases["use-cases/\napplication orchestration + ports"]
+  DAL --> UseCases
   Inbound --> UseCases
-  Inbound --> OutboundFactories["outbound factories\ncomposition root"]
-  OutboundFactories --> Outbound["adapters/outbound/\nSupabase, APIs, queues"]
-  Outbound --> Domain["domain/\nValibot schemas + pure rules"]
+  Inbound --> OutboundFactories
+  OutboundFactories --> Outbound
   UseCases --> Domain
-  Outbound -. implements ports .-> UseCases
+  Outbound --> Domain
+  Outbound -. "implements ports" .-> UseCases
 ```
 
 The important distinction: inbound adapters may create outbound implementations at runtime, but
 use-cases must not import those implementations at compile time.
 
-Forbidden imports:
+### Why these imports are forbidden
 
-- `domain/` must not import `app/`, `ui/`, use-cases, adapters, infrastructure, or framework APIs.
-- `use-cases/` must not import inbound adapters, outbound adapters, Supabase clients, React,
-  TanStack Query, or Next.js request/cache APIs.
-- Client Components must not import server-only DAL modules, server Supabase clients, service-role
-  clients, or secret-bearing env helpers.
+The skill references list these as rules. The point of this section is to explain **why** —
+so that next year, when someone is tempted to "just import this Supabase client into a
+use-case for convenience", the rationale is preserved.
+
+- **`domain/` imports nothing project-specific.** Schemas and pure rules must remain framework-
+  agnostic so they keep working across Edge runtime, Node runtime, tests, future workers, and
+  any future deploy target. The day a Valibot schema imports `next/headers`, you can no longer
+  unit-test domain logic without a Next.js request context, and you cannot reuse the schema in
+  a queue worker or a CLI.
+
+- **`use-cases/` cannot import adapters or framework APIs.** Use-cases describe *what* needs
+  to happen; ports describe *what capability* is needed; adapters decide *how* it is provided.
+  If a use-case imports a concrete Supabase repository, you can no longer swap it for Drizzle
+  or REST in tests or in another deployment without rewriting business rules. The same logic
+  blocks `react`, `next/cache`, `next/headers`, TanStack Query, and clocks: each of them ties
+  application logic to a specific runtime instead of a port.
+
+- **Client Components cannot import server-only modules.** `import 'server-only'` is a build-
+  time guard against accidentally bundling secrets, service-role clients, or cookie/session
+  decoders into the browser. A single forbidden import can leak a service-role key into the
+  public JS bundle.
+
+- **Inbound adapters MAY import outbound factories.** This is the composition root: someone
+  has to wire a concrete Supabase repository into a use-case at runtime. Server Actions and
+  Route Handlers are the natural place for that wiring. The rule is one-way — outbound adapters
+  never import inbound, and use-cases never import either.
 
 ## Runtime Flow vs Import Direction
 
@@ -104,11 +154,14 @@ DTOs rather than leaking raw database rows or service-role data.
 
 ```mermaid
 flowchart LR
-  UseCase["use-case"] --> Port["Repository port"]
-  Adapter["Supabase repository"] --> Port
+  UseCase["use-case"] -->|"depends on"| Port["Repository port"]
+  Port -. "implemented by" .-> Adapter["Supabase repository"]
   Adapter --> SQL["Postgres + RLS"]
   SQL --> Policy["RLS policies\n(select auth.uid())\nwith check authority columns"]
 ```
+
+Read the dotted edge as "is satisfied by" — the use-case never knows about the Supabase
+repository, only its port. The adapter sits below the port and implements it.
 
 Use-cases describe what persistence capability they need. Outbound adapters decide how Supabase,
 RPCs, transactions, queues, or external APIs implement that capability.
@@ -126,7 +179,7 @@ flowchart TD
   Scope -->|One component| Local["useState/useReducer"]
   Scope -->|One route| FeatureHook["feature-local hook"]
   Scope -->|Global static config| Context["React Context"]
-  Scope -->|Hot shared dynamic state| Zustand["External store opt-in\nwhen justified"]
+  Scope -->|Hot shared UI state| Zustand["External store opt-in\nwhen justified"]
 ```
 
 Do not put server data in Context, Zustand, or local state. Client stores own UI behavior, not
@@ -142,3 +195,8 @@ backend truth.
 | External API syntax | No | No, link to official docs |
 | Long implementation walkthroughs | No | Sometimes, if onboarding needs it |
 | Historical audit notes | No | Archive outside the plugin |
+
+---
+
+*Last reviewed against the live skill set: 2026-05-03 (skill version 1.1.0). When a skill rule
+or template pattern changes, refresh this document in the same PR.*
