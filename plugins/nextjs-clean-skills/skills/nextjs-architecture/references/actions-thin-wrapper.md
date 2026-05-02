@@ -25,8 +25,8 @@ They do not:
 
 ```ts
 export async function createWorkItemAction(input: CreateWorkItem) {
-  if (input.title.length < 3) throw new Error('too short')
-  return supabase.from('work_items').insert(input)
+  if (input.title.length < 3) throw new Error("too short");
+  return supabase.from("work_items").insert(input);
 }
 ```
 
@@ -36,11 +36,13 @@ export async function createWorkItemAction(input: CreateWorkItem) {
 export const createWorkItemAction = authActionClient
   .inputSchema(CreateWorkItemSchema)
   .action(async ({ parsedInput, ctx }) => {
-    const deps = { workItems: createSupabaseWorkItemsRepository(ctx.supabase, ctx.userId) }
-    const result = await createWorkItem(deps, parsedInput)
-    updateTag(`work-items:user:${ctx.userId}`)
-    return result
-  })
+    const deps = {
+      workItems: createSupabaseWorkItemsRepository(ctx.supabase, ctx.userId),
+    };
+    const result = await createWorkItem(deps, parsedInput);
+    updateTag(`work-items:user:${ctx.userId}`);
+    return result;
+  });
 ```
 
 Reference: Next.js Server Actions and next-safe-action input validation.
@@ -76,3 +78,8 @@ handleServerError(error) {
   return createActionError(INTERNAL_ERROR, 'action').message
 }
 ```
+
+Use Route Handlers instead when the caller is an external HTTP client, webhook, queue callback,
+or command that must own HTTP headers/status/idempotency.
+
+Reference: [Route Handlers For Service APIs](api-route-handlers-for-service-apis.md)

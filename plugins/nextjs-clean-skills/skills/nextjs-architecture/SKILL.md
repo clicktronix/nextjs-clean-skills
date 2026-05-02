@@ -72,6 +72,9 @@ Security:
 
 Data and persistence:
 
+- [Route Handlers For Service APIs](references/api-route-handlers-for-service-apis.md)
+- [Use Idempotency Keys For Service Commands](references/api-idempotency-key-for-commands.md)
+- [Verify Webhook Signatures Before Parsing](references/api-webhook-signature-verification.md)
 - [RSC Reads Default, TanStack Opt-In](references/data-rsc-default-tanstack-optin.md)
 - [CQRS: Commands vs Reads](references/data-cqrs-actions-vs-rsc.md)
 - [Server Prefetch And Hydration](references/data-server-prefetch-hydration.md)

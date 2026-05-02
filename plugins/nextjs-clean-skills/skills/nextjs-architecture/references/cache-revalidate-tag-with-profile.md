@@ -6,6 +6,7 @@ Use `revalidateTag(tag, 'max')` when invalidation can be stale-while-revalidate.
 
 Good contexts:
 
+- Server Actions after UI mutations
 - route handlers
 - webhooks
 - background refresh
@@ -27,7 +28,7 @@ Prefer a preset when it matches the product behavior. Use a custom profile only 
 
 ```ts
 export async function webhook() {
-  revalidatePath('/blog')
+  revalidatePath("/blog");
 }
 ```
 
@@ -40,22 +41,22 @@ export default {
   cacheLife: {
     editorial: { stale: 600, revalidate: 3600, expire: 86400 },
   },
-}
+};
 ```
 
 ```ts
 export async function getPublishedPosts() {
-  'use cache'
-  cacheLife('editorial')
-  cacheTag('posts')
-  return listPublishedPosts()
+  "use cache";
+  cacheLife("editorial");
+  cacheTag("posts");
+  return listPublishedPosts();
 }
 ```
 
 ```ts
 export async function POST() {
-  revalidateTag('posts', 'max')
-  return Response.json({ ok: true })
+  revalidateTag("posts", "max");
+  return Response.json({ ok: true });
 }
 ```
 
@@ -65,5 +66,8 @@ Warning:
 - Client-side router cache for prefetched links has a minimum stale time of 30 seconds; a shorter `stale` value can still behave as 30 seconds after prefetch.
 
 Avoid old one-argument tag revalidation in new code. Keep `revalidatePath()` as a fallback for route-level invalidation when tags are not available.
+
+`revalidateTag()` and `revalidatePath()` can be called from Server Actions and Route Handlers.
+`updateTag()` and `refresh()` are different: both are Server Action-only.
 
 Reference: Next.js `cacheLife` and `revalidateTag` API docs.
