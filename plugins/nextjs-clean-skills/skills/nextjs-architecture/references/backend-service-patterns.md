@@ -22,6 +22,8 @@ Route Handler responsibilities:
 - enforce idempotency for retried commands.
 - compose ports/adapters and call use-cases.
 
+Webhook guardrail: verify signatures against the raw body before JSON parsing; use provider SDKs or timing-safe HMAC comparison. Idempotency guardrail: persist `key + request fingerprint + scoped actor` in durable storage, not an in-memory map.
+
 Do not put business rules in the handler. Do not expose raw exceptions. Do not make UI forms call API routes only because they are "more backend"; UI commands should usually be Server Actions.
 
 Keep detailed provider-specific choices in repo docs such as `docs/ARCHITECTURE/BACKEND_SERVICE_PATTERNS.md`.
