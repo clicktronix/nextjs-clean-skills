@@ -20,18 +20,21 @@ export async function POST(request: Request) {
 **Correct (same key + same body returns the same response):**
 
 ```ts
-export async function POST(request: Request) {
-  const key = request.headers.get("idempotency-key");
-  if (!key) return apiErrorWithCode(VALIDATION_ERROR, requestId, 400);
-  const input = parse(CreateWorkItemSchema, await request.json());
-  const command = () => createWorkItem(deps, input);
-  const result = await runIdempotentCommand({ context, key, command });
-  return apiJson(result.data, context.requestId, { status: 201 });
-}
+const key = request.headers.get("idempotency-key");
+if (!key) return apiErrorWithCode(VALIDATION_ERROR, requestId, 400);
+const input = parse(CreateWorkItemSchema, await request.json());
+const result = await runIdempotentCommand({
+  context, key, method: "POST", path, requestBody: input, statusCode: 201,
+  command: () => createWorkItem(deps, input)
+});
+return apiJson(result.data, context.requestId, { status: 201 });
 ```
 
 Store idempotency records in durable storage with user/tenant scope and a request-body hash.
 If the same key is reused with a different body, return conflict. Do not use an in-memory map
 in serverless deployments.
+
+Include enough metadata for your helper to scope replay safely: method, path, status code,
+tenant/user id, and the validated request body.
 
 Reference: HTTP idempotency key patterns for service APIs.
