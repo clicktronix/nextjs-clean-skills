@@ -45,6 +45,40 @@ After install, run `/reload-plugins`. Invoke directly with:
 
 This repository contains a Codex marketplace at `.agents/plugins/marketplace.json` and a Codex plugin manifest at `plugins/nextjs-clean-skills/.codex-plugin/plugin.json`.
 
+Interactive install:
+
+```shell
+codex plugin marketplace add clicktronix/nextjs-clean-skills --ref main
+```
+
+Then open `/plugins`, select the `nextjs-clean-skills` marketplace, and install `nextjs-clean-skills`.
+
+For a consuming repository, prefer a repo marketplace entry instead of copying the skill files:
+
+```json
+{
+  "name": "project-plugins",
+  "plugins": [
+    {
+      "name": "nextjs-clean-skills",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/clicktronix/nextjs-clean-skills.git",
+        "path": "./plugins/nextjs-clean-skills",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
+```
+
+Put that file at `$REPO_ROOT/.agents/plugins/marketplace.json`. Codex installs plugins into its plugin cache; do not vendor-copy `plugins/nextjs-clean-skills/skills/*` into a consuming repository's `.agents/skills/`.
+
 Installed skills:
 
 ```text
