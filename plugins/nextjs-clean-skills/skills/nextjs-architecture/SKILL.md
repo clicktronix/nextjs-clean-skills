@@ -60,6 +60,8 @@ Layering:
 Security:
 
 - [Server Data Boundary](references/security-server-data-boundary.md)
+- [Data Access Layer With `server-only` And React `cache()`](references/security-dal-pattern.md)
+- [Auth Flow With Supabase SSR](references/auth-flow-supabase-ssr.md)
 - [Validate Environment Variables](references/security-env-validation.md)
 
 Data and persistence:
@@ -91,6 +93,10 @@ Routes:
 - [Parallel Routes Need Defaults](references/routes-parallel-default-required.md)
 - [Intercepting Routes For URL-Addressable Modals](references/routes-intercepting-modal-pattern.md)
 - [Avoid Namespace Export Traps](references/routes-namespace-export-trap.md)
+
+Quality:
+
+- [Testing By Layer](references/quality-testing-by-layer.md)
 
 ## Final Checklist
 

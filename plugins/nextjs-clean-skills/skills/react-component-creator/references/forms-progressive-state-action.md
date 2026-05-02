@@ -37,4 +37,12 @@ return (
 )
 ```
 
-Reference: React `useActionState` and next-safe-action `.stateAction()`.
+`useActionState` can surface the Server Function's returned state before hydration. Use the optional `permalink` argument when the form lives on a feed/detail URL and React needs a stable URL to replay the response. Redirect only when success should navigate to another page.
+
+```ts
+const [state, formAction] = useActionState(saveProfileAction, {}, '/profile')
+```
+
+If the action does call `redirect()`, keep it outside `try/catch` because Next throws a `NEXT_REDIRECT` control-flow error.
+
+Reference: React `useActionState` progressive enhancement and next-safe-action `.stateAction()`.

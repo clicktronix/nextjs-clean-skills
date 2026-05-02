@@ -27,8 +27,12 @@ export const updateThing = authActionClient.action(async ({ clientInput, ctx }) 
 ```ts
 export const updateThing = authActionClient
   .inputSchema(UpdateThingSchema)
-  .useValidated(async ({ parsedInput, ctx }) => {
+  .useValidated(async ({ parsedInput, ctx, next }) => {
     await assertTenant(ctx.userId, parsedInput.tenantId)
+    return next()
+  })
+  .action(async ({ parsedInput, ctx }) => {
+    return updateThingUseCase(ctx.deps, parsedInput)
   })
 ```
 

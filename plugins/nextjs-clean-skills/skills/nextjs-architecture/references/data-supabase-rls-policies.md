@@ -23,18 +23,21 @@ create policy users_self_update on public.users
   using ((select auth.uid()) = id);
 ```
 
-**Correct (authority columns pinned):**
+**Correct — `security definer` helper for the role lookup, then pin in `with check`:**
 
 ```sql
+-- private.current_user_role(uuid) is a security definer function that selects
+-- role from public.users; place it in a private schema with search_path=''.
 create policy users_self_update on public.users
   for update to authenticated
   using ((select auth.uid()) = id)
   with check (
     (select auth.uid()) = id
-    and role = (select u.role from public.users u where u.id = (select auth.uid()))
-    and email = (select u.email from public.users u where u.id = (select auth.uid()))
+    and role = private.current_user_role((select auth.uid()))
   );
 ```
+
+Use `security definer` helpers for role or membership lookups that would otherwise query RLS-protected tables from inside policies. Keep those helpers in a private, non-exposed schema and set `search_path = ''`.
 
 Delete policy decision:
 

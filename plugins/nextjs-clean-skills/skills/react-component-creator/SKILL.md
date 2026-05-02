@@ -28,12 +28,12 @@ Use this skill for React UI work in a Next.js 16 codebase. Prefer target reposit
 | URL-shareable state              | `useSearchParams` + `router.replace` (filters, tabs, paging that links should preserve)         |
 | Component-local state            | hook in `lib.ts`                                                                                |
 | Page UI state (one route)        | feature-local `useState`/`useReducer` hook                                                      |
-| Cross-component shared UI state  | React Context provider (Zustand only when Context is the measured bottleneck[^2])               |
+| Cross-component shared UI state  | Start with Context; use Zustand only for measured hot updates or required middleware[^2]         |
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
 [^1]: TanStack Query is opt-in for realtime, polling, infinite scroll, optimistic updates, or when many islands must share the same async/server-state cache lifecycle. See [RSC And TanStack Ownership](../nextjs-architecture/references/data-rsc-and-tanstack-boundaries.md) and [Avoid TanStack Mutations When Reads Are RSC-Owned](../nextjs-architecture/references/data-tanstack-mutation-vs-revalidate-tag.md).
-[^2]: See [Context First, Zustand Last](references/state-context-first-over-zustand.md). Default to Context with split providers; Zustand earns its place only with measured perf or middleware needs.
+[^2]: See [Match The Store To Update Frequency](references/state-store-by-update-frequency.md). Static config (theme/locale/auth status) → Context; dynamic state starts local/Context and moves to Zustand only when profiling or middleware needs justify it.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
 
@@ -51,7 +51,7 @@ State:
 - [Use URL For Shareable State](references/state-url-for-shareable.md)
 - [Server Data Via RSC Props](references/state-server-data-via-rsc-prop.md)
 - [Page UI State In Feature-Local Hooks](references/state-page-ui-feature-local-hooks.md)
-- [Context First, Zustand Last](references/state-context-first-over-zustand.md)
+- [Match The Store To Update Frequency](references/state-store-by-update-frequency.md)
 - [Use React 19 Optimistic State Deliberately](references/state-optimistic-react-19.md)
 - [Do Not Derive State With Effects](references/state-no-derived-effects.md)
 

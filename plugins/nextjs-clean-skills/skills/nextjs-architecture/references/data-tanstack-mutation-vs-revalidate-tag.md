@@ -23,15 +23,20 @@ return useMutation({
 
 **Correct (Next owns the RSC cache tags):**
 
-```ts
+In a `'use client'` module with `useRouter` and `useTransition` imports:
+
+```tsx
 export function useSubmitWorkItem() {
-  return async (input: CreateWorkItem) => {
-    await createWorkItemAction(input)
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const submit = (input: CreateWorkItem) => startTransition(async () => {
+    await createWorkItemAction(input) // calls revalidateTag/updateTag inside
     router.refresh()
-  }
+  })
+  return { isPending, submit }
 }
 ```
 
-Use TanStack mutations when the read path itself is a TanStack query, or when optimistic lifecycle is attached to TanStack-owned data. Otherwise direct action call plus tag invalidation is simpler.
+Use TanStack mutations when the read path itself is a TanStack query, or when optimistic lifecycle is attached to TanStack-owned data. Otherwise direct action call plus tag invalidation is simpler. If the Server Action itself calls `refresh()` from `next/cache`, do not also call `router.refresh()` unless the target repo intentionally wants both refresh points.
 
 Reference: Next.js `revalidateTag`/`updateTag`; TanStack Query mutation lifecycle.

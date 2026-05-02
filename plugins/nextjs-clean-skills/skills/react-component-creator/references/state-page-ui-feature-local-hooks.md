@@ -4,7 +4,7 @@
 
 Page UI state — selected rows, drawer open/close, multi-panel coordination, local sort/view mode — lives in feature-local hooks using `useState`/`useReducer`, scoped to the route segment that owns the UI. It is the default; do not introduce a global store for state that belongs to one page.
 
-If the same UI state must be readable across multiple unrelated subtrees, lift it to a Context provider colocated with that segment. See [Context First, Zustand Last](./state-context-first-over-zustand.md) for when Context is enough and when Zustand is justified.
+If the same UI state must be readable across multiple unrelated subtrees, lift it to a Context provider first. Move to a Zustand store only for measured hot updates or required middleware. See [Match The Store To Update Frequency](./state-store-by-update-frequency.md).
 
 Do not store in this layer:
 
