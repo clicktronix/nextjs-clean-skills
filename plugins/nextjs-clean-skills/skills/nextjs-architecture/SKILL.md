@@ -15,7 +15,7 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 - Inbound adapters are Server Actions or route handlers that compose dependencies and framework concerns.
 - Outbound adapters implement use-case ports for Supabase, APIs, queues, and transport.
 - Read-heavy UI fetches in Server Components through server-only DAL/read entrypoints.
-- TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async/server-state cache lifecycle across client islands. Otherwise reads are RSC props and writes are Server Actions that call `revalidateTag` / `updateTag`.
+- TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async/server-state cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service/API commands.
 - Cache and framework APIs follow current Next.js docs; this skill only decides which layer owns the read/write.
 
 ## Start Here

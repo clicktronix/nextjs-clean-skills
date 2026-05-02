@@ -4,6 +4,8 @@
 
 Use Route Handlers for service APIs, not Server Actions.
 
+Next.js backend capabilities are a BFF/API layer, not a full backend replacement. Use them when the product benefits from colocating frontend-facing service endpoints with the app; move heavy, long-running, or independently-scaled backend work to a dedicated service or durable job provider.
+
 Choose a Route Handler when the caller is:
 
 - external HTTP client

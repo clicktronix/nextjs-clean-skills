@@ -1,5 +1,7 @@
 # Validate Environment Variables
 
+**Impact: HIGH**
+
 Centralize environment access.
 
 Pattern:
@@ -10,3 +12,5 @@ Pattern:
 - forbid direct `process.env` outside env modules with lint rules
 
 Never prefix secrets with `NEXT_PUBLIC_`. Service role keys must be imported only from server-only modules.
+
+Reference: Next.js environment variable bundling model and project env boundary.
