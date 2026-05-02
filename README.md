@@ -97,6 +97,19 @@ $react-component-creator
 - **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
 - **Components**: Server Components by default; `composeHooks(View)(useProps)` for Client Components with logic.
 
+## Human Architecture Docs
+
+The skills are intentionally concise and operational. For team onboarding, rationale, and visual
+maps, use the human-facing docs:
+
+- [Architecture Contract](docs/architecture-contract.md) — layer graph, runtime flow,
+  command/query boundaries, auth boundary, persistence, and state ownership.
+- [Agent Decision Maps](docs/agent-decision-maps.md) — compact flowcharts for prompting and
+  reviewing coding agents.
+
+These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
+contract behind the skills without bloating skill context.
+
 ## Compatibility
 
 These skills assume the target app uses the current Next.js 16 App Router model:
