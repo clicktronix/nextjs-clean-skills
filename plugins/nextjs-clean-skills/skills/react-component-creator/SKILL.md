@@ -1,11 +1,11 @@
 ---
 name: react-component-creator
-description: Use when creating or refactoring React components in Next.js 16, deciding between Server and Client Components, or wiring forms, tables, view hooks, composeHooks, Mantine, Valibot, state, styling, or i18n.
+description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app, deciding Server vs Client boundary, component file structure, composeHooks usage, form/action boundary, state placement, styling, or i18n conventions.
 ---
 
 # React Component Creator
 
-Use this skill for React UI work in a Next.js 16 codebase. Prefer target repository component docs and nearby components when they are stricter than this profile.
+Use this skill for UI structure decisions in a Next.js 16 codebase. It is a project convention guide, not React, Mantine, Valibot, or i18n API documentation. For exact API syntax, fetch current official docs.
 
 ## Defaults
 
@@ -32,55 +32,18 @@ Use this skill for React UI work in a Next.js 16 codebase. Prefer target reposit
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
-[^1]: TanStack Query is opt-in for realtime, polling, infinite scroll, optimistic updates, or when many islands must share the same async/server-state cache lifecycle. See [RSC And TanStack Ownership](../nextjs-architecture/references/data-rsc-and-tanstack-boundaries.md) and [Avoid TanStack Mutations When Reads Are RSC-Owned](../nextjs-architecture/references/data-tanstack-mutation-vs-revalidate-tag.md).
-[^2]: See [Match The Store To Update Frequency](references/state-store-by-update-frequency.md). Static config (theme/locale/auth status) → Context; dynamic state starts local/Context and moves to Zustand only when profiling or middleware needs justify it.
+[^1]: See [Data Ownership, Cache, And TanStack](../nextjs-architecture/references/data-ownership-cache-tanstack.md).
+[^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or middleware needs justify it.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
 
 ## Reference Map
 
-Boundaries:
-
-- [Default To Server Components](references/boundary-default-server-component.md)
-- [Keep Client Trees Minimal](references/boundary-use-client-minimal-tree.md)
-- [No Client Hooks In RSC](references/boundary-no-hooks-in-rsc.md)
-- [Server To Client Props Are Serializable](references/boundary-serializable-props.md)
-
-State:
-
-- [Use URL For Shareable State](references/state-url-for-shareable.md)
-- [Server Data Via RSC Props](references/state-server-data-via-rsc-prop.md)
-- [Page UI State In Feature-Local Hooks](references/state-page-ui-feature-local-hooks.md)
-- [Match The Store To Update Frequency](references/state-store-by-update-frequency.md)
-- [Use React 19 Optimistic State Deliberately](references/state-optimistic-react-19.md)
-- [Do Not Derive State With Effects](references/state-no-derived-effects.md)
-
-composeHooks:
-
-- [composeHooks Only For Client Logic](references/compose-only-client-with-logic.md)
-- [composeHooks Generic Order](references/compose-generic-order.md)
-- [No Namespace Object Exports](references/compose-no-namespace-export.md)
-- [No Barrel Index Files](references/compose-no-barrel-index.md)
-
-Forms:
-
-- [Progressive Forms Use Action State](references/forms-progressive-state-action.md)
-- [Mirror Validation On Server](references/forms-server-validation-mirror.md)
-- [Mantine + Valibot Through Standard Schema](references/forms-mantine-valibot-standard-schema.md)
-- [Form Mutation Error Handling](references/forms-error-handling-mutation.md)
-- [Server Actions Return Error Keys](references/forms-server-action-error-key.md)
-
-Styling:
-
-- [Mantine Props First](references/styling-mantine-props-first.md)
-- [Avoid Inline Styles](references/styling-no-inline-except-dynamic.md)
-- [CSS Modules For Custom Styling](references/styling-css-modules-for-custom.md)
-
-i18n:
-
-- [TranslationText In Client UI](references/i18n-translation-text-client-only.md)
-- [Server-Side i18n Via Async Translations](references/i18n-server-side-via-get-translations.md)
-- [Locale Cookie Seeded By Proxy](references/i18n-locale-cookie-via-proxy.md)
+- [Server/Client Boundary](references/server-client-boundary.md)
+- [Component Structure And composeHooks](references/component-structure-composehooks.md)
+- [Forms And Actions](references/forms-and-actions.md)
+- [State Placement](references/state-placement.md)
+- [Styling And i18n](references/styling-and-i18n.md)
 
 ## Workflow
 

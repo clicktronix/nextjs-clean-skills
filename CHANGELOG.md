@@ -4,35 +4,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-03
+
 ### Added
 
-- New rule `security-dal-pattern.md` codifying the Next.js 16 Data Access Layer: `import 'server-only'`, React `cache()` for per-request dedup of `verifySession`, and DTO mapping out of repositories. Validated against the official Next.js authentication docs.
-- New rule `auth-flow-supabase-ssr.md` documenting the three Supabase SSR integration points (proxy `getUser()` for token refresh, DAL `verifySession`, AuthContext bootstrap from SSR + `onAuthStateChange`). Includes the explicit "DO NOT REMOVE auth.getUser()" rule from Supabase docs.
-- New rule `quality-testing-by-layer.md` defining the testing strategy per layer (domain/use-cases/outbound/inbound/UI/e2e), what to mock at each boundary, `mock.module` Bun-specific gotchas, and serialized-CI fallback.
-- New rule `state-store-by-update-frequency.md` (replaces `state-context-first-over-zustand.md`) — picks the client store by update frequency and evidence: static config (theme/locale/auth status) → Context, frequently-updated state starts local/Context and moves to Zustand only after measurement or middleware needs.
-- Consolidated TanStack ownership guidance into `data-rsc-and-tanstack-boundaries.md` and kept the focused `data-tanstack-mutation-vs-revalidate-tag.md` rule for mutation ownership decisions.
-- New rule `forms-server-action-error-key.md` covering progressive-enhancement i18n: server actions return typed `errorKey` values; the client-side hook localizes them via `intl.formatMessage`.
-- New rule `i18n-locale-cookie-via-proxy.md` for seeding the locale cookie inside `src/proxy.ts` from `Accept-Language` (alternative to migrating to `next-intl`).
-- Consolidated Supabase RLS guidance into `data-supabase-rls-policies.md`, including `(select auth.uid())`, `with check` identity locks, and explicit DELETE policy decisions.
+- Added architecture-first consolidated references: glossary, Clean Architecture boundaries, runtime/compile-time boundaries, security/DAL/auth, data ownership, backend service boundaries, Supabase persistence boundaries, and testing by layer.
+- Added UI convention references for Server/Client boundary, component structure with `composeHooks`, forms/actions, state placement, and styling/i18n.
 
 ### Changed
 
-- Expanded `forms-progressive-state-action.md` with the explicit no-JS contract: `useActionState`'s state only re-renders after hydration, so true progressive enhancement requires the action itself to call `redirect()` on success (outside the `try/catch`).
-- Tightened TanStack opt-in guidance: removed weakly-justified entries, added explicit anti-patterns (e.g. submit-disabled UX -> `useTransition`, "client filters" -> URL state, redundant `invalidateQueries` after `revalidateTag`).
-- Consolidated `nextjs-architecture` from 38 references to 23 references by merging rules that answered the same decision point: layer boundaries, server data boundaries, RSC/TanStack ownership, RLS policies, cache invalidation, cache scoped inputs, and action validation/authz.
-- Corrected copy-ready examples for `.useValidated()`, Supabase RLS authority pinning, and direct Server Action submit hooks after validating against current upstream docs.
-- Refactored `react-component-creator/SKILL.md` state-placement table: split "Page UI state" (one route, default `useState`/`useReducer`) from "Cross-component shared UI state" (Context first, Zustand only when measured) and added a "URL-shareable state" row. Footnotes link the new TanStack and store-selection rules.
-- Updated `state-page-ui-feature-local-hooks.md` to defer cross-tree state explicitly to the new store-selection rule rather than equating Zustand and Context.
-- Tightened `nextjs-architecture/SKILL.md` defaults: TanStack Query is documented as auxiliary/opt-in; default writes are Server Actions calling `revalidateTag`/`updateTag`.
-- Expanded `actions-thin-wrapper.md` with an `## Error Boundary Contract` section codifying how to map authentication, authorization, validation, conflict, not-found, and rate-limit failures to the public action error format instead of collapsing them into a generic internal error.
-- Expanded `i18n-server-side-via-get-translations.md` with a `## Locale Detection Boundary` subsection: detection lives at the request boundary (typically `proxy.ts`), root layouts stay non-dynamic when proxy already resolves the locale, and single-locale apps must keep `SUPPORTED_LOCALES`/`DEFAULT_LOCALE` aligned with the actual translated copy.
-- Expanded `i18n-translation-text-client-only.md` to forbid shipping a fake locale or selector solely to demonstrate i18n; secondary locales require translated messages, detection, tests, and selector options together.
-- Expanded `forms-error-handling-mutation.md` with the explicit error-category taxonomy (validation / authentication / authorization / conflict / unexpected) so wrappers do not collapse all action failures into one generic message.
-- Reformatted reference files for consistent CommonMark blank-line spacing after section labels and before bullet lists, and unified table column alignment in `react-component-creator/SKILL.md`.
-- Replaced the homemade YAML frontmatter parser with the `yaml` library; multi-line, quoted, and array values now round-trip correctly.
-- Migrated `validate-json-schemas.mjs` and `validate-skill-frontmatter.mjs` to AJV with declarative JSON Schemas under `schemas/`. Manifest files reference their schemas via `$schema` for IDE autocomplete.
-- Upgraded `lint-no-content-duplication.mjs` from exact-line matching to word-shingle (5-gram) Jaccard similarity. Reports near-duplicates above 0.85 (error) and high-overlap paragraphs above 0.70 (warning) across SKILL.md and references.
-- Replaced the Zustand-by-default page-UI rule with `state-page-ui-feature-local-hooks.md`; `useState`/`useReducer` is now the documented default and Zustand is opt-in only when state must be shared across sibling routes.
+- Reduced the reference corpus from 51 files to 14 focused decision files.
+- Reframed both skills as architecture/convention contracts instead of Next.js, React, Supabase, Mantine, or TanStack documentation snapshots.
+- Updated `nextjs-architecture/SKILL.md` to route by layer, boundary, data owner, service API, persistence, and test strategy.
+- Updated `react-component-creator/SKILL.md` to route by UI boundary, file structure, forms/actions, state placement, styling, and i18n conventions.
+
+### Removed
+
+- Removed granular API-doc rules for Cache Components, parallel/intercepting routes, exact action APIs, webhook/idempotency details, Mantine styling, i18n APIs, and React hook basics. Consumers should fetch current official docs for syntax.
 
 ## [1.0.1] - 2026-05-01
 

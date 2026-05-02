@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/codex-plugin-manifest.schema.json",
   "name": "nextjs-clean-skills",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
   "author": {
     "name": "Clicktronix",

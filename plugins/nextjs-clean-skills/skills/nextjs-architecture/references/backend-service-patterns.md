@@ -1,0 +1,27 @@
+# Backend Service Patterns
+
+**Impact: HIGH**
+
+Use Route Handlers for service APIs, not Server Actions.
+
+Choose a Route Handler when the caller is:
+
+- external HTTP client
+- webhook provider
+- queue/cron callback
+- mobile/native app
+- internal service needing status codes, headers, signatures, or idempotency
+
+Route Handler responsibilities:
+
+- create request context: request id, auth/service identity, locale if needed.
+- parse request and return a stable JSON envelope.
+- verify webhook signatures before trusting parsed data.
+- enforce idempotency for retried commands.
+- compose ports/adapters and call use-cases.
+
+Do not put business rules in the handler. Do not expose raw exceptions. Do not make UI forms call API routes only because they are "more backend"; UI commands should usually be Server Actions.
+
+Keep detailed provider-specific choices in repo docs such as `docs/ARCHITECTURE/BACKEND_SERVICE_PATTERNS.md`.
+
+Reference: Next.js Route Handlers as service API boundaries.

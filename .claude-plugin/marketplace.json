@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Portable Claude Code skills for Next.js 16 Hybrid Clean Architecture and React Server/Client Component design.",
-    "version": "1.0.1"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "nextjs-clean-skills",
       "source": "./plugins/nextjs-clean-skills",
       "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "keywords": [
         "clean-architecture",
         "nextjs",

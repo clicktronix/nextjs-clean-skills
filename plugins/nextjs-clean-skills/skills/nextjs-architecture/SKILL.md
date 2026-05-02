@@ -1,11 +1,11 @@
 ---
 name: nextjs-architecture
-description: Use when adding or refactoring features in Next.js 16 with Hybrid Clean Architecture, deciding code placement across domain/use-cases/adapters/server-state/UI layers, or wiring data flow, cache, Server Actions, routes, and security boundaries.
+description: Use when adding or refactoring features in a Next.js 16 Hybrid Clean Architecture app, deciding layer placement, dependency direction, data ownership, auth boundaries, service API boundaries, persistence adapters, or tests by layer.
 ---
 
 # Next.js Architecture
 
-Use this skill for full-stack Next.js feature slices and architecture decisions. Prefer the target repository's `AGENTS.md`, architecture docs, and nearby vertical slices when they are stricter than this profile.
+Use this skill for full-stack Next.js feature slices and architecture decisions. It is an architecture contract, not a replacement for Next.js, React, Supabase, or TanStack docs. For API syntax, fetch current official docs.
 
 ## Default Profile
 
@@ -16,7 +16,7 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 - Outbound adapters implement use-case ports for Supabase, APIs, queues, and transport.
 - Read-heavy UI fetches in Server Components through server-only DAL/read entrypoints.
 - TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async/server-state cache lifecycle across client islands. Otherwise reads are RSC props and writes are Server Actions that call `revalidateTag` / `updateTag`.
-- Cache Components use `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
+- Cache and framework APIs follow current Next.js docs; this skill only decides which layer owns the read/write.
 
 ## Start Here
 
@@ -51,52 +51,26 @@ Inbound adapters calling use-cases is correct. The forbidden direction is use-ca
 
 ## Reference Map
 
-Layering:
+Core:
 
-- [Clean Architecture Boundaries](references/layer-clean-architecture-boundaries.md)
-- [Enforce Boundaries With ESLint](references/layer-eslint-boundaries.md)
-- [Route `_internal` Is Private](references/layer-private-internal-folder.md)
+- [Glossary](references/glossary.md)
+- [Clean Architecture Boundaries](references/clean-architecture-boundaries.md)
+- [Runtime And Compile-Time Boundaries](references/runtime-and-compile-time-boundaries.md)
 
 Security:
 
-- [Server Data Boundary](references/security-server-data-boundary.md)
-- [Data Access Layer With `server-only` And React `cache()`](references/security-dal-pattern.md)
-- [Auth Flow With Supabase SSR](references/auth-flow-supabase-ssr.md)
+- [Security, DAL, And Auth](references/security-dal-and-auth.md)
 - [Validate Environment Variables](references/security-env-validation.md)
 
 Data and persistence:
 
-- [Route Handlers For Service APIs](references/api-route-handlers-for-service-apis.md)
-- [Use Idempotency Keys For Service Commands](references/api-idempotency-key-for-commands.md)
-- [Verify Webhook Signatures Before Parsing](references/api-webhook-signature-verification.md)
-- [RSC And TanStack Ownership](references/data-rsc-and-tanstack-boundaries.md)
-- [Avoid TanStack Mutations When Reads Are RSC-Owned](references/data-tanstack-mutation-vs-revalidate-tag.md)
-- [Server Prefetch And Hydration](references/data-server-prefetch-hydration.md)
-- [Supabase RLS Policies](references/data-supabase-rls-policies.md)
-
-Cache Components:
-
-- [Enable Cache Components Explicitly](references/cache-components-top-level.md)
-- [Cached Functions Need Stable Scoped Inputs](references/cache-stable-user-scoped-inputs.md)
-- [Tag-Based Cache Invalidation](references/cache-tag-invalidation.md)
-- [Suspense Around Dynamic Reads](references/cache-suspense-around-dynamic.md)
-
-Server Actions:
-
-- [Server Actions Are Thin Wrappers](references/actions-thin-wrapper.md)
-- [Validated Input And Authorization](references/actions-validated-input-and-authz.md)
-- [Use State Actions For Progressive Forms](references/actions-state-action-for-forms.md)
-- [Do Not Bind Secrets To Actions](references/actions-bind-no-secrets.md)
-
-Routes:
-
-- [Parallel Routes Need Defaults](references/routes-parallel-default-required.md)
-- [Intercepting Routes For URL-Addressable Modals](references/routes-intercepting-modal-pattern.md)
-- [Avoid Namespace Export Traps](references/routes-namespace-export-trap.md)
+- [Data Ownership, Cache, And TanStack](references/data-ownership-cache-tanstack.md)
+- [Backend Service Patterns](references/backend-service-patterns.md)
+- [Supabase Persistence Boundaries](references/supabase-persistence-boundaries.md)
 
 Quality:
 
-- [Testing By Layer](references/quality-testing-by-layer.md)
+- [Testing By Layer](references/testing-by-layer.md)
 
 ## Final Checklist
 
