@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { parse as parseYaml } from 'yaml'
 
 export const root = process.cwd()
 
@@ -34,13 +35,10 @@ export function fail(messages) {
 export function parseFrontmatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n/)
   if (!match) return null
-  const data = {}
-  for (const line of match[1].split('\n')) {
-    const separatorIndex = line.indexOf(':')
-    if (separatorIndex === -1) continue
-    const key = line.slice(0, separatorIndex).trim()
-    const value = line.slice(separatorIndex + 1).trim().replace(/^["']|["']$/g, '')
-    data[key] = value
+  try {
+    const parsed = parseYaml(match[1])
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
   }
-  return data
 }

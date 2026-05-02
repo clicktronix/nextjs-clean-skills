@@ -3,6 +3,7 @@
 When authorization depends on parsed input, run it after input validation.
 
 Examples:
+
 - resource ownership by `resourceId`
 - tenant membership by `tenantId`
 - workflow permission by `status`

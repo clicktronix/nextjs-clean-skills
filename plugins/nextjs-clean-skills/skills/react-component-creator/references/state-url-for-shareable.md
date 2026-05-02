@@ -3,6 +3,7 @@
 Put state in the URL when it should survive reloads or be shareable.
 
 Good URL state:
+
 - search query
 - filters
 - sorting

@@ -3,6 +3,7 @@
 Add `'use client'` at the smallest component boundary that needs it.
 
 Client-only reasons:
+
 - event handlers
 - `useState`, `useEffect`, `useMemo`, refs, timers
 - browser APIs

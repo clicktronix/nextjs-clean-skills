@@ -3,6 +3,7 @@
 Start every new component as a Server Component.
 
 Keep it server-side when it:
+
 - fetches read-heavy data
 - renders request-time or static content
 - does not need event handlers, browser APIs, stateful hooks, or refs

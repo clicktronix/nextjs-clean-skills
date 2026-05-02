@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/codex-plugin-manifest.schema.json",
   "name": "nextjs-clean-skills",
   "version": "1.0.1",
   "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",

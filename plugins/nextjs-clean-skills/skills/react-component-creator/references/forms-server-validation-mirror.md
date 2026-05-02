@@ -3,6 +3,7 @@
 Client validation is UX. Server validation is authority.
 
 Rules:
+
 - reuse the same Valibot/Standard Schema when possible
 - parse input in the Server Action boundary
 - return field-level errors in action state or mutation error mapping

@@ -1,4 +1,5 @@
 {
+  "$schema": "../../../schemas/claude-plugin-manifest.schema.json",
   "name": "nextjs-clean-skills",
   "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
   "version": "1.0.1",

@@ -3,10 +3,12 @@
 Props crossing from Server Components to Client Components must be serializable.
 
 Pass:
+
 - strings, numbers, booleans, arrays, plain objects, null
 - DTOs with sensitive fields stripped
 
 Do not pass:
+
 - functions
 - class instances
 - database clients

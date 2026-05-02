@@ -58,7 +58,7 @@ $react-component-creator
 - **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
 - **Reads**: Server Components through server-only DAL/read use-cases by default.
-- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared client cache.
+- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared async/server-state cache lifecycle across client islands.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
 - **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
 - **Components**: Server Components by default; `composeHooks(View)(useProps)` for Client Components with logic.

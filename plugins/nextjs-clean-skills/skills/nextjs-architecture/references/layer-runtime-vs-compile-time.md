@@ -3,12 +3,14 @@
 Do not confuse a runtime call chain with allowed imports.
 
 Runtime can be:
+
 - UI submits a form to a Server Action
 - Server Action calls a use-case
 - use-case calls a port
 - outbound adapter implements the port
 
 Compile-time imports must still point inward:
+
 - domain imports nothing
 - use-cases import domain and local ports/types only
 - outbound imports use-case ports and domain

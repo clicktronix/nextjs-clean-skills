@@ -5,12 +5,14 @@
 Use `revalidateTag(tag, 'max')` when invalidation can be stale-while-revalidate. Pair tag invalidation with explicit `cacheLife` profiles so cache behavior is readable at the call site.
 
 Good contexts:
+
 - route handlers
 - webhooks
 - background refresh
 - cross-user data updates where immediate read-your-writes is not required
 
 Preset profiles:
+
 - `default`
 - `seconds`
 - `minutes`
@@ -22,6 +24,7 @@ Preset profiles:
 Prefer a preset when it matches the product behavior. Use a custom profile only when preset semantics are too coarse.
 
 **Incorrect (no profile, route-level invalidation used as the default):**
+
 ```ts
 export async function webhook() {
   revalidatePath('/blog')
@@ -29,6 +32,7 @@ export async function webhook() {
 ```
 
 **Correct (named profile plus tag-based stale-while-revalidate):**
+
 ```ts
 // next.config.ts
 export default {
@@ -56,6 +60,7 @@ export async function POST() {
 ```
 
 Warning:
+
 - `expire` must be longer than `revalidate`.
 - Client-side router cache for prefetched links has a minimum stale time of 30 seconds; a shorter `stale` value can still behave as 30 seconds after prefetch.
 

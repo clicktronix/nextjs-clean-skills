@@ -3,6 +3,7 @@
 Raw database rows often contain fields the UI should not see.
 
 At outbound/DAL boundaries:
+
 - map rows to domain objects or DTOs
 - validate external payloads with schemas
 - strip internal IDs, service flags, provider metadata, and secrets

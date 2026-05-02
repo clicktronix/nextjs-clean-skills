@@ -3,6 +3,7 @@
 Every parallel route slot should have a `default.tsx` unless every navigation state is explicitly handled.
 
 For modal slots:
+
 ```text
 app/dashboard/@modal/default.tsx
 app/dashboard/@modal/(.)items/[id]/page.tsx

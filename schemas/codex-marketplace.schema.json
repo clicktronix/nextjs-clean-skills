@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/clicktronix/nextjs-clean-skills/schemas/codex-marketplace.schema.json",
+  "title": "Codex marketplace manifest",
+  "description": "Schema for .agents/plugins/marketplace.json",
+  "type": "object",
+  "required": ["name", "plugins"],
+  "properties": {
+    "name": { "const": "nextjs-clean-skills" },
+    "interface": {
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "source"],
+        "properties": {
+          "name": { "const": "nextjs-clean-skills" },
+          "source": {
+            "type": "object",
+            "required": ["source", "path"],
+            "properties": {
+              "source": { "const": "local" },
+              "path": { "const": "./plugins/nextjs-clean-skills" }
+            }
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "installation": { "type": "string", "enum": ["AVAILABLE", "PRE_INSTALLED"] },
+              "authentication": { "type": "string", "enum": ["ON_INSTALL", "ON_USE", "NONE"] }
+            }
+          },
+          "category": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

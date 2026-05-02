@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/clicktronix/nextjs-clean-skills/schemas/claude-plugin-manifest.schema.json",
+  "title": "Claude Code plugin manifest",
+  "description": "Schema for plugins/nextjs-clean-skills/.claude-plugin/plugin.json",
+  "type": "object",
+  "required": ["name", "version", "description", "license"],
+  "properties": {
+    "name": { "const": "nextjs-clean-skills" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "description": { "type": "string", "minLength": 1 },
+    "license": { "type": "string", "minLength": 1 },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "required": ["name"]
+    },
+    "homepage": { "type": "string", "format": "uri" }
+  },
+  "additionalProperties": true
+}

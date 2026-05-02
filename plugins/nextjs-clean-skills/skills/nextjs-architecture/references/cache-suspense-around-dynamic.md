@@ -5,6 +5,7 @@
 When Cache Components are enabled, dynamic request data should be isolated behind Suspense boundaries.
 
 Use Suspense for:
+
 - async children with request-time data
 - dynamic sections inside mostly cached shells
 - fallback UI that preserves layout
@@ -16,6 +17,7 @@ Keep cached shells and dynamic personalized islands separate.
 Short-lived caches can create dynamic holes. Reads with no revalidation or very short expiry should live behind a Suspense boundary, otherwise the route may fail prerendering when Cache Components are enabled.
 
 **Incorrect (short-lived request-time read blocks the whole page):**
+
 ```tsx
 export default async function Page() {
   const activity = await getLiveActivity()
@@ -24,6 +26,7 @@ export default async function Page() {
 ```
 
 **Correct (dynamic section isolated):**
+
 ```tsx
 export default function Page() {
   return (

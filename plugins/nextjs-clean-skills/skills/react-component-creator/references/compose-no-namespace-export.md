@@ -3,6 +3,7 @@
 Avoid component namespaces built from object literals.
 
 Bad:
+
 ```ts
 export const Table = { Root, Header, Row }
 ```

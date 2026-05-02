@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/claude-marketplace.schema.json",
   "name": "nextjs-clean-skills",
   "owner": {
     "name": "Clicktronix",

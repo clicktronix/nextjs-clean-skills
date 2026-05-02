@@ -3,6 +3,7 @@
 Centralize environment access.
 
 Pattern:
+
 - `src/infrastructure/env/server.ts` validates server-only variables at module load
 - `src/infrastructure/env/client.ts` exposes only safe `NEXT_PUBLIC_*` variables
 - use Valibot or another schema validator

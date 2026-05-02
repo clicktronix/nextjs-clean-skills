@@ -3,6 +3,7 @@
 Prefer Mantine component props for layout, spacing, color, typography, and common states.
 
 Examples:
+
 - `Stack gap="md"`
 - `Group justify="space-between"`
 - `Text c="dimmed" size="sm"`

@@ -9,6 +9,7 @@ Use a small adapter that accepts a Standard Schema-compatible validator and retu
 Keep the adapter synchronous unless the target form explicitly supports async validation.
 
 **Incorrect (validator tied to an old Valibot generic):**
+
 ```ts
 function createMantineValidator<T>(schema: BaseSchema<T, T, unknown>) {
   return valibotResolver(schema)
@@ -16,6 +17,7 @@ function createMantineValidator<T>(schema: BaseSchema<T, T, unknown>) {
 ```
 
 **Correct (accept a Standard Schema-compatible contract):**
+
 ```ts
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 

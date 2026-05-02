@@ -15,7 +15,7 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 - Inbound adapters are Server Actions or route handlers that compose dependencies and framework concerns.
 - Outbound adapters implement use-case ports for Supabase, APIs, queues, and transport.
 - Read-heavy UI fetches in Server Components through server-only DAL/read entrypoints.
-- TanStack Query is opt-in for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared client cache.
+- TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async/server-state cache lifecycle across client islands. Otherwise reads are RSC props and writes are Server Actions that call `revalidateTag` / `updateTag`.
 - Cache Components use `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
 
 ## Start Here
@@ -52,6 +52,7 @@ Inbound adapters calling use-cases is correct. The forbidden direction is use-ca
 ## Reference Map
 
 Layering:
+
 - [Domain Is Pure](references/layer-domain-pure.md)
 - [Use-Cases Do Not Import Outbound](references/layer-use-case-no-outbound.md)
 - [Inbound Is Composition Root](references/layer-inbound-is-composition-root.md)
@@ -62,6 +63,7 @@ Layering:
 - [Stack Substitutions Preserve Roles](references/layer-stack-substitutions.md)
 
 Security:
+
 - [DAL Is Server-Only](references/security-dal-server-only.md)
 - [Reverify In Server Actions](references/security-reverify-in-action.md)
 - [Proxy Is Not The Auth Boundary](references/security-proxy-not-auth-boundary.md)
@@ -69,13 +71,18 @@ Security:
 - [Validate Environment Variables](references/security-env-validation.md)
 
 Data and persistence:
+
 - [RSC Reads Default, TanStack Opt-In](references/data-rsc-default-tanstack-optin.md)
 - [CQRS: Commands vs Reads](references/data-cqrs-actions-vs-rsc.md)
 - [Server Prefetch And Hydration](references/data-server-prefetch-hydration.md)
 - [No TanStack Query In RSC](references/data-no-tanstack-in-rsc.md)
+- [Avoid TanStack Mutations When Reads Are RSC-Owned](references/data-tanstack-mutation-vs-revalidate-tag.md)
 - [Supabase RLS Uses `(select auth.uid())`](references/data-supabase-rls-select-auth-uid.md)
+- [RLS `with check` Locks Identity Columns](references/data-supabase-rls-with-check-locks-self-promotion.md)
+- [Decide The DELETE RLS Policy Explicitly](references/data-supabase-rls-delete-policy-parity.md)
 
 Cache Components:
+
 - [Enable Cache Components Explicitly](references/cache-components-top-level.md)
 - [Cached Functions Need Stable Inputs](references/cache-stable-imports.md)
 - [Use `revalidateTag(tag, 'max')`](references/cache-revalidate-tag-with-profile.md)
@@ -84,6 +91,7 @@ Cache Components:
 - [Suspense Around Dynamic Reads](references/cache-suspense-around-dynamic.md)
 
 Server Actions:
+
 - [Server Actions Are Thin Wrappers](references/actions-thin-wrapper.md)
 - [Use `.inputSchema`, Not Legacy Schema APIs](references/actions-input-schema-not-schema.md)
 - [Use State Actions For Progressive Forms](references/actions-state-action-for-forms.md)
@@ -91,6 +99,7 @@ Server Actions:
 - [Do Not Bind Secrets To Actions](references/actions-bind-no-secrets.md)
 
 Routes:
+
 - [Parallel Routes Need Defaults](references/routes-parallel-default-required.md)
 - [Intercepting Routes For URL-Addressable Modals](references/routes-intercepting-modal-pattern.md)
 - [Avoid Namespace Export Traps](references/routes-namespace-export-trap.md)

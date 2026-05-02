@@ -3,11 +3,13 @@
 Do not use object-literal namespace exports for component modules consumed by Server Components.
 
 Avoid:
+
 ```ts
 export const WorkItem = { Card, Modal, List }
 ```
 
 Prefer direct named exports from the component file:
+
 ```ts
 export function WorkItemCard() {}
 ```

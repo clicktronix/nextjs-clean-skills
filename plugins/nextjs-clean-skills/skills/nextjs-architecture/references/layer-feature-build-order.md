@@ -3,6 +3,7 @@
 Build feature slices from stable business concepts toward UI.
 
 Order:
+
 1. Domain schema, inferred types, pure rules.
 2. Use-case ports and use-case functions.
 3. Outbound adapter implementation.

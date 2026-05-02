@@ -3,6 +3,7 @@
 Server Actions are public server endpoints referenced by the client.
 
 Every action must:
+
 - authenticate on the server
 - authorize the operation after parsing input
 - validate input with a schema at the boundary

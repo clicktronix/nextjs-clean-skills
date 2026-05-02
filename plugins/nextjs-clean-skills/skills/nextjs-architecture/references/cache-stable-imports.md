@@ -5,11 +5,13 @@
 Cached functions must be deterministic for their arguments.
 
 Do:
+
 - pass userId, tenantId, locale, filters, and pagination explicitly
 - place `'use cache'` inside the cached function
 - attach `cacheLife` and `cacheTag`
 
 Do not:
+
 - call `cookies()` or `headers()` inside the cached function
 - read mutable module state
 - close over request-specific objects
@@ -17,6 +19,7 @@ Do not:
 Read request context outside the cached scope, then pass stable values in.
 
 **Incorrect (cached function reads request context):**
+
 ```ts
 export async function listMyItems() {
   'use cache'
@@ -26,6 +29,7 @@ export async function listMyItems() {
 ```
 
 **Correct (request context outside cached scope):**
+
 ```ts
 export async function listMyItems() {
   const user = await verifySession()

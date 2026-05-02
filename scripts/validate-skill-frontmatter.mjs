@@ -1,7 +1,12 @@
 #!/usr/bin/env node
+import Ajv from 'ajv/dist/2020.js'
+import addFormats from 'ajv-formats'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fail, parseFrontmatter, readText, root } from './_lib.mjs'
+import { fail, parseFrontmatter, readJson, readText, root } from './_lib.mjs'
+
+const ajv = addFormats(new Ajv({ allErrors: true, strict: false }))
+const validateFrontmatter = ajv.compile(readJson('schemas/skill-frontmatter.schema.json'))
 
 const skillsRoot = path.join(root, 'plugins/nextjs-clean-skills/skills')
 const expected = new Set(['nextjs-architecture', 'react-component-creator'])
@@ -21,12 +26,20 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
   const text = fs.readFileSync(file, 'utf8')
   const frontmatter = parseFrontmatter(text)
   if (!frontmatter) {
-    errors.push(`${skillName}/SKILL.md is missing YAML frontmatter`)
+    errors.push(`${skillName}/SKILL.md is missing or has invalid YAML frontmatter`)
     continue
   }
-  if (frontmatter.name !== skillName) errors.push(`${skillName}/SKILL.md name must be ${skillName}`)
-  if (!frontmatter.description || frontmatter.description.length < 80) {
-    errors.push(`${skillName}/SKILL.md description is too short for reliable routing`)
+
+  if (!validateFrontmatter(frontmatter)) {
+    for (const error of validateFrontmatter.errors ?? []) {
+      const pointer = error.instancePath || '/'
+      errors.push(`${skillName}/SKILL.md frontmatter${pointer} ${error.message}`)
+    }
+    continue
+  }
+
+  if (frontmatter.name !== skillName) {
+    errors.push(`${skillName}/SKILL.md frontmatter.name must equal directory name (${skillName})`)
   }
 
   // Claude Code truncates skill frontmatter after 1,536 characters. Keep the combined
@@ -44,9 +57,11 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     linkedReferences.add(match[1])
   }
 
-  for (const referencePath of linkedReferences) {
-    const reference = path.join(skillDir, referencePath)
-    if (!fs.existsSync(reference)) errors.push(`${skillName}/SKILL.md links missing ${referencePath}`)
+  for (const match of text.matchAll(/\[[^\]]+\]\(([^)]+\.md)\)/g)) {
+    const linkPath = match[1]
+    if (linkPath.startsWith('http://') || linkPath.startsWith('https://')) continue
+    const resolved = path.resolve(skillDir, linkPath)
+    if (!fs.existsSync(resolved)) errors.push(`${skillName}/SKILL.md links missing ${linkPath}`)
   }
 
   const referenceDir = path.join(skillDir, 'references')

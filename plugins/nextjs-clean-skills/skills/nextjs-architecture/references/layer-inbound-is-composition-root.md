@@ -5,6 +5,7 @@
 Inbound adapters are the bridge between Next.js and application code.
 
 They may:
+
 - read request input, cookies, headers, params, and form data
 - verify auth/session context
 - instantiate outbound repositories
@@ -12,11 +13,13 @@ They may:
 - trigger `updateTag`, `revalidateTag`, `revalidatePath`, redirects, or response mapping
 
 They must not:
+
 - contain business decisions that belong in domain or use-cases
 - return raw database rows
 - skip server-side validation because the client already validated input
 
 **Incorrect (use-case imports concrete outbound implementation):**
+
 ```ts
 // src/use-cases/users/users.ts
 import { createSupabaseUserRepository } from '@/adapters/outbound/supabase/users.repository'
@@ -27,6 +30,7 @@ export async function updateCurrentUser(ctx, input) {
 ```
 
 **Correct (inbound composes, use-case depends on a port):**
+
 ```ts
 // src/use-cases/users/users.ts
 export async function updateCurrentUser(deps, userId, input) {

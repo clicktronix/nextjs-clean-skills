@@ -5,6 +5,7 @@ For `next-safe-action` v8, validate inputs with `.inputSchema(...)`.
 Valibot works through Standard Schema.
 
 Pattern:
+
 ```ts
 export const createThing = authActionClient
   .inputSchema(CreateThingSchema)

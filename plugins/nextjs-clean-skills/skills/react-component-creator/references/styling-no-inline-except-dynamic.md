@@ -3,6 +3,7 @@
 Do not commit `style={{ ... }}` for static styling.
 
 Use:
+
 - Mantine props
 - CSS Modules
 - CSS variables

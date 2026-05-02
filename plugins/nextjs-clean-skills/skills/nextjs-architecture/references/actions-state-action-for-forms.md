@@ -3,12 +3,14 @@
 **Impact: CRITICAL for login/signup/settings forms**
 
 Forms that should work before hydration should use:
+
 - React `useActionState` with `<form action={dispatch}>`, or
 - `next-safe-action` `.stateAction()` when the repo uses next-safe-action.
 
 Use this for login, signup, settings, and simple CRUD forms.
 
 **Incorrect (client-only submit path):**
+
 ```tsx
 <form onSubmit={handleSubmit}>
   <button type="submit">Sign in</button>
@@ -16,6 +18,7 @@ Use this for login, signup, settings, and simple CRUD forms.
 ```
 
 **Correct (state action receives parsed input and previous result):**
+
 ```ts
 export const loginAction = actionClient
   .inputSchema(LoginFormDataSchema)
@@ -26,7 +29,11 @@ export const loginAction = actionClient
 
 ```tsx
 const [result, formAction, isPending] = useActionState(loginAction, {})
-return <form action={formAction}><button disabled={isPending}>Sign in</button></form>
+return (
+  <form action={formAction}>
+    <button disabled={isPending}>Sign in</button>
+  </form>
+)
 ```
 
 Use TanStack mutations only when the form also needs client cache behavior such as optimistic updates, shared query invalidation, or realtime coordination.

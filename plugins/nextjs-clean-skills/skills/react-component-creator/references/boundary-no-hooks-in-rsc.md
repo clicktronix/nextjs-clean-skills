@@ -3,6 +3,7 @@
 Server Components cannot use client hooks.
 
 Do not use:
+
 - `useState`, `useEffect`, `useMemo`, `useCallback`
 - TanStack Query hooks
 - Zustand hooks

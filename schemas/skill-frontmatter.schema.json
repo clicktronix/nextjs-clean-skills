@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/clicktronix/nextjs-clean-skills/schemas/skill-frontmatter.schema.json",
+  "title": "Skill SKILL.md frontmatter",
+  "description": "Schema for the YAML frontmatter at the top of every plugins/nextjs-clean-skills/skills/<skill>/SKILL.md file. Claude Code truncates frontmatter past 1,536 characters; the description must remain rich enough for reliable routing.",
+  "type": "object",
+  "required": ["name", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "enum": ["nextjs-architecture", "react-component-creator"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 80
+    },
+    "model": { "type": "string", "minLength": 1 },
+    "color": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}
