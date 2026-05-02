@@ -30,6 +30,10 @@ export async function POST() {
 }
 ```
 
-`updateTag()` and `refresh()` are Server Action-only. Do not call `updateTag()` from Route Handlers, use-cases, or outbound adapters. `expire` in custom `cacheLife` profiles must be longer than `revalidate`; prefetched links have a minimum client-side stale time of 30 seconds.
+Warnings:
+
+- `updateTag()` and `refresh()` are Server Action-only. Do not call `updateTag()` from Route Handlers, use-cases, or outbound adapters.
+- `expire` in custom `cacheLife` profiles must be longer than `revalidate`.
+- Client-side router cache for prefetched links has a minimum stale time of 30 seconds; a shorter `stale` value can still behave as 30 seconds after prefetch.
 
 Reference: Next.js `cacheLife`, `revalidateTag`, and `updateTag` API docs.

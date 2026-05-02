@@ -7,7 +7,7 @@ All notable changes to this project are documented in this file.
 ### Added
 
 - New rule `state-context-first-over-zustand.md` codifying that React Context is the default store for shared client state; Zustand is opt-in only when Context is the measured bottleneck or middleware (devtools/persistence) is required.
-- Consolidated TanStack ownership guidance into `data-rsc-and-tanstack-boundaries.md`, including when `useMutation` is redundant after Server Actions that already invalidate RSC cache tags.
+- Consolidated TanStack ownership guidance into `data-rsc-and-tanstack-boundaries.md` and kept the focused `data-tanstack-mutation-vs-revalidate-tag.md` rule for mutation ownership decisions.
 - New rule `forms-server-action-error-key.md` covering progressive-enhancement i18n: server actions return typed `errorKey` values; the client-side hook localizes them via `intl.formatMessage`.
 - New rule `i18n-locale-cookie-via-proxy.md` for seeding the locale cookie inside `src/proxy.ts` from `Accept-Language` (alternative to migrating to `next-intl`).
 - Consolidated Supabase RLS guidance into `data-supabase-rls-policies.md`, including `(select auth.uid())`, `with check` identity locks, and explicit DELETE policy decisions.
@@ -15,7 +15,7 @@ All notable changes to this project are documented in this file.
 ### Changed
 
 - Tightened TanStack opt-in guidance: removed weakly-justified entries, added explicit anti-patterns (e.g. submit-disabled UX -> `useTransition`, "client filters" -> URL state, redundant `invalidateQueries` after `revalidateTag`).
-- Consolidated `nextjs-architecture` from 38 references to 22 references by merging rules that answered the same decision point: layer boundaries, server data boundaries, RSC/TanStack ownership, RLS policies, cache invalidation, cache scoped inputs, and action validation/authz.
+- Consolidated `nextjs-architecture` from 38 references to 23 references by merging rules that answered the same decision point: layer boundaries, server data boundaries, RSC/TanStack ownership, RLS policies, cache invalidation, cache scoped inputs, and action validation/authz.
 - Refactored `react-component-creator/SKILL.md` state-placement table: split "Page UI state" (one route, default `useState`/`useReducer`) from "Cross-component shared UI state" (default Context, Zustand only when measured) and added a "URL-shareable state" row. Footnotes link the new TanStack and Context rules.
 - Updated `state-page-ui-feature-local-hooks.md` to defer cross-tree state explicitly to the new Context-first rule rather than equating Zustand and Context.
 - Tightened `nextjs-architecture/SKILL.md` defaults: TanStack Query is documented as auxiliary/opt-in; default writes are Server Actions calling `revalidateTag`/`updateTag`.

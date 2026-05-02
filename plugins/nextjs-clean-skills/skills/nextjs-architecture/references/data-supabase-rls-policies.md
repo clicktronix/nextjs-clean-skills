@@ -29,9 +29,34 @@ create policy users_self_update on public.users
 create policy users_self_update on public.users
   for update to authenticated
   using ((select auth.uid()) = id)
-  with check ((select auth.uid()) = id and role = 'user');
+  with check (
+    (select auth.uid()) = id
+    and role = (select u.role from public.users u where u.id = (select auth.uid()))
+    and email = (select u.email from public.users u where u.id = (select auth.uid()))
+  );
 ```
 
-If hard delete is intentionally denied, document soft-delete in the migration. If hard delete is allowed, add a `for delete` policy and document cascade blast radius.
+Delete policy decision:
+
+1. Soft-delete only: no `delete` policy; app updates `archived_at`/`status`.
+2. Admin hard-delete: add an explicit `for delete` policy gated by role.
+3. Self-delete: rare; pair with cleanup hooks and a narrow policy.
+
+**Soft-delete intent documented:**
+
+```sql
+comment on table public.work_items is
+  'Soft-delete via archived_at. Hard delete is service-role only.';
+```
+
+**Admin hard-delete via RLS:**
+
+```sql
+create policy work_items_admin_delete on public.work_items
+  for delete to authenticated
+  using (public.get_user_role((select auth.uid())) in ('owner', 'admin'));
+```
+
+Document cascade blast radius before granting hard delete.
 
 Reference: PostgreSQL `CREATE POLICY` and Supabase RLS guidance.

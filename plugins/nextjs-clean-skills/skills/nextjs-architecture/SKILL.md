@@ -68,6 +68,7 @@ Data and persistence:
 - [Use Idempotency Keys For Service Commands](references/api-idempotency-key-for-commands.md)
 - [Verify Webhook Signatures Before Parsing](references/api-webhook-signature-verification.md)
 - [RSC And TanStack Ownership](references/data-rsc-and-tanstack-boundaries.md)
+- [Avoid TanStack Mutations When Reads Are RSC-Owned](references/data-tanstack-mutation-vs-revalidate-tag.md)
 - [Server Prefetch And Hydration](references/data-server-prefetch-hydration.md)
 - [Supabase RLS Policies](references/data-supabase-rls-policies.md)
 

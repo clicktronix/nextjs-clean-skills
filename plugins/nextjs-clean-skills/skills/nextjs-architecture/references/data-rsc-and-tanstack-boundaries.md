@@ -20,11 +20,28 @@ Add TanStack Query only when at least one is true: realtime/WebSocket merges int
 Avoid these anti-patterns:
 
 - `useQuery` in RSC.
-- `useMutation` only to call `invalidateQueries` after an action that already invalidates RSC tags.
 - client filters that should be URL state.
 - backing the same read with both RSC props and `useQuery`.
 - using Server Actions as generic query RPC when RSC reads are enough.
 
-If the read is RSC-owned, call the action directly and optionally use `router.refresh()` for immediate payload refresh. If the read is TanStack-owned, use `useMutation` to update or invalidate the matching query keys.
+**Incorrect (query hook in a Server Component):**
+
+```tsx
+export default function Page() {
+  const { data } = useQuery(workItemsQuery())
+  return <WorkItems items={data} />
+}
+```
+
+**Correct (await the server read):**
+
+```tsx
+export default async function Page() {
+  const items = await listWorkItemsForCurrentUser()
+  return <WorkItems items={items} />
+}
+```
+
+If the read is RSC-owned, call mutations directly and optionally use `router.refresh()` for immediate payload refresh. If the read is TanStack-owned, use `useMutation` to update or invalidate the matching query keys. See [Avoid TanStack Mutations When Reads Are RSC-Owned](./data-tanstack-mutation-vs-revalidate-tag.md).
 
 Reference: Next.js Server Components, React 19 `useTransition`, TanStack Query mutation lifecycle.
