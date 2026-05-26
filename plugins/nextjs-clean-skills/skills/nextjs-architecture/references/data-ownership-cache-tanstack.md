@@ -20,7 +20,7 @@ Cache Components and tag APIs are framework syntax. The architecture decision is
 - TanStack-owned reads invalidate/update TanStack keys.
 - mixed pages must document which subset each owner controls.
 
-For `cacheLife`, `cacheTag`, `revalidateTag`, `updateTag`, and `router.refresh()` syntax, fetch current Next.js docs.
+For exact cache API syntax, fetch current Next.js docs. Policy: `updateTag` in Server Actions for read-your-own-writes; `revalidateTag(tag, 'max')` for stale-while-revalidate or Route Handler invalidation.
 
 ## RSC DAL Hybrid Read
 
@@ -28,8 +28,8 @@ For reference data that needs synchronous first paint **and** client-side optimi
 
 1. Server DAL fetches with `'use cache'` + `cacheTag(...)` and returns serializable rows.
 2. RSC passes rows as `initialData` props to a Client island.
-3. Client `useQuery` is keyed by feature and receives `initialData` plus an explicit freshness decision.
-4. Mutations call a Server Action that runs the use-case and then `revalidateTag(tag, 'max')`.
+3. Client `useQuery` receives `initialData` plus an explicit freshness decision.
+4. Mutations call a Server Action and invalidate the matching tag with `updateTag` or `revalidateTag`.
 
 ```ts
 useQuery({
@@ -40,7 +40,7 @@ useQuery({
 })
 ```
 
-Use `initialDataUpdatedAt: serverFetchedAt` when the server timestamp is known. Use `initialDataUpdatedAt: 0` only when the seed is intentionally "render now, refetch immediately". If one query is consumed by multiple islands or TanStack should own freshness, prefer `prefetchQuery` + `HydrationBoundary` instead of hand-passing `initialData`.
+Use `initialDataUpdatedAt: serverFetchedAt` when known. Use `0` only for "render now, refetch immediately". If one query feeds multiple islands or TanStack owns freshness, prefer `prefetchQuery` + `HydrationBoundary`.
 
 Do not apply this hybrid to interactive search/filter lists (pure TanStack) or to mostly-static pages without writes (pure RSC props).
 

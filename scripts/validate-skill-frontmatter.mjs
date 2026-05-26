@@ -11,6 +11,7 @@ const validateFrontmatter = ajv.compile(readJson('schemas/skill-frontmatter.sche
 const skillsRoot = path.join(root, 'plugins/nextjs-clean-skills/skills')
 const expected = new Set(['nextjs-architecture', 'react-component-creator'])
 const errors = []
+const warnings = []
 
 for (const skillName of fs.readdirSync(skillsRoot)) {
   const skillDir = path.join(skillsRoot, skillName)
@@ -40,6 +41,14 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
 
   if (frontmatter.name !== skillName) {
     errors.push(`${skillName}/SKILL.md frontmatter.name must equal directory name (${skillName})`)
+  }
+
+  if (!frontmatter.description.startsWith('Use when ')) {
+    errors.push(`${skillName}/SKILL.md frontmatter.description must start with "Use when "`)
+  }
+
+  if (frontmatter.description.length > 500) {
+    errors.push(`${skillName}/SKILL.md frontmatter.description is ${frontmatter.description.length} chars; keep it <= 500`)
   }
 
   // Claude Code truncates skill frontmatter after 1,536 characters. Keep the combined
@@ -74,6 +83,14 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
       }
     }
   }
+
+  // Recommended structure, not enforced: these gates shape agent behavior and should be
+  // validated by eval/pressure-tests before becoming a hard requirement. Warn, do not fail.
+  for (const requiredHeading of ['## Decision Gate', '## Common Failure Modes', '## Verification Gate']) {
+    if (!text.includes(requiredHeading)) {
+      warnings.push(`${skillName}/SKILL.md is missing recommended ${requiredHeading}`)
+    }
+  }
 }
 
 for (const skillName of expected) {
@@ -85,5 +102,6 @@ for (const skillName of expected) {
   if (!readme.includes(skillName)) errors.push(`README.md does not mention ${skillName}`)
 }
 
+for (const warning of warnings) console.warn(`warning: ${warning}`)
 fail(errors)
-console.log('skill frontmatter ok')
+console.log(`skill frontmatter ok${warnings.length ? ` (${warnings.length} warnings)` : ''}`)

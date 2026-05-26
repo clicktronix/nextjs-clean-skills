@@ -1,6 +1,6 @@
 ---
 name: react-component-creator
-description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app, deciding Server vs Client boundary, component file structure, composeHooks usage, form/action boundary, state placement, styling, or i18n conventions.
+description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app; deciding Server vs Client boundaries, component file structure, composeHooks usage, form/action boundaries, state placement, styling, i18n, notifications, loading states, or test ids.
 ---
 
 # React Component Creator
@@ -28,12 +28,12 @@ Use this skill for UI structure decisions in a Next.js 16 codebase. It is a proj
 | URL-shareable state              | `useSearchParams` + `router.replace` (filters, tabs, paging that links should preserve)         |
 | Component-local state            | hook in `lib.ts`                                                                                |
 | Page UI state (one route)        | feature-local `useState`/`useReducer` hook                                                      |
-| Cross-component shared UI state  | Start with Context; use Zustand only for measured hot updates or required middleware[^2]         |
+| Cross-component shared UI state  | Start with Context; use Zustand only for measured hot updates or required store middleware[^2]   |
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
 [^1]: See [Data Ownership, Cache, And TanStack](../nextjs-architecture/references/data-ownership-cache-tanstack.md).
-[^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or middleware needs justify it.
+[^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or store middleware needs justify it.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
 
@@ -49,12 +49,44 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 ## Workflow
 
 1. Decide Server vs Client before writing files.
-2. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
-3. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.
-4. For Client Components with logic, split View and `use<Component>Props` with `composeHooks`.
-5. Keep TanStack Query, optimistic updates, realtime, and invalidation in `ui/server-state`.
-6. Keep Server Action wrappers feature-local only when TanStack Query semantics are unnecessary.
-7. Add stable `data-testid` to e2e-critical interactive controls.
+2. Classify data and state ownership before adding hooks or stores.
+3. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
+4. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.
+5. For Client Components with logic, split View and `use<Component>Props` with `composeHooks`.
+6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `ui/server-state`.
+7. Keep Server Action wrappers feature-local only when TanStack Query semantics are unnecessary.
+8. Add stable `data-testid` to e2e-critical interactive controls.
+
+## Decision Gate
+
+Before code changes, write or hold this classification:
+
+```text
+component boundary: Server | Client | split
+server data owner: RSC props | TanStack Query | none
+local state owner: URL | component hook | route hook | Context | justified external store
+mutation boundary: Server Action | Route Handler | none
+files: index.tsx | lib.ts | interfaces.ts | styles.module.css | server-state
+```
+
+If the answer is "Client because it is easier," re-check the trigger for hooks, events, refs, browser APIs, or client server-state.
+
+## Common Failure Modes
+
+- Adding `'use client'` to a parent that could stay server-rendered.
+- Putting server-owned data in local state, Context, or Zustand.
+- Mixing View markup and hook/business logic in `index.tsx`.
+- Creating barrel exports or broad `interfaces.ts` files for one-off local types.
+- Using TanStack Query for a read that does not need client lifecycle semantics.
+
+## Verification Gate
+
+Before reporting success:
+
+1. Confirm the smallest possible Client boundary.
+2. Confirm server data remains serializable and is not stored as client UI state.
+3. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
+4. State any visual, i18n, or accessibility behavior not verified.
 
 ## Final Checklist
 

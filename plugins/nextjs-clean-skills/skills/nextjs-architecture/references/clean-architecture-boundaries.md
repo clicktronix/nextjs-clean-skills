@@ -10,8 +10,10 @@ Choose the layer before writing files. Dependency direction is compile-time, not
 | `use-cases/**` | Scenarios, ports, feature types | domain, local ports/types |
 | `adapters/outbound/**` | Port implementations | domain, use-case port types |
 | `adapters/inbound/next/**` | Server Actions, Route Handlers, webhooks | use-cases, outbound factories, infrastructure |
+| server-only DAL/read entrypoints | Authenticated read composition | use-cases, outbound factories, infrastructure |
 | `ui/server-state/**` | TanStack query keys/hooks | inbound APIs/actions, client-safe transport |
-| `app/**`, `ui/**` | routes, layouts, views | UI hooks, server-state, domain types, local actions |
+| `app/**` | routes, layouts, metadata, RSC entrypoints | DAL/read entrypoints, UI, server actions |
+| `ui/**` | views and client interaction | UI hooks, server-state, domain types, local actions |
 | `infrastructure/**` | auth, env, logging, cache helpers | domain and technical libraries |
 
 Runtime can flow downward from UI to inbound to use-case to outbound. Imports do not mirror every runtime call: use-cases depend on ports, not concrete adapters.
