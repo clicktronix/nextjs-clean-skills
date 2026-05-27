@@ -4,18 +4,35 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-05-11
+## [1.3.0] - 2026-05-27
+
+> Consolidates the unreleased 1.2.0 platform patterns with skill-authoring and validation
+> hardening. **Breaking for external links:** a reference file was renamed (see Changed).
 
 ### Added
 
-- Added RSC + DAL hybrid read pattern with `initialData` and explicit freshness ownership to `data-ownership-and-cache.md` (renamed from `data-ownership-cache-tanstack.md`).
-- Added input parsing/length caps and defense-in-depth ownership filter sections to `security-dal-and-auth.md`.
-- Added bulk-write RPC (`jsonb_to_recordset`), Postgres error → typed `ApiError` mapping, and explicit-column selection sections to `supabase-persistence-boundaries.md`.
-- Added new reference `observability-and-sentry.md` (lazy SDK loader, PII redaction, user context without email, route handler capture).
-- Added compound-provider split pattern to `component-structure-composehooks.md`.
-- Added explicit variants vs mode-discriminator pattern to `state-placement.md`.
-- Added localized Standard Schema → Mantine validator bridge section to `forms-and-actions.md`.
-- Added new reference `notifications-and-feedback.md` (semantic `notify*` helpers, global mutation error notifier, unified `useConfirm` hook).
+- New references: `observability-and-sentry.md` (lazy SDK loader, PII redaction, user context without email, boundary capture) and `notifications-and-feedback.md` (semantic `notify*` helpers, global mutation error notifier, unified `useConfirm`).
+- Architecture patterns: RSC + DAL hybrid read with `initialData`/explicit freshness in `data-ownership-and-cache.md`; input parsing/length caps and defense-in-depth ownership filter in `security-dal-and-auth.md`; scoped bulk-write RPC (`jsonb_to_recordset`, `created_by`/tenant predicate), Postgres → typed `ApiError` mapping, and explicit-column selection in `supabase-persistence-boundaries.md`.
+- Component patterns: compound-provider split (`component-structure-composehooks.md`), explicit variants vs mode-discriminator (`state-placement.md`), localized Standard Schema → Mantine validator bridge (`forms-and-actions.md`).
+- `Decision Gate`, `Common Failure Modes`, and `Verification Gate` sections in both skills (recommended structure).
+
+### Changed
+
+- **Renamed** `data-ownership-cache-tanstack.md` → `data-ownership-and-cache.md`; TanStack is now one row of the ownership table and the RSC hybrid-read section is trimmed. Update any external references to the old filename.
+- Expanded skill `description` triggers (now start with `Use when `, ≤500 chars; added observability/error-reporting and notifications/loading-state keywords).
+- Sharpened env guidance to a directive (eager validation by default; lazy only for untouched server-only values) with current Supabase key names + legacy fallbacks.
+- Split `app/**` vs `ui/**` in the architecture layer table; clarified `updateTag` vs `revalidateTag(tag, 'max')` cache ownership.
+- Telemetry abstracted behind infrastructure; Sentry capture awaits/flushes before serverless responses.
+
+### Validation / tooling
+
+- Frontmatter schema tightened to `name` + `description` only.
+- `validate` enforces the `Use when ` prefix and ≤500-char descriptions; warns (does not fail) on missing gate sections.
+- `sync-version` now keeps `package-lock.json` in sync with `version.json`.
+
+### Removed
+
+- Internal skill-authoring research (`docs/skill-patterns-research.md`) moved out of the published package.
 
 ## [1.1.0] - 2026-05-03
 
