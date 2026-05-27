@@ -2,6 +2,8 @@
 
 **Impact: HIGH**
 
+Snippets are safe-shape examples, not an API tutorial: copy the shape, fetch current Sentry docs for exact flags. The rule (telemetry in infrastructure, no PII, capture once at the boundary) is stable; the SDK is not.
+
 Error reporting belongs in infrastructure, not in domain or use-case code. Split helpers by runtime:
 
 - server runtime: server-only lazy loader for inbound adapters, route handlers, and Server Actions.

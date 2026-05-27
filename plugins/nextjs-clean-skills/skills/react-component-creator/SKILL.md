@@ -78,23 +78,16 @@ If the answer is "Client because it is easier," re-check the trigger for hooks, 
 - Mixing View markup and hook/business logic in `index.tsx`.
 - Creating barrel exports or broad `interfaces.ts` files for one-off local types.
 - Using TanStack Query for a read that does not need client lifecycle semantics.
+- Using `interface`, `class`, `any`, inline `style={}`, or namespace exports — the profile forbids these (use `type`, function composition, narrowed `unknown`, Mantine props/CSS Modules, named imports).
+- Validating a form only on the client and trusting it for authority — the server re-validates with the same schema.
+- Hardcoding user-facing text (including `aria-label`, `placeholder`, `alt`) instead of the project i18n layer.
+- Reaching for `composeHooks` or a context split on a trivial View that is fine as a plain component.
 
 ## Verification Gate
 
 Before reporting success:
 
-1. Confirm the smallest possible Client boundary.
-2. Confirm server data remains serializable and is not stored as client UI state.
+1. Confirm the smallest possible Client boundary; client logic lives in `lib.ts`, not the View.
+2. Confirm server data remains serializable: read-heavy data arrives via RSC props, client-interactive data lives in `ui/server-state`, never in client UI state.
 3. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
 4. State any visual, i18n, or accessibility behavior not verified.
-
-## Final Checklist
-
-- Server/Client boundary is minimal and intentional.
-- Client logic lives in `lib.ts`, not the View.
-- `composeHooks` is used only where it adds value.
-- No `interface`, classes, `any`, inline styles, namespace exports, or barrel exports.
-- Read-heavy server data arrives through RSC props.
-- Client-interactive server data lives in `ui/server-state`.
-- Forms validate on the client for UX and on the server for authority.
-- User-facing text uses the project i18n layer.

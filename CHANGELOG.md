@@ -15,6 +15,7 @@ All notable changes to this project are documented in this file.
 - Architecture patterns: RSC + DAL hybrid read with `initialData`/explicit freshness in `data-ownership-and-cache.md`; input parsing/length caps and defense-in-depth ownership filter in `security-dal-and-auth.md`; scoped bulk-write RPC (`jsonb_to_recordset`, `created_by`/tenant predicate), Postgres → typed `ApiError` mapping, and explicit-column selection in `supabase-persistence-boundaries.md`.
 - Component patterns: compound-provider split (`component-structure-composehooks.md`), explicit variants vs mode-discriminator (`state-placement.md`), localized Standard Schema → Mantine validator bridge (`forms-and-actions.md`).
 - `Decision Gate`, `Common Failure Modes`, and `Verification Gate` sections in both skills (recommended structure).
+- Eval scenarios in `tests/scenarios/` (RED baseline + GREEN expectation + overreach guardrail per new pattern) with a `README.md` documenting the format and manual run loop. Closes the long-empty scaffold; patterns stay "expert-written, not eval-proven" until baselines are reproduced.
 
 ### Changed
 
@@ -23,6 +24,9 @@ All notable changes to this project are documented in this file.
 - Sharpened env guidance to a directive (eager validation by default; lazy only for untouched server-only values) with current Supabase key names + legacy fallbacks.
 - Split `app/**` vs `ui/**` in the architecture layer table; clarified `updateTag` vs `revalidateTag(tag, 'max')` cache ownership.
 - Telemetry abstracted behind infrastructure; Sentry capture awaits/flushes before serverless responses.
+- Removed the redundant `Final Checklist` from both `SKILL.md` files; unique items folded into `Verification Gate` (architecture) and `Common Failure Modes` (component, including the `interface`/`class`/`any`/inline-style/barrel ban). Trims the always-loaded body to three differentiated lists (Decision Gate before, failure modes, Verification Gate after).
+- Reframed the architecture skill's doc-purity line as degrees of freedom: high-freedom prose for architecture, one canonical low-freedom example for fragile security/privacy/integrity operations. `observability-and-sentry.md` now states its snippets are safe-shape examples, with Sentry API flags deferred to current docs.
+- `notifications-and-feedback.md` marked as a stack convention (not portable architecture) and cross-linked to its `ApiError`/`presentError` prerequisite in `supabase-persistence-boundaries.md`.
 
 ### Validation / tooling
 

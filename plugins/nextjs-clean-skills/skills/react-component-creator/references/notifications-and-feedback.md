@@ -2,6 +2,8 @@
 
 **Impact: MEDIUM**
 
+Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Judgment call: *where* feedback lives (one notifier vs scattered `onError`). **Prerequisite:** `notifyError(..., { error })` formats via the `ApiError`/`presentError` layer from [Supabase Persistence Boundaries](../../nextjs-architecture/references/supabase-persistence-boundaries.md) — build that first.
+
 Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 
 ## Semantic Notify Helpers
@@ -15,7 +17,7 @@ notifyError({ intl, title: msg.saveFailed, error })
 notifySuccess({ intl, title: msg.saved })
 ```
 
-When `notifyError` is called with an `error` but no `message`, it formats through the project's error mapping layer (`presentError(error)`) so the user-facing copy stays consistent with the inbound adapter's typed `ApiError` taxonomy.
+With an `error` but no `message`, `notifyError` formats through `presentError(error)` so copy stays consistent with the inbound adapter's `ApiError` taxonomy.
 
 ## Global Mutation Error Notifier
 

@@ -5,7 +5,9 @@ description: Use when adding or refactoring features in a Next.js 16 Hybrid Clea
 
 # Next.js Architecture
 
-Use this skill for full-stack Next.js feature slices and architecture decisions. It is an architecture contract, not a replacement for Next.js, React, Supabase, or TanStack docs. For API syntax, fetch current official docs.
+Use this skill for full-stack Next.js feature slices and architecture decisions. It is an architecture contract, not a replacement for Next.js, React, Supabase, or TanStack docs.
+
+Match the level of detail to the risk (degrees of freedom): architecture decisions lean high-freedom — prose plus small illustrative examples you adapt freely; fetch current official docs for API syntax. Fragile security, privacy, or data-integrity operations get one canonical low-freedom example to copy exactly, because consistency there is critical; the example shows the safe shape, not an API tutorial.
 
 ## Default Profile
 
@@ -100,19 +102,7 @@ If any field is unclear, resolve that decision before adding files.
 
 Before reporting success:
 
-1. Check changed imports against the compile-time boundary list.
-2. Confirm every data access path re-checks auth/authz server-side.
+1. Check changed imports against the compile-time boundary list: domain stays pure; use-cases depend on ports, not adapters/framework/React/TanStack; outbound implements ports; `app/` entrypoints stay thin.
+2. Confirm every data access path re-checks auth/authz server-side and cache tags are scoped by entity, user, or tenant.
 3. Run the smallest relevant test or static check available in the target repo.
 4. State any unverified layer explicitly instead of implying it is covered.
-
-## Final Checklist
-
-- Domain has schemas, inferred types, and pure rules only.
-- Use-cases import no adapters, framework APIs, React hooks, or TanStack Query.
-- Ports describe use-case needs; outbound adapters implement ports.
-- Inbound adapters or DAL verify auth/authz and map request/cookie/header/framework concerns.
-- Read-heavy pages use server-only DAL/read entrypoints.
-- Client server-state exists only when client interactivity needs it.
-- Cache tags are scoped by entity, user, or tenant.
-- Server Actions validate input and re-check authorization server-side.
-- `app/` entrypoints remain thin.

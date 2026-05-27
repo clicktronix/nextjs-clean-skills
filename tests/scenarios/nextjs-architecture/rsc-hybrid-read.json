@@ -1,0 +1,17 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/data-ownership-and-cache.md#rsc--client-hybrid-read-rare",
+  "query": "Add a /campaigns page that lists campaigns from Supabase and needs them visible on first paint, plus a client-side 'create campaign' form with an optimistic update that prepends the new row to the list.",
+  "baseline_failure": "Agent makes the whole page 'use client' and fetches the list with TanStack Query (loses RSC first paint), OR keeps it RSC and calls router.refresh() after the mutation (full re-render, no optimism). Either way one owner is dropped.",
+  "expected_behavior": [
+    "RSC owns the read through a server-only DAL/read entrypoint and renders first paint",
+    "The read seeds the client island as initialData with an explicit freshness decision (initialDataUpdatedAt from the server timestamp, or 0 to refetch immediately)",
+    "The optimistic create invalidates/updates whichever owner controls the read",
+    "Names that the seeding is the rare hybrid case, not the default"
+  ],
+  "anti_expectation": [
+    "Does NOT apply the hybrid seed to a pure search/filter list (that is client lifecycle only)",
+    "Does NOT apply it to a static page with no writes (that is RSC props only)",
+    "Does NOT hand-pass initialData to multiple islands instead of a hydration strategy"
+  ]
+}

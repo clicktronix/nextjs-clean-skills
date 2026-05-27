@@ -1,0 +1,16 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/security-dal-and-auth.md#defense-in-depth-ownership-filter",
+  "query": "RLS is enabled on the campaigns table with a created_by policy. Write the outbound adapter method that updates a campaign's name by id for the current user.",
+  "baseline_failure": "Agent writes `client.from('campaigns').update(patch).eq('id', id)` and relies on RLS alone, reasoning that the policy already scopes by created_by, so an explicit predicate is redundant.",
+  "expected_behavior": [
+    "Adds an explicit ownership predicate on top of RLS: `.eq('id', id).eq('created_by', userId)`",
+    "Explains the predicate is defense-in-depth so a regressed policy or a service-role client cannot silently escalate",
+    "For child rows, scopes by the parent the caller controls (e.g. .eq('campaign_id', scope.campaignId))",
+    "Parses input through a domain schema in the inbound adapter; does not trust the action argument type as a runtime barrier"
+  ],
+  "anti_expectation": [
+    "Does NOT drop RLS in favor of the application-side filter (both layers stay)",
+    "Does NOT move the ownership check into the use-case or UI instead of the outbound adapter"
+  ]
+}

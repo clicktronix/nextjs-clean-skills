@@ -1,0 +1,16 @@
+{
+  "skills": ["react-component-creator"],
+  "tests_reference": "references/state-placement.md#explicit-variants-over-mode-discriminators",
+  "query": "Build a BlogSidebar that can view an existing blog, edit it, or create a new one. View needs blogId; edit needs blogId; create needs personId. Some props are only valid in some modes.",
+  "baseline_failure": "Agent builds one component taking `mode: 'view' | 'edit' | 'create'` plus optional `blogId?`/`personId?`, with `if (mode === ...)` branches inside the View and `// only when mode = edit` prop comments and non-null assertions.",
+  "expected_behavior": [
+    "Decomposes into one component per mode (BlogSidebarView/Edit/Create) plus a thin dispatcher that narrows on route state",
+    "Each variant owns its bindings hook (useBlogViewBindings/useBlogEditForm/useBlogCreateForm) so type narrowing is automatic",
+    "Shared chrome moves into a SidebarFrame shell; heavy variants can be lazily loaded by the dispatcher",
+    "The 'only valid when mode = X' prop comments and non-null assertions disappear"
+  ],
+  "anti_expectation": [
+    "Does NOT split a trivial two-prop component that has no guard comments or mode branches",
+    "Does NOT duplicate shared chrome across the three variants instead of a shared frame"
+  ]
+}
