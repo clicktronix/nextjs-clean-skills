@@ -33,6 +33,7 @@ All notable changes to this project are documented in this file.
 - Frontmatter schema tightened to `name` + `description` only.
 - `validate` enforces the `Use when ` prefix and ≤500-char descriptions; warns (does not fail) on missing gate sections.
 - `sync-version` now keeps `package-lock.json` in sync with `version.json`.
+- New `scripts/validate-scenarios.mjs` (wired into `validate`) enforces the `tests/scenarios/` contract: required keys, non-empty arrays, known `skills`, and a `tests_reference` whose file and `#anchor` resolve (GitHub slug semantics, no space-run collapse). Stops the eval scaffold from rotting while `validate` stays green.
 
 ### Removed
 

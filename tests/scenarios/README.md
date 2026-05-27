@@ -27,6 +27,12 @@ Each scenario records the full TDD cycle for one pattern, not just the happy pat
 }
 ```
 
+This contract is enforced: `npm run validate` runs `scripts/validate-scenarios.mjs`, which checks
+every scenario for the required keys, non-empty `skills`/`expected_behavior`/`anti_expectation`,
+known skill names, and a `tests_reference` whose file and `#anchor` actually resolve (anchors are
+slugified with GitHub semantics — runs of spaces are not collapsed). A scenario that drifts out of
+sync with its reference fails CI rather than rotting silently.
+
 ## Running
 
 There is no built-in LLM-judge runner (Anthropic does not ship one). Run manually:
