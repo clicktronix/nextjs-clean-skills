@@ -106,8 +106,6 @@ maps, use the human-facing docs:
   command/query boundaries, auth boundary, persistence, and state ownership.
 - [Agent Decision Maps](docs/agent-decision-maps.md) — compact flowcharts for prompting and
   reviewing coding agents.
-- [Skill Patterns Research](docs/skill-patterns-research.md) — comparison against
-  `obra/superpowers`, `garrytan/gstack`, and Codex skill conventions.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.

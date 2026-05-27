@@ -11,7 +11,7 @@ Pattern:
 - use Valibot or another schema validator
 - forbid direct `process.env` outside env modules with lint rules
 
-Choose eager or lazy parsing deliberately, but keep validation centralized. Eager parsing fails fast at boot/build; lazy parsing avoids touching server-only values on paths that never need them.
+Default to eager validation at module load — it fails fast at boot/build. Use lazy first-access parsing only for server-only values that some runtimes (edge, build steps) never touch. Keep validation centralized either way.
 
 For Supabase projects, prefer current key names and accept legacy names only as compatibility aliases:
 

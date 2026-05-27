@@ -2,7 +2,7 @@
 
 **Impact: MEDIUM**
 
-Scattered `notifications.show({ color: 'red', icon: ..., title: ..., message: ... })` calls drift in copy, color, and icon. Centralize feedback behind small helpers and a single confirm hook.
+Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 
 ## Semantic Notify Helpers
 
@@ -19,7 +19,7 @@ When `notifyError` is called with an `error` but no `message`, it formats throug
 
 ## Global Mutation Error Notifier
 
-Mutation `onError: notifyError(...)` handlers duplicate across hooks. Subscribe once to the TanStack mutation cache and route error events to `notifyError`, with an `opt-out flag` (`meta.silent`) for mutations that own their UX (inline form errors, optimistic rollback toasts).
+Mutation error handlers duplicate across hooks. Prefer one app-level notifier for unhandled mutation errors, with an opt-out flag for mutations that own their UX (inline form errors, optimistic rollback toasts).
 
 Local `onError` handlers stay only for rollback logic. Notification is the notifier's job.
 

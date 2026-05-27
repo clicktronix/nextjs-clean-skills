@@ -32,7 +32,7 @@ Use this skill for UI structure decisions in a Next.js 16 codebase. It is a proj
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
-[^1]: See [Data Ownership, Cache, And TanStack](../nextjs-architecture/references/data-ownership-cache-tanstack.md).
+[^1]: See [Data Ownership And Cache](../nextjs-architecture/references/data-ownership-and-cache.md).
 [^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or store middleware needs justify it.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.

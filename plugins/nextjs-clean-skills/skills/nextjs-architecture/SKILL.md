@@ -64,7 +64,7 @@ Security:
 
 Data and persistence:
 
-- [Data Ownership, Cache, And TanStack](references/data-ownership-cache-tanstack.md)
+- [Data Ownership And Cache](references/data-ownership-and-cache.md)
 - [Backend Service Patterns](references/backend-service-patterns.md)
 - [Supabase Persistence Boundaries](references/supabase-persistence-boundaries.md)
 

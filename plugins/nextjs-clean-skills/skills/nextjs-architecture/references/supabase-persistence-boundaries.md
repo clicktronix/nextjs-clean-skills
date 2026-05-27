@@ -25,31 +25,32 @@ RLS guardrails:
 - enable RLS for user/tenant data.
 - prefer `(select auth.uid())` in policies.
 - pair update `using` with `with check` so users cannot self-promote.
-- use private `security definer` helpers for role/membership lookups that would recurse through protected tables.
+- use private `security definer` helpers only for role/membership lookups that would recurse through protected tables.
 
 For exact SQL syntax and performance details, fetch current Supabase docs. The architectural rule is stable: Supabase is an outbound implementation detail.
 
-## Bulk Writes Via RPC
+## Bulk Writes Via Scoped RPC
 
-Replace `Promise.all(N × update())` with a single `SECURITY INVOKER` RPC that takes `jsonb` and unpacks via `jsonb_to_recordset`. One round-trip, atomic, RLS still applied.
+Replace `Promise.all(N x update())` with one scoped write boundary when the use-case needs atomic ordering or batch semantics. The port accepts actor/tenant scope plus updates; the adapter may use an RPC, but scope preservation is the rule.
 
 ```sql
-CREATE FUNCTION public.reorder_in_column(updates jsonb) RETURNS SETOF campaigns
+CREATE FUNCTION public.reorder_in_column(actor_id uuid, updates jsonb) RETURNS SETOF campaigns
 LANGUAGE sql SECURITY INVOKER SET search_path = public AS $$
   UPDATE public.campaigns c SET column_id = u.column_id, position = u.position
   FROM jsonb_to_recordset(updates) AS u(id uuid, column_id uuid, position int)
-  WHERE c.id = u.id RETURNING c.*;
+  WHERE c.id = u.id AND c.created_by = actor_id
+  RETURNING c.*;
 $$;
 ```
 
-The adapter calls `client.rpc('reorder_in_column', { updates })` and parses the rows through the domain schema.
+Use tenant or parent scope instead of `actor_id` when that is the domain authority. Never publish an unscoped bulk update example. Parse returned rows through the domain schema before returning DTO/domain values.
 
 ## Error Mapping
 
-Adapters must not `throw new Error(error.message)` from Postgres or PostgREST errors. Raw messages, details, and hints leak schema and end up in user-facing toasts. Map known Postgres SQLSTATE codes and PostgREST/API codes to typed `ApiError` subclasses: `42501` -> `ForbiddenError`, `23505` -> `ConflictError`, `23502` -> `ValidationError`, `PGRST116` -> `NotFoundError` for expected single-row misses. Put the raw payload into an `extra`/`responseBody` field for server logs only.
+Adapters must not `throw new Error(error.message)` from Postgres or PostgREST errors. Raw messages leak schema into user-facing paths. Map known SQLSTATE/PostgREST codes to typed `ApiError` subclasses and keep raw payloads in server-only log context.
 
 ## Explicit Column Selection
 
-Avoid `select('*')` on hot read paths. Migrations add or remove columns silently, network bandwidth is wasted, and internal flags leak. Maintain a per-entity column constant and select it explicitly; the same constant is used by `.select('...')` and by the row mapper, so adding a column is one diff.
+Avoid `select('*')` on hot read paths. Maintain a per-entity column constant and select explicitly so migrations do not leak new fields or waste bandwidth.
 
 Reference: Supabase as outbound adapter plus RLS as database-side authority.

@@ -1,4 +1,4 @@
-# Data Ownership, Cache, And TanStack
+# Data Ownership And Cache
 
 **Impact: HIGH**
 
@@ -22,26 +22,10 @@ Cache Components and tag APIs are framework syntax. The architecture decision is
 
 For exact cache API syntax, fetch current Next.js docs. Policy: `updateTag` in Server Actions for read-your-own-writes; `revalidateTag(tag, 'max')` for stale-while-revalidate or Route Handler invalidation.
 
-## RSC DAL Hybrid Read
+## RSC + Client Hybrid Read (rare)
 
-For reference data that needs synchronous first paint **and** client-side optimistic CRUD, combine RSC DAL fetch with TanStack `initialData`:
+Only when reference data needs synchronous first paint **and** client-side optimistic CRUD: the RSC-owned read seeds the client island as `initialData` with an explicit freshness decision, and mutations invalidate whichever owner controls the read. Use the server timestamp as `initialDataUpdatedAt` when known; `0` means "render now, refetch immediately". If multiple islands consume the read, use a hydration strategy instead of hand-passing `initialData`.
 
-1. Server DAL fetches with `'use cache'` + `cacheTag(...)` and returns serializable rows.
-2. RSC passes rows as `initialData` props to a Client island.
-3. Client `useQuery` receives `initialData` plus an explicit freshness decision.
-4. Mutations call a Server Action and invalidate the matching tag with `updateTag` or `revalidateTag`.
+Do not use this for pure search/filter lists (client lifecycle only) or static pages without writes (RSC props only).
 
-```ts
-useQuery({
-  queryKey: keys.list(),
-  queryFn: getListAction,
-  initialData,
-  initialDataUpdatedAt: initialData ? serverFetchedAt : undefined,
-})
-```
-
-Use `initialDataUpdatedAt: serverFetchedAt` when known. Use `0` only for "render now, refetch immediately". If one query feeds multiple islands or TanStack owns freshness, prefer `prefetchQuery` + `HydrationBoundary`.
-
-Do not apply this hybrid to interactive search/filter lists (pure TanStack) or to mostly-static pages without writes (pure RSC props).
-
-Reference: Next.js RSC/cache ownership; TanStack Query client async lifecycle.
+Reference: Next.js RSC/cache ownership; client query async lifecycle. Fetch current docs for syntax.

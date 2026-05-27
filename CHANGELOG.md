@@ -8,7 +8,7 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Added RSC + DAL hybrid read pattern with `initialData` + `initialDataUpdatedAt: 0` to `data-ownership-cache-tanstack.md`.
+- Added RSC + DAL hybrid read pattern with `initialData` and explicit freshness ownership to `data-ownership-and-cache.md` (renamed from `data-ownership-cache-tanstack.md`).
 - Added input parsing/length caps and defense-in-depth ownership filter sections to `security-dal-and-auth.md`.
 - Added bulk-write RPC (`jsonb_to_recordset`), Postgres error → typed `ApiError` mapping, and explicit-column selection sections to `supabase-persistence-boundaries.md`.
 - Added new reference `observability-and-sentry.md` (lazy SDK loader, PII redaction, user context without email, route handler capture).
