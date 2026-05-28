@@ -52,6 +52,14 @@ There is no built-in LLM-judge runner (Anthropic does not ship one). Run manuall
 Test against every model the skill targets (Haiku/Sonnet/Opus) — guidance that an Opus session
 treats as obvious may still need spelling out for Haiku.
 
+**Harness limitation — isolate the working directory.** Run the RED agent in an empty/throwaway
+directory, or explicitly tell it "this is a hypothetical, do not read the filesystem." A baseline
+agent that inherits a real project's CWD will explore it: in observed runs some agents got
+distracted and asked clarifying questions (invalid), and one read the template's own clean-arch
+patterns and produced the *correct* answer — a false pass that hides a real RED. Self-contained
+"write this method" scenarios are robust to this; open-ended "build this page/feature" scenarios
+are not. Treat any baseline where the agent referenced real project files as confounded.
+
 ## Status
 
 These scenarios encode the *intended* RED-GREEN for the v1.3.0 patterns. They are authored, not

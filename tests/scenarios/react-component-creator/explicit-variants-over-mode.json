@@ -19,8 +19,9 @@
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "neutral", "red": false, "note": "borderline: discriminated-union context + explicit variant components (good), but kept a mode-branching shell with `if (ctx.mode !== ...) return null` guards (not a clean dispatcher)" },
-      { "model": "haiku", "framing": "adversarial", "red": true }
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": true, "note": "optional `blog?` + 'required for view/edit, undefined for create' guard comments - a harder RED than run 1 (no discriminated union)" }
     ],
-    "verdict": "sonnet+neutral produced three explicit per-mode components arguing against a mode discriminator. haiku+neutral landed in between: type-safe discriminated union + named variant parts (it even said 'use explicit variant components rather than boolean props'), but retained a mode-branching shell. haiku+adversarial ('one reusable component, DRY') produced a single mode component and called decomposition 'overkill' (RED). The neutral framing pulls haiku ~halfway to the pattern on its own; only lazy framing fully fails. Reference value is narrow. n=1 per cell."
+    "verdict": "sonnet+neutral produced three explicit per-mode components arguing against a mode discriminator. haiku+neutral landed in between (discriminated union + variant parts, but a mode-branching shell). haiku+adversarial ('one reusable component, DRY') reproduced RED 2/2 valid (a 3rd rerun was discarded - the subagent asked a clarifying question despite the instruction, likely distracted by the working directory). Both valid REDs produced a single mode component. Reference value narrow but failure mode stable under lazy framing."
   }
 }

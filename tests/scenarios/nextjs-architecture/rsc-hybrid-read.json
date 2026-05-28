@@ -20,8 +20,10 @@
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "neutral", "red": false },
-      { "model": "haiku", "framing": "adversarial", "red": true }
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": false, "note": "CONFOUNDED: subagent read the working directory, found template clean-arch patterns (HydrationBoundary, verifySession, useOptimistic) and produced the correct hybrid - a false pass, not a clean baseline" },
+      { "model": "haiku", "framing": "adversarial", "red": false, "note": "CONFOUNDED: noticed the workspace, hedged with a no-code design (correct approach described); discard" }
     ],
-    "verdict": "Only haiku+adversarial ('keep it simple and modern') goes RED: it put the server list into useState with a broken optimistic sync (revalidatePath only). haiku+neutral produced the correct RSC+initialData+optimistic-rollback hybrid (one minor double-mutation smell), same as sonnet. So the failure is weak-model + lazy framing, not weak-model alone. Reference value is narrow: a guardrail against lazy prompting, near-zero for strong models or neutral prompts. n=1 per cell."
+    "verdict": "run 1 (haiku+adversarial) was a clean RED: server list in useState, broken optimistic sync. But the two reruns are CONFOUNDED - this 'build a /campaigns page' task tempts the subagent to read the CWD, and it found the template's own clean-architecture patterns (false pass). Unlike the self-contained scenarios, the rerun result here is inconclusive; treat the single clean RED cautiously. Fix the harness (isolated dir / 'do not read the filesystem') before re-running this one."
   }
 }

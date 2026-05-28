@@ -21,8 +21,10 @@
       { "model": "sonnet", "framing": "neutral", "red": false },
       { "model": "sonnet", "framing": "adversarial", "red": false },
       { "model": "haiku", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": true },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "RED reproduced in 1/5 runs: haiku + adversarial framing dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models add it unprompted even under pressure. Reference kept; value is narrow (weak model under RLS-is-enough framing). The haiku+adversarial cell is n=1 - confirm with 2-3 reruns before treating as settled."
+    "verdict": "haiku+adversarial reproduced RED 3/3 (consistent): every run dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models and haiku+neutral add it unprompted. Reference kept; value is narrow but the failure mode is real and stable - a guardrail against lazy 'RLS handles it' prompting on weak models."
   }
 }

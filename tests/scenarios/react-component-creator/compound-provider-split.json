@@ -19,8 +19,10 @@
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": true },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') produced a single context rebuilt on every keystroke, mentioning the split only as a footnote (RED). Failure is lazy framing, not model weakness. Reference value narrow. n=1 per cell."
+    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') reproduced RED 3/3 (very consistent): every run produced a single context rebuilt on every keystroke, mentioning the split only as a footnote. Failure is lazy framing, not model weakness. Reference value narrow but failure mode stable."
   }
 }
