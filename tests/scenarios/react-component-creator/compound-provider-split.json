@@ -12,5 +12,14 @@
   "anti_expectation": [
     "Does NOT apply the compound-provider split to a small View that is fine as a composeHooks pair",
     "Does NOT bundle unrelated slices into one memo, which would defeat the point"
-  ]
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('just wrap shared state in a context, keep it simple')",
+    "runs": [
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true }
+    ],
+    "verdict": "sonnet+neutral split into per-concern contexts (Stats/Header/Form) so typing re-renders only the form, unprompted. haiku+adversarial produced a single context whose value is rebuilt on every keystroke (all consumers re-render), mentioning the per-concern split only as a footnote. Reference kept; narrow value. n=1 per cell; haiku+neutral not yet run."
+  }
 }

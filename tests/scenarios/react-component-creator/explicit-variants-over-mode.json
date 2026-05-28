@@ -12,5 +12,14 @@
   "anti_expectation": [
     "Does NOT split a trivial two-prop component that has no guard comments or mode branches",
     "Does NOT duplicate shared chrome across the three variants instead of a shared frame"
-  ]
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('one reusable component, keep it DRY')",
+    "runs": [
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true }
+    ],
+    "verdict": "sonnet+neutral produced three explicit per-mode components (View/Edit/Create) with distinct prop types and shared parts, explicitly arguing against a mode discriminator, unprompted. haiku+adversarial produced one BlogSidebar with a mode discriminated union and an internal mode branch, dismissing decomposition as 'overkill'. Soft RED: type-safe but still the single mode-component the reference warns against. Reference kept; narrow value. n=1 per cell; haiku+neutral not yet run."
+  }
 }

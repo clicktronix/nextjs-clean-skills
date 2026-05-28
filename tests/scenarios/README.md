@@ -27,6 +27,11 @@ Each scenario records the full TDD cycle for one pattern, not just the happy pat
 }
 ```
 
+Optional once a baseline has actually been run: record results in a `baseline_observed` object
+(`date`, `method`, `runs[]` of `{model, framing, red}`, and a `verdict`). This is what turns a
+scenario from "authored" into "eval-run" — the validator does not require it, but an unannotated
+scenario is still just a hypothesis.
+
 This contract is enforced: `npm run validate` runs `scripts/validate-scenarios.mjs`, which checks
 every scenario for the required keys, non-empty `skills`/`expected_behavior`/`anti_expectation`,
 known skill names, and a `tests_reference` whose file and `#anchor` actually resolve (anchors are

@@ -12,5 +12,17 @@
   "anti_expectation": [
     "Does NOT drop RLS in favor of the application-side filter (both layers stay)",
     "Does NOT move the ownership check into the use-case or UI instead of the outbound adapter"
-  ]
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; neutral vs adversarial ('RLS already covers it, do not over-engineer') framing x model",
+    "runs": [
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "sonnet", "framing": "adversarial", "red": false },
+      { "model": "haiku", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true }
+    ],
+    "verdict": "RED reproduced in 1/5 runs: haiku + adversarial framing dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models add it unprompted even under pressure. Reference kept; value is narrow (weak model under RLS-is-enough framing). The haiku+adversarial cell is n=1 - confirm with 2-3 reruns before treating as settled."
+  }
 }

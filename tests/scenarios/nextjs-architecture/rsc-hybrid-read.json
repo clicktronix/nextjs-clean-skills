@@ -13,5 +13,14 @@
     "Does NOT apply the hybrid seed to a pure search/filter list (that is client lifecycle only)",
     "Does NOT apply it to a static page with no writes (that is RSC props only)",
     "Does NOT hand-pass initialData to multiple islands instead of a hydration strategy"
-  ]
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('keep it simple and modern')",
+    "runs": [
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true }
+    ],
+    "verdict": "sonnet+neutral produced the exact RSC-owns-read + initialData + optimistic-onMutate + invalidate-onSettled hybrid unprompted. haiku+adversarial put the server list into useState and left the optimistic sync broken (Server Action + revalidatePath, list never updates from the mutation). Reference kept; value narrow (weak model / 'keep it simple' framing). n=1 per cell; haiku+neutral not yet run."
+  }
 }
