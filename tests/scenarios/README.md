@@ -74,8 +74,12 @@ the reference is present — so these references earn their place; they are not 
 audience (weak models / lazy prompts). Strong models, or weak models on neutral prompts, already do
 the right thing, so the value is narrow but real.
 
-- **rsc-hybrid-read** — RED run 1 only; reruns CONFOUNDED by CWD (see harness limitation above),
-  GREEN not yet run. Re-run in an isolated directory before treating as settled.
+- **rsc-hybrid-read** — re-run isolated with a reshaped narrow query (the original "build a page"
+  wording was not cleanly eval-able). Result differs from the other three: the baseline is
+  INCONSISTENT — haiku reaches the correct `initialData` hybrid ~half the time unprompted, and
+  only borderline-fails otherwise (useState instead of `initialData`). This reference is the
+  weakest-justified of the four; flagged as a trim/merge candidate for v1.3. GREEN confirms it
+  adds the explicit-freshness detail, but the core pattern is often reached without it.
 
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
