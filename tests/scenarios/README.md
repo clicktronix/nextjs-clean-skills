@@ -75,11 +75,12 @@ audience (weak models / lazy prompts). Strong models, or weak models on neutral 
 the right thing, so the value is narrow but real.
 
 - **rsc-hybrid-read** — re-run isolated with a reshaped narrow query (the original "build a page"
-  wording was not cleanly eval-able). Result differs from the other three: the baseline is
-  INCONSISTENT — haiku reaches the correct `initialData` hybrid ~half the time unprompted, and
-  only borderline-fails otherwise (useState instead of `initialData`). This reference is the
-  weakest-justified of the four; flagged as a trim/merge candidate for v1.3. GREEN confirms it
-  adds the explicit-freshness detail, but the core pattern is often reached without it.
+  wording was not cleanly eval-able). Baseline was INCONSISTENT — haiku reaches the correct
+  `initialData` hybrid ~half the time unprompted, only borderline-failing otherwise (useState
+  instead of `initialData`). This was the weakest-justified of the four, so its standalone section
+  was **merged into one prose line** in `data-ownership-and-cache.md` (seed initialData not
+  useState + explicit freshness); the scenario's `tests_reference` now points to the file. The
+  other three stay as full sections.
 
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.

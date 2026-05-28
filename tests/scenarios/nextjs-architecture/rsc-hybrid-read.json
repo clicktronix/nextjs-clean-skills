@@ -1,6 +1,6 @@
 {
   "skills": ["nextjs-architecture"],
-  "tests_reference": "references/data-ownership-and-cache.md#rsc--client-hybrid-read-rare",
+  "tests_reference": "references/data-ownership-and-cache.md",
   "query": "A /campaigns page currently renders the list fully client-side ('use client' + TanStack Query) with an optimistic create. First paint is empty until the client fetch resolves. Server-render the list for first paint without losing the optimistic create: show the page and how the server-fetched list reaches the client island and stays in sync. (Narrow refactor framing - the original open-ended 'build a page' wording was not cleanly eval-able; see baseline_observed.)",
   "baseline_failure": "Agent makes the whole page 'use client' and fetches the list with TanStack Query (loses RSC first paint), OR keeps it RSC and calls router.refresh() after the mutation (full re-render, no optimism). Either way one owner is dropped.",
   "expected_behavior": [
@@ -29,6 +29,6 @@
       { "model": "haiku", "framing": "adversarial", "red": false, "note": "produced the correct initialData-seed + optimistic-cache + invalidate hybrid WITHOUT the reference" },
       { "model": "haiku", "framing": "adversarial", "red": false, "skill_loaded": true, "note": "GREEN: correct hybrid AND picked up the reference-specific initialDataUpdatedAt freshness decision" }
     ],
-    "verdict": "Weakest-justified of the four references. Unlike defense-in-depth / explicit-variants / compound-provider (consistent RED), the rsc-hybrid baseline is INCONSISTENT: on the narrow isolated task haiku produced the correct initialData hybrid ~half the time unprompted, and only borderline-failed the other half (useState instead of initialData - still server-rendered and optimistic, just the wrong ownership). The reference's unique residual value is small: 'seed initialData, not useState' + 'make an explicit freshness decision (initialDataUpdatedAt)'. GREEN confirms the reference adds that freshness detail, but the core hybrid is often reached without it. Candidate to trim or merge into data-ownership-and-cache prose at v1.3; the other three earn their keep more clearly."
+    "verdict": "Weakest-justified of the four references. Unlike defense-in-depth / explicit-variants / compound-provider (consistent RED), the rsc-hybrid baseline is INCONSISTENT: on the narrow isolated task haiku produced the correct initialData hybrid ~half the time unprompted, and only borderline-failed the other half (useState instead of initialData - still server-rendered and optimistic, just the wrong ownership). The reference's unique residual value is small: 'seed initialData, not useState' + 'make an explicit freshness decision (initialDataUpdatedAt)'. GREEN confirms the reference adds that freshness detail, but the core hybrid is often reached without it. ACTED ON: this release merged the standalone 'RSC + Client Hybrid Read' section into one prose line in data-ownership-and-cache.md (seed initialData not useState + explicit freshness), so tests_reference now points to the file, not an anchor. The other three references earn their keep more clearly and stay as full sections."
   }
 }

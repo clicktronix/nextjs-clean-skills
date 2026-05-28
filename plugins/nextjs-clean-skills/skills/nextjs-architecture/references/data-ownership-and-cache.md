@@ -22,10 +22,6 @@ Cache Components and tag APIs are framework syntax. The architecture decision is
 
 For exact cache API syntax, fetch current Next.js docs. Policy: `updateTag` in Server Actions for read-your-own-writes; `revalidateTag(tag, 'max')` for stale-while-revalidate or Route Handler invalidation.
 
-## RSC + Client Hybrid Read (rare)
-
-Only when reference data needs synchronous first paint **and** client-side optimistic CRUD: the RSC-owned read seeds the client island as `initialData` with an explicit freshness decision, and mutations invalidate whichever owner controls the read. Use the server timestamp as `initialDataUpdatedAt` when known; `0` means "render now, refetch immediately". If multiple islands consume the read, use a hydration strategy instead of hand-passing `initialData`.
-
-Do not use this for pure search/filter lists (client lifecycle only) or static pages without writes (RSC props only).
+Rare RSC+client hybrid (reference data needs synchronous first paint **and** client-side optimistic CRUD): seed the client island from the RSC read as `initialData` — not `useState` — make an explicit freshness decision (`initialDataUpdatedAt`, or `0` to refetch immediately), and have mutations invalidate the read's owner. Not for pure client lists or static pages.
 
 Reference: Next.js RSC/cache ownership; client query async lifecycle. Fetch current docs for syntax.

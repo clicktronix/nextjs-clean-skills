@@ -27,6 +27,7 @@ All notable changes to this project are documented in this file.
 - Removed the redundant `Final Checklist` from both `SKILL.md` files; unique items folded into `Verification Gate` (architecture) and `Common Failure Modes` (component, including the `interface`/`class`/`any`/inline-style/barrel ban). Trims the always-loaded body to three differentiated lists (Decision Gate before, failure modes, Verification Gate after).
 - Reframed the architecture skill's doc-purity line as degrees of freedom: high-freedom prose for architecture, one canonical low-freedom example for fragile security/privacy/integrity operations. `observability-and-sentry.md` now states its snippets are safe-shape examples, with Sentry API flags deferred to current docs.
 - `notifications-and-feedback.md` marked as a stack convention (not portable architecture) and cross-linked to its `ApiError`/`presentError` prerequisite in `supabase-persistence-boundaries.md`.
+- Merged the standalone `RSC + Client Hybrid Read` section in `data-ownership-and-cache.md` into one prose line (seed `initialData` not `useState` + explicit freshness). Eval found this the weakest-justified pattern (inconsistent baseline — strong/neutral runs reach the hybrid unprompted); the residual value is small enough to live as prose, not a section.
 
 ### Validation / tooling
 
