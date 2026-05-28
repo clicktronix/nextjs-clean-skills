@@ -19,8 +19,9 @@
     "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('keep it simple and modern')",
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "sonnet+neutral produced the exact RSC-owns-read + initialData + optimistic-onMutate + invalidate-onSettled hybrid unprompted. haiku+adversarial put the server list into useState and left the optimistic sync broken (Server Action + revalidatePath, list never updates from the mutation). Reference kept; value narrow (weak model / 'keep it simple' framing). n=1 per cell; haiku+neutral not yet run."
+    "verdict": "Only haiku+adversarial ('keep it simple and modern') goes RED: it put the server list into useState with a broken optimistic sync (revalidatePath only). haiku+neutral produced the correct RSC+initialData+optimistic-rollback hybrid (one minor double-mutation smell), same as sonnet. So the failure is weak-model + lazy framing, not weak-model alone. Reference value is narrow: a guardrail against lazy prompting, near-zero for strong models or neutral prompts. n=1 per cell."
   }
 }

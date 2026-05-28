@@ -18,8 +18,9 @@
     "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('just wrap shared state in a context, keep it simple')",
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "sonnet+neutral split into per-concern contexts (Stats/Header/Form) so typing re-renders only the form, unprompted. haiku+adversarial produced a single context whose value is rebuilt on every keystroke (all consumers re-render), mentioning the per-concern split only as a footnote. Reference kept; narrow value. n=1 per cell; haiku+neutral not yet run."
+    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') produced a single context rebuilt on every keystroke, mentioning the split only as a footnote (RED). Failure is lazy framing, not model weakness. Reference value narrow. n=1 per cell."
   }
 }
