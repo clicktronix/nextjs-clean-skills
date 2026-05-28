@@ -23,6 +23,7 @@
       { "model": "haiku", "framing": "adversarial", "red": true },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') reproduced RED 3/3 (very consistent): every run produced a single context rebuilt on every keystroke, mentioning the split only as a footnote. Failure is lazy framing, not model weakness. Reference value narrow but failure mode stable."
+    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') reproduced RED 3/3 (very consistent): every run produced a single context rebuilt on every keystroke, mentioning the split only as a footnote. Failure is lazy framing, not model weakness. Reference value narrow but failure mode stable.",
+    "green_check": { "model": "haiku", "framing": "adversarial", "skill_loaded": true, "passed": true, "note": "RED->GREEN confirmed: with the reference injected, the same haiku that produced one context under 'just wrap it, keep it simple' instead built the Data/Mutations/FormState/FormActions split with per-slice useMemo." }
   }
 }

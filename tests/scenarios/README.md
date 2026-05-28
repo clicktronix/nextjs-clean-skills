@@ -62,6 +62,20 @@ are not. Treat any baseline where the agent referenced real project files as con
 
 ## Status
 
-These scenarios encode the *intended* RED-GREEN for the v1.3.0 patterns. They are authored, not
-yet executed against baselines. Until each `baseline_failure` is reproduced, the corresponding
-pattern is "expert-written, not eval-proven" — keep that caveat in the CHANGELOG.
+Three of the four patterns are eval-proven (full RED->GREEN), recorded in their `baseline_observed`
+and `green_check`:
+
+- **defense-in-depth-ownership** — RED 3/3 (haiku+adversarial), GREEN with reference loaded.
+- **explicit-variants-over-mode** — RED 2/2 valid, GREEN with reference loaded.
+- **compound-provider-split** — RED 3/3, GREEN with reference loaded.
+
+The same weak model under the same lazy framing flips from the failure to the correct pattern once
+the reference is present — so these references earn their place; they are not redundant for their
+audience (weak models / lazy prompts). Strong models, or weak models on neutral prompts, already do
+the right thing, so the value is narrow but real.
+
+- **rsc-hybrid-read** — RED run 1 only; reruns CONFOUNDED by CWD (see harness limitation above),
+  GREEN not yet run. Re-run in an isolated directory before treating as settled.
+
+GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
+re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.

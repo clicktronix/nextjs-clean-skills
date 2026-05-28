@@ -25,6 +25,7 @@
       { "model": "haiku", "framing": "adversarial", "red": true },
       { "model": "haiku", "framing": "adversarial", "red": true }
     ],
-    "verdict": "haiku+adversarial reproduced RED 3/3 (consistent): every run dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models and haiku+neutral add it unprompted. Reference kept; value is narrow but the failure mode is real and stable - a guardrail against lazy 'RLS handles it' prompting on weak models."
+    "verdict": "haiku+adversarial reproduced RED 3/3 (consistent): every run dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models and haiku+neutral add it unprompted. Reference kept; value is narrow but the failure mode is real and stable - a guardrail against lazy 'RLS handles it' prompting on weak models.",
+    "green_check": { "model": "haiku", "framing": "adversarial", "skill_loaded": true, "passed": true, "note": "RED->GREEN confirmed: with the reference injected, the same haiku+adversarial setup added .eq('created_by', userId) and cited defense-in-depth. The reference flips the exact behavior it failed without it." }
   }
 }
