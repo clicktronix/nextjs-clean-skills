@@ -33,6 +33,17 @@ const targets = [
     },
   },
   {
+    file: 'package-lock.json',
+    apply(json) {
+      json.name = pluginName
+      json.version = source.version
+      if (json.packages?.['']) {
+        json.packages[''].name = pluginName
+        json.packages[''].version = source.version
+      }
+    },
+  },
+  {
     file: 'plugins/nextjs-clean-skills/.claude-plugin/plugin.json',
     apply(json) {
       json.name = pluginName

@@ -1,11 +1,13 @@
 ---
 name: nextjs-architecture
-description: Use when adding or refactoring features in a Next.js 16 Hybrid Clean Architecture app, deciding layer placement, dependency direction, data ownership, auth boundaries, service API boundaries, persistence adapters, or tests by layer.
+description: Use when adding or refactoring features in a Next.js 16 Hybrid Clean Architecture app; deciding layer placement, dependency direction, data ownership, auth boundaries, service API boundaries, persistence adapters, cache invalidation, route handlers, server actions, observability and error reporting, or tests by layer.
 ---
 
 # Next.js Architecture
 
-Use this skill for full-stack Next.js feature slices and architecture decisions. It is an architecture contract, not a replacement for Next.js, React, Supabase, or TanStack docs. For API syntax, fetch current official docs.
+Use this skill for full-stack Next.js feature slices and architecture decisions. It is an architecture contract, not a replacement for Next.js, React, Supabase, or TanStack docs.
+
+Match the level of detail to the risk (degrees of freedom): architecture decisions lean high-freedom — prose plus small illustrative examples you adapt freely; fetch current official docs for API syntax. Fragile security, privacy, or data-integrity operations get one canonical low-freedom example to copy exactly, because consistency there is critical; the example shows the safe shape, not an API tutorial.
 
 ## Default Profile
 
@@ -20,11 +22,11 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 
 ## Start Here
 
-1. Identify whether the change is a command, a read, a route pattern, or a cross-cutting concern.
-2. Choose the layer before writing code.
+1. Run the Decision Gate classification (below) before editing.
+2. Identify whether the change is a command, a read, a route pattern, or a cross-cutting concern.
 3. Read only the references needed for that decision.
 4. Implement in dependency order: domain -> use-cases -> outbound -> inbound/DAL -> UI -> tests.
-5. Verify imports obey the compile-time boundaries.
+5. Run the Verification Gate (below) before claiming completion.
 
 ## Core Boundaries
 
@@ -64,22 +66,43 @@ Security:
 
 Data and persistence:
 
-- [Data Ownership, Cache, And TanStack](references/data-ownership-cache-tanstack.md)
+- [Data Ownership And Cache](references/data-ownership-and-cache.md)
 - [Backend Service Patterns](references/backend-service-patterns.md)
 - [Supabase Persistence Boundaries](references/supabase-persistence-boundaries.md)
 
 Quality:
 
 - [Testing By Layer](references/testing-by-layer.md)
+- [Observability And Sentry](references/observability-and-sentry.md)
 
-## Final Checklist
+## Decision Gate
 
-- Domain has schemas, inferred types, and pure rules only.
-- Use-cases import no adapters, framework APIs, React hooks, or TanStack Query.
-- Ports describe use-case needs; outbound adapters implement ports.
-- Inbound adapters or DAL verify auth/authz and map request/cookie/header/framework concerns.
-- Read-heavy pages use server-only DAL/read entrypoints.
-- Client server-state exists only when client interactivity needs it.
-- Cache tags are scoped by entity, user, or tenant.
-- Server Actions validate input and re-check authorization server-side.
-- `app/` entrypoints remain thin.
+Before code changes, write or hold this classification:
+
+```text
+layer: domain | use-case | outbound | inbound | DAL | server-state | UI | infrastructure
+boundary: RSC read | Server Action | Route Handler | webhook | durable job | none
+server data owner: RSC/DAL | TanStack Query | none
+auth boundary: proxy only? DAL? inbound adapter? use-case policy?
+cache owner: RSC cache | query cache | none
+tests: domain | use-case | adapter | action/route | component | e2e
+```
+
+If any field is unclear, resolve that decision before adding files.
+
+## Common Failure Modes
+
+- Use-case imports `next/*`, React, Supabase clients, outbound repositories, or TanStack Query.
+- Server data is copied into Context, Zustand, or `useState` instead of RSC props or TanStack Query.
+- Server Action trusts client validation and skips server-side auth/authz checks.
+- Route Handler is used for same-app form commands that belong in Server Actions.
+- Cache tags are broad, tenant-unsafe, or invalidated without matching ownership.
+
+## Verification Gate
+
+Before reporting success:
+
+1. Check changed imports against the compile-time boundary list: domain stays pure; use-cases depend on ports, not adapters/framework/React/TanStack; outbound implements ports; `app/` entrypoints stay thin.
+2. Confirm every data access path re-checks auth/authz server-side and cache tags are scoped by entity, user, or tenant.
+3. Run the smallest relevant test or static check available in the target repo.
+4. State any unverified layer explicitly instead of implying it is covered.

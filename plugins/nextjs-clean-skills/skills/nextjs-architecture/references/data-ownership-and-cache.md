@@ -1,4 +1,4 @@
-# Data Ownership, Cache, And TanStack
+# Data Ownership And Cache
 
 **Impact: HIGH**
 
@@ -20,6 +20,8 @@ Cache Components and tag APIs are framework syntax. The architecture decision is
 - TanStack-owned reads invalidate/update TanStack keys.
 - mixed pages must document which subset each owner controls.
 
-For `cacheLife`, `cacheTag`, `revalidateTag`, `updateTag`, and `router.refresh()` syntax, fetch current Next.js docs.
+For exact cache API syntax, fetch current Next.js docs. Policy: `updateTag` in Server Actions for read-your-own-writes; `revalidateTag(tag, 'max')` for stale-while-revalidate or Route Handler invalidation.
 
-Reference: Next.js RSC/cache ownership; TanStack Query client async lifecycle.
+Rare RSC+client hybrid (reference data needs synchronous first paint **and** client-side optimistic CRUD): seed the client island from the RSC read as `initialData` — not `useState` — make an explicit freshness decision (`initialDataUpdatedAt`, or `0` to refetch immediately), and have mutations invalidate the read's owner. Not for pure client lists or static pages.
+
+Reference: Next.js RSC/cache ownership; client query async lifecycle. Fetch current docs for syntax.

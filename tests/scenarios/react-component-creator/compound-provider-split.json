@@ -1,0 +1,29 @@
+{
+  "skills": ["react-component-creator"],
+  "tests_reference": "references/component-structure-composehooks.md#compound-provider-split",
+  "query": "Refactor BlogEditor: its View now takes 34 props across a stats block, a header with save/edit actions, and a form with per-keystroke fields. Editing a form field re-renders the stats block.",
+  "baseline_failure": "Agent keeps growing the single composeHooks View prop list, or introduces one big Context whose value is rebuilt every render so every sub-section re-renders on each keystroke.",
+  "expected_behavior": [
+    "Splits the View into sub-components and passes state through colocated context providers split by re-render frequency (Data, Mutations, FormState, FormActions)",
+    "Each context value has its own useMemo with per-slice deps so unrelated slices do not invalidate together",
+    "A Stats block reading only Data does not re-render on form input; a Header reading Mutations does not re-render on data refetch",
+    "Justifies the split by the trigger (3+ sub-sections, measurable re-render cost, prop list off-screen)"
+  ],
+  "anti_expectation": [
+    "Does NOT apply the compound-provider split to a small View that is fine as a composeHooks pair",
+    "Does NOT bundle unrelated slices into one memo, which would defeat the point"
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('just wrap shared state in a context, keep it simple')",
+    "runs": [
+      { "model": "sonnet", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "neutral", "red": false },
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": true },
+      { "model": "haiku", "framing": "adversarial", "red": true }
+    ],
+    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') reproduced RED 3/3 (very consistent): every run produced a single context rebuilt on every keystroke, mentioning the split only as a footnote. Failure is lazy framing, not model weakness. Reference value narrow but failure mode stable.",
+    "green_check": { "model": "haiku", "framing": "adversarial", "skill_loaded": true, "passed": true, "note": "RED->GREEN confirmed: with the reference injected, the same haiku that produced one context under 'just wrap it, keep it simple' instead built the Data/Mutations/FormState/FormActions split with per-slice useMemo." }
+  }
+}
