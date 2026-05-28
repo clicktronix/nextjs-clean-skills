@@ -15,7 +15,7 @@ All notable changes to this project are documented in this file.
 - Architecture patterns: RSC + DAL hybrid read with `initialData`/explicit freshness in `data-ownership-and-cache.md`; input parsing/length caps and defense-in-depth ownership filter in `security-dal-and-auth.md`; scoped bulk-write RPC (`jsonb_to_recordset`, `created_by`/tenant predicate), Postgres → typed `ApiError` mapping, and explicit-column selection in `supabase-persistence-boundaries.md`.
 - Component patterns: compound-provider split (`component-structure-composehooks.md`), explicit variants vs mode-discriminator (`state-placement.md`), localized Standard Schema → Mantine validator bridge (`forms-and-actions.md`).
 - `Decision Gate`, `Common Failure Modes`, and `Verification Gate` sections in both skills (recommended structure).
-- Eval scenarios in `tests/scenarios/` (RED baseline + GREEN expectation + overreach guardrail per new pattern) with a `README.md` documenting the format and manual run loop. Closes the long-empty scaffold; patterns stay "expert-written, not eval-proven" until baselines are reproduced.
+- Eval scenarios in `tests/scenarios/` (RED baseline + GREEN expectation + overreach guardrail per new pattern) with a `README.md` documenting the format and manual run loop. Closes the long-empty scaffold; baselines were reproduced — three references (defense-in-depth, explicit-variants, compound-provider) are eval-proven RED→GREEN, and the marginal RSC hybrid pattern was demoted to prose (see Changed).
 
 ### Changed
 
