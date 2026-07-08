@@ -84,3 +84,28 @@ the right thing, so the value is narrow but real.
 
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
+
+## Coverage by reference
+
+Honest map of which references are eval-backed and which are still hypotheses (an
+unannotated reference is guidance we *believe* helps, not guidance we've *watched* help).
+When editing an untested reference, consider authoring its scenario first.
+
+| Reference | Scenario | Status |
+| --- | --- | --- |
+| nextjs-architecture/security-dal-and-auth | defense-in-depth-ownership | **eval-proven** (RED 3/3 → GREEN) |
+| nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read | inconsistent baseline → section merged to one prose line |
+| react-component-creator/component-structure-composehooks | compound-provider-split | **eval-proven** (RED 3/3 → GREEN) |
+| react-component-creator/state-placement | explicit-variants-over-mode | **eval-proven** (RED 2/2 → GREEN) |
+| nextjs-architecture/clean-architecture-boundaries | — | untested |
+| nextjs-architecture/runtime-and-compile-time-boundaries | — | untested |
+| nextjs-architecture/backend-service-patterns | — | untested |
+| nextjs-architecture/supabase-persistence-boundaries | — | untested |
+| nextjs-architecture/security-env-validation | — | untested |
+| nextjs-architecture/observability-and-sentry | — | untested |
+| nextjs-architecture/testing-by-layer | — | untested |
+| nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |
+| react-component-creator/server-client-boundary | — | untested |
+| react-component-creator/forms-and-actions | — | untested |
+| react-component-creator/notifications-and-feedback | — | untested |
+| react-component-creator/styling-and-i18n | — | untested |

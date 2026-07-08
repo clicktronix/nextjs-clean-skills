@@ -2,7 +2,7 @@
 
 **Impact: MEDIUM**
 
-Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Judgment call: *where* feedback lives (one notifier vs scattered `onError`). **Prerequisite:** `notifyError(..., { error })` formats via the `ApiError`/`presentError` layer from [Supabase Persistence Boundaries](../../nextjs-architecture/references/supabase-persistence-boundaries.md) — build that first.
+Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Judgment call: *where* feedback lives (one notifier vs scattered `onError`). **Prerequisite:** `notifyError(..., { error })` formats via the `ApiError`/`presentError` error-mapping layer (adapters map SQLSTATE/PostgREST codes to typed `ApiError`s — the nextjs-architecture skill's "Supabase Persistence Boundaries" reference) — build that first.
 
 Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 
