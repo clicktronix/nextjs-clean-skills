@@ -2,3 +2,4 @@
 node_modules/
 .claude/projects/
 .claude/scheduled_tasks.lock
+.claude/codex-threads/

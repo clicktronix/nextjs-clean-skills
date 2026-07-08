@@ -8,15 +8,20 @@ import { fail, readJson, readText } from './_lib.mjs'
 
 const { version } = readJson('version.json')
 const files = ['docs/README.md', 'docs/architecture-contract.md', 'docs/agent-decision-maps.md']
-const markerRe = /skill version (\d+\.\d+\.\d+)/
+// Marker-specific and exhaustive: anchor on "Last reviewed" (bounded lazy gap —
+// the README marker wraps across lines) and check EVERY occurrence, so a stray
+// "skill version X.Y.Z" in prose can't satisfy the check and a stale second
+// marker can't hide behind a fresh first one.
+const markerRe = /Last reviewed[\s\S]{0,120}?skill version (\d+\.\d+\.\d+)/g
 
 const errors = []
 for (const file of files) {
-  const match = readText(file).match(markerRe)
-  if (!match) errors.push(`${file}: missing "skill version X.Y.Z" review marker.`)
-  else if (match[1] !== version)
-    errors.push(`${file}: review marker says ${match[1]}, version.json says ${version}. Re-review the doc and update the marker in the same PR.`)
+  const matches = [...readText(file).matchAll(markerRe)]
+  if (matches.length === 0) errors.push(`${file}: missing "Last reviewed ... skill version X.Y.Z" review marker.`)
+  for (const m of matches)
+    if (m[1] !== version)
+      errors.push(`${file}: review marker says ${m[1]}, version.json says ${version}. Re-review the doc and update the marker in the same PR.`)
 }
 
 fail(errors)
-console.log(`docs review markers ok (${files.length} @ ${version})`)
+console.log(`docs review markers ok (${files.length} files @ ${version})`)
