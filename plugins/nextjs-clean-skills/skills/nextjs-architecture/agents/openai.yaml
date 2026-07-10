@@ -1,0 +1,4 @@
+interface:
+  display_name: "Next.js Architecture"
+  short_description: "Place Next.js code in the correct layer"
+  default_prompt: "Use $nextjs-architecture to design this Next.js feature with explicit boundaries."

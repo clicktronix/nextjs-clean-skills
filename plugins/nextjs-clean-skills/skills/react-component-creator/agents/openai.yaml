@@ -1,0 +1,4 @@
+interface:
+  display_name: "React Component Creator"
+  short_description: "Choose clean React component boundaries"
+  default_prompt: "Use $react-component-creator to structure this React component for the existing app."

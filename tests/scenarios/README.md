@@ -62,8 +62,8 @@ are not. Treat any baseline where the agent referenced real project files as con
 
 ## Status
 
-Three of the four patterns are eval-proven (full RED->GREEN), recorded in their `baseline_observed`
-and `green_check`:
+Three of the original four patterns are eval-proven (full RED->GREEN), recorded in their
+`baseline_observed` and `green_check`:
 
 - **defense-in-depth-ownership** — RED 3/3 (haiku+adversarial), GREEN with reference loaded.
 - **explicit-variants-over-mode** — RED 2/2 valid, GREEN with reference loaded.
@@ -85,6 +85,11 @@ the right thing, so the value is narrow but real.
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
 
+Four audit-regression scenarios added in 1.3.1 are deliberately marked as hypotheses: profile
+gating, transport-neutral error mapping, Sentry instrumentation ownership, and the public TanStack
+MutationCache callback. They enforce reference/anchor drift in CI but are not called load-bearing
+until isolated RED and GREEN runs are recorded.
+
 ## Coverage by reference
 
 Honest map of which references are eval-backed and which are still hypotheses (an
@@ -93,6 +98,7 @@ When editing an untested reference, consider authoring its scenario first.
 
 | Reference | Scenario | Status |
 | --- | --- | --- |
+| nextjs-architecture/SKILL Profile Gate | profile-gate-existing-stack | hypothesis (not run) |
 | nextjs-architecture/security-dal-and-auth | defense-in-depth-ownership | **eval-proven** (RED 3/3 → GREEN) |
 | nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read | inconsistent baseline → section merged to one prose line |
 | react-component-creator/component-structure-composehooks | compound-provider-split | **eval-proven** (RED 3/3 → GREEN) |
@@ -100,12 +106,12 @@ When editing an untested reference, consider authoring its scenario first.
 | nextjs-architecture/clean-architecture-boundaries | — | untested |
 | nextjs-architecture/runtime-and-compile-time-boundaries | — | untested |
 | nextjs-architecture/backend-service-patterns | — | untested |
-| nextjs-architecture/supabase-persistence-boundaries | — | untested |
+| nextjs-architecture/supabase-persistence-boundaries | transport-neutral-error-mapping | hypothesis (not run) |
 | nextjs-architecture/security-env-validation | — | untested |
-| nextjs-architecture/observability-and-sentry | — | untested |
+| nextjs-architecture/observability-and-sentry | sentry-instrumentation-first | hypothesis (not run) |
 | nextjs-architecture/testing-by-layer | — | untested |
 | nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |
 | react-component-creator/server-client-boundary | — | untested |
 | react-component-creator/forms-and-actions | — | untested |
-| react-component-creator/notifications-and-feedback | — | untested |
+| react-component-creator/notifications-and-feedback | global-mutation-error-notifier | hypothesis (not run) |
 | react-component-creator/styling-and-i18n | — | untested |

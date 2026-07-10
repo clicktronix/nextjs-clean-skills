@@ -49,9 +49,10 @@ Interactive install:
 
 ```shell
 codex plugin marketplace add clicktronix/nextjs-clean-skills --ref main
+codex plugin add nextjs-clean-skills@nextjs-clean-skills
 ```
 
-Then open `/plugins`, select the `nextjs-clean-skills` marketplace, and install `nextjs-clean-skills`.
+Alternatively, open `/plugins`, select the `nextjs-clean-skills` marketplace, and install `nextjs-clean-skills`.
 
 For a consuming repository, prefer a repo marketplace entry instead of copying the skill files:
 
@@ -85,6 +86,14 @@ Installed skills:
 $nextjs-architecture
 $react-component-creator
 ```
+
+## Profile Gate
+
+The skills inspect the consuming repository before applying package-specific defaults. Existing
+architecture docs and neighboring code win. They do not add or replace Valibot, Supabase, TanStack
+Query, Mantine, next-safe-action, or `composeHooks` unless the task requests it. The profile below
+is literal only for greenfield or explicitly opted-in repositories; otherwise its roles map to the
+repository's existing equivalents.
 
 ## Default Profile
 

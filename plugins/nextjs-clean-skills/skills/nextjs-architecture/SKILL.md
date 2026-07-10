@@ -9,6 +9,15 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 
 Match the level of detail to the risk (degrees of freedom): architecture decisions lean high-freedom — prose plus small illustrative examples you adapt freely; fetch current official docs for API syntax. Fragile security, privacy, or data-integrity operations get one canonical low-freedom example to copy exactly, because consistency there is critical; the example shows the safe shape, not an API tutorial.
 
+## Profile Gate
+
+Before applying the defaults below, inspect the target repository's package manifest, local agent instructions, architecture docs, and neighboring feature slices.
+
+- Existing repository conventions win unless the task explicitly asks to migrate them.
+- Do not introduce or replace Valibot, Supabase, TanStack Query, Mantine, next-safe-action, or `composeHooks` merely because this skill mentions them.
+- Map architectural roles to the repository's existing equivalents: schema validator, persistence adapter, query client, component library, action wrapper, and component-composition pattern.
+- Use the Default Profile literally only for a greenfield project or a repository that has explicitly adopted it.
+
 ## Default Profile
 
 - Next.js 16 App Router, React 19, TypeScript.
@@ -22,7 +31,7 @@ Match the level of detail to the risk (degrees of freedom): architecture decisio
 
 ## Start Here
 
-1. Run the Decision Gate classification (below) before editing.
+1. Run the Profile Gate, then the Decision Gate classification (below), before editing.
 2. Identify whether the change is a command, a read, a route pattern, or a cross-cutting concern.
 3. Read only the references needed for that decision.
 4. Implement in dependency order: domain -> use-cases -> outbound -> inbound/DAL -> UI -> tests.
@@ -41,7 +50,7 @@ Client-interactive queries:
   Client component -> ui/server-state -> Server Action/API -> use-case -> port -> outbound
 
 Compile-time imports:
-  domain          imports nothing
+  domain          imports pure domain helpers and schema libraries only
   use-cases       import domain and local ports/types only
   outbound        imports use-case ports + domain
   inbound         imports use-cases + outbound factories + infrastructure

@@ -36,17 +36,17 @@ flowchart TD
   InboundOrDAL -->|Read| DAL["server-only DAL/read entrypoint"]
   InboundOrDAL -->|Command| Inbound["adapters/inbound/next/"]
   Framework -->|No| Reusable{"Reusable across many\nuse-cases or features?"}
-  Reusable -->|Yes| Infra["infrastructure/ or lib/"]
+  Reusable -->|Yes| Infra["infrastructure/"]
   Reusable -->|No| Persistence{"Implements a use-case's port\n(DB / API / queue)?"}
   Persistence -->|Yes| Outbound["adapters/outbound/"]
   Persistence -->|No| Presentation{"Presentation concern?"}
   Presentation -->|Yes| UI["app/ or ui/"]
-  Presentation -->|No| Helper["lib/ pure helper"]
+  Presentation -->|No| Owner["place with owning layer"]
 ```
 
 > Disambiguator: shared technical plumbing that does **not** implement a feature use-case port
-> (env validation, logger, cache tag taxonomy, query client setup) belongs in `infrastructure/`
-> or `lib/`, not `adapters/outbound/`. Generic Supabase client factories can live in their own
+> (env validation, logger, cache tag taxonomy, query client setup) belongs in `infrastructure/`,
+> not `adapters/outbound/`. Generic Supabase client factories can live in their own
 > adapter/support folder; feature repositories belong in `adapters/outbound/` because they
 > implement use-case ports.
 
@@ -98,5 +98,5 @@ Then implement in layer order. Do not import outbound adapters from use-cases.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-08 (skill version 1.3.0). When a skill rule
+*Last reviewed against the live skill set: 2026-07-09 (skill version 1.3.1). When a skill rule
 or template pattern changes, refresh this document in the same PR.*

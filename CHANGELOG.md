@@ -4,6 +4,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-09
+
+### Fixed
+
+- Added a Profile Gate to both skills so existing repository dependencies and conventions win;
+  the default Valibot/Supabase/TanStack/Mantine/`composeHooks` stack is no longer treated as an
+  implicit migration request.
+- Clarified that domain code may import pure schema libraries, while use-cases remain independent
+  of transport errors. Persistence adapters now map provider failures to transport-neutral
+  application errors, and inbound adapters own HTTP or Server Action result mapping.
+- Replaced the fail-open Sentry lazy-loader pattern with the supported Next.js instrumentation
+  surface and explicit automatic-versus-manual capture ownership.
+- Replaced the TanStack Query cache-subscription event pattern with the public global
+  `MutationCache.onError` callback and a metadata opt-out.
+- Removed contradictory `lib/` destinations from the agent decision map.
+
+### Codex
+
+- Corrected marketplace policy enums and required policy/category fields, documented the complete
+  CLI install sequence, and added generated `agents/openai.yaml` UI metadata to both skills.
+
+### Evaluation
+
+- Added four regression scenarios for the Profile Gate, transport-neutral errors, Sentry
+  instrumentation, and global mutation feedback. They remain explicitly marked as unrun
+  hypotheses until isolated RED-to-GREEN evidence is recorded.
+
 ## [1.3.0] - 2026-05-27
 
 > Consolidates the unreleased 1.2.0 platform patterns with skill-authoring and validation

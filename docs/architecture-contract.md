@@ -16,6 +16,11 @@ The architecture combines Next.js App Router with ports-and-adapters discipline:
 - The application owns domain rules, use-cases, ports, adapters, and authorization decisions.
 - Framework entrypoints compose dependencies; use-cases do not import framework or adapter code.
 
+This is a role map, not a package migration recipe. Inspect the target repository first and keep
+its established validator, persistence layer, query client, component library, and composition
+patterns unless the task explicitly asks to change them. Package-specific examples below describe
+the repository's default profile for greenfield or explicitly opted-in projects.
+
 ## Layer Dependency Graph
 
 Nodes are grouped by the layer they belong to. Solid arrows are compile-time imports; the
@@ -39,7 +44,7 @@ flowchart LR
   end
   subgraph Application["Application core"]
     UseCases["use-cases/\napplication orchestration + ports"]
-    Domain["domain/\nValibot schemas + pure rules"]
+    Domain["domain/\nschemas + pure rules"]
   end
   subgraph Persistence["Persistence + integrations"]
     Outbound["adapters/outbound/\nSupabase, APIs, queues"]
@@ -69,9 +74,10 @@ The skill references list these as rules. The point of this section is to explai
 so that next year, when someone is tempted to "just import this Supabase client into a
 use-case for convenience", the rationale is preserved.
 
-- **`domain/` imports nothing project-specific.** Schemas and pure rules must remain framework-
-  agnostic so they keep working across Edge runtime, Node runtime, tests, future workers, and
-  any future deploy target. The day a Valibot schema imports `next/headers`, you can no longer
+- **`domain/` imports nothing project-specific.** Pure schema libraries and domain helpers are
+  allowed; schemas and rules must remain framework-agnostic so they keep working across Edge
+  runtime, Node runtime, tests, future workers, and any future deploy target. The day a domain
+  schema imports `next/headers`, you can no longer
   unit-test domain logic without a Next.js request context, and you cannot reuse the schema in
   a queue worker or a CLI.
 
@@ -198,5 +204,5 @@ backend truth.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-08 (skill version 1.3.0). When a skill rule
+*Last reviewed against the live skill set: 2026-07-09 (skill version 1.3.1). When a skill rule
 or template pattern changes, refresh this document in the same PR.*
