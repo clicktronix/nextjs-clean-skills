@@ -49,9 +49,10 @@ Interactive install:
 
 ```shell
 codex plugin marketplace add clicktronix/nextjs-clean-skills --ref main
+codex plugin add nextjs-clean-skills@nextjs-clean-skills
 ```
 
-Then open `/plugins`, select the `nextjs-clean-skills` marketplace, and install `nextjs-clean-skills`.
+Alternatively, open `/plugins`, select the `nextjs-clean-skills` marketplace, and install `nextjs-clean-skills`.
 
 For a consuming repository, prefer a repo marketplace entry instead of copying the skill files:
 
@@ -87,6 +88,9 @@ $react-component-creator
 ```
 
 ## Default Profile
+
+This is a fallback for greenfield or explicitly opted-in repositories. Existing projects keep
+their local equivalents unless the task requests a migration.
 
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
 - **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.

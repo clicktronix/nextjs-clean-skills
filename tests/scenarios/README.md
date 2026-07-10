@@ -19,13 +19,16 @@ Each scenario records the full TDD cycle for one pattern, not just the happy pat
 ```json
 {
   "skills": ["nextjs-architecture"],
-  "tests_reference": "references/<file>.md#<anchor>",
+  "tests_reference": "<skill-relative-file>.md#<anchor>",
   "query": "the task given to the agent",
   "baseline_failure": "RED: what the agent does without the reference",
   "expected_behavior": ["GREEN bullet", "GREEN bullet"],
   "anti_expectation": ["overreach the agent must not do"]
 }
 ```
+
+`tests_reference` may target the skill body (`SKILL.md#<anchor>`) or a file under
+`references/`; it is resolved relative to the first skill in `skills`.
 
 Optional once a baseline has actually been run: record results in a `baseline_observed` object
 (`date`, `method`, `runs[]` of `{model, framing, red}`, and a `verdict`). This is what turns a
@@ -62,8 +65,8 @@ are not. Treat any baseline where the agent referenced real project files as con
 
 ## Status
 
-Three of the four patterns are eval-proven (full RED->GREEN), recorded in their `baseline_observed`
-and `green_check`:
+Three of the original four patterns are eval-proven (full RED->GREEN), recorded in their
+`baseline_observed` and `green_check`:
 
 - **defense-in-depth-ownership** — RED 3/3 (haiku+adversarial), GREEN with reference loaded.
 - **explicit-variants-over-mode** — RED 2/2 valid, GREEN with reference loaded.
@@ -85,6 +88,16 @@ the right thing, so the value is narrow but real.
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
 
+Three audit-regression scenarios added in 1.3.1 are deliberately marked as hypotheses:
+transport-neutral error mapping, Sentry instrumentation ownership, and the public TanStack
+MutationCache callback. They enforce reference/anchor drift in CI but are not called load-bearing
+until isolated RED and GREEN runs are recorded.
+
+The larger Profile Gate candidate was rejected after an ablation run on 2026-07-10: Haiku with
+each full skill minus only that gate preserved the existing stack in architecture 2/2 and component
+2/2 runs. The multi-line gates and scenario were cut; one fallback sentence remains to define what
+"Default Profile" means without adding a new behavioral procedure.
+
 ## Coverage by reference
 
 Honest map of which references are eval-backed and which are still hypotheses (an
@@ -100,12 +113,12 @@ When editing an untested reference, consider authoring its scenario first.
 | nextjs-architecture/clean-architecture-boundaries | — | untested |
 | nextjs-architecture/runtime-and-compile-time-boundaries | — | untested |
 | nextjs-architecture/backend-service-patterns | — | untested |
-| nextjs-architecture/supabase-persistence-boundaries | — | untested |
+| nextjs-architecture/supabase-persistence-boundaries | transport-neutral-error-mapping | hypothesis (not run) |
 | nextjs-architecture/security-env-validation | — | untested |
-| nextjs-architecture/observability-and-sentry | — | untested |
+| nextjs-architecture/observability-and-sentry | sentry-instrumentation-first | hypothesis (not run) |
 | nextjs-architecture/testing-by-layer | — | untested |
 | nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |
 | react-component-creator/server-client-boundary | — | untested |
 | react-component-creator/forms-and-actions | — | untested |
-| react-component-creator/notifications-and-feedback | — | untested |
+| react-component-creator/notifications-and-feedback | global-mutation-error-notifier | hypothesis (not run) |
 | react-component-creator/styling-and-i18n | — | untested |

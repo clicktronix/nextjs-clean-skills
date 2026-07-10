@@ -4,6 +4,34 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-10
+
+### Added
+
+- Added generated `agents/openai.yaml` UI metadata to both skills.
+- Added three regression scenarios for transport-neutral errors, Sentry instrumentation, and
+  global mutation feedback. They remain explicitly marked as unrun hypotheses until isolated
+  RED-to-GREEN evidence is recorded.
+
+### Changed
+
+- Clarified that package-specific defaults are fallbacks, not migration requests. A larger Profile
+  Gate candidate was removed after Haiku ablation runs preserved the existing stack in 4/4 cases.
+- Clarified that domain code may import pure schema libraries, while use-cases remain independent
+  of transport errors. Persistence adapters now map provider failures to transport-neutral
+  application errors, and inbound adapters own HTTP or Server Action result mapping.
+- Replaced the fail-open Sentry lazy-loader pattern with the supported Next.js instrumentation
+  surface and explicit automatic-versus-manual capture ownership.
+- Replaced the TanStack Query cache-subscription event pattern with the public global
+  `MutationCache.onError` callback and a metadata opt-out.
+- Removed contradictory `lib/` destinations from the agent decision map.
+
+### Fixed
+
+- Aligned Codex marketplace policy enums, optional defaults, and `products` with the runtime
+  contract, added schema fixtures for those variants, and documented the complete CLI install
+  sequence.
+
 ## [1.3.0] - 2026-05-27
 
 > Consolidates the unreleased 1.2.0 platform patterns with skill-authoring and validation

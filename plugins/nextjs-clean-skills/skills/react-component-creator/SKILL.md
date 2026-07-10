@@ -7,7 +7,9 @@ description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Ar
 
 Use this skill for UI structure decisions in a Next.js 16 codebase. It is a project convention guide, not React, Mantine, Valibot, or i18n API documentation. For exact API syntax, fetch current official docs.
 
-## Defaults
+## Profile Defaults
+
+Use these defaults literally for greenfield or explicitly adopted projects; otherwise preserve neighboring UI conventions unless migration is requested.
 
 - Start with a Server Component.
 - Add `'use client'` only for event handlers, hooks, refs, browser APIs, opt-in TanStack Query, Mantine forms, or client i18n hooks.
@@ -78,7 +80,7 @@ If the answer is "Client because it is easier," re-check the trigger for hooks, 
 - Mixing View markup and hook/business logic in `index.tsx`.
 - Creating barrel exports or broad `interfaces.ts` files for one-off local types.
 - Using TanStack Query for a read that does not need client lifecycle semantics.
-- Using `interface`, `class`, `any`, inline `style={}`, or namespace exports — the profile forbids these (use `type`, function composition, narrowed `unknown`, Mantine props/CSS Modules, named imports).
+- In a repository that adopted this profile, using `interface`, `class`, `any`, inline `style={}`, or namespace exports (use `type`, function composition, narrowed `unknown`, the local styling system, and named imports).
 - Validating a form only on the client and trusting it for authority — the server re-validates with the same schema.
 - Hardcoding user-facing text (including `aria-label`, `placeholder`, `alt`) instead of the project i18n layer.
 - Reaching for `composeHooks` or a context split on a trivial View that is fine as a plain component.

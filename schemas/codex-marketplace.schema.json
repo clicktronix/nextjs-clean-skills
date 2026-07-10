@@ -32,8 +32,12 @@
           "policy": {
             "type": "object",
             "properties": {
-              "installation": { "type": "string", "enum": ["AVAILABLE", "PRE_INSTALLED"] },
-              "authentication": { "type": "string", "enum": ["ON_INSTALL", "ON_USE", "NONE"] }
+              "installation": { "type": "string", "enum": ["NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"] },
+              "authentication": { "type": "string", "enum": ["ON_INSTALL", "ON_USE"] },
+              "products": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["chatgpt", "codex", "atlas", "CHATGPT", "CODEX", "ATLAS"] }
+              }
             }
           },
           "category": { "type": "string", "minLength": 1 }

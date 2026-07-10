@@ -47,7 +47,7 @@ Use tenant or parent scope instead of `actor_id` when that is the domain authori
 
 ## Error Mapping
 
-Adapters must not `throw new Error(error.message)` from Postgres or PostgREST errors. Raw messages leak schema into user-facing paths. Map known SQLSTATE/PostgREST codes to typed `ApiError` subclasses and keep raw payloads in server-only log context.
+Never rethrow a Postgres/PostgREST message. Map known codes to transport-neutral application errors such as `ConflictError`; log raw payloads server-side. Inbound adapters map them to HTTP, Server Action, or other public results. Use-cases never depend on `ApiError`, `Response`, or framework errors.
 
 ## Explicit Column Selection
 

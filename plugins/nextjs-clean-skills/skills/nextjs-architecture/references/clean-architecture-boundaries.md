@@ -6,7 +6,7 @@ Choose the layer before writing files. Dependency direction is compile-time, not
 
 | Layer | Owns | May import |
 | --- | --- | --- |
-| `domain/**` | Schemas, types, pure rules | nothing project-specific |
+| `domain/**` | Schemas, types, pure rules | pure domain helpers and schema libraries; nothing project- or framework-specific |
 | `use-cases/**` | Scenarios, ports, feature types | domain, local ports/types |
 | `adapters/outbound/**` | Port implementations | domain, use-case port types |
 | `adapters/inbound/next/**` | Server Actions, Route Handlers, webhooks | use-cases, outbound factories, infrastructure |

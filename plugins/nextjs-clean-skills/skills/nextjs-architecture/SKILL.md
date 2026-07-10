@@ -11,6 +11,8 @@ Match the level of detail to the risk (degrees of freedom): architecture decisio
 
 ## Default Profile
 
+Use this profile literally for greenfield or explicitly adopted projects; otherwise preserve the repository's existing equivalents unless migration is requested.
+
 - Next.js 16 App Router, React 19, TypeScript.
 - Domain schemas and types in Valibot.
 - Use-cases are pure application orchestration and depend on ports, not adapters.
@@ -41,7 +43,7 @@ Client-interactive queries:
   Client component -> ui/server-state -> Server Action/API -> use-case -> port -> outbound
 
 Compile-time imports:
-  domain          imports nothing
+  domain          imports pure domain helpers and schema libraries only
   use-cases       import domain and local ports/types only
   outbound        imports use-case ports + domain
   inbound         imports use-cases + outbound factories + infrastructure

@@ -75,7 +75,7 @@ for (const file of files) {
     }
   }
 
-  // tests_reference: "references/<file>.md#<anchor>" resolved against the first skill's dir.
+  // tests_reference: a SKILL.md or references path resolved against the first skill's dir.
   if (typeof data.tests_reference === 'string' && Array.isArray(data.skills) && data.skills[0]) {
     const [refPath, anchor] = data.tests_reference.split('#')
     const refRel = path.join(skillsRoot, data.skills[0], refPath)
