@@ -42,4 +42,4 @@ mismatch as a doc bug — the skills are the operational source of truth, the do
 ## Last Reviewed
 
 These documents are maintained alongside the `nextjs-clean-skills` plugin. Last reviewed
-against the live skill set: 2026-07-09 (skill version 1.3.1).
+against the live skill set: 2026-07-10 (skill version 1.3.1).

@@ -98,5 +98,5 @@ Then implement in layer order. Do not import outbound adapters from use-cases.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-09 (skill version 1.3.1). When a skill rule
+*Last reviewed against the live skill set: 2026-07-10 (skill version 1.3.1). When a skill rule
 or template pattern changes, refresh this document in the same PR.*

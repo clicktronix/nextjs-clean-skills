@@ -87,15 +87,10 @@ $nextjs-architecture
 $react-component-creator
 ```
 
-## Profile Gate
-
-The skills inspect the consuming repository before applying package-specific defaults. Existing
-architecture docs and neighboring code win. They do not add or replace Valibot, Supabase, TanStack
-Query, Mantine, next-safe-action, or `composeHooks` unless the task requests it. The profile below
-is literal only for greenfield or explicitly opted-in repositories; otherwise its roles map to the
-repository's existing equivalents.
-
 ## Default Profile
+
+This is a fallback for greenfield or explicitly opted-in repositories. Existing projects keep
+their local equivalents unless the task requests a migration.
 
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
 - **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.

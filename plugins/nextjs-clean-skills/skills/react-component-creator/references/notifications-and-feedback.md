@@ -2,7 +2,7 @@
 
 **Impact: MEDIUM**
 
-Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Prerequisite: the inbound boundary maps application errors to public codes/results that `presentError` can format.
+Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Prerequisite: the inbound boundary maps application errors to public codes/results that `presentError` can format. See [Supabase persistence error mapping](../../nextjs-architecture/references/supabase-persistence-boundaries.md#error-mapping).
 
 Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 

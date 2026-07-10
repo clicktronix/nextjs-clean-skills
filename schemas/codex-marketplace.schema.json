@@ -18,7 +18,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["name", "source", "policy", "category"],
+        "required": ["name", "source"],
         "properties": {
           "name": { "const": "nextjs-clean-skills" },
           "source": {
@@ -31,12 +31,14 @@
           },
           "policy": {
             "type": "object",
-            "required": ["installation", "authentication"],
             "properties": {
               "installation": { "type": "string", "enum": ["NOT_AVAILABLE", "AVAILABLE", "INSTALLED_BY_DEFAULT"] },
-              "authentication": { "type": "string", "enum": ["ON_INSTALL", "ON_USE"] }
-            },
-            "additionalProperties": false
+              "authentication": { "type": "string", "enum": ["ON_INSTALL", "ON_USE"] },
+              "products": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["chatgpt", "codex", "atlas", "CHATGPT", "CODEX", "ATLAS"] }
+              }
+            }
           },
           "category": { "type": "string", "minLength": 1 }
         }

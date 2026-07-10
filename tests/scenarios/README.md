@@ -19,13 +19,16 @@ Each scenario records the full TDD cycle for one pattern, not just the happy pat
 ```json
 {
   "skills": ["nextjs-architecture"],
-  "tests_reference": "references/<file>.md#<anchor>",
+  "tests_reference": "<skill-relative-file>.md#<anchor>",
   "query": "the task given to the agent",
   "baseline_failure": "RED: what the agent does without the reference",
   "expected_behavior": ["GREEN bullet", "GREEN bullet"],
   "anti_expectation": ["overreach the agent must not do"]
 }
 ```
+
+`tests_reference` may target the skill body (`SKILL.md#<anchor>`) or a file under
+`references/`; it is resolved relative to the first skill in `skills`.
 
 Optional once a baseline has actually been run: record results in a `baseline_observed` object
 (`date`, `method`, `runs[]` of `{model, framing, red}`, and a `verdict`). This is what turns a
@@ -85,10 +88,15 @@ the right thing, so the value is narrow but real.
 GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
 re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
 
-Four audit-regression scenarios added in 1.3.1 are deliberately marked as hypotheses: profile
-gating, transport-neutral error mapping, Sentry instrumentation ownership, and the public TanStack
+Three audit-regression scenarios added in 1.3.1 are deliberately marked as hypotheses:
+transport-neutral error mapping, Sentry instrumentation ownership, and the public TanStack
 MutationCache callback. They enforce reference/anchor drift in CI but are not called load-bearing
 until isolated RED and GREEN runs are recorded.
+
+The larger Profile Gate candidate was rejected after an ablation run on 2026-07-10: Haiku with
+each full skill minus only that gate preserved the existing stack in architecture 2/2 and component
+2/2 runs. The multi-line gates and scenario were cut; one fallback sentence remains to define what
+"Default Profile" means without adding a new behavioral procedure.
 
 ## Coverage by reference
 
@@ -98,7 +106,6 @@ When editing an untested reference, consider authoring its scenario first.
 
 | Reference | Scenario | Status |
 | --- | --- | --- |
-| nextjs-architecture/SKILL Profile Gate | profile-gate-existing-stack | hypothesis (not run) |
 | nextjs-architecture/security-dal-and-auth | defense-in-depth-ownership | **eval-proven** (RED 3/3 → GREEN) |
 | nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read | inconsistent baseline → section merged to one prose line |
 | react-component-creator/component-structure-composehooks | compound-provider-split | **eval-proven** (RED 3/3 → GREEN) |

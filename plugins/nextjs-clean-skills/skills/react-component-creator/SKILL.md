@@ -7,16 +7,9 @@ description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Ar
 
 Use this skill for UI structure decisions in a Next.js 16 codebase. It is a project convention guide, not React, Mantine, Valibot, or i18n API documentation. For exact API syntax, fetch current official docs.
 
-## Profile Gate
-
-Inspect the target repository's package manifest, local agent instructions, design system, and neighboring components before applying these defaults.
-
-- Preserve the repository's established UI conventions unless migration is part of the task.
-- Do not add or replace Mantine, TanStack Query, a form library, an i18n library, or `composeHooks` solely to match this skill.
-- Map each role to the repository's existing equivalent. A plain component or local hook is valid when the repository has no composition helper.
-- Apply the profile literally only to a greenfield project or a repository that has explicitly adopted it.
-
 ## Profile Defaults
+
+Use these defaults literally for greenfield or explicitly adopted projects; otherwise preserve neighboring UI conventions unless migration is requested.
 
 - Start with a Server Component.
 - Add `'use client'` only for event handlers, hooks, refs, browser APIs, opt-in TanStack Query, Mantine forms, or client i18n hooks.
@@ -57,7 +50,7 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 
 ## Workflow
 
-1. Run the Profile Gate and decide Server vs Client before writing files.
+1. Decide Server vs Client before writing files.
 2. Classify data and state ownership before adding hooks or stores.
 3. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
 4. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.

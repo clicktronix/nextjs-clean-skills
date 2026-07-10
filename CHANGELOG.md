@@ -4,13 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-## [1.3.1] - 2026-07-09
+## [1.3.1] - 2026-07-10
 
-### Fixed
+### Added
 
-- Added a Profile Gate to both skills so existing repository dependencies and conventions win;
-  the default Valibot/Supabase/TanStack/Mantine/`composeHooks` stack is no longer treated as an
-  implicit migration request.
+- Added generated `agents/openai.yaml` UI metadata to both skills.
+- Added three regression scenarios for transport-neutral errors, Sentry instrumentation, and
+  global mutation feedback. They remain explicitly marked as unrun hypotheses until isolated
+  RED-to-GREEN evidence is recorded.
+
+### Changed
+
+- Clarified that package-specific defaults are fallbacks, not migration requests. A larger Profile
+  Gate candidate was removed after Haiku ablation runs preserved the existing stack in 4/4 cases.
 - Clarified that domain code may import pure schema libraries, while use-cases remain independent
   of transport errors. Persistence adapters now map provider failures to transport-neutral
   application errors, and inbound adapters own HTTP or Server Action result mapping.
@@ -20,16 +26,11 @@ All notable changes to this project are documented in this file.
   `MutationCache.onError` callback and a metadata opt-out.
 - Removed contradictory `lib/` destinations from the agent decision map.
 
-### Codex
+### Fixed
 
-- Corrected marketplace policy enums and required policy/category fields, documented the complete
-  CLI install sequence, and added generated `agents/openai.yaml` UI metadata to both skills.
-
-### Evaluation
-
-- Added four regression scenarios for the Profile Gate, transport-neutral errors, Sentry
-  instrumentation, and global mutation feedback. They remain explicitly marked as unrun
-  hypotheses until isolated RED-to-GREEN evidence is recorded.
+- Aligned Codex marketplace policy enums, optional defaults, and `products` with the runtime
+  contract, added schema fixtures for those variants, and documented the complete CLI install
+  sequence.
 
 ## [1.3.0] - 2026-05-27
 

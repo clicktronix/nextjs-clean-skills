@@ -9,16 +9,9 @@ Use this skill for full-stack Next.js feature slices and architecture decisions.
 
 Match the level of detail to the risk (degrees of freedom): architecture decisions lean high-freedom — prose plus small illustrative examples you adapt freely; fetch current official docs for API syntax. Fragile security, privacy, or data-integrity operations get one canonical low-freedom example to copy exactly, because consistency there is critical; the example shows the safe shape, not an API tutorial.
 
-## Profile Gate
-
-Before applying the defaults below, inspect the target repository's package manifest, local agent instructions, architecture docs, and neighboring feature slices.
-
-- Existing repository conventions win unless the task explicitly asks to migrate them.
-- Do not introduce or replace Valibot, Supabase, TanStack Query, Mantine, next-safe-action, or `composeHooks` merely because this skill mentions them.
-- Map architectural roles to the repository's existing equivalents: schema validator, persistence adapter, query client, component library, action wrapper, and component-composition pattern.
-- Use the Default Profile literally only for a greenfield project or a repository that has explicitly adopted it.
-
 ## Default Profile
+
+Use this profile literally for greenfield or explicitly adopted projects; otherwise preserve the repository's existing equivalents unless migration is requested.
 
 - Next.js 16 App Router, React 19, TypeScript.
 - Domain schemas and types in Valibot.
@@ -31,7 +24,7 @@ Before applying the defaults below, inspect the target repository's package mani
 
 ## Start Here
 
-1. Run the Profile Gate, then the Decision Gate classification (below), before editing.
+1. Run the Decision Gate classification (below) before editing.
 2. Identify whether the change is a command, a read, a route pattern, or a cross-cutting concern.
 3. Read only the references needed for that decision.
 4. Implement in dependency order: domain -> use-cases -> outbound -> inbound/DAL -> UI -> tests.

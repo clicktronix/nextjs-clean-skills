@@ -16,10 +16,8 @@ The architecture combines Next.js App Router with ports-and-adapters discipline:
 - The application owns domain rules, use-cases, ports, adapters, and authorization decisions.
 - Framework entrypoints compose dependencies; use-cases do not import framework or adapter code.
 
-This is a role map, not a package migration recipe. Inspect the target repository first and keep
-its established validator, persistence layer, query client, component library, and composition
-patterns unless the task explicitly asks to change them. Package-specific examples below describe
-the repository's default profile for greenfield or explicitly opted-in projects.
+This is a role map, not a package migration recipe. Package names below describe the default
+profile; existing repositories keep their established equivalents unless migration is requested.
 
 ## Layer Dependency Graph
 
@@ -204,5 +202,5 @@ backend truth.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-09 (skill version 1.3.1). When a skill rule
+*Last reviewed against the live skill set: 2026-07-10 (skill version 1.3.1). When a skill rule
 or template pattern changes, refresh this document in the same PR.*

@@ -21,19 +21,48 @@ const targets = [
   {
     file: '.agents/plugins/marketplace.json',
     schema: readJson('schemas/codex-marketplace.schema.json'),
+    fixtures: [
+      {
+        label: 'codex marketplace default-policy fixture',
+        data: {
+          name: 'nextjs-clean-skills',
+          plugins: [
+            {
+              name: 'nextjs-clean-skills',
+              source: { source: 'local', path: './plugins/nextjs-clean-skills' },
+            },
+          ],
+        },
+      },
+      {
+        label: 'codex marketplace products fixture',
+        data: {
+          name: 'nextjs-clean-skills',
+          plugins: [
+            {
+              name: 'nextjs-clean-skills',
+              source: { source: 'local', path: './plugins/nextjs-clean-skills' },
+              policy: { products: ['codex'] },
+            },
+          ],
+        },
+      },
+    ],
   },
 ]
 
 const errors = []
 
-for (const { file, schema } of targets) {
+for (const { file, schema, fixtures = [] } of targets) {
   const validate = ajv.compile(schema)
-  const data = readJson(file)
-  if (!validate(data)) {
-    for (const error of validate.errors ?? []) {
-      const pointer = error.instancePath || '/'
-      const detail = error.params ? ` ${JSON.stringify(error.params)}` : ''
-      errors.push(`${file}${pointer} ${error.message}${detail}`)
+  const samples = [{ label: file, data: readJson(file) }, ...fixtures]
+  for (const sample of samples) {
+    if (!validate(sample.data)) {
+      for (const error of validate.errors ?? []) {
+        const pointer = error.instancePath || '/'
+        const detail = error.params ? ` ${JSON.stringify(error.params)}` : ''
+        errors.push(`${sample.label}${pointer} ${error.message}${detail}`)
+      }
     }
   }
 }
