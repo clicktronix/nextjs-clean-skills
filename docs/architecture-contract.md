@@ -79,10 +79,10 @@ entrypoint declares the contract directly around the data or port call.
 flowchart TB
   Change["New behaviour"] --> Pure{"Pure business rule?"}
   Pure -->|Yes| Domain["domain/"]
-  Pure -->|No| Delete{"If this module is deleted,\ndoes complexity move to callers?"}
-  Delete -->|No| Direct["No use-case\nDeclare at inbound/read boundary"]
-  Delete -->|Yes| Operation["Create operation\nApplication logic"]
-  Operation --> Entry["Create entry\nValidation + failure contract"]
+  Pure -->|No| Delete{"If this module is deleted,<br/>does complexity move to callers?"}
+  Delete -->|No| Direct["No use-case<br/>Declare at inbound/read boundary"]
+  Delete -->|Yes| Operation["Create operation<br/>Application logic"]
+  Operation --> Entry["Create entry<br/>Validation + failure contract"]
 ```
 
 ## When A Port Exists

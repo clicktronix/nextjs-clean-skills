@@ -9,12 +9,12 @@ Use these maps during design and review. They derive from
 flowchart TB
   Start["New code"] --> Owner{"Which business capability owns it?"}
   Owner -->|Unknown| Stop["Stop and name the owner"]
-  Owner -->|Known| Pure{"Pure schema, invariant,\nor transformation?"}
+  Owner -->|Known| Pure{"Pure schema, invariant,<br/>or transformation?"}
   Pure -->|Yes| Domain["domain/"]
-  Pure -->|No| Framework{"Reads request, cookies, headers,\ncache, stream, or FormData?"}
+  Pure -->|No| Framework{"Reads request, cookies, headers,<br/>cache, stream, or FormData?"}
   Framework -->|Yes, read| Read["adapters/inbound/read/"]
   Framework -->|Yes, command/event| Inbound["adapters/inbound/"]
-  Framework -->|No| Scenario{"Does deleting the module\nmove complexity to callers?"}
+  Framework -->|No| Scenario{"Does deleting the module<br/>move complexity to callers?"}
   Scenario -->|Yes| UseCase["operation + entry"]
   Scenario -->|No| Remaining["Classify the remaining responsibility"]
 ```
@@ -33,11 +33,11 @@ flowchart TB
 ```mermaid
 flowchart TB
   Change["Candidate application module"] --> Delete{"Delete it"}
-  Delete --> Repeat{"Do callers now repeat or absorb\norchestration, rules, or projection?"}
-  Repeat -->|No| Remove["No use-case\nDeclare the direct call at inbound/read"]
+  Delete --> Repeat{"Do callers now repeat or absorb<br/>orchestration, rules, or projection?"}
+  Repeat -->|No| Remove["No use-case<br/>Declare the direct call at inbound/read"]
   Repeat -->|Yes| Operation["Operation owns that behaviour"]
   Operation --> Entry["Entry declares the operation"]
-  Entry --> Check{"Does the operation still\nonly forward arguments?"}
+  Entry --> Check{"Does the operation still<br/>only forward arguments?"}
   Check -->|Yes| Remove
   Check -->|No| Keep["Keep the use-case"]
 ```
@@ -48,13 +48,13 @@ Line count is not the criterion. The question is whether the module owns behavio
 
 ```mermaid
 flowchart TB
-  Dependency["Dependency needed"] --> Independent{"Must the core state the capability\nindependently of its technology?"}
-  Independent -->|No| Local{"Runs locally from\nchecked-in migrations?"}
+  Dependency["Dependency needed"] --> Independent{"Must the core state the capability<br/>independently of its technology?"}
+  Independent -->|No| Local{"Runs locally from<br/>checked-in migrations?"}
   Local -->|Yes| Data["Use data/ and test the engine"]
-  Local -->|No| Boundary["Keep it outside the core\nat inbound or infrastructure"]
-  Independent -->|Yes| Language{"Contract uses application language,\nnot CRUD or SDK methods?"}
+  Local -->|No| Boundary["Keep it outside the core<br/>at inbound or infrastructure"]
+  Independent -->|Yes| Language{"Contract uses application language,<br/>not CRUD or SDK methods?"}
   Language -->|No| Redesign["Redesign the capability"]
-  Language -->|Yes| Real{"Real consumer and production\nimplementation exist now?"}
+  Language -->|Yes| Real{"Real consumer and production<br/>implementation exist now?"}
   Real -->|No| Defer["Defer the abstraction"]
   Real -->|Yes| Port["Declare port + outbound adapter"]
 ```
@@ -92,7 +92,7 @@ flowchart TB
   Imports -->|No| Block
   Imports -->|Yes| Empty{"Any operation fails the deletion test?"}
   Empty -->|Yes| Block
-  Empty -->|No| Boundary{"Entry validates, normalises,\nand reports once?"}
+  Empty -->|No| Boundary{"Entry validates, normalises,<br/>and reports once?"}
   Boundary -->|No| Block
   Boundary -->|Yes| Auth{"Server paths re-check auth and scope?"}
   Auth -->|No| Block
