@@ -4,6 +4,277 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-25
+
+> **Breaking.** Every `nextjs-architecture` reference moved into a subdirectory grouped by the
+> decision it serves, and five references were replaced. Update any external links, and re-run
+> `npm run validate` in forks. Rules in this release come from three sources — counts taken
+> across two production applications and the template, canonical Ports-and-Adapters guidance, and
+> recorded judgement. `docs/evidence.md` says which, per rule, with reproduction commands.
+
+### Added
+
+- `seams/dependency-categories.md` — classify a dependency (in-process, local-substitutable,
+  remote-owned, external) before introducing a contract at a seam. A port whose only second
+  implementation is a test mock is indirection: when the engine already runs locally, the
+  substitute stands in for the team's own queries and a green suite can sit on a broken filter or
+  a wrong policy.
+- `seams/port-shape.md` — a port describes a capability, not the surface of the thing behind it.
+  Method names matching table operations one-for-one are the signal that the grain is wrong.
+- `seams/composition-without-di.md` — closures and an explicit request context cover what a
+  container would provide, with written thresholds for revisiting that decision.
+- `use-cases/when-a-use-case-exists.md` — the effect / pure transformation / effect test. No pure
+  middle means no use-case; the inbound adapter calls the data module directly.
+- `use-cases/use-case-wrapper.md` — one application boundary owns input and output validation,
+  failure normalisation, single-report telemetry, and redaction. A thin body is legitimate once
+  the wrapper is real.
+- `use-cases/validation-once.md` — three trust boundaries, three different checks. One schema run
+  twice on the same path is duplication, not defence in depth.
+- `outbound/row-vs-domain-types.md` — derive the column list from a row schema, never from the domain
+  schema, so storage naming cannot reach view models and form fields.
+- `outbound/service-transport.md` — one transport home per owned service, with timeout,
+  retry, backoff, credentials, identity-keyed single-flight refresh, cancellation, error mapping,
+  and correlation stated in its contract.
+- `inbound/streaming.md` — streaming as its own boundary: Route Handler only, resume rather than
+  retry, idle timeout, cancellation reaching upstream, post-headers failures delivered in-band.
+- `errors/failure-at-the-boundary.md` and `errors/error-taxonomy.md` — layers throw, the
+  application boundary converts, entry points translate; one closed set of failure kinds.
+- `placement/slices-and-ownership.md` — capability ownership as a required placement answer
+  alongside layer, and an explicit statement that this architecture has one reuse level.
+- `caching/cache-tiers.md` — a cache is a tier, not a data source: it sits above the entry point it
+  calls, so a client cache is not an adapter. One owner per read, invalidation follows ownership,
+  and adding a third tier requires naming what a stale entry costs.
+- `outbound/authority-and-transactions.md` — where authority lives (store, owned service, or the
+  application) decides who owns the transaction. Portable: the rule holds whether the committing
+  side is a stored function, a service the team ships, or a third-party API. Call it, never mirror
+  it; carry the caller's scope into the write; escape filter input once.
+- **`Scope:` marker on every reference.** `portable` means the rule survives a change of
+  framework, store, or vendor; `stack (...)` marks one instance of a portable rule for named
+  tooling. 17 references are portable and 13 are stack-bound; five of the seven CRITICAL rules
+  are portable, the two stack-bound ones being the Supabase and auth references.
+- `docs/evidence.md` — for each rule, whether it is measured, canonical, or judgement, with a
+  reproduction command for every count. Added to the CI review-marker check.
+- Five eval scenarios for the load-bearing new rules, marked as hypotheses until RED runs are
+  recorded, with a stated run order.
+
+### Changed
+
+- **Reference paths.** Flat `references/*.md` became `references/<group>/*.md`, where each group is
+  either a layer of the architecture (`inbound`, `outbound`, `use-cases`) or the concern it
+  serves (`caching`) or an
+  explicitly cross-cutting concern (`placement`, `seams`, `errors`, `security`, `quality`).
+  `glossary.md` stays at the root. An earlier draft grouped by `data` and `backend`; both mixed
+  opposite sides of the hexagon — `backend` held an inbound shape next to an outbound transport,
+  and `data` held the store next to the client cache — so the names were corrected to the layers
+  they actually describe.
+- **`ui/server-state/` became a top-level `client-cache/` layer.** Two defects, one fix. The name
+  described the contents ("state that came from the server") rather than the role, which is why a
+  server-executed `prefetch.ts` living there read as a contradiction — under the tier name it is
+  plainly the server-side preparation of a client cache. The placement was wrong for a measurable
+  reason: in both products the folder had to be carved out of its parent's lint rules, and one of
+  them then re-applied a subset to an allowlist of eleven files. A sublayer that must be excluded
+  from every rule of its parent, then partially re-subjected, is not a sublayer. As its own layer
+  the allowlist becomes the definition — a client cache legitimately owns browser transports for
+  auth, realtime, and streams — and the exclusions disappear.
+- **Replaced the canonical "Correct" example.** The previous `clean-architecture-boundaries.md`
+  showed a bare forwarding function as the model to copy. The replacement still has a one-line
+  body — what changed is that a wrapper now stands behind it, so the thin body carries validation,
+  failure normalisation, and single-report telemetry. An unwrapped forward remains the defect.
+- **Error model.** Use-cases previously threw and each inbound adapter classified independently.
+  The rule is now one classification, produced once at the application boundary and translated per
+  channel; the returned-value carrier is a recommendation argued from the serialization constraint,
+  not part of the rule. A project already classifying consistently by throwing satisfies it.
+- `supabase-persistence-boundaries.md` split by scope. The portable half — authority placement and
+  the transaction rules that follow from it — became `outbound/authority-and-transactions.md`. The
+  vendor half stayed as `outbound/supabase-rls.md`, now explicitly one instance of that rule, so a
+  project whose authority sits in its own backend service reads the portable document and skips
+  the Supabase one.
+- `backend-service-patterns.md` → `inbound/route-handlers.md`, with the external-service half
+  extracted into its own reference.
+- `testing-by-layer.md` → `quality/testing-by-layer.md`: assert outcomes, not call mechanics;
+  test data adapters against the local engine rather than a substitute; do not test the schema
+  library; delete tests a deepened module absorbed.
+- `observability-and-sentry.md` → `quality/`: one capture owner, expected failures kept out of the
+  exception channel, field paths rather than field values in reported payloads.
+- `glossary.md` — added seam, dependency category, wrapper, row type, slice, result; added the
+  two confusions worth naming (direction is not depth; a seam is not a folder).
+- `SKILL.md` — Decision Gate gains `slice`, `dependency category`, `adapters today`,
+  `behavior owned`, `authority`, and a `shared-server-cache` cache owner; Verification Gate gains the
+  deletion test and the no-module-without-a-call-site check.
+- `docs/architecture-contract.md` and `docs/agent-decision-maps.md` rewritten for the two-axis
+  model, the conditional port and use-case steps, and the streaming boundary.
+
+- `rules/` — an executable ESLint boundaries config plus a note on what it deliberately does not
+  check. Depth failures are review questions, not lint rules, and the file says so.
+- `docs/evidence.md` now separates measured claims from canonical ones and from judgement, credits
+  Cockburn and Bespoyasov by name, and carries a reproduction command for every count.
+
+### Fixed
+
+- **Corrected the headline measurement.** An earlier draft claimed 81% of one product's application
+  functions were forwards. That came from a line-grep that counted any body containing a
+  `return deps.…` line, so validate-then-return was miscounted. Re-measured over one population:
+  62 of 201 (31%) forward with no other statement, 104 (52%) have two lines or fewer. The
+  hand-written cross-cutting count fell from 136 to 110 once `safeParse`/`JSON.parse` were excluded,
+  and the template figure from 10 of 11 to 4 of 11.
+- Repointed a prose cross-reference in `notifications-and-feedback.md` that named a reference deleted
+  in this release; validators only check `SKILL.md` links, so prose pointers rot silently.
+- Resolved a contradiction between `security/dal-and-auth.md` and `use-cases/validation-once.md`,
+  which gave opposite instructions on which boundary runs the application schema.
+- Removed the same rule restated in different words across `authority-and-transactions`,
+  `port-shape`, and `observability-and-sentry`; the lexical duplication linter cannot see paraphrase.
+- `shared-store` renamed to `shared-server-cache` in the Decision Gate — it names a server-side
+  tier and read as a client store. Added `Authority` to the glossary, which the gate used undefined.
+- Restored `version.json` formatting; the release bump had minified it.
+- **Separated `data/**` from `adapters/outbound/**`.** The three canonical use-case examples called
+  a data module as a free identifier while `layers-and-imports.md`, `SKILL.md`, and the shipped
+  ESLint config all forbade use-cases from importing `adapters/outbound/**` — the config would have
+  rejected the release's own examples. The resolution is a naming correction of the same kind as
+  `client-cache`: an adapter satisfies a port, so a module with no port is not one. `data/**` holds
+  no-port data access and use-cases may import it; `adapters/outbound/**` holds port
+  implementations and arrives from the composition root.
+- **Qualified the forwarding rule.** "A function that only forwards is an empty layer" appeared
+  unqualified in the glossary and in the reviewer flowchart, where it would have blocked the
+  release's own canonical example. It is an *unwrapped* forward that holds nothing.
+- Said which boundary carries the wrapper's guarantees when a slice has no use-case at all —
+  previously the guarantees simply vanished with the layer.
+- Renamed `errors/result-at-the-boundary.md` to `failure-at-the-boundary.md`: the file's own text
+  demotes the carrier to a recommendation, so naming it after the carrier repeated the mistake the
+  release fixed elsewhere.
+- Removed 23 lines of 2.0.0 content that a global string replace had also inserted into the
+  `[1.3.0]` section, where it claimed features that did not exist for another two months.
+- **Propagated the `data/**` layer everywhere it was missing.** The split shipped in some
+  references and in the lint config but not in SKILL.md's compile-time list or Decision Gate
+  `layer:` enum, not in the layer table's `inbound`/read-entrypoint rows, not in the glossary, and
+  in none of the diagrams in `docs/`. An agent following the always-loaded file or the
+  prompt-ready decision maps produced code the shipped lint rejects. All six now agree, and the
+  `data/` destination is reachable from the "Where Does This Code Go?" flowchart.
+- **Restored the `auth boundary` Decision Gate field.** `authority:` replaced it in error: one
+  says who commits the transaction, the other where the session is re-verified. Every gate field
+  was answerable without deciding on authorization, which is the failure the one eval-proven
+  reference in the set exists to prevent.
+- **Fixed the `process.env` lint selector, which matched nothing it named.** Its
+  `:not(MemberExpression > MemberExpression)` clause excluded exactly `process.env.X` and
+  `process.env['X']` — in those forms the matching node is the inner member expression. Verified
+  with esquery: 2 of 5 forms matched before, 5 of 5 after.
+- **Closed the relative-import bypass.** Every boundary group named only `@/x/**`, so the same
+  forbidden edge written `../../x` passed all nine blocks. Each layer is now named twice, alias
+  and bare suffix; verified with ESLint 9 that aliased, relative, and `../../../src/` spellings
+  all report.
+- Forbade `use-cases` and `data` imports from `client-cache`: the config allowed the browser tier
+  to import a use-case, which drags the server-only module graph — service-role key included —
+  into the public bundle.
+- Corrected the `validation-once` example, which destructured a property the stack's action
+  helper does not provide and dropped the input schema entirely, so no input reached the handler.
+  Restated stack-neutrally, as its `portable` scope requires.
+- Gave nested use-case composition a real handle (`.run`); the text told agents to call an
+  "unwrapped form" that did not exist, and the accompanying example passed wrapped ones.
+- Marked the re-raised render-channel failure as already reported, so the framework's
+  request-error hook does not record a second event for a fault the wrapper already logged.
+- Widened the reference link check to links carrying a `#anchor` — the pointer class most likely
+  to rot, and already the house style in scenario fixtures, was silently skipped.
+- Corrected an evidence command that counted matching lines while the prose counted files, and
+  three paths left stale by this release's own `client-cache` → `caching` rename.
+- **`ports/**` and `boundary/**` are layers of their own.** A contract nested inside `use-cases/`
+  cannot be reached by the adapter that implements it without also opening the implementation —
+  carving a subpath out of a forbidden subtree is not expressible in these patterns. Same for the
+  declaration combinator, which use-cases need but which is not generic infrastructure.
+- **The enforcement matrix is generated, not written.** `rules/import-table.json` is the
+  machine-readable contract; `validate-rules.mjs` produces a source × target cross-product from it
+  and lints all 363 cases — static, `import()` and `require()`. Three earlier versions of this
+  check were weaker and each certified real gaps: shape-only, then hand-picked fixtures, then a
+  matrix missing `ports` as a source and using specimens too generic to distinguish
+  `use-cases -> boundary` from `use-cases -> all of infrastructure`.
+- **One list drives both spellings.** Each block declares the layers it may not reach once; the
+  static patterns and the dynamic selectors are derived from it, so a static ban can no longer
+  ship without its `import()`/`require()` twin. That class had recurred in three consecutive
+  review rounds.
+- **Made the layer boundaries actually enforceable, and proved it.** `rules/fixtures.json` now
+  holds a 39-case matrix and `validate-rules.mjs` runs ESLint over it for real — every allowed
+  edge must lint clean, every forbidden edge must error. Standing it up immediately reproduced
+  eleven live gaps the previous shape-only check reported as `rules ok`: layer-root imports
+  (`@/adapters/outbound` with no trailing segment), database drivers and `node:` builtins in
+  use-cases, data modules importing adapters or the framework, an outbound adapter importing its
+  own use-case, the client cache reaching server-only env, UI and routes importing use-cases, and
+  `process['env']` / `globalThis.process.env`. All closed; dynamic `import()` and `require()`
+  spellings are covered by selector for the layers where a bypass costs most.
+- **Corrected the owned-service credential rule.** It mandated the service's own identity and
+  "never a user token", while the implementation cited as its evidence forwards the caller's
+  verified credential and keys refreshes per user. Replaced with two explicit modes — service
+  identity for app-to-app work, delegated identity when the service authorizes the user — and a
+  ban that still holds: never forward an unverified client-supplied credential.
+- **Separated the wrapper from use-case existence.** A slice with no scenario still needs
+  validation, failure normalisation and single-report telemetry; the wrapper now wraps the data
+  call directly at the inbound boundary. Previously the guarantees silently vanished with the
+  layer.
+- Gave three homeless contracts a home: read entrypoints are `adapters/inbound/read/**`,
+  `DataContext` belongs to `data/**`, and the failure taxonomy is a domain type — so every layer
+  that must raise it can, without breaking the import table.
+- Wrapped the request-error hook instead of exporting the SDK helper directly: exported raw, it
+  could not see the already-reported marker the render channel sets, and recaptured every
+  re-raised failure.
+- Split `validation` into input failure (400) and output-contract violation (500, reported), kept
+  recognisable upstream meanings instead of flattening them to 502, and added `rate_limited`.
+- Scanned code examples for stack vocabulary in `portable` references — fences were being
+  stripped before the check, so the snippet an agent copies was the one place the rule could
+  leak framework terms.
+- Anchored Markdown links now validate the heading slug, not just the file.
+- Removed the "measured in prod" label from four scenario rows and the universal
+  "derived from counts" claim from the changelog, the architecture contract, and the scenarios
+  README — `docs/evidence.md` separates measured from canonical from judgement, and those
+  summaries contradicted it.
+- Added reproduction commands for four counts that had none, and corrected two that did not
+  demonstrate their claim: the dead-module check matched prose as well as imports, and the
+  allowlist count double-counted paths appearing in two blocks.
+- Genericised three `portable` references that stated their rules in framework vocabulary, and
+  widened the Scope lint to catch framework *concepts* ("Route Handler only"), not just vendor
+  names — the earlier pattern was case-sensitive and saw neither.
+- Renamed the `client-cache` reference group to `caching`. It holds one layer document and one
+  cross-cutting policy covering the server render, the URL, and a shared server cache; naming the
+  group after one member's layer misdescribed the other. The layer itself is still `client-cache`.
+- Converted eight title-only prose cross-references into Markdown links, so the new
+  reference-link check actually covers them. Half a fix otherwise: the validator was added in this
+  release while the pointers it was meant to catch stayed unlinked.
+
+### Validation / tooling
+
+- `validate-skill-frontmatter.mjs` now walks `references/` recursively, so a reference in a
+  subdirectory that no `SKILL.md` links is a CI failure rather than dead weight that still ships.
+- `lint-references-no-frontmatter.mjs` requires the `Scope:` marker and fails a reference tagged
+  `portable` that names a vendor or a framework concept, case-insensitively. It caught five real
+  cases across two passes, including the release's most important reference.
+- `validate-skill-frontmatter.mjs` now resolves Markdown links *inside* references, not only in
+  `SKILL.md`. A pointer naming a file deleted in the same release used to ship silently.
+- New `validate-rules.mjs` imports every module under `rules/` and asserts its flat-config shape,
+  so the executable artefact is itself executed by CI.
+- `lint-docs-review-markers.mjs` covers `docs/evidence.md`.
+- New `rules/eslint-boundaries-resolved.mjs` — a second enforcement tier that compares **resolved**
+  file paths through `import/no-restricted-paths`, with its zones derived from `import-table.json`
+  so there is no second copy of the contract. It covers every spelling of a target at once, and
+  expresses the one thing string matching cannot: a layer closed except at a named entry
+  (`app/**` may reach the client cache only at its seeding entry). Measured: gitignore-style
+  negation inside a `no-restricted-imports` group does not exempt the negated path, in three
+  spellings.
+- The resolved tier ships `import/no-unresolved` as a **canary**, not as a style rule. Measured:
+  with the node resolver alone, a forbidden aliased import lints clean while only its relative
+  spelling errors — a resolver that is installed but unconfigured produces a boundary that passes
+  everything. `validate-rules.mjs` re-runs the same fixture with the resolver stripped and requires
+  an error. It also ships `import/no-dynamic-require`, which closes the computed-specifier class
+  that neither tier can resolve.
+- `validate-rules.mjs` runs the generated matrix against **three tiers** — strings alone, resolved
+  alone, and the two composed — and asserts the tier relationship rather than assuming it: cases
+  marked `resolvedOnly` in the table must lint clean under tier one and error under tier two, so
+  "weaker" cannot drift into "disagreeing". 365 cases × 3 tiers.
+- `import-table.json` gains `root` per layer (the layer root lint scopes to, distinct from the
+  representative slice fixtures are written into), `mayImportAt` for subpath permissions, and
+  `resolvedOnly` on the cases tier one provably misses. Layer nesting — `read` inside `inbound` — is
+  derived from the roots, and the validator asserts the parent block excludes the child, since flat
+  config would otherwise let one block replace the other silently.
+- Fixed in the same pass, both found by adding the second tier: the app row of
+  `placement/layers-and-imports.md` granted no access to the client cache while the config and the
+  fixtures permitted its seeding entry, and `use-cases/use-case-wrapper.md` still placed the
+  combinator in `infrastructure/boundary` after it became its own layer beside `ports/`.
+
 ## [1.3.1] - 2026-07-10
 
 ### Added

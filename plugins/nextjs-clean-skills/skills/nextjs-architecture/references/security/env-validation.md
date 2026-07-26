@@ -1,6 +1,6 @@
 # Validate Environment Variables
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (Next.js)**
 
 Centralize environment access.
 

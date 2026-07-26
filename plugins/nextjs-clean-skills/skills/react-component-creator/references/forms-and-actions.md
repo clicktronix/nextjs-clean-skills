@@ -1,6 +1,6 @@
 # Forms And Actions
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (Next.js + Mantine)**
 
 Forms are UI boundaries around Server Actions. They are not business logic containers.
 
@@ -11,7 +11,7 @@ Default choices:
 - server result messages: return typed error keys/categories; localize in the client.
 - expected failures: auth, authz, validation, conflict, not found, rate limit.
 
-Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority. Server Actions parse input, authorize after parsing, call use-cases, and return public-safe results.
+Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority. Server Actions parse input, authorize after parsing, call boundary declarations, and return public-safe results.
 
 **Incorrect (hydration-only submit):**
 

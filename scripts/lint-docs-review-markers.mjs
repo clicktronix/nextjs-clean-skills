@@ -7,7 +7,12 @@
 import { fail, readJson, readText } from './_lib.mjs'
 
 const { version } = readJson('version.json')
-const files = ['docs/README.md', 'docs/architecture-contract.md', 'docs/agent-decision-maps.md']
+const files = [
+  'docs/README.md',
+  'docs/architecture-contract.md',
+  'docs/agent-decision-maps.md',
+  'docs/evidence.md',
+]
 // Marker-specific and exhaustive: anchor on "Last reviewed" (bounded lazy gap —
 // the README marker wraps across lines) and check EVERY occurrence, so a stray
 // "skill version X.Y.Z" in prose can't satisfy the check and a stale second

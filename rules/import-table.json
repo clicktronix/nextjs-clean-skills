@@ -1,0 +1,336 @@
+{
+  "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every pair listed in `mayImport` must lint clean, every pair NOT listed must error. Hand-picked fixture samples let real gaps through — that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
+  "specimen": {
+    "domain": "@/domain/work-item/work-item",
+    "use-cases": "@/use-cases/work-items/list",
+    "ports": "@/ports/work-items",
+    "data": "@/data/work-items",
+    "outbound": "@/adapters/outbound/agent/http",
+    "inbound": "@/adapters/inbound/next/work-items",
+    "read": "@/adapters/inbound/read/work-items",
+    "client-cache": "@/client-cache/work-items/queries",
+    "ui": "@/ui/components/Board",
+    "app": "@/app/admin/page",
+    "infrastructure": "@/infrastructure/logging",
+    "boundary": "@/boundary"
+  },
+  "layers": {
+    "domain": {
+      "root": "src/domain",
+      "dir": "src/domain/work-item",
+      "mayImport": []
+    },
+    "use-cases": {
+      "root": "src/use-cases",
+      "dir": "src/use-cases/work-items",
+      "mayImport": [
+        "domain",
+        "ports",
+        "data",
+        "boundary"
+      ]
+    },
+    "data": {
+      "root": "src/data",
+      "dir": "src/data/work-items",
+      "mayImport": [
+        "domain"
+      ]
+    },
+    "outbound": {
+      "root": "src/adapters/outbound",
+      "dir": "src/adapters/outbound/agent",
+      "mayImport": [
+        "domain",
+        "ports",
+        "boundary"
+      ]
+    },
+    "inbound": {
+      "root": "src/adapters/inbound",
+      "dir": "src/adapters/inbound/next",
+      "mayImport": [
+        "domain",
+        "use-cases",
+        "ports",
+        "data",
+        "outbound",
+        "infrastructure",
+        "read",
+        "boundary"
+      ]
+    },
+    "read": {
+      "root": "src/adapters/inbound/read",
+      "dir": "src/adapters/inbound/read",
+      "mayImport": [
+        "domain",
+        "use-cases",
+        "ports",
+        "data",
+        "outbound",
+        "infrastructure",
+        "inbound",
+        "boundary"
+      ]
+    },
+    "client-cache": {
+      "root": "src/client-cache",
+      "dir": "src/client-cache/work-items",
+      "mayImport": [
+        "domain",
+        "inbound"
+      ]
+    },
+    "ui": {
+      "root": "src/ui",
+      "dir": "src/ui/components/Board",
+      "mayImport": [
+        "domain",
+        "client-cache",
+        "ui"
+      ]
+    },
+    "app": {
+      "root": "src/app",
+      "dir": "src/app/admin",
+      "mayImport": [
+        "domain",
+        "read",
+        "inbound",
+        "ui"
+      ],
+      "mayImportAt": {
+        "client-cache": [
+          "prefetch"
+        ]
+      }
+    },
+    "infrastructure": {
+      "root": "src/infrastructure",
+      "dir": "src/infrastructure/logging",
+      "mayImport": [
+        "domain"
+      ]
+    },
+    "ports": {
+      "root": "src/ports",
+      "dir": "src/ports",
+      "mayImport": [
+        "domain"
+      ]
+    },
+    "boundary": {
+      "root": "src/boundary",
+      "dir": "src/boundary",
+      "mayImport": [
+        "domain"
+      ]
+    }
+  },
+  "$note_roots": "`root` is the layer ROOT (what lint scopes to); `dir` is a representative slice inside it (what the matrix writes fixtures into). They differ because a permission is granted to a layer but exercised through a slice. `read` nests inside `inbound`, so the resolved-path config must exclude it from the parent zone target — nesting is derived from these paths, never hand-listed.",
+  "$note_ports": "`ports` is its own top-level layer, `src/ports/**`. A use-case owns the contract and an outbound adapter implements it, so both must reach it while neither may reach the other's implementation — which is only expressible in lint if the contract is not nested inside either.",
+  "extraForbidden": [
+    {
+      "case": "domain imports a database driver",
+      "layer": "domain",
+      "code": "import { Client } from 'pg'\nexport default Client"
+    },
+    {
+      "case": "domain imports a node builtin",
+      "layer": "domain",
+      "code": "import fs from 'node:fs'\nexport default fs"
+    },
+    {
+      "case": "domain imports the framework",
+      "layer": "domain",
+      "code": "import { cache } from 'next/cache'\nexport default cache"
+    },
+    {
+      "case": "use-case imports a driver",
+      "layer": "use-cases",
+      "code": "import { createClient } from '@supabase/supabase-js'\nexport default createClient"
+    },
+    {
+      "case": "use-case imports a bare node builtin",
+      "layer": "use-cases",
+      "code": "import crypto from 'crypto'\nexport default crypto"
+    },
+    {
+      "case": "use-case imports a prefixed node builtin",
+      "layer": "use-cases",
+      "code": "import fs from 'node:fs'\nexport default fs"
+    },
+    {
+      "case": "use-case imports the framework",
+      "layer": "use-cases",
+      "code": "import { cookies } from 'next/headers'\nexport default cookies"
+    },
+    {
+      "case": "use-case dynamically imports an outbound adapter",
+      "layer": "use-cases",
+      "code": "export default () => import('../../adapters/outbound/agent/http')"
+    },
+    {
+      "case": "use-case requires an outbound adapter",
+      "layer": "use-cases",
+      "code": "export default () => require('../../adapters/outbound/agent/http')"
+    },
+    {
+      "case": "data module imports the framework",
+      "layer": "data",
+      "code": "import { cache } from 'next/cache'\nexport default cache"
+    },
+    {
+      "case": "client cache imports a driver",
+      "layer": "client-cache",
+      "code": "import { createClient } from '@supabase/supabase-js'\nexport default createClient"
+    },
+    {
+      "case": "client cache imports server-only env",
+      "layer": "client-cache",
+      "code": "import { env } from '@/infrastructure/env/server'\nexport default env"
+    },
+    {
+      "case": "client cache dynamically imports a data module",
+      "layer": "client-cache",
+      "code": "export default () => import('../../data/work-items')"
+    },
+    {
+      "case": "environment read",
+      "layer": "app",
+      "code": "export default process.env.SECRET"
+    },
+    {
+      "case": "environment read, computed",
+      "layer": "app",
+      "code": "export default process['env'].SECRET"
+    },
+    {
+      "case": "environment read, template key",
+      "layer": "app",
+      "code": "export default process[`env`].SECRET"
+    },
+    {
+      "case": "environment read, destructured",
+      "layer": "app",
+      "code": "const { SECRET } = process.env\nexport default SECRET"
+    },
+    {
+      "case": "environment read via globalThis",
+      "layer": "app",
+      "code": "export default globalThis.process.env.SECRET"
+    },
+    {
+      "case": "environment read via computed globalThis",
+      "layer": "app",
+      "code": "export default globalThis['process'].env.SECRET"
+    },
+    {
+      "case": "environment read via fully computed globalThis",
+      "layer": "app",
+      "code": "export default globalThis['process']['env'].SECRET"
+    },
+    {
+      "case": "outbound adapter dynamically imports an inbound adapter",
+      "layer": "outbound",
+      "code": "export default () => import('@/adapters/inbound/next/work-items')"
+    },
+    {
+      "case": "ui dynamically imports a use-case",
+      "layer": "ui",
+      "code": "export default () => import('@/use-cases/work-items/list')"
+    },
+    {
+      "case": "ports import a data module",
+      "layer": "ports",
+      "code": "import { d } from '@/data/work-items'\nexport default d"
+    },
+    {
+      "case": "ports import an adapter",
+      "layer": "ports",
+      "code": "import { h } from '@/adapters/outbound/agent/http'\nexport default h"
+    },
+    {
+      "case": "ports read the environment",
+      "layer": "ports",
+      "code": "export default process.env.SECRET"
+    },
+    {
+      "case": "a root module reads the environment",
+      "dir": "src",
+      "code": "export default process.env.SECRET"
+    },
+    {
+      "case": "use-case imports generic infrastructure, not the boundary",
+      "layer": "use-cases",
+      "code": "import { logger } from '@/infrastructure/logging'\nexport default logger"
+    },
+    {
+      "case": "app imports browser queries instead of the prefetch entry",
+      "layer": "app",
+      "code": "import { useWorkItems } from '@/client-cache/work-items/queries'\nexport default useWorkItems"
+    },
+    {
+      "case": "app imports a client-cache internal instead of the prefetch entry",
+      "layer": "app",
+      "code": "import { workItemKeys } from '@/client-cache/work-items/keys'\nexport default workItemKeys",
+      "resolvedOnly": true
+    },
+    {
+      "case": "client cache assembles a forbidden layer path at runtime",
+      "layer": "client-cache",
+      "code": "const layer = 'data'\nexport default () => import(`@/${layer}/work-items`)",
+      "resolvedOnly": true
+    }
+  ],
+  "extraAllowed": [
+    {
+      "case": "domain imports a schema library",
+      "layer": "domain",
+      "code": "import { object } from 'valibot'\nexport default object"
+    },
+    {
+      "case": "the env module itself reads the environment",
+      "dir": "src/infrastructure/env",
+      "code": "export default process.env.DATABASE_URL"
+    },
+    {
+      "case": "data module imports a driver — this is the layer that may",
+      "layer": "data",
+      "code": "import { createClient } from '@supabase/supabase-js'\nexport default createClient"
+    },
+    {
+      "case": "outbound adapter imports a driver",
+      "layer": "outbound",
+      "code": "import { fetch as undici } from 'undici'\nexport default undici"
+    },
+    {
+      "case": "ui imports a local action",
+      "layer": "ui",
+      "code": "import { submit } from './actions'\nexport default submit"
+    },
+    {
+      "case": "outbound adapter dynamically imports a sibling",
+      "layer": "outbound",
+      "code": "export default () => import('@/adapters/outbound/agent/sse')"
+    },
+    {
+      "case": "inbound adapter dynamically imports a read entrypoint",
+      "layer": "inbound",
+      "code": "export default () => import('@/adapters/inbound/read/work-items')"
+    },
+    {
+      "case": "use-case dynamically imports a data module",
+      "layer": "use-cases",
+      "code": "export default () => import('@/data/work-items')"
+    },
+    {
+      "case": "app imports the server-side prefetch entry",
+      "layer": "app",
+      "code": "import { prefetchWorkItems } from '@/client-cache/work-items/prefetch'\nexport default prefetchWorkItems"
+    }
+  ],
+  "$note_tiers": "`mayImportAt` grants an edge at named modules only — `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
+  "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries."
+}

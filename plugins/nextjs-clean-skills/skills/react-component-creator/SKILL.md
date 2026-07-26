@@ -24,8 +24,8 @@ Use these defaults literally for greenfield or explicitly adopted projects; othe
 
 | State kind                       | Default location                                                                                |
 | -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Read-heavy server data           | Server Component -> server-only DAL/read use-case -> serializable props                         |
-| Client-interactive server data   | RSC props by default; `src/ui/server-state/<feature>/` with TanStack Query only when opt-in[^1] |
+| Read-heavy server data           | Server Component -> server-only read entrypoint -> serializable props                          |
+| Client-interactive server data   | RSC props by default; `src/client-cache/<feature>/` with TanStack Query only when opt-in[^1] |
 | Controlled form state            | Mantine `useForm` in `lib.ts`                                                                   |
 | URL-shareable state              | `useSearchParams` + `router.replace` (filters, tabs, paging that links should preserve)         |
 | Component-local state            | hook in `lib.ts`                                                                                |
@@ -34,7 +34,7 @@ Use these defaults literally for greenfield or explicitly adopted projects; othe
 | Global UI state (theme/locale)   | React Context provider                                                                          |
 | Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
 
-[^1]: See [Data Ownership And Cache](../nextjs-architecture/references/data-ownership-and-cache.md).
+[^1]: See [Client Cache Layer](../nextjs-architecture/references/caching/client-cache-layer.md).
 [^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or store middleware needs justify it.
 
 Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
@@ -53,9 +53,9 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 1. Decide Server vs Client before writing files.
 2. Classify data and state ownership before adding hooks or stores.
 3. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
-4. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.
+4. For Server Components, fetch through server-only read entrypoints and pass serializable props.
 5. For Client Components with logic, split View and `use<Component>Props` with `composeHooks`.
-6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `ui/server-state`.
+6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `src/client-cache`.
 7. Keep Server Action wrappers feature-local only when TanStack Query semantics are unnecessary.
 8. Add stable `data-testid` to e2e-critical interactive controls.
 
@@ -68,10 +68,10 @@ component boundary: Server | Client | split
 server data owner: RSC props | TanStack Query | none
 local state owner: URL | component hook | route hook | Context | justified external store
 mutation boundary: Server Action | Route Handler | none
-files: index.tsx | lib.ts | interfaces.ts | styles.module.css | server-state
+files: index.tsx | lib.ts | interfaces.ts | styles.module.css | client-cache
 ```
 
-If the answer is "Client because it is easier," re-check the trigger for hooks, events, refs, browser APIs, or client server-state.
+If the answer is "Client because it is easier," re-check the trigger for hooks, events, refs, browser APIs, or the client cache.
 
 ## Common Failure Modes
 
@@ -90,6 +90,6 @@ If the answer is "Client because it is easier," re-check the trigger for hooks, 
 Before reporting success:
 
 1. Confirm the smallest possible Client boundary; client logic lives in `lib.ts`, not the View.
-2. Confirm server data remains serializable: read-heavy data arrives via RSC props, client-interactive data lives in `ui/server-state`, never in client UI state.
+2. Confirm server data remains serializable: read-heavy data arrives via RSC props, client-interactive data lives in `src/client-cache`, never in client UI state.
 3. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
 4. State any visual, i18n, or accessibility behavior not verified.

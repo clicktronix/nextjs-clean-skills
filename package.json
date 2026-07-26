@@ -1,10 +1,10 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "1.3.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/lint-docs-review-markers.mjs && node scripts/validate-scenarios.mjs",
+    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/lint-docs-review-markers.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-rules.mjs",
     "sync-version": "node scripts/sync-version.mjs"
   },
   "keywords": [
@@ -27,6 +27,10 @@
   "devDependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "eslint": "^9.39.5",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "eslint-plugin-import": "^2.32.0",
+    "typescript": "^5.9.3",
     "yaml": "^2.8.3"
   }
 }

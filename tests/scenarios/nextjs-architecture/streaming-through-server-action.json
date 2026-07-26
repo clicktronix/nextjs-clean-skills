@@ -1,0 +1,20 @@
+{
+  "skills": [
+    "nextjs-architecture"
+  ],
+  "tests_reference": "references/inbound/streaming.md",
+  "query": "Add a chat panel that streams tokens from our own Python service over SSE into a client component. Show the server boundary, the transport call, and how failures and cancellation are handled.",
+  "baseline_failure": "RED hypothesis: the agent reaches for a Server Action, or writes a Route Handler that reuses the ordinary request adapter — whole-request timeout, blind retry on failure, no propagation of the client abort upstream, and an error after the first byte attempted as an HTTP status.",
+  "expected_behavior": [
+    "Uses a Route Handler because the response owns headers, status, and a streaming body",
+    "Resumes from the last delivered event id instead of retrying the whole stream",
+    "Bounds the idle gap between events rather than the total duration",
+    "Wires the incoming request signal to the outgoing call so cancellation reaches the producer",
+    "Delivers post-headers failures as a terminal in-stream event, not a status code"
+  ],
+  "anti_expectation": [
+    "Does NOT apply stream handling to ordinary request/response calls to the same service",
+    "Does NOT treat a silent disconnect and a terminal error event as the same condition",
+    "Does NOT accumulate stream state inside the presentational component"
+  ]
+}

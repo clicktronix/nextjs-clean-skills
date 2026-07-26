@@ -1,8 +1,8 @@
 # Notifications And Feedback
 
-**Impact: MEDIUM**
+**Impact: MEDIUM** · **Scope: stack (Mantine + TanStack)**
 
-Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Prerequisite: the inbound boundary maps application errors to public codes/results that `presentError` can format — see the nextjs-architecture skill's "Supabase Persistence Boundaries" reference (Error Mapping section).
+Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Prerequisite: the inbound boundary maps application errors to public codes/results that `presentError` can format — see [Error Taxonomy](../../nextjs-architecture/references/errors/error-taxonomy.md).
 
 Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 

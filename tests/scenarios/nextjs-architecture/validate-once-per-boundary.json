@@ -1,0 +1,20 @@
+{
+  "skills": [
+    "nextjs-architecture"
+  ],
+  "tests_reference": "references/use-cases/validation-once.md",
+  "query": "A createWorkItem Server Action receives form input. The project has a CreateWorkItemSchema in the domain layer and a safe-action client that supports an input schema. Show the write path from the action to the database.",
+  "baseline_failure": "RED hypothesis: the agent passes CreateWorkItemSchema to the safe-action client AND parses the same schema again inside the application function, then parses the returned row with the same domain schema — the identical rule enforced twice within twenty lines, with no statement of which one is authoritative.",
+  "expected_behavior": [
+    "Names three distinct boundaries: authorization plus transport decoding, the application contract, and the shape of data coming back",
+    "Declares the input schema once, next to the scenario, and does not repeat it at the inbound boundary",
+    "Keeps authorization at the inbound boundary where the request context lives",
+    "Parses the returned row against a row schema rather than re-running the input schema",
+    "Notes that the slice may have no use-case at all — the inbound adapter still declares the boundary around the data call"
+  ],
+  "anti_expectation": [
+    "Does NOT drop server-side validation and rely on the client form",
+    "Does NOT skip parsing data returned from the store because 'the input was already valid'",
+    "Does NOT collapse authorization into the schema check"
+  ]
+}

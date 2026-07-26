@@ -1,6 +1,6 @@
 # State Placement
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (React)**
 
 Put state where its owner lives. Do not pick a store by preference. The canonical
 state-kind table lives in the skill body ([SKILL.md](../SKILL.md), "State Placement") —

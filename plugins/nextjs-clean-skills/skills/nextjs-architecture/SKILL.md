@@ -1,6 +1,6 @@
 ---
 name: nextjs-architecture
-description: Use when adding or refactoring features in a Next.js 16 Hybrid Clean Architecture app; deciding layer placement, dependency direction, data ownership, auth boundaries, service API boundaries, persistence adapters, cache invalidation, route handlers, server actions, observability and error reporting, or tests by layer.
+description: Use when adding or refactoring features in a Next.js 16 Hybrid Clean Architecture app; deciding layer placement, slice ownership, whether a dependency needs a port, whether a use-case is warranted, dependency direction, data ownership, auth boundaries, persistence adapters, RPC and RLS, external service transport, streaming, cache invalidation, route handlers, server actions, error handling, observability, or tests by layer.
 ---
 
 # Next.js Architecture
@@ -15,96 +15,152 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 
 - Next.js 16 App Router, React 19, TypeScript.
 - Domain schemas and types in Valibot.
-- Use-cases are pure application orchestration and depend on ports, not adapters.
-- Inbound adapters are Server Actions or route handlers that compose dependencies and framework concerns.
-- Outbound adapters implement use-case ports for Supabase, APIs, queues, and transport.
-- Read-heavy UI fetches in Server Components through server-only DAL/read entrypoints.
-- TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async/server-state cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service/API commands.
+- Business authority may sit in the store (stored functions plus row-level policies) or in a separate owned service. Model where it sits before deciding what the application layer holds.
+- Application scenarios go through one wrapper that validates, normalises failures, and reports them once.
+- Contracts at seams exist for dependencies the process cannot run locally; the rest are ordinary modules.
+- Read-heavy UI fetches in Server Components through server-only read entrypoints.
+- TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service, streaming, and integration commands.
 - Cache and framework APIs follow current Next.js docs; this skill only decides which layer owns the read/write.
 
 ## Start Here
 
 1. Run the Decision Gate classification (below) before editing.
-2. Identify whether the change is a command, a read, a route pattern, or a cross-cutting concern.
-3. Read only the references needed for that decision.
-4. Implement in dependency order: domain -> use-cases -> outbound -> inbound/DAL -> UI -> tests.
-5. Run the Verification Gate (below) before claiming completion.
+2. Answer the two placement questions — which capability owns this, and which responsibility it has.
+3. Classify the dependency before reaching for a contract at a seam.
+4. Read only the references needed for that decision.
+5. Implement in dependency order: domain -> data or ports+outbound -> use-case (only if one is warranted) -> inbound/read entrypoints -> UI -> tests.
+6. Run the Verification Gate (below) before claiming completion.
 
 ## Core Boundaries
 
 ```text
-Commands:
-  UI/form -> Server Action -> use-case -> port -> outbound implementation
-
-Read-heavy queries:
-  RSC/page/layout -> server-only DAL/read entrypoint -> use-case/port -> outbound implementation
-
-Client-interactive queries:
-  Client component -> ui/server-state -> Server Action/API -> use-case -> port -> outbound
+Runtime entry per need:
+  command       form -> Server Action
+  read (render) RSC -> read entrypoint
+  read (client) island -> client-cache -> action
+  service/stream caller -> Route Handler
 
 Compile-time imports:
-  domain          imports pure domain helpers and schema libraries only
-  use-cases       import domain and local ports/types only
-  outbound        imports use-case ports + domain
-  inbound         imports use-cases + outbound factories + infrastructure
-  server UI/RSC   imports server-only DAL/read entrypoints
-  client UI       imports server-state hooks, local actions, domain types
+  domain          pure helpers and schema libraries only
+  use-cases       domain, local ports/types, data, the wrapper
+  data            domain only
+  inbound         use-cases, data, outbound factories, infrastructure
+  outbound        port types plus domain
+  server UI/RSC   server-only read entrypoints
+  client UI       client-cache hooks, local actions, domain types
+  infrastructure  domain and technical libraries
 ```
 
-Inbound adapters calling use-cases is correct. The forbidden direction is use-cases importing inbound adapters, outbound adapters, Supabase clients, React, TanStack Query, or Next.js request/cache APIs.
+Inbound adapters calling use-cases is correct. The forbidden direction is use-cases importing inbound adapters, outbound adapters, database clients, React, TanStack Query, or Next.js request/cache APIs.
 
 ## Reference Map
 
-Core:
+Each reference declares how far its rule travels. `Scope: portable` survives a change of
+framework, store, or vendor and applies to any project adopting this architecture.
+`Scope: stack (...)` is one instance of a portable rule for the named tooling — read it only if
+the project uses that tooling, and read the portable rule it instantiates either way.
 
-- [Glossary](references/glossary.md)
-- [Clean Architecture Boundaries](references/clean-architecture-boundaries.md)
-- [Runtime And Compile-Time Boundaries](references/runtime-and-compile-time-boundaries.md)
+Placement — where code belongs:
+
+- [Layers And Imports](references/placement/layers-and-imports.md)
+- [Slices And Ownership](references/placement/slices-and-ownership.md)
+- [Runtime And Compile-Time Boundaries](references/placement/runtime-vs-compile-time.md)
+
+Seams — whether a contract is warranted:
+
+- [Dependency Categories](references/seams/dependency-categories.md)
+- [Port Shape](references/seams/port-shape.md)
+- [Composition Without A DI Container](references/seams/composition-without-di.md)
+
+Application layer:
+
+- [When A Use-Case Exists](references/use-cases/when-a-use-case-exists.md)
+- [The Use-Case Wrapper](references/use-cases/use-case-wrapper.md)
+- [Validate Once Per Trust Boundary](references/use-cases/validation-once.md)
+
+Inbound — which entry shape:
+
+- [Route Handlers As Service APIs](references/inbound/route-handlers.md)
+- [Streaming Responses](references/inbound/streaming.md)
+
+Outbound — data access and integrations:
+
+- [Authority And Transactions](references/outbound/authority-and-transactions.md)
+- [Row Types Are Not Domain Types](references/outbound/row-vs-domain-types.md)
+- [Owned Service Transport](references/outbound/service-transport.md)
+- [Supabase And Row-Level Security](references/outbound/supabase-rls.md)
+
+Caching — who owns a read:
+
+- [Cache Tiers And Read Ownership](references/caching/cache-tiers.md)
+- [Client Cache Layer](references/caching/client-cache-layer.md)
+
+Failure handling:
+
+- [Failure At The Application Boundary](references/errors/failure-at-the-boundary.md)
+- [Error Taxonomy](references/errors/error-taxonomy.md)
 
 Security:
 
-- [Security, DAL, And Auth](references/security-dal-and-auth.md)
-- [Validate Environment Variables](references/security-env-validation.md)
-
-Data and persistence:
-
-- [Data Ownership And Cache](references/data-ownership-and-cache.md)
-- [Backend Service Patterns](references/backend-service-patterns.md)
-- [Supabase Persistence Boundaries](references/supabase-persistence-boundaries.md)
+- [Security, DAL, And Auth](references/security/dal-and-auth.md)
+- [Validate Environment Variables](references/security/env-validation.md)
 
 Quality:
 
-- [Testing By Layer](references/testing-by-layer.md)
-- [Observability And Sentry](references/observability-and-sentry.md)
+- [Testing By Layer](references/quality/testing-by-layer.md)
+- [Observability And Sentry](references/quality/observability-and-sentry.md)
+
+Terminology: [Glossary](references/glossary.md)
+
+This contract adapts Alistair Cockburn's Ports and Adapters and Alex Bespoyasov's
+frontend Clean Architecture to an App Router application. Where a rule came from a
+measurement rather than from those sources, the count is recorded in the repository's
+`docs/evidence.md`.
 
 ## Decision Gate
 
 Before code changes, write or hold this classification:
 
 ```text
-layer: domain | use-case | outbound | inbound | DAL | server-state | UI | infrastructure
-boundary: RSC read | Server Action | Route Handler | webhook | durable job | none
-server data owner: RSC/DAL | TanStack Query | none
-auth boundary: proxy only? DAL? inbound adapter? use-case policy?
-cache owner: RSC cache | query cache | none
-tests: domain | use-case | adapter | action/route | component | e2e
+slice:               which capability owns this behaviour
+layer:               domain | use-case | data | outbound | inbound | read-entry | client-cache | UI | infrastructure
+dependency category: in-process | local-substitutable | remote-owned | external
+adapters today:      how many implementations exist now, not how many might
+behavior owned:      what this module does that callers would otherwise repeat
+authority:           store | owned service | application
+auth boundary:       where the session and role are re-verified server-side
+boundary:            RSC read | Server Action | Route Handler | stream | webhook | job | none
+cache owner:         rsc | client-cache | shared-server-cache | none
+error surface:       result from the wrapper | throw inside a layer | in-stream event
+tests:               domain | use-case | data | service | inbound | ui | e2e
 ```
 
-If any field is unclear, resolve that decision before adding files.
+If any field is unclear, resolve that decision before adding files. An empty `behavior owned` means the module should not exist.
 
 ## Common Failure Modes
 
-- Use-case imports `next/*`, React, Supabase clients, outbound repositories, or TanStack Query.
-- Server data is copied into Context, Zustand, or `useState` instead of RSC props or TanStack Query.
-- Server Action trusts client validation and skips server-side auth/authz checks.
-- Route Handler is used for same-app form commands that belong in Server Actions.
-- Cache tags are broad, tenant-unsafe, or invalidated without matching ownership.
+- A contract at a seam over a dependency that already runs locally, so tests exercise a substitute instead of the real engine.
+- An application function whose body forwards its arguments and holds nothing.
+- One schema parsed twice on the same path, twenty lines apart.
+- Storage naming reaching view models and form fields because the query was derived from the business schema.
+- Logic that a stored function already performs, reimplemented in the application.
+- Each entry point classifying failures for itself, so one fault has several public shapes.
+- A streamed response driven through a Server Action, or retried instead of resumed.
+- A second transport module for a service that already has one.
+- Server data copied into Context, an external store, or local state instead of RSC props or the client cache.
+- Cache tags that are broad, tenant-unsafe, or invalidated by a layer that does not own the write.
+- Lint guards naming directories the repository does not contain.
 
 ## Verification Gate
 
 Before reporting success:
 
-1. Check changed imports against the compile-time boundary list: domain stays pure; use-cases depend on ports, not adapters/framework/React/TanStack; outbound implements ports; `app/` entrypoints stay thin.
-2. Confirm every data access path re-checks auth/authz server-side and cache tags are scoped by entity, user, or tenant.
-3. Run the smallest relevant test or static check available in the target repo.
-4. State any unverified layer explicitly instead of implying it is covered.
+1. Apply the deletion test to every module added: if removing it makes complexity vanish rather than reappear across callers, remove it.
+2. Confirm no module was added without a production call site. A module reached only by its own test is not yet real.
+3. Check changed imports against the compile-time list above.
+4. Confirm each trust boundary validates its own concern exactly once.
+5. Confirm every read and write path re-checks auth server-side, and cache tags are scoped by entity, user, or tenant.
+6. Confirm one failure produces one report, and that public output carries a taxonomy code rather than provider text.
+7. Confirm tests assert outcomes rather than call mechanics, except where the call is itself the rule.
+8. Run the smallest relevant test or static check available in the target repo.
+9. State any unverified layer explicitly instead of implying it is covered.

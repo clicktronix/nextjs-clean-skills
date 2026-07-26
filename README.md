@@ -93,10 +93,12 @@ This is a fallback for greenfield or explicitly opted-in repositories. Existing 
 their local equivalents unless the task requests a migration.
 
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
-- **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.
+- **Rules**: [`rules/`](./rules/) ships an executable ESLint boundaries config for the layer
+  contract, plus a note on the depth failures no lint rule can catch.
+- **Architecture**: Hybrid Clean Architecture with domain, use-cases (only where a scenario is warranted), inbound/outbound adapters, server-only read entrypoints, a client cache tier, and thin `app/` entrypoints.
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
 - **Reads**: Server Components through server-only DAL/read use-cases by default.
-- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared async/server-state cache lifecycle across client islands.
+- **Client cache**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or a shared async cache lifecycle across client islands.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
 - **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
 - **Components**: Server Components by default; `composeHooks(View)(useProps)` for Client Components with logic.

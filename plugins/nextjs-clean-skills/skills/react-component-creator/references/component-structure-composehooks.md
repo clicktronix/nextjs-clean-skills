@@ -1,6 +1,6 @@
 # Component Structure And composeHooks
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (React)**
 
 Use `composeHooks(View)(useProps)` for Client Components with non-trivial logic. Skip it for pure Server Components and simple presentation components.
 

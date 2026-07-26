@@ -1,6 +1,6 @@
 # Styling And i18n
 
-**Impact: MEDIUM**
+**Impact: MEDIUM** · **Scope: stack (Mantine)**
 
 Styling and text follow project conventions so components stay consistent and replaceable.
 

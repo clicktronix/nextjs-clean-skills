@@ -1,20 +1,35 @@
 # Glossary
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: portable**
 
 Use these terms consistently. Do not redefine them in feature code.
 
 | Term | Meaning |
 | --- | --- |
 | Domain | Pure business schemas, types, invariants, and helpers. No framework or I/O. |
-| Use-case | Application scenario that orchestrates domain rules through ports. |
-| Port | Type owned by a use-case that describes what external capability it needs. |
-| Outbound adapter | Implementation of a port: Supabase, HTTP API, queue, file store, transport. |
-| Inbound adapter | Framework/request boundary: Server Action, Route Handler, webhook handler. |
-| DAL | Server-only read boundary that verifies auth/authz and maps rows to DTOs. |
-| Composition root | Place that wires concrete adapters into use-cases. Usually inbound/DAL. |
-| Server-state | Client-side async cache owned by TanStack Query, only when opt-in. |
+| Slice | A business capability that owns behaviour across several layers. |
+| Use-case | An application scenario: an effect, a pure transformation, an effect. |
+| Wrapper | The single application boundary that validates, normalises failures, and reports them once. |
+| Seam | A place where behaviour can be substituted without editing the code that uses it. |
+| Port | A contract at a seam describing a capability needed from outside the process. |
+| Adapter | A concrete thing satisfying a port. Two adapters make a seam real; one makes it hypothetical. |
+| Dependency category | in-process, local-substitutable, remote-owned, or true-external. Decides whether a port exists. |
+| Data module | Data access with no port in front of it, imported directly by its callers. |
+| Outbound adapter | An implementation of a port: an owned service, an external API, a queue. |
+| Inbound adapter | The framework request boundary: form submissions, HTTP endpoints, webhook receivers. |
+| Read entrypoint (DAL) | Server-only read boundary that verifies auth and returns domain-shaped data. |
+| Composition root | The place that supplies concrete implementations. Usually an inbound adapter or read entrypoint. |
+| Row type | The stored shape of a record, owned by the data module or adapter that reads it. |
+| Client cache | The keyed, lifecycle-managed copy of read results held for the browser. |
+| Authority | Whoever commits the transaction and enforces access: the store, an owned service, or the application. |
+| Result | The success-or-failure value the wrapper returns to entry points. |
 
-The most common confusion: inbound adapters **may call** use-cases. Use-cases must not import inbound or outbound adapters.
+Two confusions worth naming.
 
-Reference: Clean Architecture terminology adapted to a Next.js App Router app.
+**Direction is not depth.** Imports pointing the right way say nothing about whether a module holds behaviour. A correctly placed function that forwards its arguments with no wrapper behind it is still an empty layer — a thin body is only legitimate when a wrapper supplies guarantees the caller would otherwise repeat.
+
+**A seam is not a folder.** Creating a directory named after a layer does not create a substitution point, and a contract with one implementation is indirection wearing the vocabulary of a seam.
+
+Inbound adapters **may call** use-cases. Use-cases must not import inbound or outbound adapters.
+
+Reference: Clean Architecture terminology adapted to a server-rendered application.

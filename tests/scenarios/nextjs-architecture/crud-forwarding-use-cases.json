@@ -1,0 +1,17 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/use-cases/when-a-use-case-exists.md",
+  "query": "Add a labels feature: list labels, create one, rename one, delete one. Wire it from a Server Action down to Postgres. Show the application layer.",
+  "baseline_failure": "RED hypothesis: the agent creates use-cases/labels/labels.ts with four exported functions whose bodies are a single delegation each (return deps.labels.list(), etc.), plus a ports.ts mirroring the four operations, and a test asserting toHaveBeenCalledWith on the fake.",
+  "expected_behavior": [
+    "Applies the effect / pure transformation / effect test and finds no pure middle for plain CRUD",
+    "Routes the inbound adapter to the data module directly for the operations that have no application logic",
+    "Introduces a use-case only where a rule or orchestration actually appears, and says which one",
+    "Places validation and failure normalisation in the shared wrapper rather than per function"
+  ],
+  "anti_expectation": [
+    "Does NOT delete the application layer wholesale as a general principle",
+    "Does NOT move business rules into the inbound adapter to justify skipping the use-case",
+    "Does NOT keep a use-case file that only re-exports the data module"
+  ]
+}

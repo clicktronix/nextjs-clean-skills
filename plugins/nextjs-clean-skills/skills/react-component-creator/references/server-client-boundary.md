@@ -1,6 +1,6 @@
 # Server/Client Boundary
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (Next.js + React)**
 
 Start UI as a Server Component. Add `'use client'` only for event handlers, stateful hooks, refs, browser APIs, Mantine form hooks, client i18n hooks, or opt-in TanStack Query.
 

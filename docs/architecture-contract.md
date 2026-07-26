@@ -4,97 +4,149 @@ This document is the human-readable model behind the `nextjs-architecture` and
 `react-component-creator` skills. The skills are short operational guardrails; this document is
 the rationale and visual map for teams.
 
-> **Terms:** DAL, port, adapter, composition root, inbound, outbound, server-state — all
-> defined in [`plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
+> **Terms:** seam, port, adapter, dependency category, wrapper, read entrypoint, row type,
+> client cache — all defined in [`glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
 > Open it side-by-side if any term feels unfamiliar.
+
+> **Measurements:** where a rule came from a count rather than from a canonical source or from
+> judgement, [Evidence](./evidence.md) records which, with the command that produced it.
 
 ## Purpose
 
-The architecture combines Next.js App Router with ports-and-adapters discipline:
+The architecture combines Next.js App Router with ports-and-adapters discipline, applied to an
+application whose **business authority usually sits behind a seam** — in stored functions plus
+row-level policies, or in a separate service the team owns.
 
 - Next.js owns routing, rendering, Server Actions, Route Handlers, and cache APIs.
-- The application owns domain rules, use-cases, ports, adapters, and authorization decisions.
+- The application owns domain rules, scenario orchestration, seam contracts, and authorization
+  decisions it can make before the store is reached.
 - Framework entrypoints compose dependencies; use-cases do not import framework or adapter code.
 
-This is a role map, not a package migration recipe. Package names below describe the default
-profile; existing repositories keep their established equivalents unless migration is requested.
+This is a role map, not a package migration recipe. Package names describe the default profile;
+existing repositories keep their established equivalents unless migration is requested.
+
+## Two Axes, Not Three
+
+Placement needs two answers: which **capability** owns the behaviour, and which **responsibility**
+the code has. Both must be answerable before a file exists.
+
+A third axis — reuse tiers across several products or business lines — is deliberately absent.
+It pays for itself only when several products ship from one tree. Here the product is the
+repository, so a reuse tier would add a placement question with no correct answer.
 
 ## Layer Dependency Graph
 
-Nodes are grouped by the layer they belong to. Solid arrows are compile-time imports; the
-dotted edge is a runtime relationship (implementation, not import).
+Solid arrows are compile-time imports; the dotted edge is a runtime relationship.
 
 ```mermaid
 flowchart LR
   subgraph Presentation["Presentation"]
-    RSC["app/ server entrypoints\npages + layouts + RSC"]
+    RSC["app/ server entrypoints"]
     ClientUI["client UI components"]
-    SharedUI["shared ui/components\npresentation only"]
   end
-  subgraph ClientServerBridge["Client server-state"]
-    ServerState["ui/server-state/\nTanStack Query hooks"]
-    LocalActions["feature-local actions.ts\nthin form/action wrappers"]
+  subgraph ClientServerBridge["Client cache tier"]
+    ClientCache["client-cache/"]
+    LocalActions["feature-local actions.ts"]
   end
   subgraph Server["Server entrypoints"]
-    DAL["server-only DAL/read entrypoints"]
-    Inbound["adapters/inbound/next/\nServer Actions + Route Handlers"]
-    OutboundFactories["outbound factories\ncomposition root"]
+    ReadEntry["server-only read entrypoints"]
+    Inbound["adapters/inbound/next/"]
+    Factories["outbound factories\ncomposition root"]
   end
   subgraph Application["Application core"]
-    UseCases["use-cases/\napplication orchestration + ports"]
+    UseCases["use-cases/\nwrapper + orchestration"]
     Domain["domain/\nschemas + pure rules"]
   end
-  subgraph Persistence["Persistence + integrations"]
-    Outbound["adapters/outbound/\nSupabase, APIs, queues"]
+  subgraph Persistence["Data + integrations"]
+    Data["data/\nstore, no port"]
+    Outbound["adapters/outbound/\nported services, streams"]
   end
 
-  RSC --> DAL
-  ClientUI --> ServerState
+  RSC --> ReadEntry
+  ClientUI --> ClientCache
   ClientUI --> LocalActions
-  SharedUI -. "no data access" .-> ClientUI
-  ServerState --> Inbound
+  ClientCache --> Inbound
   LocalActions --> Inbound
-  DAL --> UseCases
+  ReadEntry --> UseCases
   Inbound --> UseCases
-  Inbound --> OutboundFactories
-  OutboundFactories --> Outbound
+  Inbound --> Factories
+  Factories --> Outbound
+  UseCases --> Data
+  ReadEntry --> Data
+  Inbound --> Data
   UseCases --> Domain
+  Data --> Domain
   Outbound --> Domain
-  Outbound -. "implements ports" .-> UseCases
+  UseCases -. "calls, at runtime, whatever the root supplied" .-> Outbound
 ```
 
-The important distinction: inbound adapters may create outbound implementations at runtime, but
-use-cases must not import those implementations at compile time.
+Read the dotted edge carefully: it applies to dependencies that genuinely need a contract at the
+seam. For a store that runs locally in the test suite, there is no port — the data module is
+called directly by the composition root and by use-cases that orchestrate it.
 
 ### Why these imports are forbidden
 
-The skill references list these as rules. The point of this section is to explain **why** —
-so that next year, when someone is tempted to "just import this Supabase client into a
-use-case for convenience", the rationale is preserved.
+The skill references state the rules. This section preserves **why**, so that next year the
+rationale is still available.
 
-- **`domain/` imports nothing project-specific.** Pure schema libraries and domain helpers are
-  allowed; schemas and rules must remain framework-agnostic so they keep working across Edge
-  runtime, Node runtime, tests, future workers, and any future deploy target. The day a domain
-  schema imports `next/headers`, you can no longer
-  unit-test domain logic without a Next.js request context, and you cannot reuse the schema in
-  a queue worker or a CLI.
+- **`domain/` imports nothing project-specific.** Schemas and rules must keep working across
+  runtimes, tests, workers, and future deploy targets. The day a domain schema imports a request
+  API, domain logic cannot be unit-tested without a request context and cannot be reused in a
+  worker or a CLI.
 
-- **`use-cases/` cannot import adapters or framework APIs.** Use-cases describe *what* needs
-  to happen; ports describe *what capability* is needed; adapters decide *how* it is provided.
-  If a use-case imports a concrete Supabase repository, you can no longer swap it for Drizzle
-  or REST in tests or in another deployment without rewriting business rules. The same logic
-  blocks `react`, `next/cache`, `next/headers`, TanStack Query, and clocks: each of them ties
-  application logic to a specific runtime instead of a port.
+- **`use-cases/` cannot import adapters or framework APIs.** Use-cases describe *what* must
+  happen; adapters decide *how*. An application function that imports a concrete client ties
+  scenario logic to one runtime and one vendor at once.
 
-- **Client Components cannot import server-only modules.** `import 'server-only'` is a build-
-  time guard against accidentally bundling secrets, service-role clients, or cookie/session
-  decoders into the browser. A single forbidden import can leak a service-role key into the
-  public JS bundle.
+- **Client Components cannot import server-only modules.** This is a build-time guard against
+  bundling secrets, privileged clients, or session decoders into the browser. One forbidden
+  import can put a privileged key in public JavaScript.
 
-- **Inbound adapters MAY import outbound factories.** This is the composition root: someone
-  has to wire a concrete Supabase repository into a use-case at runtime. Server Actions and
-  Route Handlers are the natural place for that wiring. The rule is one-way — outbound adapters
-  never import inbound, and use-cases never import either.
+- **Inbound adapters MAY import outbound factories.** This is the composition root: something has
+  to supply concrete implementations, and only the request boundary holds the request. The rule
+  is one-way — outbound never imports inbound, and use-cases never import either.
+
+### Why direction alone is not enough
+
+Every one of the rules above can hold while the code is still wrong. A function placed in the
+right layer, importing only what it may, that forwards its arguments to the next layer and
+returns the result, satisfies the dependency rule and holds nothing.
+
+That is the failure 2.0.0 targets, and it is measured rather than asserted: see
+[Evidence](./evidence.md), which also marks the rules that rest on judgement instead. Direction is checkable by lint; depth is not, which is exactly why it
+needs to be a written rule and a review question.
+
+## Why A Port Is Not Automatic
+
+Ports are for capabilities the process cannot exercise on its own. The canonical pattern expects
+a handful of them, with several adapters each — not one per stored entity.
+
+| Dependency | Can it run in the test suite? | Contract at the seam |
+| --- | --- | --- |
+| pure computation | yes, trivially | no |
+| store with local engine + migrations | yes | no — a module in `data/`, tested against the engine |
+| owned service over the network | no | yes — production adapter and fake |
+| third-party service | no | yes — adapter and mock |
+
+Two consequences worth stating plainly.
+
+**A port over a locally runnable store weakens tests.** The substitute stands in for your own
+queries, so a broken filter, a wrong policy, or a drifted column list stays green.
+
+**The application does not need a container.** Closures and an explicit request context provide
+constructor injection, scoping, decoration, and test doubles. A registry earns its place only at
+a scale this shape of application does not reach; the thresholds are written down in the skill so
+the decision can be revisited with evidence rather than taste.
+
+## Why One Wrapper
+
+Cross-cutting concerns at the application seam — validating the declared input and output,
+turning any failure into a value, reporting it once — are the same work for every scenario.
+Written per entry point, they diverge: the action path, the route path, and the render path each
+grow their own arrangement, and a fourth channel means writing the rules a fourth time.
+
+Written once, they also make a thin scenario body legitimate: the leverage is in the guarantees,
+not the line count.
 
 ## Runtime Flow vs Import Direction
 
@@ -102,73 +154,68 @@ use-case for convenience", the rationale is preserved.
 flowchart TB
   subgraph Runtime["Runtime call flow"]
     Form["User submits form"] --> Action["Server Action"]
-    Action --> BuildRepo["create repository"]
-    BuildRepo --> UseCase["call use-case"]
-    UseCase --> Port["call port interface"]
-    Port --> Repo["Supabase repository"]
+    Action --> Compose["compose data access"]
+    Compose --> UseCase["call use-case"]
+    UseCase --> Data["store / service"]
   end
 
   subgraph CompileTime["Compile-time imports"]
     ActionFile["server-actions/*.ts"] --> UseCaseFile["use-cases/*.ts"]
-    ActionFile --> RepoFile["adapters/outbound/*.repository.ts"]
-    RepoFile --> PortFile["use-cases/*/ports.ts"]
-    UseCaseFile --> PortFile
+    ActionFile --> DataFile["adapters/outbound/*.ts"]
     UseCaseFile --> DomainFile["domain/*"]
   end
 ```
 
-This is why "inbound can call use-cases" is correct. The violation is the opposite direction:
-use-cases importing inbound adapters, outbound repositories, Supabase clients, React, TanStack
-Query, or Next.js request/cache APIs.
+Runtime descends through more steps than the import graph has edges, because the composition root
+hands implementations downward. The violation is the opposite direction.
 
 ## Command And Query Boundaries
 
 ```mermaid
 flowchart TD
-  Need["Need data or mutation?"] --> ReadWrite{"Read or command?"}
-  ReadWrite -->|Read-heavy UI| RSC["Server Component\nserver-only DAL/read entrypoint"]
-  ReadWrite -->|Client interactive read| Query["ui/server-state\nTanStack Query opt-in"]
-  ReadWrite -->|User form/button command| Action["Server Action\nvalidated inbound boundary"]
-  ReadWrite -->|External API / service client| Route["Route Handler\nJSON envelope + request id"]
-  ReadWrite -->|Webhook| Webhook["Route Handler\nraw body + signature verification"]
-  ReadWrite -->|Long-running work| Queue["Durable job/queue\nprovider adapter"]
+  Need["Need data or mutation?"] --> Kind{"What kind?"}
+  Kind -->|Read-heavy UI| RSC["Server Component\nserver-only read entrypoint"]
+  Kind -->|Client interactive read| Query["client-cache\nkeyed copy, opt-in"]
+  Kind -->|User form/button command| Action["Server Action"]
+  Kind -->|External API / service client| Route["Route Handler\nJSON envelope + request id"]
+  Kind -->|Webhook| Webhook["Route Handler\nraw body + signature"]
+  Kind -->|Long-lived response| Stream["Route Handler\nresume, idle timeout, cancellation"]
+  Kind -->|Long-running work| Queue["Durable job/queue"]
 ```
 
-Server Actions are for UI commands. Route Handlers are for service APIs, webhooks, external
-clients, mobile apps, integrations, and retryable HTTP commands.
+Streaming is its own boundary, not a slow request: it cannot run through a Server Action, it is
+resumed rather than retried, and failures after the first byte travel inside the stream.
 
 ## Security Boundary
 
 ```mermaid
 flowchart LR
   Proxy["src/proxy.ts\nrefresh session, redirect, headers"] --> App["app/ route"]
-  App --> DAL["server-only DAL / inbound adapter"]
-  DAL --> Verify["verify auth + role + tenant"]
+  App --> Entry["server-only read entrypoint / inbound adapter"]
+  Entry --> Verify["verify auth + role + tenant"]
   Verify --> UseCase["use-case"]
-  UseCase --> Repo["outbound repository"]
-  Repo --> DTO["DTO / safe response"]
+  UseCase --> Data["outbound data access"]
+  Data --> Policy["row-level policies"]
 
   Proxy -. "not enough for authorization" .-> UseCase
 ```
 
-`proxy.ts` is not the authorization boundary. Data access paths must re-check auth and return
-DTOs rather than leaking raw database rows or service-role data.
+`proxy.ts` is not the authorization boundary. Policies in the store are the last line, not the
+only one: checking at the entry point turns a silent empty result into a clear refusal.
 
 ## Persistence Boundary
 
 ```mermaid
 flowchart LR
-  UseCase["use-case"] -->|"depends on"| Port["Repository port"]
-  Port -. "implemented by" .-> Adapter["Supabase repository"]
-  Adapter --> SQL["Postgres + RLS"]
-  SQL --> Policy["RLS policies\n(select auth.uid())\nwith check authority columns"]
+  UseCase["use-case"] --> DataModule["data module\ndata/<slice>"]
+  DataModule --> RowMap["row type -> domain type"]
+  DataModule --> SQL["stored functions + policies"]
+  SQL --> Authority["transaction and authorization\nlive here"]
 ```
 
-Read the dotted edge as "is satisfied by" — the use-case never knows about the Supabase
-repository, only its port. The adapter sits below the port and implements it.
-
-Use-cases describe what persistence capability they need. Outbound adapters decide how Supabase,
-RPCs, transactions, queues, or external APIs implement that capability.
+Two rules carry most of the weight. A stored function *is* the transaction — call it, never
+mirror it in the application. And the row shape is not the domain shape: derive the column list
+from the row schema so storage naming cannot leak into view models and form fields.
 
 ## UI State Ownership
 
@@ -178,16 +225,20 @@ flowchart TD
   URL -->|Yes| SearchParams["URL search params"]
   URL -->|No| Server{"Server-owned data?"}
   Server -->|Read-heavy| RSCProps["RSC props"]
-  Server -->|Realtime/polling/optimistic/infinite| TanStack["TanStack Query"]
+  Server -->|Realtime/polling/optimistic/infinite| TanStack["query cache"]
   Server -->|No| Scope{"Scope?"}
   Scope -->|One component| Local["useState/useReducer"]
   Scope -->|One route| FeatureHook["feature-local hook"]
   Scope -->|Global static config| Context["React Context"]
-  Scope -->|Hot shared UI state| Zustand["External store opt-in\nwhen justified"]
+  Scope -->|Hot shared UI state| Store["External store, when justified"]
 ```
 
-Do not put server data in Context, Zustand, or local state. Client stores own UI behavior, not
-backend truth.
+Do not put server data in Context, an external store, or local state. Client stores own UI
+behaviour, not backend truth.
+
+If a shared cache (for example Redis) is ever added, there are three cache tiers rather than two,
+and the `cache owner` classification has to say which one owns a given read. Two of three tiers
+being invalidated is worse than one, because the stale tier looks authoritative.
 
 ## What Belongs In Skills vs Docs
 
@@ -196,11 +247,11 @@ backend truth.
 | Layer import contract | Yes | Yes |
 | Decision tables used while coding | Yes | Yes |
 | Rationale and diagrams | No | Yes |
+| Measurements behind a rule | No | Yes — [Evidence](./evidence.md) |
 | External API syntax | No | No, link to official docs |
 | Long implementation walkthroughs | No | Sometimes, if onboarding needs it |
-| Historical audit notes | No | Archive outside the plugin |
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-10 (skill version 1.3.1). When a skill rule
+*Last reviewed against the live skill set: 2026-07-26 (skill version 2.0.0). When a skill rule
 or template pattern changes, refresh this document in the same PR.*
