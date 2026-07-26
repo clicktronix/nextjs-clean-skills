@@ -38,6 +38,14 @@ The script parses TypeScript with the compiler API. It counts exported function 
 exported arrow/function expressions, and static import declarations, so the population does not
 depend on formatting.
 
+Two of those three repositories are private, so the numbers above are not reproducible by a reader.
+The script is: point it at **your own** repository and it reports the same measures over your
+application layer, under the same definitions.
+
+```bash
+node scripts/measure-evidence.mjs mine=/path/to/your/repo#HEAD
+```
+
 ## Findings
 
 ### The Old Application Layer Was Mostly Shallow
