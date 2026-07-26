@@ -17,7 +17,7 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 - Domain schemas and types in Valibot.
 - Business authority may sit in the store (stored functions plus row-level policies) or in a separate owned service. Model where it sits before deciding what the application layer holds.
 - Application entries go through one boundary declaration that validates, normalises failures, and reports them once. It knows nothing about the framework: navigation is called outside it.
-- The repository is the default product scope. Add broader product or business-line scopes only when real independently shipped consumers require them.
+- The repository is the default product boundary. Within it, choose the narrowest actual consumer set; add broader product or business-line scopes only when independently shipped consumers require them.
 - A port exists when the core must state a capability independently of the technology behind it, in the application's language. Adapter count is evidence, not the gate; a locally-runnable store defaults to a data module.
 - Read-heavy UI fetches in Server Components through server-only read entrypoints.
 - TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service, streaming, and integration commands.
@@ -45,20 +45,20 @@ Runtime entry per need:
 
 <!-- contract:imports -->
 ```text
-Compile-time imports (generated from rules/import-table.json):
-  domain/**                  nothing in src/
-  use-cases/*/operations/**  domain, ports, data
-  use-cases/*/entries/**     domain, boundary, use-case-operations
-  data/**                    domain
-  adapters/outbound/**       domain, ports
-  adapters/inbound/**        domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries
-  adapters/inbound/read/**   domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries
-  client-cache/**            domain, inbound
-  ui/**                      domain, client-cache, ui
-  app/**                     domain, read, inbound, ui, client-cache (prefetch only)
-  infrastructure/**          domain
-  ports/**                   domain
-  boundary/**                domain
+Compile-time imports (self | across layers; generated from rules/import-table.json):
+  domain/**                  yes | none
+  use-cases/*/operations/**  yes | domain, ports, data
+  use-cases/*/entries/**     no  | domain, boundary, use-case-operations
+  data/**                    yes | domain
+  adapters/outbound/**       yes | domain, ports
+  adapters/inbound/**        yes | domain, ports, data, outbound, infrastructure, boundary, use-case-entries
+  adapters/inbound/read/**   yes | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries
+  client-cache/**            yes | domain, inbound
+  ui/**                      yes | domain, client-cache
+  app/**                     yes | domain, read, inbound, ui, client-cache (prefetch only)
+  infrastructure/**          yes | domain
+  ports/**                   no  | domain
+  boundary/**                no  | domain
 ```
 <!-- /contract:imports -->
 
@@ -133,7 +133,7 @@ measurement rather than from those sources, the count is recorded in the reposit
 Before code changes, write or hold this classification:
 
 ```text
-scope:               narrowest actual consumer set; repository by default
+scope:               narrowest actual consumer set; repository is the product boundary
 slice:               which capability owns this behaviour
 layer:               domain | operation | entry | data | port | outbound | inbound | read-entry | client-cache | UI | infrastructure | boundary
 dependency category: in-process | local-substitutable | remote-owned | external

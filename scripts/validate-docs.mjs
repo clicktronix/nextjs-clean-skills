@@ -42,6 +42,11 @@ const getAnchors = (file) => {
   return anchorCache.get(file)
 }
 
+const isInsideRoot = (target) => {
+  const relative = path.relative(root, target)
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+
 const checkLink = (from, rawTarget) => {
   if (
     rawTarget.startsWith('http://') ||
@@ -53,14 +58,32 @@ const checkLink = (from, rawTarget) => {
   }
 
   const [rawPath, rawAnchor] = rawTarget.split('#', 2)
-  const linkPath = decodeURIComponent(rawPath)
-  const anchor = rawAnchor ? decodeURIComponent(rawAnchor) : ''
+  let linkPath
+  let anchor
+  try {
+    linkPath = decodeURIComponent(rawPath)
+    anchor = rawAnchor ? decodeURIComponent(rawAnchor) : ''
+  } catch {
+    errors.push(`${from}: link is not valid URI encoding: ${rawTarget}`)
+    return
+  }
+
   const fromAbsolute = path.join(root, from)
   const target = linkPath ? path.resolve(path.dirname(fromAbsolute), linkPath) : fromAbsolute
   linkCount += 1
 
+  if (!isInsideRoot(target)) {
+    errors.push(`${from}: internal link leaves repository: ${rawTarget}`)
+    return
+  }
+
   if (!fs.existsSync(target)) {
     errors.push(`${from}: link target does not exist: ${rawTarget}`)
+    return
+  }
+
+  if (!isInsideRoot(fs.realpathSync(target))) {
+    errors.push(`${from}: internal link resolves outside repository: ${rawTarget}`)
     return
   }
 

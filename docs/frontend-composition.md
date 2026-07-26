@@ -28,6 +28,7 @@ flowchart TB
   View --> Island["Focused Client Component"]
   Island --> Local["Local interaction state"]
   Island --> Cache["client-cache/ when async<br/>browser lifecycle is required"]
+  Cache --> ClientInbound["Inbound action<br/>or transport"]
 ```
 
 Do not mark a component `use client` to make an import error disappear. Move server work back to an

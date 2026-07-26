@@ -3,8 +3,8 @@
 // weak in the same way: the first asserted the config's SHAPE, the second ran a hand-picked
 // fixture list. Both certified real gaps — a hand-picked list cannot be complete by construction.
 // So the matrix is GENERATED as a source x target cross-product from rules/import-table.json:
-// every pair the table permits must lint clean, every pair it omits must error. Adding a layer
-// adds its whole row and column automatically.
+// every pair the table permits must lint clean, every pair it omits must error. Same-layer edges
+// are explicit through `mayImportSelf`, so adding a layer adds its whole row and column.
 //
 // The matrix now runs against three TIERS, because the contract has two enforcement mechanisms:
 //
@@ -112,6 +112,8 @@ for (const name of layerNames) {
     errors.push(
       `rules/import-table.json: layer ${name} has a "dir" (${table.layers[name].dir}) outside its "root" (${rootOf(name)})`
     )
+  if (typeof table.layers[name].mayImportSelf !== 'boolean')
+    errors.push(`rules/import-table.json: layer ${name} must declare boolean "mayImportSelf"`)
 }
 
 // A nested layer has its own permissions (`read` lives inside `inbound`). Because flat config
@@ -151,7 +153,6 @@ if (ESLint && errors.length === 0) {
     const allowed = new Set(table.layers[source].mayImport)
     const at = table.layers[source].mayImportAt ?? {}
     for (const target of new Set([...layerNames, ...Object.keys(table.specimen)])) {
-      if (source === target) continue
       const specimen = table.specimen[target]
       if (!specimen) continue
       // A subpath permission ("app may import client-cache only at its prefetch entry") is granted
@@ -159,7 +160,12 @@ if (ESLint && errors.length === 0) {
       const grantedAtSpecimen = (at[target] ?? []).some(
         (entry) => specimen.endsWith(`/${entry}`) || specimen.includes(`/${entry}/`)
       )
-      const expect = allowed.has(target) || grantedAtSpecimen ? 'clean' : 'error'
+      const expect =
+        (source === target && table.layers[source].mayImportSelf) ||
+        allowed.has(target) ||
+        grantedAtSpecimen
+          ? 'clean'
+          : 'error'
       cases.push({
         dir: table.layers[source].dir,
         name: `from-${source}-to-${target}.ts`,

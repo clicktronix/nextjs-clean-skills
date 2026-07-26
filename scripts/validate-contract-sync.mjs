@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Human docs, agent instructions, and executable rules must describe one import contract.
 //
-// The human layer table is generated from root, owns, mayImport, and mayImportAt; the compact agent
-// table and skill block use the same roots and permissions. Hand-written labels previously let two
-// prose surfaces agree while disagreeing with the paths ESLint enforced. `--fix` replaces marked
-// regions only; missing markers remain a structural error.
+// The human and critical agent tables are generated from root, owns, mayImportSelf, mayImport, and
+// mayImportAt; the skill block uses the same roots and permissions. Hand-written labels previously
+// let two prose surfaces agree while disagreeing with the paths ESLint enforced. `--fix` replaces
+// marked regions only; missing markers remain a structural error.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fail, readJson, root } from './_lib.mjs'
@@ -27,16 +27,19 @@ const names = Object.keys(layers)
 
 const label = (name) => `${layers[name].root.replace(/^src\//, '')}/**`
 
-const permissions = (name) => {
+const crossLayerPermissions = (name) => {
   const layer = layers[name]
   const parts = [
     ...layer.mayImport,
     ...Object.entries(layer.mayImportAt ?? {}).map(([target, at]) => `${target} (${at.join(', ')} only)`),
   ]
-  return parts.length > 0 ? parts.join(', ') : 'nothing in src/'
+  return parts.length > 0 ? parts.join(', ') : 'none'
 }
 
 for (const name of names) {
+  if (typeof layers[name].mayImportSelf !== 'boolean') {
+    errors.push(`rules/import-table.json: layers.${name}.mayImportSelf must be boolean`)
+  }
   const owns = layers[name].owns
   if (typeof owns !== 'string' || owns.trim() === '') {
     errors.push(`rules/import-table.json: layers.${name}.owns must be a non-empty string`)
@@ -47,19 +50,23 @@ for (const name of names) {
 
 const humanLayerTable = [
   TABLE_OPEN,
-  '| Layer | Owns | May import |',
-  '| --- | --- | --- |',
+  '| Layer | Owns | Same layer | May import across layers |',
+  '| --- | --- | --- | --- |',
   ...names.map(
-    (name) => `| \`${label(name)}\` | ${layers[name].owns} | ${permissions(name)} |`
+    (name) =>
+      `| \`${label(name)}\` | ${layers[name].owns} | ${layers[name].mayImportSelf ? 'yes' : 'no'} | ${crossLayerPermissions(name)} |`
   ),
   TABLE_CLOSE,
 ].join('\n')
 
 const referenceLayerTable = [
   TABLE_OPEN,
-  '| Layer | May import |',
-  '| --- | --- |',
-  ...names.map((name) => `| \`${label(name)}\` | ${permissions(name)} |`),
+  '| Layer | Owns | Same layer | Across layers |',
+  '| --- | --- | --- | --- |',
+  ...names.map(
+    (name) =>
+      `| \`${label(name)}\` | ${layers[name].owns} | ${layers[name].mayImportSelf ? 'yes' : 'no'} | ${crossLayerPermissions(name)} |`
+  ),
   TABLE_CLOSE,
 ].join('\n')
 
@@ -67,8 +74,11 @@ const width = Math.max(...names.map((name) => label(name).length))
 const skillImports = [
   IMPORTS_OPEN,
   '```text',
-  'Compile-time imports (generated from rules/import-table.json):',
-  ...names.map((name) => `  ${label(name).padEnd(width + 2)}${permissions(name)}`),
+  'Compile-time imports (self | across layers; generated from rules/import-table.json):',
+  ...names.map(
+    (name) =>
+      `  ${label(name).padEnd(width + 2)}${layers[name].mayImportSelf ? 'yes' : 'no '} | ${crossLayerPermissions(name)}`
+  ),
   '```',
   IMPORTS_CLOSE,
 ].join('\n')

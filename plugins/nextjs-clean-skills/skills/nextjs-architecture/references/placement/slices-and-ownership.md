@@ -10,8 +10,9 @@ slice: business capability that owns the behaviour
 layer: technical responsibility the file performs
 ```
 
-The repository is the default product scope. Route-private presentation stays with its route; a
-capability spans product layers; broader product or business-line scopes exist only when several
+The repository is the default product boundary, not the default reuse breadth. Inside it, choose
+among one route, one capability, or repository-wide consumers. Scope says who may consume the
+implementation; slice says who owns it. Broader product or business-line scopes exist only when
 independently shipped consumers make that reuse contract real.
 
 A slice is a capability — work items, campaigns, chat — and uses one name across its layers:

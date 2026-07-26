@@ -29,7 +29,7 @@ Every non-trivial file has three coordinates:
 
 | Coordinate | Question | Default |
 | --- | --- | --- |
-| **Scope** | Which actual consumers may reuse this implementation? | the current repository |
+| **Scope** | Which actual consumers may use this implementation unchanged? | the narrowest current consumer set |
 | **Slice** | Which business capability owns the behaviour? | a named capability such as `work-items` |
 | **Layer** | Which technical responsibility does the file perform? | one layer from the generated table |
 
@@ -54,17 +54,19 @@ direction.
 
 Use the narrowest scope where behaviour is already valid:
 
-| Scope | Contains | Promotion signal |
+| Reuse scope | Contains | Promotion signal |
 | --- | --- | --- |
-| route-private | presentation and framework glue used by one route | a second route needs the same behaviour |
-| capability slice | product behaviour owned by one capability | another capability needs a stable public operation |
-| repository-wide technical layer | infrastructure or UI primitives with no business owner | the same contract exists in another shipped product |
-| shared package or workspace | behaviour proven identical across products | actual independent consumers and release ownership exist |
+| one route | presentation and framework glue consumed by one route | a second route needs the same behaviour |
+| one capability | behaviour consumed only inside one capability | another capability needs a stable public operation |
+| repository | behaviour or a technical primitive consumed across capabilities | another shipped product needs the same contract |
+| package or workspace | behaviour proven identical across products | independent consumers and release ownership exist |
 
-The default architecture has one product scope: the repository. Do not introduce product or
-business-line tiers merely because a larger system might need them later. A multi-product workspace
-may define its own specificity lattice, but it must document allowed dependency directions and
-enforce them separately from the portable layer rules.
+Scope names consumers; slice names the business owner. A repository-wide operation can still belong
+to one slice. The repository is the default product boundary, not the default reuse breadth.
+
+Do not introduce product or business-line tiers merely because a larger system might need them
+later. A multi-product workspace may define its own specificity lattice, but it must document
+allowed dependency directions and enforce them separately from the portable layer rules.
 
 Moving code outward creates a compatibility contract. Duplication is sometimes cheaper than a false
 shared abstraction; promote only after the consumers and common meaning are visible.
@@ -83,6 +85,7 @@ flowchart TB
   App -. "prefetch only" .-> ClientCache["client-cache/"]
   UI --> ClientCache
   ClientCache --> Inbound
+  Read -. "shared inbound primitives" .-> Inbound
   Read --> Entry["use-cases/*/entries/"]
   Inbound --> Entry
   Entry --> Operation["use-cases/*/operations/"]
@@ -97,26 +100,32 @@ flowchart TB
 ```
 
 <!-- contract:layer-table -->
-| Layer | Owns | May import |
-| --- | --- | --- |
-| `domain/**` | schemas, value objects, failure kinds, and pure business rules | nothing in src/ |
-| `use-cases/*/operations/**` | application behaviour, orchestration, and projections | domain, ports, data |
-| `use-cases/*/entries/**` | the public declaration: validation, failure normalization, and reporting | domain, boundary, use-case-operations |
-| `data/**` | access to a locally runnable store when no port exists | domain |
-| `adapters/outbound/**` | concrete implementations of application ports | domain, ports |
-| `adapters/inbound/**` | request decoding, authorization, and command or event composition | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
-| `adapters/inbound/read/**` | authenticated server-only read composition | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
-| `client-cache/**` | browser cache keys, queries, mutations, and invalidation | domain, inbound |
-| `ui/**` | presentation and client interaction | domain, client-cache, ui |
-| `app/**` | routes, layouts, metadata, and rendering boundaries | domain, read, inbound, ui, client-cache (prefetch only) |
-| `infrastructure/**` | environment, auth, logging, and cache plumbing | domain |
-| `ports/**` | application-owned capability contracts | domain |
-| `boundary/**` | the shared application declaration combinator | domain |
+| Layer | Owns | Same layer | May import across layers |
+| --- | --- | --- | --- |
+| `domain/**` | pure rules and domain types | yes | none |
+| `use-cases/*/operations/**` | application orchestration and projections | yes | domain, ports, data |
+| `use-cases/*/entries/**` | public validation, failure normalization, and reporting | no | domain, boundary, use-case-operations |
+| `data/**` | local store access when no port exists | yes | domain |
+| `adapters/outbound/**` | application port implementations | yes | domain, ports |
+| `adapters/inbound/**` | request authorization and command or event composition | yes | domain, ports, data, outbound, infrastructure, boundary, use-case-entries |
+| `adapters/inbound/read/**` | authenticated server-only reads | yes | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
+| `client-cache/**` | browser cache and invalidation | yes | domain, inbound |
+| `ui/**` | presentation and client interaction | yes | domain, client-cache |
+| `app/**` | routing, rendering, and metadata | yes | domain, read, inbound, ui, client-cache (prefetch only) |
+| `infrastructure/**` | environment, auth, logging, and cache plumbing | yes | domain |
+| `ports/**` | application capability contracts | no | domain |
+| `boundary/**` | shared declaration policy | no | domain |
 <!-- /contract:layer-table -->
 
-The names in `May import` are keys from `rules/import-table.json`. The table is generated into this
-document, the critical agent reference, and the always-loaded skill contract. Change the table, run
-the fixer, and review all generated surfaces in the same pull request.
+The names in `May import across layers` are keys from `rules/import-table.json`. “Same layer” means
+the same classified row; nested `read` remains a separate layer from its `inbound` parent. The table
+is generated into this document, the critical agent reference, and the always-loaded skill
+contract. Change the table, run the fixer, and review all generated surfaces in the same pull
+request.
+
+Same-layer imports are explicit, not implied. Operations may compose operations, while declarations
+never call declarations. `ports/**` and `boundary/**` are contract roots: split definitions share
+domain types instead of importing sibling contracts.
 
 Runtime flow may descend through code a module never imports. An inbound adapter constructs an
 outbound implementation and supplies it to an operation through a port-shaped dependency. The

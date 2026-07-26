@@ -1,5 +1,5 @@
 {
-  "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every pair listed in `mayImport` must lint clean, every pair NOT listed must error. Hand-picked fixture samples let real gaps through \u2014 that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
+  "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every cross-layer pair listed in `mayImport` and every same-layer edge allowed by `mayImportSelf` must lint clean; every other pair must error. Hand-picked fixture samples let real gaps through \u2014 that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
   "specimen": {
     "domain": "@/domain/work-item/work-item",
     "ports": "@/ports/work-items",
@@ -19,13 +19,15 @@
     "domain": {
       "root": "src/domain",
       "dir": "src/domain/work-item",
-      "owns": "schemas, value objects, failure kinds, and pure business rules",
+      "owns": "pure rules and domain types",
+      "mayImportSelf": true,
       "mayImport": []
     },
     "use-case-operations": {
       "root": "src/use-cases/*/operations",
       "dir": "src/use-cases/work-items/operations",
-      "owns": "application behaviour, orchestration, and projections",
+      "owns": "application orchestration and projections",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "ports",
@@ -35,7 +37,8 @@
     "use-case-entries": {
       "root": "src/use-cases/*/entries",
       "dir": "src/use-cases/work-items/entries",
-      "owns": "the public declaration: validation, failure normalization, and reporting",
+      "owns": "public validation, failure normalization, and reporting",
+      "mayImportSelf": false,
       "mayImport": [
         "domain",
         "boundary",
@@ -45,7 +48,8 @@
     "data": {
       "root": "src/data",
       "dir": "src/data/work-items",
-      "owns": "access to a locally runnable store when no port exists",
+      "owns": "local store access when no port exists",
+      "mayImportSelf": true,
       "mayImport": [
         "domain"
       ]
@@ -53,7 +57,8 @@
     "outbound": {
       "root": "src/adapters/outbound",
       "dir": "src/adapters/outbound/agent",
-      "owns": "concrete implementations of application ports",
+      "owns": "application port implementations",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "ports"
@@ -62,14 +67,14 @@
     "inbound": {
       "root": "src/adapters/inbound",
       "dir": "src/adapters/inbound/next",
-      "owns": "request decoding, authorization, and command or event composition",
+      "owns": "request authorization and command or event composition",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "ports",
         "data",
         "outbound",
         "infrastructure",
-        "read",
         "boundary",
         "use-case-entries"
       ]
@@ -77,7 +82,8 @@
     "read": {
       "root": "src/adapters/inbound/read",
       "dir": "src/adapters/inbound/read",
-      "owns": "authenticated server-only read composition",
+      "owns": "authenticated server-only reads",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "ports",
@@ -92,7 +98,8 @@
     "client-cache": {
       "root": "src/client-cache",
       "dir": "src/client-cache/work-items",
-      "owns": "browser cache keys, queries, mutations, and invalidation",
+      "owns": "browser cache and invalidation",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "inbound"
@@ -102,16 +109,17 @@
       "root": "src/ui",
       "dir": "src/ui/components/Board",
       "owns": "presentation and client interaction",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
-        "client-cache",
-        "ui"
+        "client-cache"
       ]
     },
     "app": {
       "root": "src/app",
       "dir": "src/app/admin",
-      "owns": "routes, layouts, metadata, and rendering boundaries",
+      "owns": "routing, rendering, and metadata",
+      "mayImportSelf": true,
       "mayImport": [
         "domain",
         "read",
@@ -128,6 +136,7 @@
       "root": "src/infrastructure",
       "dir": "src/infrastructure/logging",
       "owns": "environment, auth, logging, and cache plumbing",
+      "mayImportSelf": true,
       "mayImport": [
         "domain"
       ]
@@ -135,7 +144,8 @@
     "ports": {
       "root": "src/ports",
       "dir": "src/ports",
-      "owns": "application-owned capability contracts",
+      "owns": "application capability contracts",
+      "mayImportSelf": false,
       "mayImport": [
         "domain"
       ]
@@ -143,7 +153,8 @@
     "boundary": {
       "root": "src/boundary",
       "dir": "src/boundary",
-      "owns": "the shared application declaration combinator",
+      "owns": "shared declaration policy",
+      "mayImportSelf": false,
       "mayImport": [
         "domain"
       ]
@@ -334,6 +345,12 @@
       "case": "an outbound adapter declares a boundary of its own",
       "layer": "outbound",
       "code": "import { defineBoundary } from '@/boundary'\nexport default defineBoundary"
+    },
+    {
+      "case": "an inbound adapter reaches the server-only read layer by relative path",
+      "layer": "inbound",
+      "code": "import { read } from '../read/work-items'\nexport default read",
+      "resolvedOnly": true
     }
   ],
   "extraAllowed": [
@@ -368,11 +385,6 @@
       "code": "export default () => import('@/adapters/outbound/agent/sse')"
     },
     {
-      "case": "inbound adapter dynamically imports a read entrypoint",
-      "layer": "inbound",
-      "code": "export default () => import('@/adapters/inbound/read/work-items')"
-    },
-    {
       "case": "use-case dynamically imports a data module",
       "layer": "use-case-operations",
       "code": "export default () => import('@/data/work-items')"
@@ -395,13 +407,6 @@
   ],
   "$note_tiers": "`mayImportAt` grants an edge at named modules only \u2014 `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
   "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries.",
-  "$note_surfaces": "A use-case slice has two surfaces and they are separate layers, not a naming convention. `operations/**` reaches domain, ports and data, throws typed failures and reports nothing \u2014 it may NOT reach `boundary/**`, which is what stops an operation from quietly becoming a second declaration. `entries/**` reaches the combinator and operations, and may NOT reach data or ports directly, which is what stops a declaration from skipping the operation it wraps. Inbound adapters reach entries only. NOT enforced here: that an entry calls its OWN slice's operation. Relating a source slice to a target slice needs slice identity, which a portable table does not have \u2014 same limit as slice isolation, and recorded the same way in rules/README.md.",
-  "selfRules": [
-    {
-      "layer": "use-case-entries",
-      "fromSubpath": "**",
-      "message": "A declaration never calls another declaration \u2014 compose the operation it wraps, so the failure is reported once at the outermost boundary."
-    }
-  ],
-  "$note_reference": "The layer's documented label is DERIVED from `root` (strip `src/`, add `/**`) and its documented permissions from `mayImport`; scripts/validate-contract-sync.mjs regenerates both into references/placement/layers-and-imports.md and the SKILL.md contract block, and fails CI when they drift. An earlier version compared two hand-written labels and proved only that they matched each other."
+  "$note_surfaces": "A use-case slice has two surfaces and they are separate layers, not a naming convention. `operations/**` reaches its own layer plus domain, ports and data, throws typed failures and reports nothing \u2014 it may NOT reach `boundary/**`, which is what stops an operation from quietly becoming a second declaration. `entries/**` cannot reach its own layer; it reaches the combinator and operations, and may NOT reach data or ports directly. Inbound adapters enter the application through entries, not operations. NOT enforced here: that an entry calls its OWN slice's operation. Relating a source slice to a target slice needs slice identity, which a portable table does not have \u2014 same limit as slice isolation, and recorded the same way in rules/README.md.",
+  "$note_reference": "The layer's documented label is DERIVED from `root` (strip `src/`, add `/**`), its responsibility from `owns`, and its permissions from `mayImportSelf`, `mayImport`, and `mayImportAt`; scripts/validate-contract-sync.mjs regenerates them into docs/architecture-contract.md, references/placement/layers-and-imports.md, and the SKILL.md contract block, and fails CI when they drift. An earlier version compared two hand-written labels and proved only that they matched each other."
 }

@@ -22,8 +22,8 @@ flowchart TB
   Scenario -->|No| Remaining["Classify the remaining responsibility"]
 ```
 
-Scope is based on actual consumers, not hoped-for reuse. The repository is the default product scope;
-route-private and cross-product placement require evidence described in
+Scope is based on actual consumers, not hoped-for reuse. The repository is the default product
+boundary, while route, capability, repository, and cross-product reuse still require evidence from
 [Architecture Contract](./architecture-contract.md#scope-and-reuse).
 
 | Responsibility | Layer |
@@ -111,7 +111,7 @@ flowchart TB
   Boundary -->|No| Block
   Boundary -->|Yes| Auth{"Server paths re-check auth and scope?"}
   Auth -->|No| Block
-  Auth -->|Yes| State{"Server data has one cache owner?"}
+  Auth -->|Yes| State{"Each read path has<br/>one owner?"}
   State -->|No| Block
   State -->|Yes| Tests{"Tests cover outcomes at the changed boundary?"}
   Tests -->|No| Block

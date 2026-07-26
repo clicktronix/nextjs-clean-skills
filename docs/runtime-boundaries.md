@@ -67,7 +67,7 @@ flowchart TB
   Data --> Store["Store"]
   Port --> Outbound["Outbound adapter"]
   Outbound --> Provider["Remote provider"]
-  Entry --> Translate["Translate result for channel"]
+  Entry --> Translate["Inbound adapter translates<br/>result for channel"]
   Translate --> Caller
 ```
 
@@ -79,18 +79,17 @@ already-classified result; it does not classify or report the same failure again
 ```mermaid
 flowchart TB
   accTitle: Runtime read flow
-  accDescr: A server render or client cache calls an authenticated read entrypoint, which uses a declared operation only when application behaviour exists.
+  accDescr: A server render uses the server-only read layer while a client cache uses an inbound action or transport; both declare an operation only when application behaviour exists.
   Consumer{"Read consumer"} -->|Initial render| RSC["Server Component"]
   Consumer -->|Browser lifecycle| ClientCache["client-cache/"]
   RSC --> Read["Authenticated read entrypoint"]
-  ClientCache --> Read
+  ClientCache --> ClientInbound["Inbound action<br/>or transport"]
   Read --> Scenario{"Application scenario exists?"}
+  ClientInbound --> Scenario
   Scenario -->|Yes| Entry["Entry and operation"]
   Scenario -->|No| Direct["Declared data or port call"]
   Entry --> Result["Domain-shaped result"]
   Direct --> Result
-  Result --> RSC
-  Result --> ClientCache
 ```
 
 Reads do not earn use-cases merely because they perform I/O. The deletion test still decides.
@@ -157,7 +156,7 @@ framework entrypoint navigates.
 
 ## State And Cache Ownership
 
-Every value has one authority, and every server read has one cache owner:
+Every value has one authority, and every read path has one owner:
 
 | State | Owner |
 | --- | --- |
@@ -171,9 +170,9 @@ Every value has one authority, and every server read has one cache owner:
 
 ```mermaid
 flowchart TB
-  accTitle: Cache ownership lifecycle
-  accDescr: Each server read chooses one cache owner, and later writes refresh that existing owner instead of creating another copy.
-  Read["Server read"] --> Owner["Choose one owner:<br/>server render or client cache"]
+  accTitle: Read ownership and invalidation
+  accDescr: Each read path chooses one owner, and later writes refresh that existing owner instead of creating another copy.
+  Read["Read path"] --> Owner["Choose one read owner:<br/>server render or client cache"]
   Owner --> Serve["Serve through that owner"]
   Serve --> Write["After a successful write"]
   Write --> Affected["Identify affected reads"]

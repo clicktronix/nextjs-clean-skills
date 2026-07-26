@@ -51,11 +51,14 @@ const isInside = (child, parent) => child !== parent && root(child).startsWith(`
 const nestedIn = (parent) => names.filter((name) => isInside(name, parent))
 
 const zonesFor = (source) => {
-  const allowed = new Set([...layers[source].mayImport, source])
+  const allowed = new Set([
+    ...layers[source].mayImport,
+    ...(layers[source].mayImportSelf ? [source] : []),
+  ])
   const grantedAt = layers[source].mayImportAt ?? {}
   return (
     names
-      .filter((target) => target !== source && !allowed.has(target))
+      .filter((target) => !allowed.has(target))
       // A forbidden ancestor's zone already covers everything nested inside it. Emitting the
       // child too would be redundant, and redundant zones hide which one is doing the work.
       .filter(
@@ -98,20 +101,8 @@ const zonesFor = (source) => {
   )
 }
 
-// Same-layer rules the cross-product cannot reach: it skips source === target. These must merge
-// into the layer's own block — a second block with the same `files` would REPLACE its zones rather
-// than add to them.
-const selfZonesFor = (source) =>
-  (table.selfRules ?? [])
-    .filter((rule) => rule.layer === source)
-    .map((rule) => ({
-      target: zonePath(source),
-      from: `./${root(source)}/${rule.fromSubpath}`,
-      message: rule.message,
-    }))
-
 const sourceBlocks = names
-  .map((source) => ({ source, zones: [...zonesFor(source), ...selfZonesFor(source)] }))
+  .map((source) => ({ source, zones: zonesFor(source) }))
   .filter(({ zones }) => zones.length > 0)
   .map(({ source, zones }) => {
     const nested = nestedIn(source)

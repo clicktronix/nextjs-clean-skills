@@ -2,31 +2,33 @@
 
 **Impact: CRITICAL** · **Scope: portable**
 
-Choose the layer before writing files. Direction is compile-time, not runtime.
+Place files before coding; import direction is compile-time.
 
 <!-- contract:layer-table -->
-| Layer | May import |
-| --- | --- |
-| `domain/**` | nothing in src/ |
-| `use-cases/*/operations/**` | domain, ports, data |
-| `use-cases/*/entries/**` | domain, boundary, use-case-operations |
-| `data/**` | domain |
-| `adapters/outbound/**` | domain, ports |
-| `adapters/inbound/**` | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
-| `adapters/inbound/read/**` | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
-| `client-cache/**` | domain, inbound |
-| `ui/**` | domain, client-cache, ui |
-| `app/**` | domain, read, inbound, ui, client-cache (prefetch only) |
-| `infrastructure/**` | domain |
-| `ports/**` | domain |
-| `boundary/**` | domain |
+| Layer | Owns | Same layer | Across layers |
+| --- | --- | --- | --- |
+| `domain/**` | pure rules and domain types | yes | none |
+| `use-cases/*/operations/**` | application orchestration and projections | yes | domain, ports, data |
+| `use-cases/*/entries/**` | public validation, failure normalization, and reporting | no | domain, boundary, use-case-operations |
+| `data/**` | local store access when no port exists | yes | domain |
+| `adapters/outbound/**` | application port implementations | yes | domain, ports |
+| `adapters/inbound/**` | request authorization and command or event composition | yes | domain, ports, data, outbound, infrastructure, boundary, use-case-entries |
+| `adapters/inbound/read/**` | authenticated server-only reads | yes | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
+| `client-cache/**` | browser cache and invalidation | yes | domain, inbound |
+| `ui/**` | presentation and client interaction | yes | domain, client-cache |
+| `app/**` | routing, rendering, and metadata | yes | domain, read, inbound, ui, client-cache (prefetch only) |
+| `infrastructure/**` | environment, auth, logging, and cache plumbing | yes | domain |
+| `ports/**` | application capability contracts | no | domain |
+| `boundary/**` | shared declaration policy | no | domain |
 <!-- /contract:layer-table -->
 
-An entry reaching `data/**` skipped the operation it wraps; an operation reaching `boundary/**` reports it twice.
+Self-imports: operations yes; entries, ports, and boundary no.
 
-`data/**` is "no seam here": an outbound adapter satisfies a port and arrives from the root; a data module has none. [Dependency Categories](../seams/dependency-categories.md) decides.
+Entry -> data skips the operation; operation -> boundary reports twice.
 
-Two files, both linted against this table in CI:
+`data/**` means no port; [Dependency Categories](../seams/dependency-categories.md) decides.
+
+Examples are linted:
 
 ```ts path=src/use-cases/work-items/operations/update-profile.ts
 import { usersData } from '@/data/users'
@@ -49,6 +51,4 @@ export const updateUserProfile = defineBoundary({
 })
 ```
 
-Direction is not depth: an operation that only forwards holds nothing, and no declaration around it changes that. `profileEdit` earns the file.
-
-Reference: the dependency rule, applied at compile time.
+A forwarding operation owns nothing. `profileEdit` earns this file.

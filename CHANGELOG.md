@@ -21,6 +21,15 @@ All notable changes to this project are documented in this file.
   updating another document; layer roots, responsibilities, and permissions now come from one table.
 - Rejected path traversal, glob paths, and paths outside known layers in linted reference examples.
   A `path=src/...` fence can no longer write outside the rule sandbox or pass without layer rules.
+- Made same-layer permissions explicit and matrix-tested. Operations may compose operations;
+  declarations, ports, and boundary contracts may not import siblings from their own layer.
+- Removed the inbound-to-read compile-time edge. Server-only reads may reuse inbound primitives,
+  while browser cache code reaches an inbound action or transport instead of importing the RSC read
+  layer.
+- Corrected the human runtime diagrams and review questions to distinguish read-path ownership from
+  cache ownership, and restored responsibilities in the generated agent layer table.
+- Confined internal documentation links to the repository, including their resolved symlink target.
+  Malformed URI encoding now reports a validation error instead of terminating the validator.
 
 ## [2.0.0] - 2026-07-25
 

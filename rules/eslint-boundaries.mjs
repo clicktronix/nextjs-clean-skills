@@ -123,6 +123,11 @@ const USE_CASE_EXTERNALS = {
   group: [...FRAMEWORK, ...DRIVERS, ...NODE_BUILTIN_PATTERNS],
   message: 'Use-cases reach the outside through a data module or a port, never directly.',
 }
+const INBOUND_FORBIDDEN = ['app', 'ui', 'client-cache']
+const OPERATIONS_ARE_NOT_CALLED = {
+  group: ['@/use-cases/*/operations/**', '**/use-cases/*/operations/**'],
+  message: 'Call the slice\'s entry, not the operation it wraps.',
+}
 
 export default [
   // Every file under src/ owes the environment rule, including paths no layer block matches:
@@ -190,17 +195,24 @@ export default [
   }),
 
   block(['src/adapters/inbound/**/*.{ts,tsx}'], {
-    forbid: ['app', 'ui', 'client-cache'],
+    // Browser/service inbound adapters have their own read surface. The server-only read layer is
+    // for RSC callers and may reuse generic inbound primitives, never the reverse.
+    forbid: [...INBOUND_FORBIDDEN, 'adapters/inbound/read'],
     message:
-      'Inbound adapters wire implementations into use-cases. They do not depend on UI.',
-    imports: [
-      {
-        // Entries carry the validation and reporting an inbound adapter depends on. Calling an
-        // operation directly skips both.
-        group: ['@/use-cases/*/operations/**', '**/use-cases/*/operations/**'],
-        message: 'Call the slice\'s entry, not the operation it wraps.',
-      },
-    ],
+      'Inbound adapters wire implementations into entries. They do not depend on UI or the server-only RSC read layer.',
+    // Entries carry the validation and reporting an inbound adapter depends on. Calling an
+    // operation directly skips both.
+    imports: [OPERATIONS_ARE_NOT_CALLED],
+    forbidPaths: ['use-cases/[^\\/]+/operations'],
+  }),
+
+  // This block must follow the inbound parent block. Flat config replaces matching rule options,
+  // so the nested read layer gets its own contract rather than inheriting the parent's ban on read.
+  block(['src/adapters/inbound/read/**/*.{ts,tsx}'], {
+    forbid: INBOUND_FORBIDDEN,
+    message:
+      'Server-only read adapters may reuse inbound primitives, but do not depend on UI or the browser cache.',
+    imports: [OPERATIONS_ARE_NOT_CALLED],
     forbidPaths: ['use-cases/[^\\/]+/operations'],
   }),
 

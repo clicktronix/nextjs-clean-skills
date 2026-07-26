@@ -14,13 +14,15 @@ Runtime read flow:
 
 ```text
 RSC/page/layout -> read entrypoint -> entry + operation, or declared data/port call -> external system
+client island -> client-cache -> Server Action or transport -> entry + operation, or declared data/port call
 ```
 
 Compile-time import rule:
 
 - operations import domain, ports and `data/**`; entries import the combinator and their slice's operations.
 - outbound adapters import the port type they implement; data modules import domain only.
-- inbound adapters are composition roots and may import outbound factories.
+- inbound adapters are composition roots and may import outbound factories; they do not import the
+  server-only RSC read layer.
 - UI does not import outbound adapters.
 - Client Components do not import server-only modules.
 
