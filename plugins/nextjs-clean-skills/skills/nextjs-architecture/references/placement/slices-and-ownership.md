@@ -2,39 +2,41 @@
 
 **Impact: HIGH** · **Scope: portable**
 
-Layers answer what kind of responsibility code has. Slices answer which capability owns it. Both questions must be answered before a file is created; a correct layer with no owner produces code nobody can find.
+Place non-trivial code with three independent answers:
 
-A slice is a business capability — work items, campaigns, chat — and it usually spans several layers:
+```text
+scope: narrowest actual consumer set
+slice: business capability that owns the behaviour
+layer: technical responsibility the file performs
+```
+
+The repository is the default product scope. Route-private presentation stays with its route; a
+capability spans product layers; broader product or business-line scopes exist only when several
+independently shipped consumers make that reuse contract real.
+
+A slice is a capability — work items, campaigns, chat — and uses one name across its layers:
 
 ```text
 domain/work-item · use-cases/work-items · data/work-items
 adapters/inbound/…/work-items · client-cache/work-items · app/…/work-items
 ```
 
-Rules that keep slices meaningful:
+Rules that keep ownership meaningful:
 
-- one name for the capability, spelled identically in every layer
-- a slice does not import another slice's internals; it reaches only the published `operations/**` surface, and shared *meaning* still moves down into `domain`
-- do not invent a generic abstraction to avoid choosing an owner
-- a shared technical helper is not a slice; it belongs to a layer
+- a slice does not import another slice's internals; it reaches the published `operations/**` surface
+- shared meaning moves into `domain/**`
+- a generic abstraction is not a substitute for choosing an owner
+- a shared technical helper belongs to a layer, not to a business slice
+- `lib/**` is a migration bucket, never a destination
 
-When behaviour genuinely belongs to two capabilities, it belongs to neither: extract the concept both depend on into `domain` and let each slice use it. Copying it into both is how two rules that were once identical quietly diverge.
+When behaviour belongs to two existing capabilities, first ask whether it names a third capability.
+Pure shared meaning moves into domain; application composition receives its own operation and entry.
 
-Slice isolation is **convention, not enforced by the shipped lint**: those rules guard layers, and slice names are known only to the project. `rules/README.md` carries the recipe for enforcing it.
+Slice isolation is **convention, not enforced by the portable lint**. Layer rules do not know project
+slice names. A strict project adds one resolved zone per slice and an inventory check so a new slice
+cannot appear without a zone.
 
-Route-private code lives under the owning route segment rather than in a shared folder. Anything under a route's private folder is invisible to other routes by convention; when a second route needs it, that is the signal to move it into a slice, not to import across.
+If scope, slice, or layer is unclear, resolve it before creating the file. Search should find an
+implementation, not compensate for structure with no owner.
 
-This project has one reuse level: the product is the repository. Do not introduce cross-product or cross-business-line tiers — the taxonomy only pays for itself when several products ship from one tree, and without them it adds a placement question with no correct answer.
-
-A helper that belongs to no capability belongs to a layer, not to a `lib/**` bucket: `infrastructure` for env, auth, logging, and cache support; `ui` for browser bridges; `domain` for pure rules. A repository that already has `lib` treats it as a migration bucket, never a destination.
-
-Before creating a file, hold both answers:
-
-```text
-slice: which capability owns this behaviour
-layer: which responsibility this code has
-```
-
-If either is unclear, resolve it first. A file placed under an unclear owner is found later by search, not by structure, and the next change adds a second copy somewhere else.
-
-Reference: vertical capability ownership crossing horizontal responsibilities.
+Reference: reuse scope and vertical capability ownership across horizontal responsibilities.

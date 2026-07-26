@@ -4,20 +4,23 @@
 
 Choose the layer before writing files. Direction is compile-time, not runtime.
 
-| Layer | Owns | May import |
-| --- | --- | --- |
-| `domain/**` | schemas, types, pure rules, the failure taxonomy | nothing in src/ |
-| `use-cases/*/operations/**` | the scenario body; throws, reports nothing | domain, ports, data |
-| `use-cases/*/entries/**` | the declaration: validates, normalises, reports | domain, boundary, use-case-operations |
-| `ports/**` · `boundary/**` | the contracts, and the combinator entries declare through | domain |
-| `data/**` | data access with no port | domain |
-| `adapters/outbound/**` | implementations of a port | domain, ports |
-| `adapters/inbound/**` | request entries, webhooks | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
-| `adapters/inbound/read/**` | server-only authenticated reads | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
-| `client-cache/**` | keys, invalidation, the browser copy of a read | domain, inbound |
-| `app/**` | routes, layouts, server-rendered entries | domain, read, inbound, ui, client-cache (prefetch only) |
-| `ui/**` | views and client interaction | domain, client-cache, ui |
-| `infrastructure/**` | env, auth, logging, cache | domain |
+<!-- contract:layer-table -->
+| Layer | May import |
+| --- | --- |
+| `domain/**` | nothing in src/ |
+| `use-cases/*/operations/**` | domain, ports, data |
+| `use-cases/*/entries/**` | domain, boundary, use-case-operations |
+| `data/**` | domain |
+| `adapters/outbound/**` | domain, ports |
+| `adapters/inbound/**` | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
+| `adapters/inbound/read/**` | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
+| `client-cache/**` | domain, inbound |
+| `ui/**` | domain, client-cache, ui |
+| `app/**` | domain, read, inbound, ui, client-cache (prefetch only) |
+| `infrastructure/**` | domain |
+| `ports/**` | domain |
+| `boundary/**` | domain |
+<!-- /contract:layer-table -->
 
 An entry reaching `data/**` skipped the operation it wraps; an operation reaching `boundary/**` reports it twice.
 

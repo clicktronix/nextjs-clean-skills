@@ -10,12 +10,13 @@ what to do; these make the machine-checkable part of it fail loudly when it does
 | [`eslint-boundaries-resolved.mjs`](./eslint-boundaries-resolved.mjs) | tier two: the same contract as resolved file paths | copying it in **with `import-table.json` beside it**, after tier one |
 
 `scripts/validate-contract-sync.mjs` closes the gap neither tier can see: the matrix proves the
-*config* matches the *table*, and says nothing about the documents an agent actually reads. Both the
-layer table in `placement/layers-and-imports.md` and the contract block in the always-loaded
-`SKILL.md` are **generated** from `root` and `mayImport`; the check fails CI when either drifts, and
-`--fix` rewrites them. An earlier version compared two hand-written labels instead, so it proved
-only that they matched each other — renaming a layer in both passed, and so did documenting "same
-as inbound" while the permissions diverged.
+*config* matches the *table*, and says nothing about the documents people and agents read. The full
+human table in `docs/architecture-contract.md`, the compact table in
+`placement/layers-and-imports.md`, and the always-loaded `SKILL.md` block are **generated** from
+`root`, `owns`, and import permissions; the check fails CI when any drifts, and `--fix` rewrites
+them. An earlier version compared two hand-written labels instead, so it proved only that they
+matched each other — renaming a layer in both passed, and so did documenting "same as inbound" while
+the permissions diverged.
 
 Reference **examples** are linted too. A fence tagged `path=src/…` is written into the matrix
 sandbox and linted as the file it claims to be, in all three tiers, with `expect=error` for a
@@ -26,7 +27,8 @@ template teaching the wrong shape.
 `npm run validate` generates a source × target matrix from `import-table.json` and lints every
 pair for real — static, `import()` and `require()` spellings — so a permitted edge that errors and
 a forbidden edge that passes are both build failures. It runs that matrix against tier one alone,
-tier two alone, and the two composed: 442 cases × 3 tiers at the time of writing. Three earlier
+tier two alone, and the two composed; `npm run validate` prints the case count it actually ran,
+rather than a number in prose that drifts. Three earlier
 versions of this check were weaker (shape-only, then hand-picked fixtures) and each certified gaps
 that a later review found by running ESLint itself.
 

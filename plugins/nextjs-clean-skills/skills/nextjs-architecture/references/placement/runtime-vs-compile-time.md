@@ -7,13 +7,13 @@ Separate "who calls whom at runtime" from "who may import whom at compile time".
 Runtime command flow:
 
 ```text
-UI/form -> Server Action or Route Handler -> use-case -> data module or port -> external system
+UI/form -> Server Action or Route Handler -> entry -> operation -> data module or port -> external system
 ```
 
 Runtime read flow:
 
 ```text
-RSC/page/layout -> server-only read entrypoint -> use-case or data module -> external system
+RSC/page/layout -> read entrypoint -> entry + operation, or declared data/port call -> external system
 ```
 
 Compile-time import rule:

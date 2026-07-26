@@ -8,11 +8,17 @@ All notable changes to this project are documented in this file.
 
 - Replaced version-coupled review footers in human architecture docs with content validation.
   Architecture docs now stay concise and normative; release history remains in this changelog.
+- Expanded the human architecture into separate placement, runtime, frontend-composition, decision,
+  and adoption contracts. The model now names scope alongside slice and layer, documents all 13
+  layer responsibilities, and distinguishes normative, enforced, review-only, and known-gap rules.
 
 ### Fixed
 
-- Made `validate-contract-sync.mjs --fix` atomic. A structural layer-root mismatch now fails without
-  partially updating `SKILL.md`; root labels remain deliberate human-documentation edits.
+- Generated the complete layer table from `rules/import-table.json` into both human and agent
+  documentation. `validate-docs.mjs` now checks internal links and anchors, requires vertical
+  accessible Mermaid diagrams, and parses every diagram in CI.
+- Kept `validate-contract-sync.mjs --fix` atomic. Missing generation markers fail without partially
+  updating another document; layer roots, responsibilities, and permissions now come from one table.
 - Rejected path traversal, glob paths, and paths outside known layers in linted reference examples.
   A `path=src/...` fence can no longer write outside the rule sandbox or pass without layer rules.
 
@@ -344,7 +350,7 @@ All notable changes to this project are documented in this file.
 - `validate-rules.mjs` runs the generated matrix against **three tiers** — strings alone, resolved
   alone, and the two composed — and asserts the tier relationship rather than assuming it: cases
   marked `resolvedOnly` in the table must lint clean under tier one and error under tier two, so
-  "weaker" cannot drift into "disagreeing". 365 cases × 3 tiers.
+  "weaker" cannot drift into "disagreeing". The validator prints the counts it ran.
 - `import-table.json` gains `root` per layer (the layer root lint scopes to, distinct from the
   representative slice fixtures are written into), `mayImportAt` for subpath permissions, and
   `resolvedOnly` on the cases tier one provably misses. Layer nesting — `read` inside `inbound` — is

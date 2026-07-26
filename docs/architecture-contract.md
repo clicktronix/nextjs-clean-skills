@@ -1,65 +1,153 @@
 # Architecture Contract
 
 This is the human-readable architecture behind `nextjs-architecture` and
-`react-component-creator`. It defines ownership and dependency direction. Skill references contain
-the implementation procedures.
+`react-component-creator`. It defines placement, ownership, dependency direction, and public
+application surfaces. Skill references contain implementation procedures and code-level checks.
 
 The default profile is Next.js App Router with TypeScript. Existing projects keep equivalent tools
 and names unless a migration is explicitly requested.
 
-## Model
+## Quality Goals
 
-Every file has two coordinates:
+The structure exists to protect six outcomes:
 
-- **Slice:** the business capability that owns the behaviour.
-- **Layer:** the responsibility the file performs.
+| Goal | Architectural response |
+| --- | --- |
+| maintainability | prefer framework primitives and explicit ownership over custom indirection |
+| modularity | separate scope, slice, and layer; publish narrow application surfaces |
+| testability | keep domain pure and test data or providers at their real boundary |
+| security | establish identity, role, tenant, and input trust at every server boundary |
+| observability | classify and report an unexpected failure once with request context |
+| evolvability | keep provider, framework, and browser lifecycle details outside application behaviour |
 
-Slices are vertical: `work-items`, `campaigns`, `chat`. Layers are horizontal: domain, application,
-adapters, and presentation. A file with no clear slice or layer is not ready to be created.
+These are decision criteria, not claims that folders produce quality automatically. When two rules
+conflict, record the trade-off and verify the runtime outcome that matters.
 
-## Compile-Time Dependencies
+## Placement Model
 
-Arrows mean imports. Runtime calls are shown separately.
+Every non-trivial file has three coordinates:
+
+| Coordinate | Question | Default |
+| --- | --- | --- |
+| **Scope** | Which actual consumers may reuse this implementation? | the current repository |
+| **Slice** | Which business capability owns the behaviour? | a named capability such as `work-items` |
+| **Layer** | Which technical responsibility does the file perform? | one layer from the generated table |
 
 ```mermaid
 flowchart TB
-  Presentation["app/ · ui/ · client-cache/"] --> Delivery["inbound/ · inbound/read/"]
-  Delivery --> Scenario{"Application scenario?"}
-  Scenario -->|Yes| Entries["entries/<br/>boundary declaration"]
-  Entries --> Operations["operations/<br/>application behaviour"]
-  Scenario -->|No| Direct["boundary declaration<br/>around the direct call"]
-  Operations --> Access["data/ or ports/"]
-  Direct --> Access
-  Access --> Data["data/"]
-  Access --> Ports["ports/"]
-  Data --> Domain
-  Ports --> Domain["domain/"]
-  Outbound["adapters/outbound/"] --> Ports
-  Delivery -. "technical dependency" .-> Infrastructure["infrastructure/"]
-  Infrastructure --> Domain
+  accTitle: Three coordinates used to place code
+  accDescr: Placement starts with the narrowest valid reuse scope, then a business owner, then one technical responsibility.
+  Change["New behaviour"] --> Scope{"Who can use the same<br/>behaviour unchanged?"}
+  Scope --> Owner{"Which capability<br/>owns it?"}
+  Owner --> Layer{"Which technical<br/>responsibility?"}
+  Layer --> Placement["scope / slice / layer"]
+  Scope -->|Unknown| Stop["Stop: resolve placement first"]
+  Owner -->|Unknown| Stop
+  Layer -->|Unknown| Stop
 ```
 
-The diagram shows the main direction, not every legal edge. The table below and the generated
-reference contain the exact import contract.
+These coordinates are independent. A feature slice may cross several layers. The same layer may
+contain many slices. Scope controls reuse; it does not override either ownership or dependency
+direction.
 
-The complete enforced matrix is in
-[`references/placement/layers-and-imports.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/placement/layers-and-imports.md).
-The rules with the highest architectural weight are:
+## Scope And Reuse
 
-| Source | May import | Must not do |
+Use the narrowest scope where behaviour is already valid:
+
+| Scope | Contains | Promotion signal |
 | --- | --- | --- |
-| `domain/**` | schema libraries and pure helpers | perform I/O or import project layers |
-| `operations/**` | domain, ports, data | import framework, adapters, boundary, or entries |
-| `entries/**` | domain, boundary, its operation | call data, ports, adapters, or another entry |
-| `data/**` | domain | become an adapter without a port |
-| `adapters/outbound/**` | domain, ports | declare boundaries or import use-cases |
-| inbound and read entrypoints | entries, data, outbound factories, infrastructure | move application rules into request code |
-| `client-cache/**` | domain, inbound | import server-only implementation layers |
-| `app/**` and `ui/**` | public entrypoints and presentation dependencies | bypass inbound or read boundaries |
+| route-private | presentation and framework glue used by one route | a second route needs the same behaviour |
+| capability slice | product behaviour owned by one capability | another capability needs a stable public operation |
+| repository-wide technical layer | infrastructure or UI primitives with no business owner | the same contract exists in another shipped product |
+| shared package or workspace | behaviour proven identical across products | actual independent consumers and release ownership exist |
 
-`operations/**` is the only public cross-slice application surface. An entry wraps its own
-operation. The shipped portable lint enforces the layer split but cannot compare source and target
-slice names; projects that require hard slice isolation add project-specific zones.
+The default architecture has one product scope: the repository. Do not introduce product or
+business-line tiers merely because a larger system might need them later. A multi-product workspace
+may define its own specificity lattice, but it must document allowed dependency directions and
+enforce them separately from the portable layer rules.
+
+Moving code outward creates a compatibility contract. Duplication is sometimes cheaper than a false
+shared abstraction; promote only after the consumers and common meaning are visible.
+
+## Compile-Time Dependencies
+
+Arrows below mean representative imports, not runtime calls. The generated table is complete.
+
+```mermaid
+flowchart TB
+  accTitle: Main compile-time dependency direction
+  accDescr: Framework and browser layers call inward through inbound entries, declarations, operations, data or ports, and domain.
+  App["app/"] --> Read["adapters/inbound/read/"]
+  App --> Inbound["adapters/inbound/"]
+  App --> UI["ui/"]
+  App -. "prefetch only" .-> ClientCache["client-cache/"]
+  UI --> ClientCache
+  ClientCache --> Inbound
+  Read --> Entry["use-cases/*/entries/"]
+  Inbound --> Entry
+  Entry --> Operation["use-cases/*/operations/"]
+  Entry --> Boundary["boundary/"]
+  Operation --> Data["data/"]
+  Operation --> Ports["ports/"]
+  Outbound["adapters/outbound/"] --> Ports
+  Data --> Domain["domain/"]
+  Ports --> Domain
+  Boundary --> Domain
+  Infrastructure["infrastructure/"] --> Domain
+```
+
+<!-- contract:layer-table -->
+| Layer | Owns | May import |
+| --- | --- | --- |
+| `domain/**` | schemas, value objects, failure kinds, and pure business rules | nothing in src/ |
+| `use-cases/*/operations/**` | application behaviour, orchestration, and projections | domain, ports, data |
+| `use-cases/*/entries/**` | the public declaration: validation, failure normalization, and reporting | domain, boundary, use-case-operations |
+| `data/**` | access to a locally runnable store when no port exists | domain |
+| `adapters/outbound/**` | concrete implementations of application ports | domain, ports |
+| `adapters/inbound/**` | request decoding, authorization, and command or event composition | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
+| `adapters/inbound/read/**` | authenticated server-only read composition | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
+| `client-cache/**` | browser cache keys, queries, mutations, and invalidation | domain, inbound |
+| `ui/**` | presentation and client interaction | domain, client-cache, ui |
+| `app/**` | routes, layouts, metadata, and rendering boundaries | domain, read, inbound, ui, client-cache (prefetch only) |
+| `infrastructure/**` | environment, auth, logging, and cache plumbing | domain |
+| `ports/**` | application-owned capability contracts | domain |
+| `boundary/**` | the shared application declaration combinator | domain |
+<!-- /contract:layer-table -->
+
+The names in `May import` are keys from `rules/import-table.json`. The table is generated into this
+document, the critical agent reference, and the always-loaded skill contract. Change the table, run
+the fixer, and review all generated surfaces in the same pull request.
+
+Runtime flow may descend through code a module never imports. An inbound adapter constructs an
+outbound implementation and supplies it to an operation through a port-shaped dependency. The
+operation calls the dependency at runtime without importing its concrete adapter.
+
+## Slices And Public Surfaces
+
+A slice is a business capability such as `work-items`, `campaigns`, or `chat`. Use one capability
+name consistently across its layers:
+
+```text
+domain/work-item
+use-cases/work-items
+data/work-items
+adapters/inbound/.../work-items
+client-cache/work-items
+app/.../work-items
+```
+
+Rules:
+
+- a slice owns behaviour, not a page, database table, or transport;
+- shared meaning moves into `domain/**`;
+- cross-slice application composition uses published `operations/**`;
+- entries wrap their own slice's operation;
+- route-private presentation stays with the route until another consumer appears;
+- a generic helper does not become a slice merely because its owner is unclear.
+
+Portable lint enforces layer boundaries but cannot compare source and target slice names. Projects
+that require hard slice isolation add project-specific zones plus an inventory check for newly added
+slices. See [Adoption And Enforcement](./adoption-and-enforcement.md).
 
 ## When A Use-Case Exists
 
@@ -77,18 +165,27 @@ entrypoint declares the contract directly around the data or port call.
 
 ```mermaid
 flowchart TB
+  accTitle: Decide whether behaviour needs a use-case
+  accDescr: Pure rules go to domain, shallow effects stay direct, and behaviour that survives the deletion test becomes an operation with an entry.
   Change["New behaviour"] --> Pure{"Pure business rule?"}
   Pure -->|Yes| Domain["domain/"]
   Pure -->|No| Delete{"If this module is deleted,<br/>does complexity move to callers?"}
-  Delete -->|No| Direct["No use-case<br/>Declare at inbound/read boundary"]
-  Delete -->|Yes| Operation["Create operation<br/>Application logic"]
-  Operation --> Entry["Create entry<br/>Validation + failure contract"]
+  Delete -->|No| Direct["No use-case<br/>Declare the direct call"]
+  Delete -->|Yes| Operation["Create operation<br/>Application behaviour"]
+  Operation --> Entry["Create entry<br/>Public contract"]
 ```
+
+Line count is never the criterion. A short operation can own a real rule; a long forwarding module
+can still own nothing.
 
 ## When A Port Exists
 
-A port is an application-owned capability contract. It is not a repository interface created for
-every stored entity.
+A port is an application-owned capability contract, not a repository interface created for every
+stored entity.
+
+This contract reserves **port** for a capability used by the application from the outside. Public
+inbound application surfaces are **entries**. This removes the primary-port/secondary-port
+ambiguity without changing the Ports and Adapters dependency direction.
 
 Declare a port when all of these hold:
 
@@ -96,97 +193,77 @@ Declare a port when all of these hold:
 2. The contract is written in application language, not CRUD or SDK language.
 3. A real consumer and production implementation exist now.
 
-Defaults:
-
 | Dependency | Default |
 | --- | --- |
-| Pure in-process computation | ordinary module |
-| Store runnable from checked-in migrations | `data/**`, tested against the real engine |
-| Owned remote service | port plus outbound adapter |
-| Third-party service | port plus outbound adapter |
+| pure in-process computation | ordinary module |
+| store runnable from checked-in migrations | `data/**`, tested against the real engine |
+| owned remote service | port plus outbound adapter |
+| third-party service | port plus outbound adapter |
 
 Adapter count is evidence, not a gate. A test adapter is useful only when it preserves the contract;
 integration tests against the real engine or provider boundary still remain.
 
-## Declaration And Operation
+## Entry And Operation
 
-An **operation** contains typed application logic. It may throw typed application failures and
+An **operation** contains typed application behaviour. It may throw typed application failures and
 never reports them.
 
-An **entry** declares an operation through the shared boundary combinator. The declaration:
+An **entry** declares one operation through the shared boundary combinator. The declaration:
 
 1. validates input and output;
-2. normalises failures into the public result;
+2. normalizes failures into the public result;
 3. reports an unexpected failure once;
 4. removes sensitive fields before telemetry.
 
-Framework control flow stays outside the declaration. `redirect()` and `notFound()` are called by
-the framework entrypoint after it receives the result.
+Framework control flow stays outside the declaration. `redirect()`, `permanentRedirect()`, and
+`notFound()` are called by the framework entrypoint after it receives the result.
 
 Declarations never call declarations. Composition uses operations and receives one outer
 declaration.
 
-## Runtime Flows
+## Reference Slice
 
-The framework entrypoint is the composition root. It creates outbound implementations and supplies
-them to operations through port-shaped dependencies.
+This tree shows ownership, not a mandatory file per box:
 
-```mermaid
-flowchart TB
-  Caller["UI, HTTP client, webhook, or job"] --> Inbound["Inbound adapter"]
-  Inbound --> Compose["Composition root"]
-  Compose --> Entry["Call declared entry"]
-  Compose -. "when a port is used" .-> Adapter["Create outbound adapter"]
-  Entry --> Operation["Operation"]
-  Operation --> Dependency{"Dependency kind"}
-  Dependency -->|No port| Data["Data module"]
-  Dependency -->|Port| Port["Port"]
-  Adapter -. "implements" .-> Port
-  Data --> External["Store"]
-  Adapter --> ExternalSystem["Remote service or provider"]
+```text
+src/
+├── domain/work-item/
+├── use-cases/work-items/
+│   ├── operations/
+│   │   └── update-status.ts
+│   └── entries/
+│       └── update-status.ts
+├── data/work-items/
+├── ports/notifications/
+├── adapters/
+│   ├── inbound/next/work-items/
+│   ├── inbound/read/work-items/
+│   └── outbound/notifications/
+├── client-cache/work-items/
+├── ui/work-items/
+├── app/work-items/
+├── boundary/
+└── infrastructure/
 ```
 
-Reads follow the same ownership rules without forcing every read through a use-case:
-
-```mermaid
-flowchart TB
-  RSC["Server Component"] --> Read["Authenticated read entrypoint"]
-  Read --> Scenario{"Application scenario exists?"}
-  Scenario -->|Yes| Entry["Entry + operation"]
-  Scenario -->|No| Direct["Declared data or port call"]
-  Entry --> Result["Domain-shaped result"]
-  Direct --> Result
-  Result --> RSC
-```
-
-## Next.js Boundaries
-
-| Need | Boundary |
-| --- | --- |
-| Read-heavy initial render | Server Component through a server-only read entrypoint |
-| Realtime, polling, optimistic, infinite, or shared browser lifecycle | `client-cache/**` |
-| Command from this UI | Server Action |
-| External client or service API | Route Handler |
-| Webhook | Route Handler with raw-body verification and idempotency |
-| SSE or another long-lived response | Route Handler with resume and cancellation |
-| Long-running durable work | Queue or workflow |
-
-A Server Component does not call its own Route Handler over HTTP. Both call the same application
-surface in process.
-
-## Cross-Cutting Invariants
-
-- Every read and write re-verifies identity, role, and tenant at the server boundary.
-- `proxy.ts` may refresh or redirect; it is not the authorization boundary.
-- Store policies are defence in depth, not the only authorization check.
-- One failure produces one report and one public classification.
-- Row types belong to data or adapters; domain types do not mirror storage names.
-- A stored function owns its transaction. The application does not reproduce it.
-- Server data stays in RSC props or the client cache, not Context or a generic UI store.
-- Cache keys and invalidation are scoped by entity, user, or tenant.
+For a command, the inbound adapter authorizes, builds request context and dependencies, then calls
+the entry. The entry declares the contract and delegates behaviour to the operation. The operation
+uses `data/**` or a supplied port. A read follows the same ownership rules without forcing a
+use-case when no scenario exists.
 
 ## Non-Goals
 
-This architecture does not require a DI container, a port per table, a use-case per endpoint, or
-TanStack Query for every read. It also does not define product-specific slice names. Those choices
-must be justified by the application, not by the folder template.
+This architecture does not require:
+
+- a DI container;
+- a port per table;
+- a use-case per endpoint;
+- TanStack Query for every read;
+- a product-specific scope hierarchy;
+- a file for every layer in every slice.
+
+Those choices must be justified by current application behaviour, not by a folder template.
+
+Continue with [Runtime Boundaries](./runtime-boundaries.md) for security, failures, cache ownership,
+transactions, observability, and testing. Use [Frontend Composition](./frontend-composition.md) for
+RSC, Client Components, forms, and UI state.

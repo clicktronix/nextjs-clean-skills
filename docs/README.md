@@ -2,38 +2,62 @@
 
 Human-facing documentation for `nextjs-clean-skills`.
 
-Start with [Architecture Contract](./architecture-contract.md). It defines the structure and the
-non-negotiable dependency rules. Use [Decision Maps](./agent-decision-maps.md) while placing a
-change. Open [Evidence](./evidence.md) only when reviewing or challenging a rule.
+## Reading Path
+
+1. Start with [Architecture Contract](./architecture-contract.md) for placement, layers, slices,
+   quality goals, use-cases, ports, and public surfaces.
+2. Read [Runtime Boundaries](./runtime-boundaries.md) for request flow, trust, failures, state,
+   transactions, observability, and testing.
+3. Read [Frontend Composition](./frontend-composition.md) for RSC, Client Components, forms, state,
+   and component ownership.
+4. Use [Decision Maps](./agent-decision-maps.md) while designing or reviewing a change.
+5. Use [Adoption And Enforcement](./adoption-and-enforcement.md) when applying the contract to an
+   existing repository.
+6. Open [Evidence](./evidence.md) when reviewing or challenging a rule.
 
 | Document | Purpose |
 | --- | --- |
-| [Architecture Contract](./architecture-contract.md) | The architecture a team adopts |
-| [Decision Maps](./agent-decision-maps.md) | Placement, port, use-case, and boundary decisions |
-| [Evidence](./evidence.md) | Sources, measurements, and explicit judgement |
-| [`rules/`](../rules/) | The part of the contract enforced by ESLint |
+| [Architecture Contract](./architecture-contract.md) | normative placement and dependency model |
+| [Runtime Boundaries](./runtime-boundaries.md) | runtime authority and cross-cutting invariants |
+| [Frontend Composition](./frontend-composition.md) | human UI architecture |
+| [Decision Maps](./agent-decision-maps.md) | compact design and review flowcharts |
+| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, and known gaps |
+| [Evidence](./evidence.md) | sources, measurements, and explicit judgement |
+| [`rules/`](../rules/) | executable portion of the contract |
 
-## Sources Of Truth
+## Contract Boundaries
 
-- `docs/architecture-contract.md` is the human contract.
-- `rules/import-table.json` is the executable import contract.
-- Skill references are operational instructions for coding agents.
-- `docs/evidence.md` explains why a rule exists; it does not create rules.
+- Human docs explain the architecture a team adopts.
+- `rules/import-table.json` defines executable layer roots, ownership, and import permissions.
+- Skill references tell coding agents how to implement a decision.
+- `docs/evidence.md` explains why decisions exist; it does not create rules.
+- Product repositories provide concrete profiles, names, and stricter local constraints.
 
-A disagreement between these surfaces is a defect. Do not resolve it by choosing the convenient
-one. Fix all affected surfaces in the same change.
+The complete layer table is generated from `rules/import-table.json` into both human and agent
+surfaces. A disagreement between surfaces is a defect, not an invitation to choose one.
+
+## Documentation Standard
+
+Human docs are concise and normative:
+
+- one subject per document;
+- tables for contracts and decision inputs;
+- vertical Mermaid diagrams for flows;
+- no release history, evaluation transcripts, or copy-ready tutorials;
+- links to agent references for implementation procedure;
+- explicit distinction between normative, enforced, review-only, and known-gap rules.
 
 ## Maintenance
 
-For an architecture change:
+The complete change procedure is in
+[Adoption And Enforcement](./adoption-and-enforcement.md#change-the-architecture).
 
-1. Change the human contract.
-2. Change `rules/import-table.json` when the rule is enforceable.
-3. If a layer root changed, update its row label in the placement reference.
-4. Regenerate permissions and the skill contract with
-   `node scripts/validate-contract-sync.mjs --fix`.
-5. Update the relevant reference and scenario.
-6. Run `npm run validate`.
+Run:
 
-Keep release history in `CHANGELOG.md`, implementation procedures in skill references, and
-measurements in `evidence.md`. Do not copy those into the architecture contract.
+```bash
+node scripts/validate-contract-sync.mjs --fix
+npm run validate
+```
+
+Then inspect the rendered Markdown and hosted CI. Local validation and hosted execution are separate
+verdicts.

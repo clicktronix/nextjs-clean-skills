@@ -109,10 +109,16 @@ their local equivalents unless the task requests a migration.
 The skills are intentionally concise and operational. For team onboarding, rationale, and visual
 maps, use the human-facing docs:
 
-- [Architecture Contract](docs/architecture-contract.md) — layer graph, runtime flow,
-  command/query boundaries, auth boundary, persistence, and state ownership.
+- [Architecture Contract](docs/architecture-contract.md) — scope, slices, layers, dependency
+  direction, use-cases, ports, and public surfaces.
+- [Runtime Boundaries](docs/runtime-boundaries.md) — request flow, trust, failures, cache ownership,
+  transactions, observability, and tests.
+- [Frontend Composition](docs/frontend-composition.md) — RSC, Client Components, forms, state, and
+  component ownership.
 - [Architecture Decision Maps](docs/agent-decision-maps.md) — compact placement and review
-  flowcharts for contributors and coding agents.
+  flowcharts.
+- [Adoption And Enforcement](docs/adoption-and-enforcement.md) — rollout, executable coverage, and
+  known gaps.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.

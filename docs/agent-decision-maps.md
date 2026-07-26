@@ -7,7 +7,10 @@ Use these maps during design and review. They derive from
 
 ```mermaid
 flowchart TB
-  Start["New code"] --> Owner{"Which business capability owns it?"}
+  accTitle: Place new code
+  accDescr: Choose the narrowest valid scope, business owner, and technical layer before creating a file.
+  Start["New code"] --> Scope["Name the narrowest valid<br/>reuse scope"]
+  Scope --> Owner{"Which business capability owns it?"}
   Owner -->|Unknown| Stop["Stop and name the owner"]
   Owner -->|Known| Pure{"Pure schema, invariant,<br/>or transformation?"}
   Pure -->|Yes| Domain["domain/"]
@@ -18,6 +21,10 @@ flowchart TB
   Scenario -->|Yes| UseCase["operation + entry"]
   Scenario -->|No| Remaining["Classify the remaining responsibility"]
 ```
+
+Scope is based on actual consumers, not hoped-for reuse. The repository is the default product scope;
+route-private and cross-product placement require evidence described in
+[Architecture Contract](./architecture-contract.md#scope-and-reuse).
 
 | Responsibility | Layer |
 | --- | --- |
@@ -32,6 +39,8 @@ flowchart TB
 
 ```mermaid
 flowchart TB
+  accTitle: Decide whether a use-case exists
+  accDescr: Keep a use-case only when deleting it moves application behaviour into callers.
   Change["Candidate application module"] --> Delete{"Delete it"}
   Delete --> Repeat{"Do callers now repeat or absorb<br/>orchestration, rules, or projection?"}
   Repeat -->|No| Remove["No use-case<br/>Declare the direct call at inbound/read"]
@@ -48,6 +57,8 @@ Line count is not the criterion. The question is whether the module owns behavio
 
 ```mermaid
 flowchart TB
+  accTitle: Decide whether a port exists
+  accDescr: Create a port only for an application capability expressed independently of technology with a real consumer and implementation.
   Dependency["Dependency needed"] --> Independent{"Must the core state the capability<br/>independently of its technology?"}
   Independent -->|No| Local{"Runs locally from<br/>checked-in migrations?"}
   Local -->|Yes| Data["Use data/ and test the engine"]
@@ -66,6 +77,8 @@ the data path. These are defaults; the three questions decide.
 
 ```mermaid
 flowchart TB
+  accTitle: Choose a Next.js framework boundary
+  accDescr: Select Route Handler, workflow, Server Component, client cache, or Server Action from the caller and lifecycle.
   Need["Work enters the application"] --> External{"External API or webhook?"}
   External -->|Yes| Route["Route Handler<br/>verify + make retries safe"]
   External -->|No| Long{"Long-lived response?"}
@@ -86,7 +99,9 @@ browser cache lifecycle. A normal initial read stays server-side.
 
 ```mermaid
 flowchart TB
-  Start["Review changed files"] --> Owner{"Every file has a slice and layer?"}
+  accTitle: Review an architecture change
+  accDescr: Review ownership, imports, semantic depth, boundary guarantees, authorization, state ownership, and tests in order.
+  Start["Review changed files"] --> Owner{"Every file has scope,<br/>slice, and layer?"}
   Owner -->|No| Block["Request changes"]
   Owner -->|Yes| Imports{"Imports follow the layer contract?"}
   Imports -->|No| Block

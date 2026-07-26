@@ -17,6 +17,7 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 - Domain schemas and types in Valibot.
 - Business authority may sit in the store (stored functions plus row-level policies) or in a separate owned service. Model where it sits before deciding what the application layer holds.
 - Application entries go through one boundary declaration that validates, normalises failures, and reports them once. It knows nothing about the framework: navigation is called outside it.
+- The repository is the default product scope. Add broader product or business-line scopes only when real independently shipped consumers require them.
 - A port exists when the core must state a capability independently of the technology behind it, in the application's language. Adapter count is evidence, not the gate; a locally-runnable store defaults to a data module.
 - Read-heavy UI fetches in Server Components through server-only read entrypoints.
 - TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service, streaming, and integration commands.
@@ -25,7 +26,7 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 ## Start Here
 
 1. Run the Decision Gate classification (below) before editing.
-2. Answer the two placement questions — which capability owns this, and which responsibility it has.
+2. Answer the three placement questions — reuse scope, capability owner, and technical responsibility.
 3. Classify the dependency before reaching for a contract at a seam.
 4. Read only the references needed for that decision.
 5. Implement in dependency order: domain -> data or ports+outbound -> use-case (only if one is warranted) -> inbound/read entrypoints -> UI -> tests.
@@ -61,7 +62,7 @@ Compile-time imports (generated from rules/import-table.json):
 ```
 <!-- /contract:imports -->
 
-Inbound adapters calling use-cases is correct. The forbidden direction is use-cases importing inbound adapters, outbound adapters, database clients, React, TanStack Query, or Next.js request/cache APIs.
+Inbound adapters calling use-case entries is correct. The forbidden direction is use-cases importing inbound adapters, outbound adapters, database clients, React, TanStack Query, or Next.js request/cache APIs.
 
 ## Reference Map
 
@@ -132,8 +133,9 @@ measurement rather than from those sources, the count is recorded in the reposit
 Before code changes, write or hold this classification:
 
 ```text
+scope:               narrowest actual consumer set; repository by default
 slice:               which capability owns this behaviour
-layer:               domain | use-case | data | outbound | inbound | read-entry | client-cache | UI | infrastructure
+layer:               domain | operation | entry | data | port | outbound | inbound | read-entry | client-cache | UI | infrastructure | boundary
 dependency category: in-process | local-substitutable | remote-owned | external
 adapters today:      how many implementations exist now, not how many might
 behavior owned:      what this module does that callers would otherwise repeat
