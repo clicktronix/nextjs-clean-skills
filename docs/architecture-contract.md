@@ -178,9 +178,10 @@ flowchart TB
   end
 
   subgraph CompileTime["Compile-time imports"]
-    ActionFile["server-actions/*.ts"] --> UseCaseFile["use-cases/*.ts"]
+    ActionFile["server-actions/*.ts"] --> EntryFile["use-cases/*/entries/*.ts"]
     ActionFile --> DataFile["adapters/outbound/*.ts"]
-    UseCaseFile --> DomainFile["domain/*"]
+    EntryFile --> OperationFile["use-cases/*/operations/*.ts"]
+    OperationFile --> DomainFile["domain/*"]
   end
 ```
 

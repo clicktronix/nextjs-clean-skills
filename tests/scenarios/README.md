@@ -147,14 +147,15 @@ When editing an untested reference, consider authoring its scenario first.
 | nextjs-architecture/use-cases/validation-once | validate-once-per-boundary | hypothesis (not run) |
 | nextjs-architecture/outbound/row-vs-domain-types | select-derived-from-domain-schema | hypothesis (not run) |
 | nextjs-architecture/inbound/streaming | streaming-through-server-action | hypothesis (not run) |
+| nextjs-architecture/inbound/route-handlers | framework-control-flow-not-swallowed | hypothesis (not run) |
 | nextjs-architecture/errors/error-taxonomy | transport-neutral-error-mapping | hypothesis (not run) |
 | nextjs-architecture/quality/observability-and-sentry | sentry-instrumentation-first | hypothesis (not run) |
 | nextjs-architecture/seams/port-shape | — | untested |
 | nextjs-architecture/seams/composition-without-di | — | untested |
-| nextjs-architecture/use-cases/use-case-wrapper | — | untested |
+| nextjs-architecture/use-cases/use-case-wrapper | nested-composition-no-bypass | hypothesis (not run) |
 | nextjs-architecture/errors/failure-at-the-boundary | — | untested |
 | nextjs-architecture/outbound/service-transport | — | untested |
-| nextjs-architecture/placement/layers-and-imports | — | untested |
+| nextjs-architecture/placement/layers-and-imports | portable-rules-on-existing-stack | hypothesis (not run) |
 | nextjs-architecture/placement/slices-and-ownership | — | untested |
 | nextjs-architecture/placement/runtime-vs-compile-time | — | untested |
 | nextjs-architecture/outbound/authority-and-transactions | — | untested |

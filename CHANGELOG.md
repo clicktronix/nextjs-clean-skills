@@ -132,9 +132,9 @@ All notable changes to this project are documented in this file.
   forward: what two callers share is the declaration, not a hop.
 - **Removed the public `.run` accessor.** A declaration that exposed its unwrapped body was an
   escape hatch around its own guarantees — the outer output schema rejected the inner result
-  object, so callers normalised twice or not at all. Composition now names an internal operation
-  that both the declaration and the composer call, and `use-cases/use-case-wrapper.md` is retitled
-  *The Boundary Declaration* to keep the two ideas apart.
+  object, so callers normalised twice or not at all. Composition now goes through a slice's
+  published `operations/**` surface, which the declaration wraps and other slices compose with, and
+  `use-cases/use-case-wrapper.md` is retitled *The Boundary Declaration* to keep the two apart.
 - **Framework control flow stays outside the boundary.** Navigation and not-found signals are
   implemented by throwing, so a universal catch turned a redirect into an application failure and
   the navigation never happened. The declaration returns a value and the entry point navigates; it

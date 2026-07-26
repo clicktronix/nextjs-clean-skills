@@ -51,8 +51,7 @@
       "dir": "src/adapters/outbound/agent",
       "mayImport": [
         "domain",
-        "ports",
-        "boundary"
+        "ports"
       ]
     },
     "inbound": {
@@ -317,6 +316,11 @@
       "case": "an operation calls a declaration",
       "layer": "use-case-operations",
       "code": "import { listWorkItems } from '@/use-cases/work-items/entries/list'\nexport default listWorkItems"
+    },
+    {
+      "case": "an outbound adapter declares a boundary of its own",
+      "layer": "outbound",
+      "code": "import { defineBoundary } from '@/boundary'\nexport default defineBoundary"
     }
   ],
   "extraAllowed": [
@@ -373,7 +377,7 @@
   ],
   "$note_tiers": "`mayImportAt` grants an edge at named modules only \u2014 `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
   "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries.",
-  "$note_surfaces": "A use-case slice has two surfaces and they are separate layers, not a naming convention. `operations/**` reaches domain, ports and data, throws typed failures and reports nothing \u2014 it may NOT reach `boundary/**`, which is what stops an operation from quietly becoming a second declaration. `entries/**` reaches the combinator and its own slice's operations, and may NOT reach data or ports directly, which is what stops a declaration from skipping the operation it is supposed to wrap. Inbound adapters reach entries only.",
+  "$note_surfaces": "A use-case slice has two surfaces and they are separate layers, not a naming convention. `operations/**` reaches domain, ports and data, throws typed failures and reports nothing \u2014 it may NOT reach `boundary/**`, which is what stops an operation from quietly becoming a second declaration. `entries/**` reaches the combinator and operations, and may NOT reach data or ports directly, which is what stops a declaration from skipping the operation it wraps. Inbound adapters reach entries only. NOT enforced here: that an entry calls its OWN slice's operation. Relating a source slice to a target slice needs slice identity, which a portable table does not have \u2014 same limit as slice isolation, and recorded the same way in rules/README.md.",
   "selfRules": [
     {
       "layer": "use-case-entries",

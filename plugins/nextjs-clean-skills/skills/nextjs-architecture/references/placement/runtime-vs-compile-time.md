@@ -18,7 +18,7 @@ RSC/page/layout -> server-only read entrypoint -> use-case or data module -> ext
 
 Compile-time import rule:
 
-- use-cases import domain, local ports/types, `data/**`, and the wrapper.
+- operations import domain, ports and `data/**`; entries import the combinator and their slice's operations.
 - outbound adapters import the port type they implement; data modules import domain only.
 - inbound adapters are composition roots and may import outbound factories.
 - UI does not import outbound adapters.

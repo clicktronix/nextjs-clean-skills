@@ -182,9 +182,11 @@ export default [
   }),
 
   block(['src/adapters/outbound/**/*.{ts,tsx}'], {
-    forbid: ['app', 'ui', 'client-cache', 'use-cases', 'data', 'adapters/inbound', 'infrastructure'],
+    // `boundary` included: an adapter that can declare would validate, normalise and report on its
+    // own, and the same failure would be counted twice — once here, once at the entry above it.
+    forbid: ['app', 'ui', 'client-cache', 'use-cases', 'data', 'adapters/inbound', 'infrastructure', 'boundary'],
     message:
-      'An outbound adapter implements a port contract. It must not import the use-case that owns it, nor data modules, entry points, UI, or the client cache.',
+      'An outbound adapter implements a port contract. It does not declare, and must not import the use-case that owns it, data modules, entry points, UI, or the client cache.',
   }),
 
   block(['src/adapters/inbound/**/*.{ts,tsx}'], {

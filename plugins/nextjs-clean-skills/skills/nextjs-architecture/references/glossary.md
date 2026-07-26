@@ -22,7 +22,7 @@ Use these terms consistently. Do not redefine them in feature code.
 | Row type | The stored shape of a record, owned by the data module or adapter that reads it. |
 | Client cache | The keyed, lifecycle-managed copy of read results held for the browser. |
 | Authority | Whoever commits the transaction and enforces access: the store, an owned service, or the application. |
-| Result | The success-or-failure value the wrapper returns to entry points. |
+| Result | The success-or-failure value a declaration returns to entry points. |
 
 Two confusions worth naming.
 
