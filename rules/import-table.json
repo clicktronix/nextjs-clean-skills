@@ -2,7 +2,6 @@
   "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every pair listed in `mayImport` must lint clean, every pair NOT listed must error. Hand-picked fixture samples let real gaps through \u2014 that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
   "specimen": {
     "domain": "@/domain/work-item/work-item",
-    "use-cases": "@/use-cases/work-items/entries/list",
     "ports": "@/ports/work-items",
     "data": "@/data/work-items",
     "outbound": "@/adapters/outbound/agent/http",
@@ -12,7 +11,9 @@
     "ui": "@/ui/components/Board",
     "app": "@/app/admin/page",
     "infrastructure": "@/infrastructure/logging",
-    "boundary": "@/boundary"
+    "boundary": "@/boundary",
+    "use-case-operations": "@/use-cases/work-items/operations/list",
+    "use-case-entries": "@/use-cases/work-items/entries/list"
   },
   "layers": {
     "domain": {
@@ -20,14 +21,22 @@
       "dir": "src/domain/work-item",
       "mayImport": []
     },
-    "use-cases": {
-      "root": "src/use-cases",
-      "dir": "src/use-cases/work-items",
+    "use-case-operations": {
+      "root": "src/use-cases/*/operations",
+      "dir": "src/use-cases/work-items/operations",
       "mayImport": [
         "domain",
         "ports",
-        "data",
-        "boundary"
+        "data"
+      ]
+    },
+    "use-case-entries": {
+      "root": "src/use-cases/*/entries",
+      "dir": "src/use-cases/work-items/entries",
+      "mayImport": [
+        "domain",
+        "boundary",
+        "use-case-operations"
       ]
     },
     "data": {
@@ -56,13 +65,9 @@
         "outbound",
         "infrastructure",
         "read",
-        "boundary"
-      ],
-      "mayImportAt": {
-        "use-cases": [
-          "entries"
-        ]
-      }
+        "boundary",
+        "use-case-entries"
+      ]
     },
     "read": {
       "root": "src/adapters/inbound/read",
@@ -74,13 +79,9 @@
         "outbound",
         "infrastructure",
         "inbound",
-        "boundary"
-      ],
-      "mayImportAt": {
-        "use-cases": [
-          "entries"
-        ]
-      }
+        "boundary",
+        "use-case-entries"
+      ]
     },
     "client-cache": {
       "root": "src/client-cache",
@@ -156,33 +157,33 @@
     },
     {
       "case": "use-case imports a driver",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import { createClient } from '@supabase/supabase-js'\nexport default createClient"
     },
     {
       "case": "use-case imports a bare node builtin",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import crypto from 'crypto'\nexport default crypto"
     },
     {
       "case": "use-case imports a prefixed node builtin",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import fs from 'node:fs'\nexport default fs"
     },
     {
       "case": "use-case imports the framework",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import { cookies } from 'next/headers'\nexport default cookies"
     },
     {
       "case": "use-case dynamically imports an outbound adapter",
-      "layer": "use-cases",
-      "code": "export default () => import('../../adapters/outbound/agent/http')"
+      "layer": "use-case-operations",
+      "code": "export default () => import('../../../adapters/outbound/agent/http')"
     },
     {
       "case": "use-case requires an outbound adapter",
-      "layer": "use-cases",
-      "code": "export default () => require('../../adapters/outbound/agent/http')"
+      "layer": "use-case-operations",
+      "code": "export default () => require('../../../adapters/outbound/agent/http')"
     },
     {
       "case": "data module imports the framework",
@@ -247,7 +248,7 @@
     {
       "case": "ui dynamically imports a use-case",
       "layer": "ui",
-      "code": "export default () => import('@/use-cases/work-items/list')"
+      "code": "export default () => import('@/use-cases/work-items/operations/list')"
     },
     {
       "case": "ports import a data module",
@@ -271,7 +272,7 @@
     },
     {
       "case": "use-case imports generic infrastructure, not the boundary",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import { logger } from '@/infrastructure/logging'\nexport default logger"
     },
     {
@@ -294,12 +295,27 @@
     {
       "case": "an inbound adapter reaches an operation instead of the declaration",
       "layer": "inbound",
-      "code": "import { listWorkItems } from '@/use-cases/work-items/operations/list'\nexport default listWorkItems",
-      "resolvedOnly": true
+      "code": "import { listWorkItems } from '@/use-cases/work-items/operations/list'\nexport default listWorkItems"
     },
     {
       "case": "a declaration calls another declaration",
-      "layer": "use-cases",
+      "layer": "use-case-entries",
+      "code": "import { listWorkItems } from '@/use-cases/work-items/entries/list'\nexport default listWorkItems"
+    },
+    {
+      "case": "a declaration calls a sibling declaration by relative path",
+      "layer": "use-case-entries",
+      "code": "import { other } from './sibling'\nexport default other",
+      "resolvedOnly": true
+    },
+    {
+      "case": "a declaration dynamically imports another declaration",
+      "layer": "use-case-entries",
+      "code": "export default () => import('@/use-cases/work-items/entries/list')"
+    },
+    {
+      "case": "an operation calls a declaration",
+      "layer": "use-case-operations",
       "code": "import { listWorkItems } from '@/use-cases/work-items/entries/list'\nexport default listWorkItems"
     }
   ],
@@ -341,7 +357,7 @@
     },
     {
       "case": "use-case dynamically imports a data module",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "export default () => import('@/data/work-items')"
     },
     {
@@ -351,17 +367,17 @@
     },
     {
       "case": "a use-case composes another slice's operation",
-      "layer": "use-cases",
+      "layer": "use-case-operations",
       "code": "import { listLabels } from '@/use-cases/labels/operations/list'\nexport default listLabels"
     }
   ],
   "$note_tiers": "`mayImportAt` grants an edge at named modules only \u2014 `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
   "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries.",
-  "$note_surfaces": "`use-cases/<slice>/entries/**` holds the boundary declarations: they validate, normalise and report exactly once, and inbound adapters reach only these. `use-cases/<slice>/operations/**` holds typed in-process functions that throw typed failures and report nothing; composition uses those, so a composed scenario reports once at its own outermost declaration instead of twice under the inner one's name. A declaration never calls another declaration.",
+  "$note_surfaces": "A use-case slice has two surfaces and they are separate layers, not a naming convention. `operations/**` reaches domain, ports and data, throws typed failures and reports nothing \u2014 it may NOT reach `boundary/**`, which is what stops an operation from quietly becoming a second declaration. `entries/**` reaches the combinator and its own slice's operations, and may NOT reach data or ports directly, which is what stops a declaration from skipping the operation it is supposed to wrap. Inbound adapters reach entries only.",
   "selfRules": [
     {
-      "layer": "use-cases",
-      "fromSubpath": "*/entries/**",
+      "layer": "use-case-entries",
+      "fromSubpath": "**",
       "message": "A declaration never calls another declaration \u2014 compose the operation it wraps, so the failure is reported once at the outermost boundary."
     }
   ]

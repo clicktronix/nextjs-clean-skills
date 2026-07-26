@@ -101,10 +101,17 @@ const table = readJson('rules/import-table.json')
 const layerNames = Object.keys(table.layers)
 const rootOf = (name) => table.layers[name].root
 
+// A root may be a glob — a use-case slice's `entries`/`operations` live at `src/use-cases/*/…`,
+// one per slice — so the containment check matches segment-wise rather than by prefix.
+const rootMatcher = (root) =>
+  new RegExp(`^${root.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]+')}(/|$)`)
+
 for (const name of layerNames) {
   if (!rootOf(name)) errors.push(`rules/import-table.json: layer ${name} has no "root"`)
-  else if (!table.layers[name].dir.startsWith(rootOf(name)))
-    errors.push(`rules/import-table.json: layer ${name} has a "dir" outside its "root"`)
+  else if (!rootMatcher(rootOf(name)).test(table.layers[name].dir))
+    errors.push(
+      `rules/import-table.json: layer ${name} has a "dir" (${table.layers[name].dir}) outside its "root" (${rootOf(name)})`
+    )
 }
 
 // A nested layer has its own permissions (`read` lives inside `inbound`). Because flat config
@@ -266,7 +273,7 @@ if (ESLint && errors.length === 0) {
       fs.writeFileSync(path.join(sandbox, `eslint.config.${tier}.mjs`), config)
 
     const canary = {
-      dir: table.layers['use-cases'].dir,
+      dir: table.layers['use-case-operations'].dir,
       name: 'canary-aliased-forbidden-edge.ts',
       code: `import { thing } from '${table.specimen.outbound}'\nexport default thing`,
       label: 'canary: aliased forbidden edge with no resolver',

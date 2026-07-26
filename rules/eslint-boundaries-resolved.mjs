@@ -44,6 +44,9 @@ const names = Object.keys(layers)
 
 const root = (name) => layers[name].root
 /** Layer nesting, derived from the roots — `read` lives inside `inbound`. */
+// A root containing a glob (`src/use-cases/*/entries`, one per slice) only matches files beneath
+// it when the pattern says so explicitly; a plain directory root matches its subtree already.
+const zonePath = (name) => (root(name).includes('*') ? `./${root(name)}/**` : `./${root(name)}`)
 const isInside = (child, parent) => child !== parent && root(child).startsWith(`${root(parent)}/`)
 const nestedIn = (parent) => names.filter((name) => isInside(name, parent))
 
@@ -70,7 +73,7 @@ const zonesFor = (source) => {
         const entries = grantedAt[target] ?? []
         if (entries.length > 0) {
           return {
-            target: `./${root(source)}`,
+            target: zonePath(source),
             from: `./${root(target)}/**`,
             // `except` must be globs when `from` is one.
             except: entries.flatMap((entry) => [
@@ -86,8 +89,8 @@ const zonesFor = (source) => {
           .filter((nested) => allowed.has(nested))
           .map((nested) => `./${path.relative(root(target), root(nested))}`)
         return {
-          target: `./${root(source)}`,
-          from: `./${root(target)}`,
+          target: zonePath(source),
+          from: zonePath(target),
           ...(except.length > 0 ? { except } : {}),
           message: `${source} may import ${layers[source].mayImport.join(', ') || 'nothing'} — not ${target}. See references/placement/layers-and-imports.md.`,
         }
@@ -102,7 +105,7 @@ const selfZonesFor = (source) =>
   (table.selfRules ?? [])
     .filter((rule) => rule.layer === source)
     .map((rule) => ({
-      target: `./${root(source)}`,
+      target: zonePath(source),
       from: `./${root(source)}/${rule.fromSubpath}`,
       message: rule.message,
     }))

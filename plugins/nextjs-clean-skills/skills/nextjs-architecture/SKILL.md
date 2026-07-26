@@ -16,8 +16,8 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 - Next.js 16 App Router, React 19, TypeScript.
 - Domain schemas and types in Valibot.
 - Business authority may sit in the store (stored functions plus row-level policies) or in a separate owned service. Model where it sits before deciding what the application layer holds.
-- Application entries go through one boundary declaration that validates, normalises failures, and reports them once. Framework navigation signals are re-thrown, not normalised.
-- Contracts at seams exist for dependencies the process cannot run locally; the rest are ordinary modules.
+- Application entries go through one boundary declaration that validates, normalises failures, and reports them once. It knows nothing about the framework: navigation is called outside it.
+- A port exists when the core must state a capability independently of the technology behind it, in the application's language. Adapter count is evidence, not the gate; a locally-runnable store defaults to a data module.
 - Read-heavy UI fetches in Server Components through server-only read entrypoints.
 - TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service, streaming, and integration commands.
 - Cache and framework APIs follow current Next.js docs; this skill only decides which layer owns the read/write.
@@ -42,9 +42,9 @@ Runtime entry per need:
 
 Compile-time imports:
   domain          pure helpers and schema libraries only
-  use-cases       domain, ports, data, the boundary combinator
+  use-cases       operations/: domain, ports, data · entries/: domain, boundary, own operations
   data            domain only
-  inbound         use-cases, data, outbound factories, infrastructure
+  inbound         use-case entries/, data, outbound factories, infrastructure
   outbound        port types plus domain
   server UI/RSC   server-only read entrypoints
   client UI       client-cache hooks, local actions, domain types

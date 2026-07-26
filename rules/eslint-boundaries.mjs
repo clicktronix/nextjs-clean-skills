@@ -112,6 +112,18 @@ const block = (files, { forbid = [], message = '', imports = [], paths = [], for
   },
 })
 
+const USE_CASE_FORBIDDEN = ['app', 'ui', 'client-cache', 'adapters/inbound', 'adapters/outbound', 'infrastructure']
+const USE_CASE_MESSAGE =
+  'Outbound adapters are supplied by the composition root. Import `data/**` where the dependency has no port, the port contract where it has one, and `boundary/**` to declare.'
+const ENTRIES_ARE_NOT_CALLED = {
+  group: ['@/use-cases/*/entries/**', '**/use-cases/*/entries/**'],
+  message: 'A declaration never calls another declaration. Compose the operation it wraps.',
+}
+const USE_CASE_EXTERNALS = {
+  group: [...FRAMEWORK, ...DRIVERS, ...NODE_BUILTIN_PATTERNS],
+  message: 'Use-cases reach the outside through a data module or a port, never directly.',
+}
+
 export default [
   // Every file under src/ owes the environment rule, including paths no layer block matches:
   // src/proxy.ts, a migration-era src/lib, any root module. Declared FIRST so the per-layer
@@ -126,19 +138,39 @@ export default [
     paths: NODE_BUILTIN_PATHS,
   }),
 
+  // A use-case slice has two surfaces with different permissions. The umbrella block covers the
+  // whole subtree; the two below REPEAT its rules and add their own, because flat config replaces
+  // a rule's options for overlapping files rather than merging them.
   block(['src/use-cases/**/*.{ts,tsx}'], {
-    forbid: ['app', 'ui', 'client-cache', 'adapters/inbound', 'adapters/outbound', 'infrastructure'],
+    forbid: USE_CASE_FORBIDDEN,
+    message: USE_CASE_MESSAGE,
+    imports: [USE_CASE_EXTERNALS],
+    paths: NODE_BUILTIN_PATHS,
+  }),
+
+  block(['src/use-cases/*/operations/**/*.{ts,tsx}'], {
+    // No `boundary/**`: an operation that could declare would become a second declaration, and
+    // the failure would be normalised and reported twice — once under its name, once under the
+    // entry that wraps it.
+    forbid: [...USE_CASE_FORBIDDEN, 'boundary'],
     message:
-      'Outbound adapters are supplied by the composition root. Import `data/**` where the dependency has no port, the port contract where it has one, and `boundary/**` to declare.',
+      'An operation throws typed failures and reports nothing. Declaring is the entry\'s job.',
+    forbidPaths: ['use-cases/[^\\/]+/entries'],
+    imports: [USE_CASE_EXTERNALS, ENTRIES_ARE_NOT_CALLED],
+    paths: NODE_BUILTIN_PATHS,
+  }),
+
+  block(['src/use-cases/*/entries/**/*.{ts,tsx}'], {
+    // No `data/**` or `ports/**`: a declaration that reaches the store directly has skipped the
+    // operation it exists to wrap, and the slice loses the surface other slices compose with.
+    forbid: [...USE_CASE_FORBIDDEN, 'data', 'ports'],
+    message:
+      'A declaration wraps an operation. Reaching the store directly skips the surface other slices compose with.',
     imports: [
-      { group: [...FRAMEWORK, ...DRIVERS, ...NODE_BUILTIN_PATTERNS], message: 'Use-cases reach the outside through a data module or a port, never directly.' },
-      {
-        // A declaration validates, normalises and reports. Calling one from another reports the
-        // failure twice, under the inner name. Compose `operations/**` instead.
-        group: ['@/use-cases/*/entries/**', '**/use-cases/*/entries/**'],
-        message: 'A declaration never calls another declaration. Compose the operation it wraps.',
-      },
+      USE_CASE_EXTERNALS,
+      ENTRIES_ARE_NOT_CALLED,
     ],
+    forbidPaths: ['use-cases/[^\\/]+/entries'],
     paths: NODE_BUILTIN_PATHS,
   }),
 
@@ -159,6 +191,15 @@ export default [
     forbid: ['app', 'ui', 'client-cache'],
     message:
       'Inbound adapters wire implementations into use-cases. They do not depend on UI.',
+    imports: [
+      {
+        // Entries carry the validation and reporting an inbound adapter depends on. Calling an
+        // operation directly skips both.
+        group: ['@/use-cases/*/operations/**', '**/use-cases/*/operations/**'],
+        message: 'Call the slice\'s entry, not the operation it wraps.',
+      },
+    ],
+    forbidPaths: ['use-cases/[^\\/]+/operations'],
   }),
 
   block(['src/client-cache/**/*.{ts,tsx}'], {

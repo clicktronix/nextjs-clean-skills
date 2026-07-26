@@ -135,10 +135,12 @@ All notable changes to this project are documented in this file.
   object, so callers normalised twice or not at all. Composition now names an internal operation
   that both the declaration and the composer call, and `use-cases/use-case-wrapper.md` is retitled
   *The Boundary Declaration* to keep the two ideas apart.
-- **Framework control flow is re-thrown, not normalised.** Navigation and not-found signals are
+- **Framework control flow stays outside the boundary.** Navigation and not-found signals are
   implemented by throwing, so a universal catch turned a redirect into an application failure and
-  the navigation never happened. Stated as an explicit exception to the boundary's guarantees, with
-  the concrete re-throw named in the stack-scoped reference.
+  the navigation never happened. The declaration returns a value and the entry point navigates; it
+  cannot classify framework exceptions anyway, since its layer may import domain only. The
+  framework's own re-throw helper is recorded as a migration aid, marked not recommended for
+  production by its documentation.
 - **Moved HTTP statuses out of the failure taxonomy.** The kinds table no longer carries a status
   column; mapping a kind onto a status, an action state, a stream event, or a rendered surface
   belongs to the translation layer, so the taxonomy is not shaped by one transport.

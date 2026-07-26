@@ -81,8 +81,9 @@ flowchart LR
 ```
 
 Read the dotted edge carefully: it applies to dependencies that genuinely need a contract at the
-seam. For a store that runs locally in the test suite, there is no port — the data module is
-called directly by the composition root and by use-cases that orchestrate it.
+seam. A store that runs locally in the test suite defaults to no port — the data module is called
+directly by the composition root and by the operations that orchestrate it. That is a default the
+four questions can override, not a ban.
 
 ### Why these imports are forbidden
 

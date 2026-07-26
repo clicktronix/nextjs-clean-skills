@@ -31,9 +31,11 @@ Agent prompt guardrail:
 
 ```mermaid
 flowchart TD
-  Dep["New external dependency"] --> Cat{"Can it run locally\nin the test suite?"}
-  Cat -->|"Yes - engine + migrations"| NoPort["No port: a module in data/.\nTests hit the real engine"]
-  Cat -->|"No - over the network"| Owned{"Do we own it?"}
+  Dep["New external dependency"] --> Cap{"Must the scenario run\nindependently of this technology?"}
+  Cap -->|No| NoPort["No port: a module in data/.\nTests hit the real engine"]
+  Cap -->|Yes| Shape{"Does the contract read as a capability,\nnot a table or an SDK?"}
+  Shape -->|No| NoPort
+  Shape -->|Yes| Owned{"Do we own it?"}
   Owned -->|Yes| Port["Port + production adapter + fake"]
   Owned -->|"No - third party"| Mock["Port + mock adapter"]
   NoPort --> Orchestrate{"Does one scenario combine\nseveral sources without the DB?"}
@@ -53,9 +55,9 @@ flowchart TD
   Owner -->|Unclear| Stop["Resolve ownership first"]
   Owner -->|Named| Pure{"Pure business rule/schema?"}
   Pure -->|Yes| Domain["domain/"]
-  Pure -->|No| Sandwich{"Effect, then pure transform,\nthen effect?"}
-  Sandwich -->|Yes| UseCase["use-cases/"]
-  Sandwich -->|"No - single effect"| Framework{"Reads cookies, headers,\nrequest, cache, formData?"}
+  Pure -->|No| Holds{"Would deleting it\nconcentrate complexity?"}
+  Holds -->|Yes| UseCase["use-cases/: operations/ + entries/"]
+  Holds -->|"No - holds nothing"| Framework{"Reads cookies, headers,\nrequest, cache, formData?"}
   Framework -->|Yes| InboundOrRead{"Read or command?"}
   InboundOrRead -->|Read| ReadEntry["server-only read entrypoint"]
   InboundOrRead -->|Command| Inbound["adapters/inbound/next/"]
