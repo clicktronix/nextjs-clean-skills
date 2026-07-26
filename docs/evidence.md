@@ -133,7 +133,8 @@ These decisions are owned by this project, not by the primary sources:
 | Use the deletion test before creating a use-case | forwarding modules dominated the measured application layer | a product demonstrates useful application modules that consistently fail the test |
 | Default a locally runnable store to `data/**` | substitutes hid query, policy, and column drift | scenarios must run independently of the store and expose a purposeful capability |
 | Use one declaration per public application entry | validation and failure handling repeated across products | different channels require guarantees that cannot share one combinator |
-| Split entries from operations | nested declarations double-normalised and double-reported failures | composition can preserve one public contract without a second surface |
+| Split entries from operations, as directories | nested declarations double-normalised and double-reported failures; the *directory* form was chosen because path rules are enforceable and naming conventions are not | a lint can enforce the rule without the split, or composition preserves one public contract without a second surface |
+| Validate the declared output on every call | adapter and provider shapes drifted from the contract in the measured products | the runtime cost is measured and material, or the module reading the provider already guarantees the shape. **This cost has not been measured** |
 | Keep DI containers optional | closures and explicit request context cover the current scale | assembly becomes untraceable or collaborator counts make manual composition error-prone |
 
 ## Evaluation Status

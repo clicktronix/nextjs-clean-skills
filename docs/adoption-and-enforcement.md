@@ -104,6 +104,13 @@ These remain explicit review and scenario checks.
 9. Migrate one complete slice, including tests and runtime boundaries.
 10. Enable CI only after the profile and representative slice are verified.
 
+Treat step 9 as a pilot with exit criteria, because it answers what no check in this repository
+can: whether the per-capability directory count is tolerable in daily work, whether validating the
+declared output on every call costs anything measurable, and whether the double report the
+entries/operations split prevents actually occurs. Record those answers before migrating further
+slices. If the pilot contradicts a decision, change the contract rather than bending the product
+around it.
+
 Adoption is incremental. Do not combine an architecture migration with an unrequested framework,
 schema, component-library, or state-management migration.
 

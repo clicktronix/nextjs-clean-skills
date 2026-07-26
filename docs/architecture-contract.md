@@ -118,7 +118,12 @@ flowchart TB
 <!-- /contract:layer-table -->
 
 The names in `May import across layers` are keys from `rules/import-table.json`. “Same layer” means
-the same classified row; nested `read` remains a separate layer from its `inbound` parent. The table
+the same classified row; nested `read` remains a separate layer from its `inbound` parent. The edge
+between those two runs one way: `read/**` may reuse inbound primitives — request context, session,
+authorization — while `inbound/**` may not import `read/**`. The read layer is composed for the
+render path, so an HTTP caller that needs the same data reaches an entry, or a data module where no
+scenario exists, instead of borrowing the render composition. The cost is explicit: a Route Handler
+serving the same rows composes them again through its own entry. The table
 is generated into this document, the critical agent reference, and the always-loaded skill
 contract. Change the table, run the fixer, and review all generated surfaces in the same pull
 request.
