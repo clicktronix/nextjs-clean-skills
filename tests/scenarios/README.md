@@ -161,7 +161,6 @@ When editing an untested reference, consider authoring its scenario first.
 | nextjs-architecture/outbound/authority-and-transactions | — | untested |
 | nextjs-architecture/caching/cache-tiers | — | untested |
 | nextjs-architecture/outbound/supabase-rls | — | untested |
-| nextjs-architecture/inbound/route-handlers | — | untested |
 | nextjs-architecture/security/env-validation | — | untested |
 | nextjs-architecture/quality/testing-by-layer | — | untested |
 | nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |

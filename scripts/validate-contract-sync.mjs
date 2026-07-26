@@ -1,92 +1,134 @@
 #!/usr/bin/env node
-// The reference an agent reads and the table CI enforces must say the same thing.
+// The documents an agent reads and the contract CI enforces must say the same thing.
 //
-// This exists because they twice did not, and neither the matrix nor any lint could tell: the
-// matrix proves the CONFIG matches the TABLE, and says nothing about the prose. The worse of the
-// two shipped in a CRITICAL reference whose layer row granted a use-case the union of both
-// surfaces' permissions and whose "Correct" example showed an edge the rules reject — the same
-// defect this release was written to fix, reintroduced in the document that teaches it.
+// Version one of this check compared two hand-written labels — a `reference.row` in the table and
+// a row in the prose — so it proved they matched each other and nothing about the enforced root or
+// permissions. Renaming a layer in both places passed; documenting "same as inbound" while the
+// permissions diverged passed. Both were found by mutation, so the labels are gone: the expected
+// text is now GENERATED from `root` and `mayImport`, and the documents must contain it verbatim.
 //
-// The check is deliberately one-directional: it fails when the reference grants an edge the rules
-// forbid. Prose can legitimately be vaguer than the table ("factories", "technical libraries"), so
-// silence about a permitted edge is fine; claiming a forbidden one is not.
+// `--fix` writes the generated text into both documents, which is how they are meant to be edited:
+// change the table, run the fixer, review the diff.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fail, readJson, root } from './_lib.mjs'
 
 const REFERENCE =
   'plugins/nextjs-clean-skills/skills/nextjs-architecture/references/placement/layers-and-imports.md'
+const SKILL = 'plugins/nextjs-clean-skills/skills/nextjs-architecture/SKILL.md'
+const OPEN = '<!-- contract:imports -->'
+const CLOSE = '<!-- /contract:imports -->'
 
+const fixing = process.argv.includes('--fix')
 const errors = []
 const table = readJson('rules/import-table.json')
 const layers = table.layers
-const absolute = path.join(root, REFERENCE)
+const names = Object.keys(layers)
 
-if (!fs.existsSync(absolute)) {
-  fail([`${REFERENCE}: not found — the contract reference moved and this check was not updated.`])
+/** The layer's documented label, derived from the root it is actually enforced at. */
+const label = (name) => `${layers[name].root.replace(/^src\//, '')}/**`
+
+/** What the layer may import, in the table's own vocabulary. Names, not prose. */
+const permissions = (name) => {
+  const layer = layers[name]
+  const parts = [
+    ...layer.mayImport,
+    ...Object.entries(layer.mayImportAt ?? {}).map(([target, at]) => `${target} (${at.join(', ')} only)`),
+  ]
+  return parts.length > 0 ? parts.join(', ') : 'nothing in src/'
 }
 
-// Every markdown table row, split into cells. The layer table is the one whose first column holds
-// backticked paths; other tables in the file are skipped by that shape.
-const rows = fs
-  .readFileSync(absolute, 'utf8')
+// ---------------------------------------------------------------- the reference's layer table
+
+const readText = (file) => fs.readFileSync(path.join(root, file), 'utf8')
+const write = (file, text) => fs.writeFileSync(path.join(root, file), text)
+
+const referenceText = readText(REFERENCE)
+const referenceRows = referenceText
   .split('\n')
-  .filter((line) => line.trim().startsWith('|'))
-  .map((line) =>
-    line
-      .trim()
-      .replace(/^\||\|$/g, '')
-      .split('|')
-      .map((cell) => cell.trim())
-  )
-  .filter((cells) => cells.length >= 3 && /`[^`]+`/.test(cells[0]))
+  .map((line, index) => ({ line, index }))
+  .filter(({ line }) => line.trim().startsWith('|') && /`[^`]+`/.test(line))
+  .map(({ line, index }) => ({
+    index,
+    cells: line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim()),
+  }))
+  .filter(({ cells }) => cells.length >= 3)
 
 const pathsIn = (cell) => [...cell.matchAll(/`([^`]+)`/g)].map((match) => match[1])
 const claimed = new Set()
+const referenceLines = referenceText.split('\n')
 
-for (const [name, layer] of Object.entries(layers)) {
-  const anchor = layer.reference
-  if (!anchor?.row || !anchor?.mention) {
-    errors.push(`rules/import-table.json: layer ${name} has no "reference" anchor, so the prose that documents it cannot be checked.`)
-    continue
-  }
-
-  const matches = rows.filter((cells) => pathsIn(cells[0]).includes(anchor.row))
+for (const name of names) {
+  const expected = permissions(name)
+  const matches = referenceRows.filter((row) => pathsIn(row.cells[0]).includes(label(name)))
   if (matches.length === 0) {
     errors.push(
-      `${REFERENCE}: no row documents \`${anchor.row}\` (layer ${name}). A layer CI enforces but the reference never mentions is a rule no agent will follow.`
+      `${REFERENCE}: no row documents \`${label(name)}\` — a layer CI enforces that the reference never mentions is a rule no agent will follow.`
     )
     continue
   }
   if (matches.length > 1) {
-    errors.push(`${REFERENCE}: \`${anchor.row}\` appears in ${matches.length} rows; a layer must be documented once.`)
+    errors.push(`${REFERENCE}: \`${label(name)}\` appears in ${matches.length} rows; document it once.`)
     continue
   }
-  matches.forEach((row) => claimed.add(row))
-
-  const permissions = matches[0][matches[0].length - 1]
-  const allowed = new Set([...layer.mayImport, name, ...Object.keys(layer.mayImportAt ?? {})])
-
-  for (const [other, otherLayer] of Object.entries(layers)) {
-    if (other === name || allowed.has(other)) continue
-    const mention = otherLayer.reference?.mention
-    if (!mention) continue
-    const escaped = mention.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-    if (new RegExp(String.raw`\b${escaped}\b`, 'i').test(permissions)) {
-      errors.push(
-        `${REFERENCE}: the row for \`${anchor.row}\` lists "${mention}" among what it may import, but rules/import-table.json does not permit ${name} -> ${other}. The document an agent reads and the config CI enforces disagree; fix whichever is wrong, in this commit.`
-      )
-    }
-  }
-}
-
-for (const row of rows) {
-  if (!claimed.has(row)) {
+  const row = matches[0]
+  claimed.add(row.index)
+  const actual = row.cells[row.cells.length - 1]
+  if (actual === expected) continue
+  if (fixing) {
+    const cells = [...row.cells]
+    cells[cells.length - 1] = expected
+    referenceLines[row.index] = `| ${cells.join(' | ')} |`
+  } else {
     errors.push(
-      `${REFERENCE}: the row for ${pathsIn(row[0]).map((p) => `\`${p}\``).join(' · ')} matches no layer in rules/import-table.json — a documented layer nothing enforces.`
+      `${REFERENCE}: the row for \`${label(name)}\` documents "${actual}" but rules/import-table.json permits "${expected}". Run \`node scripts/validate-contract-sync.mjs --fix\` after deciding which is right.`
     )
   }
 }
 
+for (const row of referenceRows) {
+  if (!claimed.has(row.index) && !/^\s*-+\s*$/.test(row.cells[0]) && pathsIn(row.cells[0]).length > 0) {
+    errors.push(
+      `${REFERENCE}: the row for ${pathsIn(row.cells[0]).map((p) => `\`${p}\``).join(' · ')} matches no layer root in rules/import-table.json — a documented layer nothing enforces.`
+    )
+  }
+}
+
+if (fixing) write(REFERENCE, referenceLines.join('\n'))
+
+// ------------------------------------------------- the always-loaded compile-time contract block
+
+const width = Math.max(...names.map((name) => label(name).length))
+const block = [
+  OPEN,
+  '```text',
+  'Compile-time imports (generated from rules/import-table.json):',
+  ...names.map((name) => `  ${label(name).padEnd(width + 2)}${permissions(name)}`),
+  '```',
+  CLOSE,
+].join('\n')
+
+const skillText = readText(SKILL)
+const start = skillText.indexOf(OPEN)
+const end = skillText.indexOf(CLOSE)
+if (start === -1 || end === -1) {
+  errors.push(
+    `${SKILL}: no ${OPEN} … ${CLOSE} region. The always-loaded contract must be generated from the table, not restated by hand — that is how it came to require behaviour the references had already replaced.`
+  )
+} else {
+  const actual = skillText.slice(start, end + CLOSE.length)
+  if (actual !== block) {
+    if (fixing) write(SKILL, skillText.slice(0, start) + block + skillText.slice(end + CLOSE.length))
+    else
+      errors.push(
+        `${SKILL}: the compile-time block does not match rules/import-table.json. Run \`node scripts/validate-contract-sync.mjs --fix\`.`
+      )
+  }
+}
+
 fail(errors)
-console.log(`contract sync ok (${Object.keys(layers).length} layers ↔ ${rows.length} documented rows)`)
+console.log(
+  fixing
+    ? `contract sync written (${names.length} layers -> ${REFERENCE}, ${SKILL})`
+    : `contract sync ok (${names.length} layers, generated from root + mayImport)`
+)

@@ -197,6 +197,28 @@ if (ESLint && errors.length === 0) {
       resolvedOnly: entry.resolvedOnly === true,
       label: entry.case,
     })
+  // Reference examples, linted as the files they claim to be. This is the class the contract-sync
+  // check cannot see — it reads the layer table, not the code fences — and it shipped twice: an
+  // example that violated the very rule its reference states. A fence opts in by naming its path;
+  // `expect=error` marks a deliberate counter-example.
+  const FENCE = /```ts path=(\S+?)(?: expect=(error))?\n([\s\S]*?)```/g
+  for (const file of listFiles('plugins', (name) => name.endsWith('.md'))) {
+    const text = fs.readFileSync(path.join(root, file), 'utf8')
+    for (const [, target, expectError, code] of text.matchAll(FENCE)) {
+      if (!target.startsWith('src/')) {
+        errors.push(`${file}: example path "${target}" must be under src/ to be placed in a layer`)
+        continue
+      }
+      cases.push({
+        dir: path.dirname(target),
+        name: path.basename(target),
+        code: code.trimEnd(),
+        expect: expectError ? 'error' : 'clean',
+        label: `example ${file.split('/').pop()} -> ${target}`,
+      })
+    }
+  }
+
   for (const entry of table.extraAllowed)
     cases.push({
       dir: entry.dir ?? table.layers[entry.layer].dir,
@@ -226,16 +248,20 @@ if (ESLint && errors.length === 0) {
       ? testCase.layerEdge === true || testCase.resolvedOnly === true || testCase.projectOnly
       : true
 
+  // Reference examples are TypeScript. The shipped rule files stay parser-agnostic; the parser is
+  // added here, in the sandbox wrapper, so the matrix can lint real examples.
+  const PARSER = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['**/*.{ts,tsx}'], languageOptions: { parser } }\n`
+
   const TIERS = {
-    strings: `import strings from './eslint-boundaries.mjs'\nexport default [...strings]\n`,
-    resolved: `import resolved from './eslint-boundaries-resolved.mjs'\nexport default [...resolved]\n`,
-    composed: `import strings from './eslint-boundaries.mjs'\nimport resolved from './eslint-boundaries-resolved.mjs'\nexport default [...strings, ...resolved]\n`,
+    strings: `${PARSER}import strings from './eslint-boundaries.mjs'\nexport default [ts, ...strings]\n`,
+    resolved: `${PARSER}import resolved from './eslint-boundaries-resolved.mjs'\nexport default [ts, ...resolved]\n`,
+    composed: `${PARSER}import strings from './eslint-boundaries.mjs'\nimport resolved from './eslint-boundaries-resolved.mjs'\nexport default [ts, ...strings, ...resolved]\n`,
     // A project that installs the zones but no alias resolver. Not a supported setup — a run that
     // proves it fails loudly instead of passing everything. The resolver is REPLACED inside the
     // block that declares it: appending an override would not work, because flat config merges
     // `settings` and the TypeScript resolver would survive — which is how the first version of
     // this canary tested nothing.
-    'no-resolver': `import resolved from './eslint-boundaries-resolved.mjs'\nexport default resolved.map((block) =>\n  block.settings?.['import/resolver']\n    ? { ...block, settings: { ...block.settings, 'import/resolver': { node: { extensions: ['.ts', '.tsx'] } } } }\n    : block\n)\n`,
+    'no-resolver': `${PARSER}import resolved from './eslint-boundaries-resolved.mjs'\nexport default [ts, ...resolved].map((block) =>\n  block.settings?.['import/resolver']\n    ? { ...block, settings: { ...block.settings, 'import/resolver': { node: { extensions: ['.ts', '.tsx'] } } } }\n    : block\n)\n`,
   }
 
   // realpath: mkdtemp hands back /var/... on macOS while ESLint reports /private/var/..., and the

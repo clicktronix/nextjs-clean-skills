@@ -19,11 +19,7 @@
     "domain": {
       "root": "src/domain",
       "dir": "src/domain/work-item",
-      "mayImport": [],
-      "reference": {
-        "row": "domain/**",
-        "mention": "domain"
-      }
+      "mayImport": []
     },
     "use-case-operations": {
       "root": "src/use-cases/*/operations",
@@ -32,11 +28,7 @@
         "domain",
         "ports",
         "data"
-      ],
-      "reference": {
-        "row": "use-cases/*/operations/**",
-        "mention": "operations"
-      }
+      ]
     },
     "use-case-entries": {
       "root": "src/use-cases/*/entries",
@@ -45,22 +37,14 @@
         "domain",
         "boundary",
         "use-case-operations"
-      ],
-      "reference": {
-        "row": "use-cases/*/entries/**",
-        "mention": "entries"
-      }
+      ]
     },
     "data": {
       "root": "src/data",
       "dir": "src/data/work-items",
       "mayImport": [
         "domain"
-      ],
-      "reference": {
-        "row": "data/**",
-        "mention": "data"
-      }
+      ]
     },
     "outbound": {
       "root": "src/adapters/outbound",
@@ -68,11 +52,7 @@
       "mayImport": [
         "domain",
         "ports"
-      ],
-      "reference": {
-        "row": "adapters/outbound/**",
-        "mention": "outbound"
-      }
+      ]
     },
     "inbound": {
       "root": "src/adapters/inbound",
@@ -86,11 +66,7 @@
         "read",
         "boundary",
         "use-case-entries"
-      ],
-      "reference": {
-        "row": "adapters/inbound/**",
-        "mention": "inbound"
-      }
+      ]
     },
     "read": {
       "root": "src/adapters/inbound/read",
@@ -104,11 +80,7 @@
         "inbound",
         "boundary",
         "use-case-entries"
-      ],
-      "reference": {
-        "row": "adapters/inbound/read/**",
-        "mention": "read"
-      }
+      ]
     },
     "client-cache": {
       "root": "src/client-cache",
@@ -116,11 +88,7 @@
       "mayImport": [
         "domain",
         "inbound"
-      ],
-      "reference": {
-        "row": "client-cache/**",
-        "mention": "client-cache"
-      }
+      ]
     },
     "ui": {
       "root": "src/ui",
@@ -129,11 +97,7 @@
         "domain",
         "client-cache",
         "ui"
-      ],
-      "reference": {
-        "row": "ui/**",
-        "mention": "UI"
-      }
+      ]
     },
     "app": {
       "root": "src/app",
@@ -148,10 +112,6 @@
         "client-cache": [
           "prefetch"
         ]
-      },
-      "reference": {
-        "row": "app/**",
-        "mention": "app"
       }
     },
     "infrastructure": {
@@ -159,33 +119,21 @@
       "dir": "src/infrastructure/logging",
       "mayImport": [
         "domain"
-      ],
-      "reference": {
-        "row": "infrastructure/**",
-        "mention": "infrastructure"
-      }
+      ]
     },
     "ports": {
       "root": "src/ports",
       "dir": "src/ports",
       "mayImport": [
         "domain"
-      ],
-      "reference": {
-        "row": "ports/**",
-        "mention": "ports"
-      }
+      ]
     },
     "boundary": {
       "root": "src/boundary",
       "dir": "src/boundary",
       "mayImport": [
         "domain"
-      ],
-      "reference": {
-        "row": "boundary/**",
-        "mention": "boundary"
-      }
+      ]
     }
   },
   "$note_roots": "`root` is the layer ROOT (what lint scopes to); `dir` is a representative slice inside it (what the matrix writes fixtures into). They differ because a permission is granted to a layer but exercised through a slice. `read` nests inside `inbound`, so the resolved-path config must exclude it from the parent zone target \u2014 nesting is derived from these paths, never hand-listed.",
@@ -442,5 +390,5 @@
       "message": "A declaration never calls another declaration \u2014 compose the operation it wraps, so the failure is reported once at the outermost boundary."
     }
   ],
-  "$note_reference": "`reference.row` is the layer's label in the table of `references/placement/layers-and-imports.md`; `reference.mention` is how that document names the layer inside a May-import cell. scripts/validate-contract-sync.mjs uses both to fail CI when the reference grants an edge these rules forbid \u2014 the defect that shipped twice, most damagingly as a CRITICAL reference whose 'Correct' example showed an edge the lint rejects."
+  "$note_reference": "The layer's documented label is DERIVED from `root` (strip `src/`, add `/**`) and its documented permissions from `mayImport`; scripts/validate-contract-sync.mjs regenerates both into references/placement/layers-and-imports.md and the SKILL.md contract block, and fails CI when they drift. An earlier version compared two hand-written labels and proved only that they matched each other."
 }

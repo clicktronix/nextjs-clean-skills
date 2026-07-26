@@ -88,5 +88,30 @@ for (const file of files) {
   }
 }
 
+// The coverage table in tests/scenarios/README.md is the inventory this repo reports from, so it
+// must agree with the files on disk. It has already carried a scenario twice — once as a
+// hypothesis, once as untested — and reported a count that no longer matched.
+const COVERAGE = 'tests/scenarios/README.md'
+const coverageAbs = path.join(root, COVERAGE)
+if (fs.existsSync(coverageAbs)) {
+  const listed = new Map()
+  for (const line of fs.readFileSync(coverageAbs, 'utf8').split('\n')) {
+    if (!line.trim().startsWith('|')) continue
+    const cells = line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim())
+    if (cells.length < 3 || !cells[0].includes('/')) continue
+    for (const name of cells[1].split(/[,\s]+/).filter((token) => /^[a-z0-9-]{4,}$/.test(token))) {
+      listed.set(name, (listed.get(name) ?? 0) + 1)
+    }
+  }
+  const onDisk = new Set(files.map((file) => path.basename(file, '.json')))
+  for (const [name, count] of listed) {
+    if (!onDisk.has(name)) errors.push(`${COVERAGE}: lists "${name}", which is not a scenario file`)
+    else if (count > 1) errors.push(`${COVERAGE}: lists "${name}" ${count} times; a scenario belongs to one row`)
+  }
+  for (const name of onDisk) {
+    if (!listed.has(name)) errors.push(`${COVERAGE}: scenario "${name}" exists but no row claims it`)
+  }
+}
+
 fail(errors)
 console.log(`scenarios ok (${files.length})`)

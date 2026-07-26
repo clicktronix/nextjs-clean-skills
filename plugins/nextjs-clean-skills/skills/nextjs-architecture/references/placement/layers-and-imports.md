@@ -2,35 +2,41 @@
 
 **Impact: CRITICAL** · **Scope: portable**
 
-Choose the layer before writing files. Dependency direction is compile-time, not runtime.
+Choose the layer before writing files. Direction is compile-time, not runtime.
 
 | Layer | Owns | May import |
 | --- | --- | --- |
-| `domain/**` | schemas, types, pure rules, the failure taxonomy | pure helpers, schema libraries |
-| `use-cases/*/operations/**` | the scenario body; throws, reports nothing | domain, `ports/**`, `data/**` |
-| `use-cases/*/entries/**` | the declaration: validates, normalises, reports once | domain, `boundary/**`, its slice's operations |
-| `ports/**` · `boundary/**` | the contracts and the combinator entries declare through | domain |
-| `data/**` | data access with no port, plus its `DataContext` | domain |
-| `adapters/outbound/**` | implementations of a port | domain, `ports/**` |
-| `adapters/inbound/**` | request entries, webhooks | use-case `entries/**`, `data/**`, factories, infrastructure |
-| `adapters/inbound/read/**` | server-only authenticated reads | same as inbound |
-| `client-cache/**` | keys, invalidation, the browser copy of reads | inbound adapters |
-| `app/**` | routes, layouts, server-rendered entries | read entrypoints, UI, inbound, the cache's seeding entry |
-| `ui/**` | views and client interaction | UI hooks, client-cache, domain types, local actions |
-| `infrastructure/**` | env, auth, logging, cache | domain, technical libraries |
+| `domain/**` | schemas, types, pure rules, the failure taxonomy | nothing in src/ |
+| `use-cases/*/operations/**` | the scenario body; throws, reports nothing | domain, ports, data |
+| `use-cases/*/entries/**` | the declaration: validates, normalises, reports | domain, boundary, use-case-operations |
+| `ports/**` · `boundary/**` | the contracts, and the combinator entries declare through | domain |
+| `data/**` | data access with no port | domain |
+| `adapters/outbound/**` | implementations of a port | domain, ports |
+| `adapters/inbound/**` | request entries, webhooks | domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries |
+| `adapters/inbound/read/**` | server-only authenticated reads | domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries |
+| `client-cache/**` | keys, invalidation, the browser copy of a read | domain, inbound |
+| `app/**` | routes, layouts, server-rendered entries | domain, read, inbound, ui, client-cache (prefetch only) |
+| `ui/**` | views and client interaction | domain, client-cache, ui |
+| `infrastructure/**` | env, auth, logging, cache | domain |
 
-An entry reaching `data/**` has skipped the operation it exists to wrap; an operation reaching `boundary/**` reports the same failure twice, under two names.
+An entry reaching `data/**` skipped the operation it wraps; an operation reaching `boundary/**` reports it twice.
 
-`data/**` is what "no seam here" looks like: an outbound adapter satisfies a port and arrives from the composition root; a data module has none. [Dependency Categories](../seams/dependency-categories.md) decides which a dependency gets.
+`data/**` is "no seam here": an outbound adapter satisfies a port and arrives from the root; a data module has none. [Dependency Categories](../seams/dependency-categories.md) decides.
 
-**Incorrect:** an entry whose `execute` calls `usersData.updateProfile` directly.
+Two files, both linted against this table in CI:
 
-**Correct (an operation, and the declaration that wraps it):**
+```ts path=src/use-cases/work-items/operations/update-profile.ts
+import { usersData } from '@/data/users'
+import { profileEdit } from '@/domain/user/profile'
 
-```ts
-async function updateUserProfileOperation(ctx: Context, input: UpdateUser) {
-  return usersData.updateProfile(ctx, input)
-}
+export const updateUserProfileOperation = (ctx, input) =>
+  usersData.updateProfile(ctx, profileEdit(input))
+```
+
+```ts path=src/use-cases/work-items/entries/update-profile.ts
+import { defineBoundary } from '@/boundary'
+import { UpdateUserSchema, UserSchema } from '@/domain/user/profile'
+import { updateUserProfileOperation } from '../operations/update-profile'
 
 export const updateUserProfile = defineBoundary({
   name: 'updateUserProfile',
@@ -40,8 +46,6 @@ export const updateUserProfile = defineBoundary({
 })
 ```
 
-Direction alone is not enough: a forward with no declaration behind it holds nothing.
+Direction is not depth: an operation that only forwards holds nothing, and no declaration around it changes that. `profileEdit` earns the file.
 
-Enforce direction with lint, guarding paths that exist. Resolving specifiers beats matching them, with a guard for unresolvable imports.
-
-Reference: dependency rule from Clean Architecture, applied at compile time.
+Reference: the dependency rule, applied at compile time.

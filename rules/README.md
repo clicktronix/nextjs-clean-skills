@@ -10,9 +10,18 @@ what to do; these make the machine-checkable part of it fail loudly when it does
 | [`eslint-boundaries-resolved.mjs`](./eslint-boundaries-resolved.mjs) | tier two: the same contract as resolved file paths | copying it in **with `import-table.json` beside it**, after tier one |
 
 `scripts/validate-contract-sync.mjs` closes the gap neither tier can see: the matrix proves the
-*config* matches the *table*, and says nothing about the prose an agent actually reads. It fails
-CI when the layer table in `placement/layers-and-imports.md` grants an edge these rules forbid,
-when a layer has no documented row, or when a row documents a layer nothing enforces.
+*config* matches the *table*, and says nothing about the documents an agent actually reads. Both the
+layer table in `placement/layers-and-imports.md` and the contract block in the always-loaded
+`SKILL.md` are **generated** from `root` and `mayImport`; the check fails CI when either drifts, and
+`--fix` rewrites them. An earlier version compared two hand-written labels instead, so it proved
+only that they matched each other — renaming a layer in both passed, and so did documenting "same
+as inbound" while the permissions diverged.
+
+Reference **examples** are linted too. A fence tagged `path=src/…` is written into the matrix
+sandbox and linted as the file it claims to be, in all three tiers, with `expect=error` for a
+deliberate counter-example. That class shipped twice — most damagingly a CRITICAL reference whose
+"Correct" example showed an edge the lint rejects, in a release whose headline finding was a
+template teaching the wrong shape.
 
 `npm run validate` generates a source × target matrix from `import-table.json` and lints every
 pair for real — static, `import()` and `require()` spellings — so a permitted edge that errors and

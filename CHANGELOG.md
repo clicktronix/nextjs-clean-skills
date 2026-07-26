@@ -84,9 +84,11 @@ All notable changes to this project are documented in this file.
   the allowlist becomes the definition — a client cache legitimately owns browser transports for
   auth, realtime, and streams — and the exclusions disappear.
 - **Replaced the canonical "Correct" example.** The previous `clean-architecture-boundaries.md`
-  showed a bare forwarding function as the model to copy. The replacement still has a one-line
-  body — what changed is that a wrapper now stands behind it, so the thin body carries validation,
-  failure normalisation, and single-report telemetry. An unwrapped forward remains the defect.
+  showed a bare forwarding function as the model to copy. It is now two files — an operation with a
+  pure decision in it, and the declaration that wraps it — and both are linted against the layer
+  table in CI. A thin *declaration* is legitimate, because the combinator supplies validation,
+  failure normalisation and single-report telemetry. A thin *operation* is not: nothing stands
+  behind it, so it is the empty layer this release exists to remove.
 - **Error model.** Use-cases previously threw and each inbound adapter classified independently.
   The rule is now one classification, produced once at the application boundary and translated per
   channel; the returned-value carrier is a recommendation argued from the serialization constraint,
@@ -287,12 +289,23 @@ All notable changes to this project are documented in this file.
 - New `validate-rules.mjs` imports every module under `rules/` and asserts its flat-config shape,
   so the executable artefact is itself executed by CI.
 - `lint-docs-review-markers.mjs` covers `docs/evidence.md`.
-- New `validate-contract-sync.mjs` — the reference an agent reads and the table CI enforces must
+- New `validate-contract-sync.mjs` — the documents an agent reads and the table CI enforces must
   say the same thing. Nothing checked that before: the matrix proves the config matches the table
-  and is blind to the prose, which is how a CRITICAL reference came to grant a use-case the union
-  of both surfaces' permissions and to show, as its "Correct" example, an edge the lint rejects.
-  The check is one-directional — prose may be vaguer than the table, never more permissive — and
-  it also fails on a layer with no documented row, or a row documenting a layer nothing enforces.
+  and is blind to the prose, which is how a CRITICAL reference came to grant a use-case the union of
+  both surfaces' permissions. The layer table and the always-loaded contract block are now
+  **generated** from `root` and `mayImport`, with `--fix` to rewrite them, so a documented label can
+  no longer drift from the root actually enforced. A first version compared two hand-written labels
+  and was refuted by mutation: renaming a layer in both places passed, and so did documenting "same
+  as inbound" while the permissions diverged.
+- **Reference examples are linted as files.** A fence tagged `path=src/…` is written into the matrix
+  sandbox and linted in all three tiers (`expect=error` marks a counter-example). The example in
+  `layers-and-imports.md` had shown an operation and its declaration in one file, which no layer
+  permits — an entry may not import data, an operation may not import the combinator — and its body
+  was the empty forward this release exists to remove. It is now two linted files with a pure
+  decision in the operation.
+- `validate-scenarios.mjs` checks the coverage inventory against the files on disk: a scenario
+  listed twice, listed but absent, or present but unclaimed all fail. It had carried
+  `route-handlers` as both a hypothesis and untested.
 - New `rules/eslint-boundaries-resolved.mjs` — a second enforcement tier that compares **resolved**
   file paths through `import/no-restricted-paths`, with its zones derived from `import-table.json`
   so there is no second copy of the contract. It covers every spelling of a target at once, and

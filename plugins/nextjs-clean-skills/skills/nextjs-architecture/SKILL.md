@@ -40,16 +40,26 @@ Runtime entry per need:
   read (client) island -> client-cache -> action
   service/stream caller -> Route Handler
 
-Compile-time imports:
-  domain          pure helpers and schema libraries only
-  use-cases       operations/: domain, ports, data · entries/: domain, boundary, own operations
-  data            domain only
-  inbound         use-case entries/, data, outbound factories, infrastructure
-  outbound        port types plus domain
-  server UI/RSC   server-only read entrypoints
-  client UI       client-cache hooks, local actions, domain types
-  infrastructure  domain and technical libraries
 ```
+
+<!-- contract:imports -->
+```text
+Compile-time imports (generated from rules/import-table.json):
+  domain/**                  nothing in src/
+  use-cases/*/operations/**  domain, ports, data
+  use-cases/*/entries/**     domain, boundary, use-case-operations
+  data/**                    domain
+  adapters/outbound/**       domain, ports
+  adapters/inbound/**        domain, ports, data, outbound, infrastructure, read, boundary, use-case-entries
+  adapters/inbound/read/**   domain, ports, data, outbound, infrastructure, inbound, boundary, use-case-entries
+  client-cache/**            domain, inbound
+  ui/**                      domain, client-cache, ui
+  app/**                     domain, read, inbound, ui, client-cache (prefetch only)
+  infrastructure/**          domain
+  ports/**                   domain
+  boundary/**                domain
+```
+<!-- /contract:imports -->
 
 Inbound adapters calling use-cases is correct. The forbidden direction is use-cases importing inbound adapters, outbound adapters, database clients, React, TanStack Query, or Next.js request/cache APIs.
 

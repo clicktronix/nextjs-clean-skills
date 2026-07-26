@@ -26,7 +26,7 @@ Use these terms consistently. Do not redefine them in feature code.
 
 Two confusions worth naming.
 
-**Direction is not depth.** Imports pointing the right way say nothing about whether a module holds behaviour. A correctly placed function that forwards its arguments with no wrapper behind it is still an empty layer — a thin body is only legitimate when a wrapper supplies guarantees the caller would otherwise repeat.
+**Direction is not depth.** Imports pointing the right way say nothing about whether a module holds behaviour. A thin *declaration* is legitimate: the combinator behind it supplies guarantees the caller would otherwise repeat. A thin *operation* is not — nothing stands behind it, so it is an empty layer.
 
 **A seam is not a folder.** Creating a directory named after a layer does not create a substitution point, and a contract with one implementation is indirection wearing the vocabulary of a seam.
 
