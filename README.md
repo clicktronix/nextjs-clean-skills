@@ -97,7 +97,8 @@ their local equivalents unless the task requests a migration.
   contract, plus a note on the depth failures no lint rule can catch.
 - **Architecture**: Hybrid Clean Architecture with domain, use-cases (only where a scenario is warranted), inbound/outbound adapters, server-only read entrypoints, a client cache tier, and thin `app/` entrypoints.
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
-- **Reads**: Server Components through server-only DAL/read use-cases by default.
+- **Reads**: Server Components through server-only read entrypoints; add a use-case only when the
+  read owns application behaviour.
 - **Client cache**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or a shared async cache lifecycle across client islands.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
 - **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
@@ -110,8 +111,8 @@ maps, use the human-facing docs:
 
 - [Architecture Contract](docs/architecture-contract.md) — layer graph, runtime flow,
   command/query boundaries, auth boundary, persistence, and state ownership.
-- [Agent Decision Maps](docs/agent-decision-maps.md) — compact flowcharts for prompting and
-  reviewing coding agents.
+- [Architecture Decision Maps](docs/agent-decision-maps.md) — compact placement and review
+  flowcharts for contributors and coding agents.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.

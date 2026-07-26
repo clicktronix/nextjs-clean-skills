@@ -1,53 +1,39 @@
-# Architecture Docs
+# Architecture Documentation
 
-Human-facing architecture notes for `nextjs-clean-skills`.
+Human-facing documentation for `nextjs-clean-skills`.
 
-These documents explain the architecture contract behind the skills. They are not loaded by
-Claude Code or Codex automatically and should not be copied into `SKILL.md`. Keep the skills
-short and operational; use these docs when onboarding a team, reviewing a feature slice, or
-explaining why the boundaries exist.
+Start with [Architecture Contract](./architecture-contract.md). It defines the structure and the
+non-negotiable dependency rules. Use [Decision Maps](./agent-decision-maps.md) while placing a
+change. Open [Evidence](./evidence.md) only when reviewing or challenging a rule.
 
-## Audience
-
-| Document | Read this when you... |
+| Document | Purpose |
 | --- | --- |
-| [Architecture Contract](./architecture-contract.md) | join the team, plan a major feature, review architecture, write an ADR, or need to explain *why* a layer rule exists |
-| [Agent Decision Maps](./agent-decision-maps.md) | configure a coding agent, review an agent-generated PR, or onboard a new contributor to placement decisions |
-| [Evidence](./evidence.md) | question a rule, propose changing one, or need the counts a rule was derived from |
+| [Architecture Contract](./architecture-contract.md) | The architecture a team adopts |
+| [Decision Maps](./agent-decision-maps.md) | Placement, port, use-case, and boundary decisions |
+| [Evidence](./evidence.md) | Sources, measurements, and explicit judgement |
+| [`rules/`](../rules/) | The part of the contract enforced by ESLint |
 
-## Documents
+## Sources Of Truth
 
-- [Architecture Contract](./architecture-contract.md) — layer model, dependency direction, why a
-  port is not automatic, why one declaration, runtime flow, security boundary, data ownership,
-  persistence rules, and the **rationale** behind each forbidden import.
-- [Agent Decision Maps](./agent-decision-maps.md) — compact flowcharts for coding agents and
-  reviewers to decide where code belongs before editing, plus a copy-paste prompt add-on.
-- [Evidence](./evidence.md) — what each rule is based on: measured, canonical, or judgement, with
-  the command behind every count. A rule whose evidence no longer reproduces is a rule to revisit.
-- [`rules/`](../rules/) — the executable half: an ESLint boundaries config encoding the layer
-  contract, and an explicit list of what it cannot check.
+- `docs/architecture-contract.md` is the human contract.
+- `rules/import-table.json` is the executable import contract.
+- Skill references are operational instructions for coding agents.
+- `docs/evidence.md` explains why a rule exists; it does not create rules.
 
-## Maintenance Rule
+A disagreement between these surfaces is a defect. Do not resolve it by choosing the convenient
+one. Fix all affected surfaces in the same change.
 
-When you change a diagram or rationale:
+## Maintenance
 
-1. **If the change adds, removes, or modifies a rule** that agents must follow during
-   implementation (e.g. a new layer, a new forbidden import, a new boundary type), update both
-   the diagram **and** the matching skill reference in the same PR. The skills are operational;
-   docs-only changes leave them stale and an agent will follow the wrong rule.
-2. **If the change only adds rationale, visualization, or onboarding context**, keep it in docs
-   only.
-3. **If the change asserts something measurable**, put the measurement in
-   [Evidence](./evidence.md) with the command that produced it. An assertion without a count is
-   an opinion, and the next reader cannot check it.
-4. The PR description must call out whether this is a docs-only change or a docs+skill change,
-   so reviewers know which validation surface to check (`npm run validate` for skill changes;
-   visual review for docs-only).
+For an architecture change:
 
-**Stale rule symptom:** a skill reference says "X" but a doc diagram shows "Y". Treat that
-mismatch as a doc bug — the skills are the operational source of truth, the docs explain why.
+1. Change the human contract.
+2. Change `rules/import-table.json` when the rule is enforceable.
+3. If a layer root changed, update its row label in the placement reference.
+4. Regenerate permissions and the skill contract with
+   `node scripts/validate-contract-sync.mjs --fix`.
+5. Update the relevant reference and scenario.
+6. Run `npm run validate`.
 
-## Last Reviewed
-
-These documents are maintained alongside the `nextjs-clean-skills` plugin. Last reviewed
-against the live skill set: 2026-07-26 (skill version 2.0.0).
+Keep release history in `CHANGELOG.md`, implementation procedures in skill references, and
+measurements in `evidence.md`. Do not copy those into the architecture contract.

@@ -1,141 +1,107 @@
-# Agent Decision Maps
+# Architecture Decision Maps
 
-Use these diagrams when prompting or reviewing coding agents. They are intentionally compact:
-the goal is to force placement decisions before code changes, not to restate framework docs.
+Use these maps during design and review. They derive from
+[Architecture Contract](./architecture-contract.md); they do not define a second contract.
 
-## Feature Slice Build Order
-
-Arrows in this diagram mean implementation order, not import direction. See
-[Architecture Contract](./architecture-contract.md) for dependency direction.
+## Place New Code
 
 ```mermaid
-flowchart LR
-  Domain["1 Domain\nschema + pure rules"] -->|build next| Seam["2 Seam decision\nport only if warranted"]
-  Seam -->|build next| Data["3 Data module or adapter"]
-  Data -->|build next| UseCase["4 Use-case\nonly if there is one"]
-  UseCase -->|build next| Inbound["5 Inbound adapter\nAction or Route Handler"]
-  Inbound -->|build next| UIState["6 Client cache or local action"]
-  UIState -->|build next| UI["7 UI component/page"]
-  UI -->|build next| Tests["8 Tests by layer"]
-```
-
-Two steps are conditional, and that is deliberate. A port exists only when the core needs a
-capability stated independently of the technology behind it; a use-case exists only when it would
-hold logic of its own. Building either unconditionally is what produces layers full of forwarding.
-
-Agent prompt guardrail:
-
-> Implement in this order and stop if a lower layer needs to import a higher layer.
-
-## Does This Dependency Get A Port?
-
-```mermaid
-flowchart TD
-  Dep["New external dependency"] --> Cap{"Must the scenario run\nindependently of this technology?"}
-  Cap -->|No| NoPort["No port: a module in data/.\nTests hit the real engine"]
-  Cap -->|Yes| Shape{"Does the contract read as a capability,\nnot a table or an SDK?"}
-  Shape -->|No| NoPort
-  Shape -->|Yes| Owned{"Do we own it?"}
-  Owned -->|Yes| Port["Port + production adapter + fake"]
-  Owned -->|"No - third party"| Mock["Port + mock adapter"]
-  NoPort --> Orchestrate{"Does one scenario combine\nseveral sources without the DB?"}
-  Orchestrate -->|Yes| Narrow["Narrow role port for that scenario only"]
-  Orchestrate -->|No| Done["Done"]
-```
-
-> A port over an engine that already runs locally is usually indirection, not a seam. When the
-> real engine already runs locally, the port hides your own queries and a green suite can sit on
-> a broken filter or a wrong policy.
-
-## Where Does This Code Go?
-
-```mermaid
-flowchart TD
-  Need["New code needed"] --> Owner{"Which capability owns it?"}
-  Owner -->|Unclear| Stop["Resolve ownership first"]
-  Owner -->|Named| Pure{"Pure business rule/schema?"}
+flowchart TB
+  Start["New code"] --> Owner{"Which business capability owns it?"}
+  Owner -->|Unknown| Stop["Stop and name the owner"]
+  Owner -->|Known| Pure{"Pure schema, invariant,\nor transformation?"}
   Pure -->|Yes| Domain["domain/"]
-  Pure -->|No| Holds{"Would deleting it\nconcentrate complexity?"}
-  Holds -->|Yes| UseCase["use-cases/: operations/ + entries/"]
-  Holds -->|"No - holds nothing"| Framework{"Reads cookies, headers,\nrequest, cache, formData?"}
-  Framework -->|Yes| InboundOrRead{"Read or command?"}
-  InboundOrRead -->|Read| ReadEntry["server-only read entrypoint"]
-  InboundOrRead -->|Command| Inbound["adapters/inbound/next/"]
-  Framework -->|No| Reusable{"Reusable across many\nslices?"}
-  Reusable -->|Yes| Infra["infrastructure/"]
-  Reusable -->|No| Persistence{"Talks to a store or service?"}
-  Persistence -->|"Yes, and it has a port"| Outbound["adapters/outbound/"]
-  Persistence -->|"Yes, no port needed"| Data["data/"]
-  Persistence -->|No| Presentation{"Presentation concern?"}
-  Presentation -->|Yes| UI["app/ or ui/"]
-  Presentation -->|No| Place["place with owning layer"]
+  Pure -->|No| Framework{"Reads request, cookies, headers,\ncache, stream, or FormData?"}
+  Framework -->|Yes, read| Read["adapters/inbound/read/"]
+  Framework -->|Yes, command/event| Inbound["adapters/inbound/"]
+  Framework -->|No| Scenario{"Does deleting the module\nmove complexity to callers?"}
+  Scenario -->|Yes| UseCase["operation + entry"]
+  Scenario -->|No| Remaining["Classify the remaining responsibility"]
 ```
 
-> Disambiguator: shared technical plumbing that serves no single capability (env validation,
-> logger, cache tag taxonomy, query client setup) belongs in `infrastructure/`. Per-capability
-> data access goes to `data/` when the dependency runs locally in the test suite and needs no
-> port, and to `adapters/outbound/` when it sits behind one — see "Does This Dependency Get A
-> Port?" above. Use-cases may import `data/`; an outbound adapter always arrives from the
-> composition root.
+| Responsibility | Layer |
+| --- | --- |
+| Application capability contract | `ports/` |
+| Local store access without a port | `data/` |
+| Port implementation | `adapters/outbound/` |
+| Shared application-boundary combinator | `boundary/` |
+| Shared technical plumbing | `infrastructure/` |
+| Presentation or browser lifecycle | `app/`, `ui/`, or `client-cache/` |
 
-## Server Action vs Route Handler
+## Decide Whether A Use-Case Exists
 
 ```mermaid
-flowchart TD
-  Command["Command boundary"] --> Caller{"Who calls it?"}
-  Caller -->|Form/button in this Next.js UI| Action["Server Action"]
-  Caller -->|Browser client needing query lifecycle| ClientCache["TanStack mutation -> inbound action/API"]
-  Caller -->|External service, mobile app, CLI, webhook sender| Route["Route Handler"]
-  Caller -->|"Long-lived response (SSE)"| Stream["Route Handler - never a Server Action"]
-  Route --> Retry{"Can the caller retry?"}
-  Retry -->|Yes| Idempotency["Require Idempotency-Key or provider event id"]
-  Retry -->|No| Envelope["Return JSON envelope + request id"]
+flowchart TB
+  Change["Candidate application module"] --> Delete{"Delete it"}
+  Delete --> Repeat{"Do callers now repeat or absorb\norchestration, rules, or projection?"}
+  Repeat -->|No| Remove["No use-case\nDeclare the direct call at inbound/read"]
+  Repeat -->|Yes| Operation["Operation owns that behaviour"]
+  Operation --> Entry["Entry declares the operation"]
+  Entry --> Check{"Does the operation still\nonly forward arguments?"}
+  Check -->|Yes| Remove
+  Check -->|No| Keep["Keep the use-case"]
 ```
 
-## Review Checklist For Agent Output
+Line count is not the criterion. The question is whether the module owns behaviour.
+
+## Decide Whether A Port Exists
 
 ```mermaid
-flowchart TD
-  Start["Review changed files"] --> Forward{"Any forwarding function\nwith no declaration behind it?"}
-  Forward -->|Yes| Block["Block: empty layer"]
-  Forward -->|No| Imports{"Use-case imports adapters/framework?"}
-  Imports -->|Yes| Block
-  Imports -->|No| Unused{"Any new module with no\nproduction call site?"}
-  Unused -->|Yes| Block
-  Unused -->|No| Twice{"Same schema parsed twice\non one path?"}
-  Twice -->|Yes| Block
-  Twice -->|No| Auth{"Data access re-verifies auth/authz?"}
+flowchart TB
+  Dependency["Dependency needed"] --> Independent{"Must the core state the capability\nindependently of its technology?"}
+  Independent -->|No| Local{"Runs locally from\nchecked-in migrations?"}
+  Local -->|Yes| Data["Use data/ and test the engine"]
+  Local -->|No| Boundary["Keep it outside the core\nat inbound or infrastructure"]
+  Independent -->|Yes| Language{"Contract uses application language,\nnot CRUD or SDK methods?"}
+  Language -->|No| Redesign["Redesign the capability"]
+  Language -->|Yes| Real{"Real consumer and production\nimplementation exist now?"}
+  Real -->|No| Defer["Defer the abstraction"]
+  Real -->|Yes| Port["Declare port + outbound adapter"]
+```
+
+Owned and third-party remote services normally follow the port path. A local store normally follows
+the data path. These are defaults; the three questions decide.
+
+## Choose The Framework Boundary
+
+```mermaid
+flowchart TB
+  Need["Work enters the application"] --> External{"External API or webhook?"}
+  External -->|Yes| Route["Route Handler<br/>verify + make retries safe"]
+  External -->|No| Long{"Long-lived response?"}
+  Long -->|Yes| Stream["Route Handler<br/>resume + cancellation"]
+  Long -->|No| Durable{"Durable background work?"}
+  Durable -->|Yes| Job["Queue or workflow"]
+  Durable -->|No| Read{"Initial read?"}
+  Read -->|Yes| RSC["RSC + authenticated read entrypoint"]
+  Read -->|No| Browser{"Browser-managed async lifecycle?"}
+  Browser -->|Yes| Cache["client-cache/"]
+  Browser -->|No| Action["Server Action"]
+```
+
+Use `client-cache/**` only for realtime, polling, optimistic updates, infinite loading, or shared
+browser cache lifecycle. A normal initial read stays server-side.
+
+## Review A Change
+
+```mermaid
+flowchart TB
+  Start["Review changed files"] --> Owner{"Every file has a slice and layer?"}
+  Owner -->|No| Block["Request changes"]
+  Owner -->|Yes| Imports{"Imports follow the layer contract?"}
+  Imports -->|No| Block
+  Imports -->|Yes| Empty{"Any operation fails the deletion test?"}
+  Empty -->|Yes| Block
+  Empty -->|No| Boundary{"Entry validates, normalises,\nand reports once?"}
+  Boundary -->|No| Block
+  Boundary -->|Yes| Auth{"Server paths re-check auth and scope?"}
   Auth -->|No| Block
-  Auth -->|Yes| ServerData{"Server data placed in client store?"}
-  ServerData -->|Yes| Block
-  ServerData -->|No| Tests{"Tests assert outcomes,\nnot call mechanics?"}
-  Tests -->|No| RequestTests["Request focused tests"]
-  Tests -->|Yes| Accept["Accept architecture shape"]
+  Auth -->|Yes| State{"Server data has one cache owner?"}
+  State -->|No| Block
+  State -->|Yes| Tests{"Tests cover outcomes at the changed boundary?"}
+  Tests -->|No| Block
+  Tests -->|Yes| Accept["Architecture shape is sound"]
 ```
 
-## Copy This Block To Your Agent's System Prompt
-
-> Paste verbatim into the system prompt, agent rules file, or CLAUDE.md instructions.
-> It forces architecture classification before code edits, which catches misplaced files
-> at planning time instead of review time.
-
-```text
-Before editing, classify the change:
-- slice: which capability owns this behaviour
-- layer: domain | use-case | data | outbound | inbound | read-entry | client-cache | UI | infrastructure
-- dependency category: in-process | local-substitutable | remote-owned | external
-- adapters today: how many implementations exist now
-- behavior owned: what this module does that callers would otherwise repeat
-- authority: store | owned service | application
-- auth boundary: where the session and role are re-verified server-side
-- boundary: RSC read | Server Action | Route Handler | stream | webhook | job
-- cache owner: rsc | client-cache | shared-server-cache | none
-
-Then implement in layer order. Do not import outbound adapters from use-cases.
-If "behavior owned" is empty, do not create the module.
-```
-
----
-
-*Last reviewed against the live skill set: 2026-07-26 (skill version 2.0.0). When a skill rule
-or template pattern changes, refresh this document in the same PR.*
+For implementation details, use the matching skill reference. Do not copy these maps into
+`AGENTS.md`, `CLAUDE.md`, or a system prompt; that creates another contract copy that will drift.

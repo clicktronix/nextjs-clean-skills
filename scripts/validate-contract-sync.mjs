@@ -7,8 +7,9 @@
 // permissions diverged passed. Both were found by mutation, so the labels are gone: the expected
 // text is now GENERATED from `root` and `mayImport`, and the documents must contain it verbatim.
 //
-// `--fix` writes the generated text into both documents, which is how they are meant to be edited:
-// change the table, run the fixer, review the diff.
+// `--fix` writes generated permissions and the complete SKILL block. A root rename is structural:
+// update the reference row deliberately, then run the fixer. Writes are atomic across validation —
+// a structural error must not leave one document updated and the other stale.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fail, readJson, root } from './_lib.mjs'
@@ -57,6 +58,7 @@ const referenceRows = referenceText
 const pathsIn = (cell) => [...cell.matchAll(/`([^`]+)`/g)].map((match) => match[1])
 const claimed = new Set()
 const referenceLines = referenceText.split('\n')
+let referenceChanged = false
 
 for (const name of names) {
   const expected = permissions(name)
@@ -79,6 +81,7 @@ for (const name of names) {
     const cells = [...row.cells]
     cells[cells.length - 1] = expected
     referenceLines[row.index] = `| ${cells.join(' | ')} |`
+    referenceChanged = true
   } else {
     errors.push(
       `${REFERENCE}: the row for \`${label(name)}\` documents "${actual}" but rules/import-table.json permits "${expected}". Run \`node scripts/validate-contract-sync.mjs --fix\` after deciding which is right.`
@@ -94,8 +97,6 @@ for (const row of referenceRows) {
   }
 }
 
-if (fixing) write(REFERENCE, referenceLines.join('\n'))
-
 // ------------------------------------------------- the always-loaded compile-time contract block
 
 const width = Math.max(...names.map((name) => label(name).length))
@@ -109,6 +110,7 @@ const block = [
 ].join('\n')
 
 const skillText = readText(SKILL)
+let nextSkillText = skillText
 const start = skillText.indexOf(OPEN)
 const end = skillText.indexOf(CLOSE)
 if (start === -1 || end === -1) {
@@ -118,7 +120,8 @@ if (start === -1 || end === -1) {
 } else {
   const actual = skillText.slice(start, end + CLOSE.length)
   if (actual !== block) {
-    if (fixing) write(SKILL, skillText.slice(0, start) + block + skillText.slice(end + CLOSE.length))
+    if (fixing)
+      nextSkillText = skillText.slice(0, start) + block + skillText.slice(end + CLOSE.length)
     else
       errors.push(
         `${SKILL}: the compile-time block does not match rules/import-table.json. Run \`node scripts/validate-contract-sync.mjs --fix\`.`
@@ -127,6 +130,10 @@ if (start === -1 || end === -1) {
 }
 
 fail(errors)
+if (fixing) {
+  if (referenceChanged) write(REFERENCE, referenceLines.join('\n'))
+  if (nextSkillText !== skillText) write(SKILL, nextSkillText)
+}
 console.log(
   fixing
     ? `contract sync written (${names.length} layers -> ${REFERENCE}, ${SKILL})`

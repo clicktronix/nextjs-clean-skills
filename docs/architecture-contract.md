@@ -1,276 +1,192 @@
 # Architecture Contract
 
-This document is the human-readable model behind the `nextjs-architecture` and
-`react-component-creator` skills. The skills are short operational guardrails; this document is
-the rationale and visual map for teams.
+This is the human-readable architecture behind `nextjs-architecture` and
+`react-component-creator`. It defines ownership and dependency direction. Skill references contain
+the implementation procedures.
 
-> **Terms:** seam, port, adapter, dependency category, declaration, read entrypoint, row type,
-> client cache — all defined in [`glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
-> Open it side-by-side if any term feels unfamiliar.
+The default profile is Next.js App Router with TypeScript. Existing projects keep equivalent tools
+and names unless a migration is explicitly requested.
 
-> **Measurements:** where a rule came from a count rather than from a canonical source or from
-> judgement, [Evidence](./evidence.md) records which, with the command that produced it.
+## Model
 
-## Purpose
+Every file has two coordinates:
 
-The architecture combines Next.js App Router with ports-and-adapters discipline, applied to an
-application whose **business authority usually sits behind a seam** — in stored functions plus
-row-level policies, or in a separate service the team owns.
+- **Slice:** the business capability that owns the behaviour.
+- **Layer:** the responsibility the file performs.
 
-- Next.js owns routing, rendering, Server Actions, Route Handlers, and cache APIs.
-- The application owns domain rules, scenario orchestration, seam contracts, and authorization
-  decisions it can make before the store is reached.
-- Framework entrypoints compose dependencies; use-cases do not import framework or adapter code.
+Slices are vertical: `work-items`, `campaigns`, `chat`. Layers are horizontal: domain, application,
+adapters, and presentation. A file with no clear slice or layer is not ready to be created.
 
-This is a role map, not a package migration recipe. Package names describe the default profile;
-existing repositories keep their established equivalents unless migration is requested.
+## Compile-Time Dependencies
 
-## Two Axes, Not Three
-
-Placement needs two answers: which **capability** owns the behaviour, and which **responsibility**
-the code has. Both must be answerable before a file exists.
-
-A third axis — reuse tiers across several products or business lines — is deliberately absent.
-It pays for itself only when several products ship from one tree. Here the product is the
-repository, so a reuse tier would add a placement question with no correct answer.
-
-## Layer Dependency Graph
-
-Solid arrows are compile-time imports; the dotted edge is a runtime relationship.
-
-```mermaid
-flowchart LR
-  subgraph Presentation["Presentation"]
-    RSC["app/ server entrypoints"]
-    ClientUI["client UI components"]
-  end
-  subgraph ClientServerBridge["Client cache tier"]
-    ClientCache["client-cache/"]
-    LocalActions["feature-local actions.ts"]
-  end
-  subgraph Server["Server entrypoints"]
-    ReadEntry["server-only read entrypoints"]
-    Inbound["adapters/inbound/next/"]
-    Factories["outbound factories\ncomposition root"]
-  end
-  subgraph Application["Application core"]
-    UseCases["use-cases/\nentries + operations"]
-    Domain["domain/\nschemas + pure rules"]
-  end
-  subgraph Persistence["Data + integrations"]
-    Data["data/\nstore, no port"]
-    Outbound["adapters/outbound/\nported services, streams"]
-  end
-
-  RSC --> ReadEntry
-  ClientUI --> ClientCache
-  ClientUI --> LocalActions
-  ClientCache --> Inbound
-  LocalActions --> Inbound
-  ReadEntry --> UseCases
-  Inbound --> UseCases
-  Inbound --> Factories
-  Factories --> Outbound
-  UseCases --> Data
-  ReadEntry --> Data
-  Inbound --> Data
-  UseCases --> Domain
-  Data --> Domain
-  Outbound --> Domain
-  UseCases -. "calls, at runtime, whatever the root supplied" .-> Outbound
-```
-
-Read the dotted edge carefully: it applies to dependencies that genuinely need a contract at the
-seam. A store that runs locally in the test suite defaults to no port — the data module is called
-directly by the composition root and by the operations that orchestrate it. That is a default the
-four questions can override, not a ban.
-
-### Why these imports are forbidden
-
-The skill references state the rules. This section preserves **why**, so that next year the
-rationale is still available.
-
-- **`domain/` imports nothing project-specific.** Schemas and rules must keep working across
-  runtimes, tests, workers, and future deploy targets. The day a domain schema imports a request
-  API, domain logic cannot be unit-tested without a request context and cannot be reused in a
-  worker or a CLI.
-
-- **`use-cases/` cannot import adapters or framework APIs.** Use-cases describe *what* must
-  happen; adapters decide *how*. An application function that imports a concrete client ties
-  scenario logic to one runtime and one vendor at once.
-
-- **Client Components cannot import server-only modules.** This is a build-time guard against
-  bundling secrets, privileged clients, or session decoders into the browser. One forbidden
-  import can put a privileged key in public JavaScript.
-
-- **Inbound adapters MAY import outbound factories.** This is the composition root: something has
-  to supply concrete implementations, and only the request boundary holds the request. The rule
-  is one-way — outbound never imports inbound, and use-cases never import either.
-
-### Why direction alone is not enough
-
-Every one of the rules above can hold while the code is still wrong. A function placed in the
-right layer, importing only what it may, that forwards its arguments to the next layer and
-returns the result, satisfies the dependency rule and holds nothing.
-
-That is the failure 2.0.0 targets, and it is measured rather than asserted: see
-[Evidence](./evidence.md), which also marks the rules that rest on judgement instead. Direction is checkable by lint; depth is not, which is exactly why it
-needs to be a written rule and a review question.
-
-## Why A Port Is Not Automatic
-
-Ports are for capabilities the core must state independently of the technology behind it. A
-database sits outside the process even when it runs locally — the canonical pattern is clear about
-that — but externality alone does not earn a port. The canonical pattern sets no port count either:
-Cockburn calls that "a matter of intuition" with "no particular damage" in getting it wrong. "Not
-one per stored entity" is our rule, and the reason is below.
-
-Four ordered questions decide it: must the scenario run independently of this technology; does
-the contract read as a purposeful conversation in the application's language rather than a table's
-CRUD or an SDK's method list; is there a real consumer and a production implementation today. If
-all hold, the port is justified — and a test adapter counts as an adapter, so production variation
-is not required.
-
-| Dependency | Default |
-| --- | --- |
-| pure computation | no port |
-| store with a local engine + migrations | no port — a module in `data/`, tested against the engine |
-| owned service over the network | port |
-| third-party service | port |
-
-**The store row is a default, not a ban.** What it buys is measured: when a substitute stands in
-for your own queries, a broken filter, a wrong policy, or a drifted column list stays green. A port
-declared over a local engine still owes integration tests against the real one.
-
-**The application does not need a container.** Closures and an explicit request context provide
-constructor injection, scoping, decoration, and test doubles. A registry earns its place only at
-a scale this shape of application does not reach; the thresholds are written down in the skill so
-the decision can be revisited with evidence rather than taste.
-
-## Why One Declaration
-
-Cross-cutting concerns at the application seam — validating the declared input and output,
-turning any failure into a value, reporting it once — are the same work for every scenario.
-Written per entry point, they diverge: the action path, the route path, and the render path each
-grow their own arrangement, and a fourth channel means writing the rules a fourth time.
-
-Written once, they also make a thin scenario body legitimate: the leverage is in the guarantees,
-not the line count.
-
-Two guardrails, both learned the hard way. **The declaration knows nothing about the framework.**
-It may import domain only, and navigation is implemented by throwing — so `redirect()` and
-`notFound()` belong outside it: the boundary returns a value, the entry point navigates. A boundary
-that recognised framework signals would have to import the framework, which is precisely what the
-layer exists to keep out. **A declaration never calls another declaration.** Composition goes
-through the slice's `operations/**` surface — typed functions that throw and report nothing — so
-the failure is normalised and reported once, at the outermost declaration, instead of twice under
-an inner one's name.
-
-## Runtime Flow vs Import Direction
+Arrows mean imports. Runtime calls are shown separately.
 
 ```mermaid
 flowchart TB
-  subgraph Runtime["Runtime call flow"]
-    Form["User submits form"] --> Action["Server Action"]
-    Action --> Compose["compose data access"]
-    Compose --> UseCase["call use-case"]
-    UseCase --> Data["store / service"]
-  end
-
-  subgraph CompileTime["Compile-time imports"]
-    ActionFile["server-actions/*.ts"] --> EntryFile["use-cases/*/entries/*.ts"]
-    ActionFile --> DataFile["adapters/outbound/*.ts"]
-    EntryFile --> OperationFile["use-cases/*/operations/*.ts"]
-    OperationFile --> DomainFile["domain/*"]
-  end
+  Presentation["app/ · ui/ · client-cache/"] --> Delivery["inbound/ · inbound/read/"]
+  Delivery --> Scenario{"Application scenario?"}
+  Scenario -->|Yes| Entries["entries/<br/>boundary declaration"]
+  Entries --> Operations["operations/<br/>application behaviour"]
+  Scenario -->|No| Direct["boundary declaration<br/>around the direct call"]
+  Operations --> Access["data/ or ports/"]
+  Direct --> Access
+  Access --> Data["data/"]
+  Access --> Ports["ports/"]
+  Data --> Domain
+  Ports --> Domain["domain/"]
+  Outbound["adapters/outbound/"] --> Ports
+  Delivery -. "technical dependency" .-> Infrastructure["infrastructure/"]
+  Infrastructure --> Domain
 ```
 
-Runtime descends through more steps than the import graph has edges, because the composition root
-hands implementations downward. The violation is the opposite direction.
+The diagram shows the main direction, not every legal edge. The table below and the generated
+reference contain the exact import contract.
 
-## Command And Query Boundaries
+The complete enforced matrix is in
+[`references/placement/layers-and-imports.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/placement/layers-and-imports.md).
+The rules with the highest architectural weight are:
 
-```mermaid
-flowchart TD
-  Need["Need data or mutation?"] --> Kind{"What kind?"}
-  Kind -->|Read-heavy UI| RSC["Server Component\nserver-only read entrypoint"]
-  Kind -->|Client interactive read| Query["client-cache\nkeyed copy, opt-in"]
-  Kind -->|User form/button command| Action["Server Action"]
-  Kind -->|External API / service client| Route["Route Handler\nJSON envelope + request id"]
-  Kind -->|Webhook| Webhook["Route Handler\nraw body + signature"]
-  Kind -->|Long-lived response| Stream["Route Handler\nresume, idle timeout, cancellation"]
-  Kind -->|Long-running work| Queue["Durable job/queue"]
-```
-
-Streaming is its own boundary, not a slow request: it cannot run through a Server Action, it is
-resumed rather than retried, and failures after the first byte travel inside the stream.
-
-## Security Boundary
-
-```mermaid
-flowchart LR
-  Proxy["src/proxy.ts\nrefresh session, redirect, headers"] --> App["app/ route"]
-  App --> Entry["server-only read entrypoint / inbound adapter"]
-  Entry --> Verify["verify auth + role + tenant"]
-  Verify --> UseCase["use-case"]
-  UseCase --> Data["outbound data access"]
-  Data --> Policy["row-level policies"]
-
-  Proxy -. "not enough for authorization" .-> UseCase
-```
-
-`proxy.ts` is not the authorization boundary. Policies in the store are the last line, not the
-only one: checking at the entry point turns a silent empty result into a clear refusal.
-
-## Persistence Boundary
-
-```mermaid
-flowchart LR
-  UseCase["use-case"] --> DataModule["data module\ndata/<slice>"]
-  DataModule --> RowMap["row type -> domain type"]
-  DataModule --> SQL["stored functions + policies"]
-  SQL --> Authority["transaction and authorization\nlive here"]
-```
-
-Two rules carry most of the weight. A stored function *is* the transaction — call it, never
-mirror it in the application. And the row shape is not the domain shape: derive the column list
-from the row schema so storage naming cannot leak into view models and form fields.
-
-## UI State Ownership
-
-```mermaid
-flowchart TD
-  State["What kind of state?"] --> URL{"Shareable/bookmarkable?"}
-  URL -->|Yes| SearchParams["URL search params"]
-  URL -->|No| Server{"Server-owned data?"}
-  Server -->|Read-heavy| RSCProps["RSC props"]
-  Server -->|Realtime/polling/optimistic/infinite| TanStack["query cache"]
-  Server -->|No| Scope{"Scope?"}
-  Scope -->|One component| Local["useState/useReducer"]
-  Scope -->|One route| FeatureHook["feature-local hook"]
-  Scope -->|Global static config| Context["React Context"]
-  Scope -->|Hot shared UI state| Store["External store, when justified"]
-```
-
-Do not put server data in Context, an external store, or local state. Client stores own UI
-behaviour, not backend truth.
-
-If a shared cache (for example Redis) is ever added, there are three cache tiers rather than two,
-and the `cache owner` classification has to say which one owns a given read. Two of three tiers
-being invalidated is worse than one, because the stale tier looks authoritative.
-
-## What Belongs In Skills vs Docs
-
-| Content | Put in skill references | Put in human docs |
+| Source | May import | Must not do |
 | --- | --- | --- |
-| Layer import contract | Yes | Yes |
-| Decision tables used while coding | Yes | Yes |
-| Rationale and diagrams | No | Yes |
-| Measurements behind a rule | No | Yes — [Evidence](./evidence.md) |
-| External API syntax | No | No, link to official docs |
-| Long implementation walkthroughs | No | Sometimes, if onboarding needs it |
+| `domain/**` | schema libraries and pure helpers | perform I/O or import project layers |
+| `operations/**` | domain, ports, data | import framework, adapters, boundary, or entries |
+| `entries/**` | domain, boundary, its operation | call data, ports, adapters, or another entry |
+| `data/**` | domain | become an adapter without a port |
+| `adapters/outbound/**` | domain, ports | declare boundaries or import use-cases |
+| inbound and read entrypoints | entries, data, outbound factories, infrastructure | move application rules into request code |
+| `client-cache/**` | domain, inbound | import server-only implementation layers |
+| `app/**` and `ui/**` | public entrypoints and presentation dependencies | bypass inbound or read boundaries |
 
----
+`operations/**` is the only public cross-slice application surface. An entry wraps its own
+operation. The shipped portable lint enforces the layer split but cannot compare source and target
+slice names; projects that require hard slice isolation add project-specific zones.
 
-*Last reviewed against the live skill set: 2026-07-26 (skill version 2.0.0). When a skill rule
-or template pattern changes, refresh this document in the same PR.*
+## When A Use-Case Exists
+
+A use-case exists only when deleting it would move meaningful complexity into its callers.
+
+The deletion test may pass because the module owns:
+
+- orchestration across multiple effects or capabilities;
+- an application rule not owned by the store;
+- a projection combining multiple sources;
+- application behaviour shared by multiple inbound boundaries.
+
+A storage call with a new name is not a use-case. If no scenario exists, the inbound or read
+entrypoint declares the contract directly around the data or port call.
+
+```mermaid
+flowchart TB
+  Change["New behaviour"] --> Pure{"Pure business rule?"}
+  Pure -->|Yes| Domain["domain/"]
+  Pure -->|No| Delete{"If this module is deleted,\ndoes complexity move to callers?"}
+  Delete -->|No| Direct["No use-case\nDeclare at inbound/read boundary"]
+  Delete -->|Yes| Operation["Create operation\nApplication logic"]
+  Operation --> Entry["Create entry\nValidation + failure contract"]
+```
+
+## When A Port Exists
+
+A port is an application-owned capability contract. It is not a repository interface created for
+every stored entity.
+
+Declare a port when all of these hold:
+
+1. The core needs the capability independently of a specific technology or provider.
+2. The contract is written in application language, not CRUD or SDK language.
+3. A real consumer and production implementation exist now.
+
+Defaults:
+
+| Dependency | Default |
+| --- | --- |
+| Pure in-process computation | ordinary module |
+| Store runnable from checked-in migrations | `data/**`, tested against the real engine |
+| Owned remote service | port plus outbound adapter |
+| Third-party service | port plus outbound adapter |
+
+Adapter count is evidence, not a gate. A test adapter is useful only when it preserves the contract;
+integration tests against the real engine or provider boundary still remain.
+
+## Declaration And Operation
+
+An **operation** contains typed application logic. It may throw typed application failures and
+never reports them.
+
+An **entry** declares an operation through the shared boundary combinator. The declaration:
+
+1. validates input and output;
+2. normalises failures into the public result;
+3. reports an unexpected failure once;
+4. removes sensitive fields before telemetry.
+
+Framework control flow stays outside the declaration. `redirect()` and `notFound()` are called by
+the framework entrypoint after it receives the result.
+
+Declarations never call declarations. Composition uses operations and receives one outer
+declaration.
+
+## Runtime Flows
+
+The framework entrypoint is the composition root. It creates outbound implementations and supplies
+them to operations through port-shaped dependencies.
+
+```mermaid
+flowchart TB
+  Caller["UI, HTTP client, webhook, or job"] --> Inbound["Inbound adapter"]
+  Inbound --> Compose["Composition root"]
+  Compose --> Entry["Call declared entry"]
+  Compose -. "when a port is used" .-> Adapter["Create outbound adapter"]
+  Entry --> Operation["Operation"]
+  Operation --> Dependency{"Dependency kind"}
+  Dependency -->|No port| Data["Data module"]
+  Dependency -->|Port| Port["Port"]
+  Adapter -. "implements" .-> Port
+  Data --> External["Store"]
+  Adapter --> ExternalSystem["Remote service or provider"]
+```
+
+Reads follow the same ownership rules without forcing every read through a use-case:
+
+```mermaid
+flowchart TB
+  RSC["Server Component"] --> Read["Authenticated read entrypoint"]
+  Read --> Scenario{"Application scenario exists?"}
+  Scenario -->|Yes| Entry["Entry + operation"]
+  Scenario -->|No| Direct["Declared data or port call"]
+  Entry --> Result["Domain-shaped result"]
+  Direct --> Result
+  Result --> RSC
+```
+
+## Next.js Boundaries
+
+| Need | Boundary |
+| --- | --- |
+| Read-heavy initial render | Server Component through a server-only read entrypoint |
+| Realtime, polling, optimistic, infinite, or shared browser lifecycle | `client-cache/**` |
+| Command from this UI | Server Action |
+| External client or service API | Route Handler |
+| Webhook | Route Handler with raw-body verification and idempotency |
+| SSE or another long-lived response | Route Handler with resume and cancellation |
+| Long-running durable work | Queue or workflow |
+
+A Server Component does not call its own Route Handler over HTTP. Both call the same application
+surface in process.
+
+## Cross-Cutting Invariants
+
+- Every read and write re-verifies identity, role, and tenant at the server boundary.
+- `proxy.ts` may refresh or redirect; it is not the authorization boundary.
+- Store policies are defence in depth, not the only authorization check.
+- One failure produces one report and one public classification.
+- Row types belong to data or adapters; domain types do not mirror storage names.
+- A stored function owns its transaction. The application does not reproduce it.
+- Server data stays in RSC props or the client cache, not Context or a generic UI store.
+- Cache keys and invalidation are scoped by entity, user, or tenant.
+
+## Non-Goals
+
+This architecture does not require a DI container, a port per table, a use-case per endpoint, or
+TanStack Query for every read. It also does not define product-specific slice names. Those choices
+must be justified by the application, not by the folder template.

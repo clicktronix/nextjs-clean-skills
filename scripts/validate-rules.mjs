@@ -205,8 +205,23 @@ if (ESLint && errors.length === 0) {
   for (const file of listFiles('plugins', (name) => name.endsWith('.md'))) {
     const text = fs.readFileSync(path.join(root, file), 'utf8')
     for (const [, target, expectError, code] of text.matchAll(FENCE)) {
-      if (!target.startsWith('src/')) {
-        errors.push(`${file}: example path "${target}" must be under src/ to be placed in a layer`)
+      const normalised = path.posix.normalize(target)
+      const unsafe =
+        !target.startsWith('src/') ||
+        target.includes('\\') ||
+        target.includes('*') ||
+        normalised !== target ||
+        target.split('/').some((segment) => segment === '.' || segment === '..')
+      if (unsafe) {
+        errors.push(
+          `${file}: example path "${target}" must be a normalised, concrete path under src/`
+        )
+        continue
+      }
+      if (!layerNames.some((name) => rootMatcher(rootOf(name)).test(target))) {
+        errors.push(
+          `${file}: example path "${target}" matches no layer root in rules/import-table.json`
+        )
         continue
       }
       cases.push({

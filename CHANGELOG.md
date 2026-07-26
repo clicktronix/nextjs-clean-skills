@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced version-coupled review footers in human architecture docs with content validation.
+  Architecture docs now stay concise and normative; release history remains in this changelog.
+
+### Fixed
+
+- Made `validate-contract-sync.mjs --fix` atomic. A structural layer-root mismatch now fails without
+  partially updating `SKILL.md`; root labels remain deliberate human-documentation edits.
+- Rejected path traversal, glob paths, and paths outside known layers in linted reference examples.
+  A `path=src/...` fence can no longer write outside the rule sandbox or pass without layer rules.
+
 ## [2.0.0] - 2026-07-25
 
 > **Breaking.** Every `nextjs-architecture` reference moved into a subdirectory grouped by the
@@ -59,8 +71,8 @@ All notable changes to this project are documented in this file.
   framework, store, or vendor; `stack (...)` marks one instance of a portable rule for named
   tooling. 17 references are portable and 13 are stack-bound; five of the seven CRITICAL rules
   are portable, the two stack-bound ones being the Supabase and auth references.
-- `docs/evidence.md` — for each rule, whether it is measured, canonical, or judgement, with a
-  reproduction command for every count. Added to the CI review-marker check.
+- `docs/evidence.md` — for each rule, whether it is a primary source, a measurement, or judgement,
+  with a reproduction command or a script invocation for every count.
 - Five eval scenarios for the load-bearing new rules, marked as hypotheses until RED runs are
   recorded, with a stated run order.
 
@@ -151,12 +163,15 @@ All notable changes to this project are documented in this file.
 - **Marked slice isolation as unenforced.** `placement/slices-and-ownership.md` presented it as an
   architectural rule while the shipped lint only guards layers. It now says it is convention, and
   `rules/README.md` carries the one-zone-per-slice recipe for projects that want it enforced.
-- **Corrected the headline measurement.** An earlier draft claimed 81% of one product's application
-  functions were forwards. That came from a line-grep that counted any body containing a
-  `return deps.…` line, so validate-then-return was miscounted. Re-measured over one population:
-  62 of 201 (31%) forward with no other statement, 104 (52%) have two lines or fewer. The
-  hand-written cross-cutting count fell from 136 to 110 once `safeParse`/`JSON.parse` were excluded,
-  and the template figure from 10 of 11 to 4 of 11.
+- **Corrected the headline measurement twice, and then stopped measuring with grep.** An early
+  draft claimed 81% of one product's application functions were forwards, from a line-grep that
+  counted any body containing a `return deps.…` line. A hand-corrected pass gave 62 of 201. Both
+  were replaced by `scripts/measure-evidence.mjs`, which parses TypeScript with the compiler API at
+  a pinned commit, so the population no longer depends on formatting: **201** exported callables in
+  Marqa, **75** whose whole body forwards to `deps.*`, **153** holding at most two statements; **5**
+  of 11 in the template. The hand-written cross-cutting count stands at 110 (66 UUID assertions plus
+  44 `parse()` calls) once `safeParse`/`JSON.parse` are excluded. Numbers in `docs/evidence.md` are
+  the script's output, reproducible from three immutable SHAs.
 - Repointed a prose cross-reference in `notifications-and-feedback.md` that named a reference deleted
   in this release; validators only check `SKILL.md` links, so prose pointers rot silently.
 - Resolved a contradiction between `security/dal-and-auth.md` and `use-cases/validation-once.md`,
@@ -288,7 +303,14 @@ All notable changes to this project are documented in this file.
   `SKILL.md`. A pointer naming a file deleted in the same release used to ship silently.
 - New `validate-rules.mjs` imports every module under `rules/` and asserts its flat-config shape,
   so the executable artefact is itself executed by CI.
-- `lint-docs-review-markers.mjs` covers `docs/evidence.md`.
+- New `measure-evidence.mjs` — the structural counts come from the TypeScript compiler API over
+  `git ls-tree`/`git show` at a pinned SHA, so they are reproducible and never touch the measured
+  repositories' working trees. It replaced a set of shell pipelines whose population shifted with
+  formatting.
+- **Removed `lint-docs-review-markers.mjs`.** It asserted that a document carried a footer naming
+  the current version, which a release can satisfy without anyone rereading the document. What
+  currency the human-facing docs have now comes from `validate-contract-sync.mjs` and the linted
+  reference examples; the rest is review.
 - New `validate-contract-sync.mjs` — the documents an agent reads and the table CI enforces must
   say the same thing. Nothing checked that before: the matrix proves the config matches the table
   and is blind to the prose, which is how a CRITICAL reference came to grant a use-case the union of
