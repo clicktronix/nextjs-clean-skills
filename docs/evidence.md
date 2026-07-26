@@ -9,11 +9,24 @@ with no entry in this file is judgement — treat it accordingly.
 ## Sources
 
 **Canonical.** Alistair Cockburn, *Hexagonal Architecture (Ports and Adapters)* — the definition of
-a port, the expectation of "a small number, two, three or four ports", and the warning that
-substituting a mock is not by itself the point of the pattern. Alex Bespoyasov, *Чистая архитектура
-на фронтенде* (bespoyasov.ru) — the three-layer split, the dependency rule, input/output ports, the
-impure-sandwich shape of a use-case, and the explicit allowance for supplying dependencies through
-closures instead of a container.
+a port as a purposeful conversation with something outside the process, and the placement of a
+database outside the hexagon. Alex Bespoyasov, *Чистая архитектура на фронтенде* (bespoyasov.ru) —
+the three-layer split, the dependency rule, input/output ports, the impure-sandwich shape, and the
+explicit allowance for supplying dependencies through closures instead of a container.
+
+**Corrected 2026-07-26.** Two claims in this file previously leaned on those sources and did not
+survive a re-read of them. Cockburn presents an in-memory mock as a legitimate adapter — "most
+importantly, an adapter to a 'mock' database" — so there is no canonical warning against
+mock-backed ports to cite; and he calls the port count "a matter of intuition" with "no particular
+damage in choosing the 'wrong' number", so "two to four" was never a rule. Bespoyasov presents the
+impure sandwich as a way to structure code, and gives no criterion for when a use-case should
+exist. What replaced them is stated as ours: see the judgement section.
+
+**What the field measurements do and do not establish.** They establish that the 1.3.1 guidance
+produced forwarding functions and bypassed layers in the products built on it. They do **not**
+establish that the replacement criterion is right — a count of past damage cannot validate a new
+rule. Treat the port criterion, the deletion test as gate, and the single boundary declaration as
+judgement with a measured motive.
 
 **Field.** Two production Next.js applications owned by this repository's author —
 `marqa/platform` (store-backed: Postgres with stored functions and row-level policies) and
@@ -188,10 +201,16 @@ grep -rlE "from '[^']+\.(css|json)'|import '[^']+\.css'" src | head -40 | tr '\n
 
 ## Derived from canonical sources, not counted
 
-- **`seams/dependency-categories.md`** — the port/adapter definition, the "two, three or four ports"
-  expectation, and the mock-substitution warning are Cockburn's, applied to our dependency mix.
-- **`use-cases/when-a-use-case-exists.md`** — the effect / pure transformation / effect test is
-  Bespoyasov's impure sandwich.
+- **`seams/dependency-categories.md`** — only the port definition and the database's position
+  outside the hexagon are Cockburn's. **When a port is required is ours**, and the reference now says
+  so in the file: externality does not earn a port, a capability the core must state
+  technology-independently does. The mock-as-indirection argument is ours too, and rests on the
+  measured suite that passed over a broken filter.
+- **`use-cases/when-a-use-case-exists.md`** — the impure-sandwich *shape* is Bespoyasov's. Using it
+  as a **gate** was ours and is now demoted to a heuristic; the gate is the deletion test.
+- **`use-cases/use-case-wrapper.md`** — a single application boundary is our judgement, motivated by
+  the 110 hand-written validation sites. The declaration/internal-operation split replaced a public
+  `.run` accessor that let callers reach past the guarantees it declared.
 - **`seams/composition-without-di.md`** — Bespoyasov supplies dependencies through closures rather
   than a container. The numeric thresholds for revisiting that decision (five collaborators, three
   assembly sites) are **judgement**, not measurement: they exist so the choice can be reopened on a

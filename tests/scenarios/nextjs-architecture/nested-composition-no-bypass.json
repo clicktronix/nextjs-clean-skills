@@ -1,0 +1,18 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/use-cases/use-case-wrapper.md",
+  "query": "The board page needs work items and labels together. Both already exist as declared application entries with their own schemas. Compose them into one board read.",
+  "baseline_failure": "RED hypothesis: the agent composes by reaching through the inner declarations — a public raw accessor such as `listWorkItems.run(ctx, filters)`, or calling the wrapped exports and hand-unwrapping their result objects. Failures then normalise twice, or the outer output schema receives a result envelope instead of data and reports a contract defect.",
+  "expected_behavior": [
+    "Extracts the shared bodies as named internal operations and composes those",
+    "Wraps the composed operation in one outer declaration that owns the public contract",
+    "Leaves the inner declarations in place for their own entry points",
+    "States that failures normalise exactly once, at the outermost declaration",
+    "Does not introduce any public accessor onto an unwrapped body"
+  ],
+  "anti_expectation": [
+    "Does NOT duplicate the inner query logic into the composed read",
+    "Does NOT delete the inner declarations because the composer no longer calls them",
+    "Does NOT nest a second declaration inside the outer one to 'reuse the guarantees'"
+  ]
+}

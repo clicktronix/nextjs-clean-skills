@@ -1,0 +1,17 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "SKILL.md",
+  "query": "Our Next.js app already uses Zod for schemas and Tailwind for styling, and we are not changing either. Add a work-items slice following this architecture.",
+  "baseline_failure": "RED hypothesis: the agent follows the examples rather than the rules — introducing Valibot schemas and the reference component library, or proposing a migration as a precondition — because the placement guidance arrives coupled to the stack its examples are written in.",
+  "expected_behavior": [
+    "Keeps Zod and Tailwind and writes the declared schemas in Zod",
+    "Applies the portable rules unchanged: layer placement, slice ownership, one declared schema per boundary, validate once per trust boundary, failure taxonomy",
+    "Distinguishes the stack-scoped rules from the portable ones and says which do not apply here",
+    "Adapts the boundary combinator to the project's validation library instead of importing the reference one"
+  ],
+  "anti_expectation": [
+    "Does NOT propose replacing Zod with Valibot, or the styling library, as a precondition",
+    "Does NOT skip or water down the architecture because the stack differs from the examples",
+    "Does NOT mix both schema libraries in the same slice"
+  ]
+}

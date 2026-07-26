@@ -1,52 +1,47 @@
-# The Use-Case Wrapper
+# The Boundary Declaration
 
 **Impact: CRITICAL** · **Scope: portable**
 
-Cross-cutting concerns belong to one wrapper at the application seam. Without it every inbound shape grows its own arrangement and they drift apart.
+Cross-cutting concerns belong to one declaration at the application seam; otherwise every inbound shape grows its own arrangement and they drift.
 
-The wrapper is not the use-case. A slice with no scenario still needs the guarantees: its inbound adapter declares the boundary with the same combinator, wrapping the data call. What is optional is the scenario, never the contract.
+The declaration is not the use-case: a slice with no scenario declares the boundary around its data call. What is optional is the scenario, never the contract.
 
-The combinator is written once, in `boundary/` — its own layer beside `ports/`, not part of infrastructure — and every application entry is declared through it, scenario or not.
-
-```ts
-// A slice with no scenario: the boundary wraps the data call directly.
-export const listWorkItems = defineBoundary({
-  name: 'listWorkItems',
-  input: WorkItemListParamsSchema,
-  output: WorkItemPageSchema,
-  redact: ['token'],
-  run: (ctx, params) => workItemsData.list(ctx, params),
-})
-```
+The combinator is written once, in `boundary/` — its own layer beside `ports/` — and every application entry is declared through it.
 
 What the caller is guaranteed, every time:
 
-1. input validated — including `undefined`, `''`, `0`, `false`; a falsy input is not a reason to skip validation
+1. input validated — including `undefined`, `''`, `0`, `false`; falsy is no reason to skip
 2. output validated, so the contract does not depend on what an adapter happened to return
-3. nothing thrown escapes; failures arrive as a result value
+3. no thrown value escapes; failures arrive as a result value
 4. one log and one telemetry event per failure, tagged with `name`
 5. declared fields removed before anything reaches logs or telemetry
 
-A one-line body is fine once the wrapper is real: the leverage is in the guarantees. Compare the unwrapped forward in [When A Use-Case Exists](when-a-use-case-exists.md).
+One exception to (3): **framework control flow**. Navigation and not-found signals are implemented by throwing, so the combinator must re-throw them instead of normalising them — otherwise a redirect silently becomes an application failure.
 
-Composition is ordinary code: independent work runs together, a pure function shapes the result, and the outer declaration owns the contract.
+A one-line body is fine once the declaration is real: the leverage is in the guarantees.
+
+**Composition never reaches through a declaration.** Name the body as an internal operation and let both use it — the declaration owns the public contract, the operation is trusted and reusable:
 
 ```ts
-export const getBoardData = defineBoundary({
-  name: 'getBoardData',
+async function loadBoardOperation(ctx: Context, filters: BoardFilters) {
+  const [items, labels] = await Promise.all([listItems(ctx, filters), listLabels(ctx)])
+  return toBoardView(items, labels)
+}
+```
+
+The declaration owns only the contract:
+
+```ts
+export const loadBoard = defineBoundary({
+  name: 'loadBoard',
   input: BoardFiltersSchema,
   output: BoardViewSchema,
-  run: async (ctx, filters) =>
-    toBoardView(
-      await Promise.all([listWorkItems.run(ctx, filters), listLabels.run(ctx)]),
-    ),
+  execute: loadBoardOperation,
 })
 ```
 
-`defineBoundary` exposes the raw body as `.run`. Call a nested use-case through it, so the value arrives unwrapped and its failures normalise exactly once, at the outermost boundary. Calling the wrapped export instead returns a result object, which the outer `output` schema rejects.
-
-Domain functions are called directly: pure and in-process, nothing to inject or normalise.
+A declaration that exposes its raw body — a public `.run` — is an escape hatch around its own guarantees: the outer output schema rejects the inner result object, so callers normalise twice or not at all. A body two slices share is a named internal function, not a field on someone's contract.
 
 Do not re-wrap. An entry point that re-logs what the boundary already reported produces duplicate telemetry and makes failure counts meaningless.
 
-Reference: one application boundary owns validation, failure normalisation, and reporting.
+Reference: one application boundary owns validation, normalisation, and reporting.

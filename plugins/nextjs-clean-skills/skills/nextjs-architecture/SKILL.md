@@ -16,7 +16,7 @@ Use this profile literally for greenfield or explicitly adopted projects; otherw
 - Next.js 16 App Router, React 19, TypeScript.
 - Domain schemas and types in Valibot.
 - Business authority may sit in the store (stored functions plus row-level policies) or in a separate owned service. Model where it sits before deciding what the application layer holds.
-- Application scenarios go through one wrapper that validates, normalises failures, and reports them once.
+- Application entries go through one boundary declaration that validates, normalises failures, and reports them once. Framework navigation signals are re-thrown, not normalised.
 - Contracts at seams exist for dependencies the process cannot run locally; the rest are ordinary modules.
 - Read-heavy UI fetches in Server Components through server-only read entrypoints.
 - TanStack Query is auxiliary, opt-in only for realtime, polling, infinite scroll, optimistic updates, or shared async cache lifecycle across client islands. Otherwise reads are RSC props and writes go through the correct command boundary: Server Actions for UI commands, Route Handlers for service, streaming, and integration commands.
@@ -42,7 +42,7 @@ Runtime entry per need:
 
 Compile-time imports:
   domain          pure helpers and schema libraries only
-  use-cases       domain, local ports/types, data, the wrapper
+  use-cases       domain, ports, data, the boundary combinator
   data            domain only
   inbound         use-cases, data, outbound factories, infrastructure
   outbound        port types plus domain
@@ -75,7 +75,7 @@ Seams — whether a contract is warranted:
 Application layer:
 
 - [When A Use-Case Exists](references/use-cases/when-a-use-case-exists.md)
-- [The Use-Case Wrapper](references/use-cases/use-case-wrapper.md)
+- [The Boundary Declaration](references/use-cases/use-case-wrapper.md)
 - [Validate Once Per Trust Boundary](references/use-cases/validation-once.md)
 
 Inbound — which entry shape:
@@ -131,7 +131,7 @@ authority:           store | owned service | application
 auth boundary:       where the session and role are re-verified server-side
 boundary:            RSC read | Server Action | Route Handler | stream | webhook | job | none
 cache owner:         rsc | client-cache | shared-server-cache | none
-error surface:       result from the wrapper | throw inside a layer | in-stream event
+error surface:       result from the declaration | throw inside a layer | in-stream event
 tests:               domain | use-case | data | service | inbound | ui | e2e
 ```
 

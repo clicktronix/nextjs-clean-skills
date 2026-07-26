@@ -118,8 +118,11 @@ needs to be a written rule and a review question.
 
 ## Why A Port Is Not Automatic
 
-Ports are for capabilities the process cannot exercise on its own. The canonical pattern expects
-a handful of them, with several adapters each — not one per stored entity.
+Ports are for capabilities the core must state independently of the technology behind it. A
+database sits outside the process even when it runs locally — the canonical pattern is clear about
+that — but externality alone does not earn a port. The canonical pattern sets no port count either:
+Cockburn calls that "a matter of intuition" with "no particular damage" in getting it wrong. "Not
+one per stored entity" is our rule, and the reason is below.
 
 | Dependency | Can it run in the test suite? | Contract at the seam |
 | --- | --- | --- |
@@ -147,6 +150,13 @@ grow their own arrangement, and a fourth channel means writing the rules a fourt
 
 Written once, they also make a thin scenario body legitimate: the leverage is in the guarantees,
 not the line count.
+
+Two guardrails on that wrapper, both learned the hard way. **Framework control flow is re-thrown,
+never normalised** — navigation and not-found signals are implemented by throwing, so a universal
+catch turns a redirect into an application failure and the navigation never happens. **A
+declaration never exposes its raw body.** Composition uses a named internal operation that both the
+declaration and the composer call; a public accessor onto the unwrapped body is an escape hatch
+around the guarantees the declaration exists to make.
 
 ## Runtime Flow vs Import Direction
 

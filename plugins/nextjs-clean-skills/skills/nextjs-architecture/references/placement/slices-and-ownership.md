@@ -20,6 +20,8 @@ Rules that keep slices meaningful:
 
 When behaviour genuinely belongs to two capabilities, it belongs to neither: extract the concept both depend on into `domain` and let each slice use it. Copying it into both is how two rules that were once identical quietly diverge.
 
+Slice isolation is **convention, not enforced by the shipped lint**: those rules guard layers, and slice names are known only to the project. `rules/README.md` carries the recipe for enforcing it.
+
 Route-private code lives under the owning route segment rather than in a shared folder. Anything under a route's private folder is invisible to other routes by convention; when a second route needs it, that is the signal to move it into a slice, not to import across.
 
 This project has one reuse level: the product is the repository. Do not introduce cross-product or cross-business-line tiers — the taxonomy only pays for itself when several products ship from one tree, and without them it adds a placement question with no correct answer.

@@ -27,6 +27,10 @@ Webhook guardrail: verify signatures before trusting parsed data, using provider
 
 Do not put business rules in the handler. Do not expose raw exceptions. Do not route same-app form commands here only because they feel "more backend"; UI commands belong in Server Actions.
 
+A Server Component must not reach its own Route Handler over HTTP. It already runs on the server: call the read entrypoint directly. The extra hop costs a request, drops the in-process request context, and repeats auth work that has to be done again anyway.
+
+`redirect()` and `notFound()` are implemented by throwing. Call them outside the boundary's catch, or re-throw with `unstable_rethrow` — a universal catch turns a redirect into a normalised application failure and the navigation never happens.
+
 Keep provider-specific choices in repository documentation rather than in the handler.
 
 Reference: Route Handlers as the service API boundary.

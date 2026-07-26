@@ -111,6 +111,35 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **Corrected two attributions to canonical sources**, both found by an external review and
+  confirmed against the originals. Cockburn presents an in-memory mock as a legitimate adapter —
+  "most importantly, an adapter to a 'mock' database" — so the warning this release cited against
+  mock-backed ports is not his; and he calls the port count "a matter of intuition" with "no
+  particular damage in choosing the 'wrong' number", so "expect two to four" was never canonical.
+  Bespoyasov presents the impure sandwich as a way to structure code and gives no criterion for
+  when a use-case should exist. `seams/dependency-categories.md`, `docs/evidence.md` and
+  `docs/architecture-contract.md` now separate his definitions from our criteria, and say plainly
+  that the measurements establish the old guidance failed — not that the replacement is right.
+- **Demoted the impure sandwich from gate to heuristic.** The gate is the deletion test. A missing
+  pure middle is a signal to look closer, and "a shared contract" no longer licenses an empty
+  forward: what two callers share is the declaration, not a hop.
+- **Removed the public `.run` accessor.** A declaration that exposed its unwrapped body was an
+  escape hatch around its own guarantees — the outer output schema rejected the inner result
+  object, so callers normalised twice or not at all. Composition now names an internal operation
+  that both the declaration and the composer call, and `use-cases/use-case-wrapper.md` is retitled
+  *The Boundary Declaration* to keep the two ideas apart.
+- **Framework control flow is re-thrown, not normalised.** Navigation and not-found signals are
+  implemented by throwing, so a universal catch turned a redirect into an application failure and
+  the navigation never happened. Stated as an explicit exception to the boundary's guarantees, with
+  the concrete re-throw named in the stack-scoped reference.
+- **Moved HTTP statuses out of the failure taxonomy.** The kinds table no longer carries a status
+  column; mapping a kind onto a status, an action state, a stream event, or a rendered surface
+  belongs to the translation layer, so the taxonomy is not shaped by one transport.
+- **A Server Component must not call its own Route Handler over HTTP** — stated explicitly, with
+  the cost (an extra hop, the dropped in-process request context, repeated auth work).
+- **Marked slice isolation as unenforced.** `placement/slices-and-ownership.md` presented it as an
+  architectural rule while the shipped lint only guards layers. It now says it is convention, and
+  `rules/README.md` carries the one-zone-per-slice recipe for projects that want it enforced.
 - **Corrected the headline measurement.** An earlier draft claimed 81% of one product's application
   functions were forwards. That came from a line-grep that counted any body containing a
   `return deps.…` line, so validate-then-return was miscounted. Re-measured over one population:

@@ -11,13 +11,13 @@ Classify every external dependency before deciding whether it gets a port. The c
 | remote but owned | a service your team ships, reached over the network | fake server or in-memory adapter | yes |
 | true external | third-party API you do not control | mock | yes |
 
-Second condition on top of the category: **one adapter is a hypothetical seam, two is a real one.** Count adapters that exist today — production plus test. "We might swap the database later" is not an adapter.
+A database is external infrastructure even when it runs on your laptop. What does not follow — and this is our judgement, not canon — is that being external earns a port. A port is earned when the core has to state a capability independently of the technology behind it.
 
-A port whose only second implementation is a test mock is the shortcut Ports-and-Adapters explicitly warns against: the goal is running the application isolated, not substituting a mock. When the real engine already runs locally, the port hides your own SQL instead of an external system, and a green suite can sit on a broken query, a wrong policy, or a drifted column list.
+Second condition: a seam only counts if something varies across it. **One adapter is hypothetical, two is real.** Count what exists today, production plus test. "We might swap the database later" is not an adapter.
 
-Ports are meant to be few. Expect two to four across an application, not one per table.
+Ports-and-Adapters treats an in-memory mock as a legitimate adapter, and calls the number of ports a matter of intuition with no particular damage in getting it wrong. The narrower rule here is ours and rests on what we measured: when the real engine already runs locally, a port per table hides our own SQL, and a green suite sits on a broken query, a wrong policy, or a drifted column list.
 
-**Incorrect (port over a locally substitutable engine):**
+**Incorrect (port over an engine that already runs locally):**
 
 ```ts
 export type WorkItemsRepository = {
@@ -38,4 +38,4 @@ export async function saveWorkItem(ctx: DataContext, edit: WorkItemEdit): Promis
 
 Exception: a scenario that orchestrates several sources and must run without the database defines narrow ports named for the role it needs, not for a table.
 
-Reference: Cockburn's Ports and Adapters — a port is a purposeful conversation with something outside the process.
+Reference: a port is a purposeful conversation with something outside the process — Cockburn's definition. When one is *required* is our own criterion.

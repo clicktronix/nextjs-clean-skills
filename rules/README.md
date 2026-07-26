@@ -65,6 +65,14 @@ rules and put in the Verification Gate rather than assumed to be caught by tooli
 **Anything the framework or the type checker already enforces.** A rule that duplicates a compiler
 error costs attention and returns nothing.
 
+**Slice isolation.** `placement/slices-and-ownership.md` says a slice must not import another
+slice's internals. These rules do **not** enforce it, and the reference says so: slice names are
+project-specific, so a portable table cannot list them. The mechanism, if a project wants it, is one
+zone per slice in the resolved tier — `from` the whole of `src`, `except` that slice's own
+directories plus the shared layers (`domain`, `ports`, `boundary`, `infrastructure`, shared `ui`).
+That is O(slices) zones rather than O(slices²), and it fails closed: a new slice is invisible until
+someone adds it, rather than silently permitted.
+
 **Code that lives outside every layer root.** Both tiers scope their rules to the layer
 directories, so a module at `src/lib/**` is bound by neither and can import a use-case and be
 imported by a component — laundering the dependency through a file no rule watches. Laundering
