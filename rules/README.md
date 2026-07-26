@@ -9,6 +9,11 @@ what to do; these make the machine-checkable part of it fail loudly when it does
 | [`eslint-boundaries.mjs`](./eslint-boundaries.mjs) | tier one: the contract as import-string patterns, no dependencies | copying it into the project and spreading it into the flat ESLint config |
 | [`eslint-boundaries-resolved.mjs`](./eslint-boundaries-resolved.mjs) | tier two: the same contract as resolved file paths | copying it in **with `import-table.json` beside it**, after tier one |
 
+`scripts/validate-contract-sync.mjs` closes the gap neither tier can see: the matrix proves the
+*config* matches the *table*, and says nothing about the prose an agent actually reads. It fails
+CI when the layer table in `placement/layers-and-imports.md` grants an edge these rules forbid,
+when a layer has no documented row, or when a row documents a layer nothing enforces.
+
 `npm run validate` generates a source × target matrix from `import-table.json` and lints every
 pair for real — static, `import()` and `require()` spellings — so a permitted edge that errors and
 a forbidden edge that passes are both build failures. It runs that matrix against tier one alone,

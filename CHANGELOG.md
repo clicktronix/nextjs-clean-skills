@@ -287,6 +287,12 @@ All notable changes to this project are documented in this file.
 - New `validate-rules.mjs` imports every module under `rules/` and asserts its flat-config shape,
   so the executable artefact is itself executed by CI.
 - `lint-docs-review-markers.mjs` covers `docs/evidence.md`.
+- New `validate-contract-sync.mjs` — the reference an agent reads and the table CI enforces must
+  say the same thing. Nothing checked that before: the matrix proves the config matches the table
+  and is blind to the prose, which is how a CRITICAL reference came to grant a use-case the union
+  of both surfaces' permissions and to show, as its "Correct" example, an edge the lint rejects.
+  The check is one-directional — prose may be vaguer than the table, never more permissive — and
+  it also fails on a layer with no documented row, or a row documenting a layer nothing enforces.
 - New `rules/eslint-boundaries-resolved.mjs` — a second enforcement tier that compares **resolved**
   file paths through `import/no-restricted-paths`, with its zones derived from `import-table.json`
   so there is no second copy of the contract. It covers every spelling of a target at once, and

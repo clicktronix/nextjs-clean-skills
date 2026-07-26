@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/lint-docs-review-markers.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-rules.mjs",
+    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/lint-docs-review-markers.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-contract-sync.mjs && node scripts/validate-rules.mjs",
     "sync-version": "node scripts/sync-version.mjs"
   },
   "keywords": [
