@@ -39,12 +39,27 @@ exported arrow/function expressions, and static import declarations, so the popu
 depend on formatting.
 
 Two of those three repositories are private, so the numbers above are not reproducible by a reader.
-The script is: point it at **your own** repository and it reports the same measures over your
-application layer, under the same definitions.
+Point the script at **your own** repository to report the same measures. It defaults to
+`src/use-cases` and `src/ui`:
 
 ```bash
 node scripts/measure-evidence.mjs mine=/path/to/your/repo#HEAD
 ```
+
+For an equivalent layout with different names, pass repository-relative roots:
+
+```bash
+node scripts/measure-evidence.mjs \
+  --use-cases-root=src/application \
+  --ui-root=src/presentation \
+  --adapters-root=src/integrations \
+  --outbound-api-root=src/integrations/api \
+  mine=/path/to/your/repo#HEAD
+```
+
+The command reads the named commit, not the working tree, and refuses an empty application
+inventory instead of reporting false zeroes. Options apply to every repository in one invocation;
+run different layouts separately.
 
 ## Findings
 
@@ -72,12 +87,13 @@ typed throws remains a design choice at the public boundary.
 
 | Product | Use-case files with static adapter imports | UI files with static outbound API imports |
 | --- | ---: | ---: |
-| Marqa | 0 | 5 |
-| Stokli | 2 of 2 | 68 |
+| Marqa | 0 | 2 |
+| Stokli | 2 of 2 | 42 |
 
 Marqa enforces path-scoped restrictions; Stokli does not enforce an equivalent contract. The result
 supports shipping executable layer rules rather than relying on prose alone. It does not imply that
-Marqa's five UI imports are correct; they remain migration debt or explicit exceptions to inspect.
+Marqa's two production UI imports are correct; they remain migration debt or explicit exceptions to
+inspect. Test files are excluded from both populations.
 
 ## Measured, Not Scripted
 
@@ -133,7 +149,7 @@ These decisions are owned by this project, not by the primary sources:
 | Use the deletion test before creating a use-case | forwarding modules dominated the measured application layer | a product demonstrates useful application modules that consistently fail the test |
 | Default a locally runnable store to `data/**` | substitutes hid query, policy, and column drift | scenarios must run independently of the store and expose a purposeful capability |
 | Use one declaration per public application entry | validation and failure handling repeated across products | different channels require guarantees that cannot share one combinator |
-| Split entries from operations, as directories | nested declarations double-normalised and double-reported failures; the *directory* form was chosen because path rules are enforceable and naming conventions are not | a lint can enforce the rule without the split, or composition preserves one public contract without a second surface |
+| Split entries from operations, as directories | a nested declaration would normalize and report before its result reaches the outer declaration; the *directory* form was chosen because path rules are enforceable and naming conventions are not. This is a prevented failure mode, not an observed product count | a lint can enforce the rule without the split, or the pilot shows that its directory cost exceeds the prevented failure mode |
 | Validate the declared output on every call | adapter and provider shapes drifted from the contract in the measured products | the runtime cost is measured and material, or the module reading the provider already guarantees the shape. **This cost has not been measured** |
 | Keep DI containers optional | closures and explicit request context cover the current scale | assembly becomes untraceable or collaborator counts make manual composition error-prone |
 

@@ -30,20 +30,21 @@ All notable changes to this project are documented in this file.
   cache ownership, and restored responsibilities in the generated agent layer table.
 - Recorded why the `inbound`/`read` edge is one-way, which the removal itself did not state: the
   read layer is composed for the render path and may reuse inbound primitives, while an HTTP caller
-  needing the same rows goes through its own entry. The cost — that Route Handler composing them a
-  second time — is written down rather than left to be discovered.
+  uses its normal inbound surface. Both paths may reuse the same entry, operation, or data module;
+  only channel-specific request handling and result translation stay separate.
 - Named two decisions as judgement in `docs/evidence.md` that had been presented as consequences.
   Validating the declared output on **every** call is motivated by measured shape drift, but its
   runtime cost has never been measured, and the entry is marked accordingly. The entries/operations
-  split solves a real double-report, but the *directory* form was chosen because path rules are
-  enforceable and naming conventions are not — a tooling argument, not an architectural one.
-- Gave the first migrated slice explicit exit criteria in `docs/adoption-and-enforcement.md`. It is
-  the pilot that answers what no check here can: whether the directory count per capability is
-  tolerable, whether output validation costs anything, and whether the double report the split
-  prevents actually occurs. If the pilot contradicts a decision, the contract changes.
-- `measure-evidence.mjs` documents its single-repository form. Two of the three measured
-  repositories are private, so the reproduction command proved nothing to a reader; pointed at their
-  own repository the script reports the same measures under the same definitions.
+  split prevents a double-report failure mode; the *directory* form was chosen because path rules
+  are enforceable and naming conventions are not — a tooling argument, not an architectural one.
+- Gave the first migrated slice operational exit criteria in `docs/adoption-and-enforcement.md`:
+  one normal follow-up change for topology cost, a workload and product budget for output
+  validation, and one-event fault injection for every used inbound channel.
+- Turned `measure-evidence.mjs` into a checked single-repository tool. Readers may configure the
+  application and UI roots; an empty application inventory fails instead of reporting false zeroes;
+  direct, default, and named-list exports are counted by an integration test. The UI population now
+  excludes tests like the application population already did, correcting the pinned production
+  counts from 5/68 to 2/42.
 - Confined internal documentation links to the repository, including their resolved symlink target.
   Malformed URI encoding now reports a validation error instead of terminating the validator.
 

@@ -65,8 +65,8 @@ must still error.
 
 The measurement is in [`docs/evidence.md`](../docs/evidence.md): across two products built on this
 architecture, the one with path-scoped import rules had **zero** application files importing a
-concrete adapter; the one without had the layer bypassed in **68** places. The documented direction
-was identical in both. Only one of them was checked.
+concrete adapter; the one without had **42 production UI files** importing the concrete outbound API.
+The documented direction was identical in both. Only one of them was checked.
 
 The same holds upstream: the handbook this architecture derives from ships a boundary lint rule and
 has it **disabled** in the product it governs, and its own documentation lists the resulting debt.

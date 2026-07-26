@@ -122,11 +122,11 @@ the same classified row; nested `read` remains a separate layer from its `inboun
 between those two runs one way: `read/**` may reuse inbound primitives — request context, session,
 authorization — while `inbound/**` may not import `read/**`. The read layer is composed for the
 render path, so an HTTP caller that needs the same data reaches an entry, or a data module where no
-scenario exists, instead of borrowing the render composition. The cost is explicit: a Route Handler
-serving the same rows composes them again through its own entry. The table
-is generated into this document, the critical agent reference, and the always-loaded skill
-contract. Change the table, run the fixer, and review all generated surfaces in the same pull
-request.
+scenario exists, instead of borrowing the render composition. Both paths may reuse the same entry,
+operation, or data module. What stays separate is channel wiring: each caller establishes its
+request boundary and translates the result for rendering or HTTP. The table is generated into this
+document, the critical agent reference, and the always-loaded skill contract. Change the table, run
+the fixer, and review all generated surfaces in the same pull request.
 
 Same-layer imports are explicit, not implied. Operations may compose operations, while declarations
 never call declarations. `ports/**` and `boundary/**` are contract roots: split definitions share

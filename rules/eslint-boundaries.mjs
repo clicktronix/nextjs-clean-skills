@@ -10,7 +10,7 @@
  *
  * The measured reason any of this exists: of two products on this architecture, the one with
  * path-scoped import rules had zero application files importing a concrete adapter; the one
- * without had the layer bypassed in 68 places (`docs/evidence.md`).
+ * without had 42 production UI files importing the concrete outbound API (`docs/evidence.md`).
  *
  * Three traps this file already fell into, all now guarded by the validator:
  *   - Flat config REPLACES a rule's options when a later block re-declares it for overlapping
