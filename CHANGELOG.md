@@ -14,20 +14,27 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- `seams/dependency-categories.md` — classify a dependency (in-process, local-substitutable,
-  remote-owned, external) before introducing a contract at a seam. A port whose only second
-  implementation is a test mock is indirection: when the engine already runs locally, the
-  substitute stands in for the team's own queries and a green suite can sit on a broken filter or
-  a wrong policy.
+- `seams/dependency-categories.md` — four ordered questions decide whether a dependency gets a
+  port: must the scenario run independently of this technology, does the contract read as a
+  purposeful conversation in the application's language, is there a real consumer and a production
+  implementation. Adapter count is evidence, not a gate — a third-party provider with one
+  implementation still needs a port. Repository-per-table is blocked by the shape question. A
+  locally-runnable engine defaults to a `data/` module because the substitute would stand in for
+  the team's own queries, and a green suite would sit on a broken filter or a wrong policy — a
+  default, not a ban.
 - `seams/port-shape.md` — a port describes a capability, not the surface of the thing behind it.
   Method names matching table operations one-for-one are the signal that the grain is wrong.
 - `seams/composition-without-di.md` — closures and an explicit request context cover what a
   container would provide, with written thresholds for revisiting that decision.
-- `use-cases/when-a-use-case-exists.md` — the effect / pure transformation / effect test. No pure
-  middle means no use-case; the inbound adapter calls the data module directly.
-- `use-cases/use-case-wrapper.md` — one application boundary owns input and output validation,
-  failure normalisation, single-report telemetry, and redaction. A thin body is legitimate once
-  the wrapper is real.
+- `use-cases/when-a-use-case-exists.md` — the deletion test decides whether a scenario exists;
+  the impure sandwich is a heuristic for applying it. With nothing to hold, the inbound adapter
+  calls the data module directly. A slice exposes `entries/**` (declarations) and `operations/**`
+  (typed functions that throw and report nothing).
+- `use-cases/use-case-wrapper.md` (*The Boundary Declaration*) — one application boundary owns
+  input and output validation, failure normalisation, single-report telemetry, and redaction. A
+  thin body is legitimate once the declaration is real. The declaration knows nothing about the
+  framework: navigation stays outside it, and composition goes through `operations/**` rather than
+  through another declaration.
 - `use-cases/validation-once.md` — three trust boundaries, three different checks. One schema run
   twice on the same path is duplication, not defence in depth.
 - `outbound/row-vs-domain-types.md` — derive the column list from a row schema, never from the domain
@@ -196,8 +203,9 @@ All notable changes to this project are documented in this file.
 - Corrected the `validation-once` example, which destructured a property the stack's action
   helper does not provide and dropped the input schema entirely, so no input reached the handler.
   Restated stack-neutrally, as its `portable` scope requires.
-- Gave nested use-case composition a real handle (`.run`); the text told agents to call an
-  "unwrapped form" that did not exist, and the accompanying example passed wrapped ones.
+- Gave nested composition a real mechanism: 1.3.1 told agents to call an "unwrapped form" that
+  did not exist, and its example passed wrapped ones. Composition now goes through a slice's
+  `operations/**` surface, so the failure is reported once at the outermost declaration.
 - Marked the re-raised render-channel failure as already reported, so the framework's
   request-error hook does not record a second event for a fault the wrapper already logged.
 - Widened the reference link check to links carrying a `#anchor` — the pointer class most likely

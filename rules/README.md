@@ -12,7 +12,7 @@ what to do; these make the machine-checkable part of it fail loudly when it does
 `npm run validate` generates a source × target matrix from `import-table.json` and lints every
 pair for real — static, `import()` and `require()` spellings — so a permitted edge that errors and
 a forbidden edge that passes are both build failures. It runs that matrix against tier one alone,
-tier two alone, and the two composed: 365 cases × 3 tiers at the time of writing. Three earlier
+tier two alone, and the two composed: 368 cases × 3 tiers at the time of writing. Three earlier
 versions of this check were weaker (shape-only, then hand-picked fixtures) and each certified gaps
 that a later review found by running ESLint itself.
 
@@ -58,7 +58,7 @@ has it **disabled** in the product it governs, and its own documentation lists t
 ## What is deliberately not here
 
 **Depth.** No lint rule detects a function that forwards its arguments and holds nothing, a port
-whose only second implementation is a test mock, or a module with no production call site. Those are
+whose contract mirrors a table instead of a capability, or a module with no production call site. Those are
 the failures 2.0.0 targets, and they are review questions — which is exactly why they are written as
 rules and put in the Verification Gate rather than assumed to be caught by tooling.
 
@@ -70,8 +70,10 @@ slice's internals. These rules do **not** enforce it, and the reference says so:
 project-specific, so a portable table cannot list them. The mechanism, if a project wants it, is one
 zone per slice in the resolved tier — `from` the whole of `src`, `except` that slice's own
 directories plus the shared layers (`domain`, `ports`, `boundary`, `infrastructure`, shared `ui`).
-That is O(slices) zones rather than O(slices²), and it fails closed: a new slice is invisible until
-someone adds it, rather than silently permitted.
+That is O(slices) zones rather than O(slices²). It is only half closed, and the half matters: an
+unregistered slice is invisible to the slices that *are* registered, but nothing constrains what it
+imports. Pair it with an inventory check — every directory under a sliced layer has a zone — or the
+rule silently stops applying to new work, which is how it would fail in practice.
 
 **Code that lives outside every layer root.** Both tiers scope their rules to the layer
 directories, so a module at `src/lib/**` is bound by neither and can import a use-case and be

@@ -16,20 +16,16 @@ What the caller is guaranteed, every time:
 4. one log and one telemetry event per failure, tagged with `name`
 5. declared fields removed before anything reaches logs or telemetry
 
-One exception to (3): **framework control flow**. Navigation and not-found signals are implemented by throwing, so the combinator must re-throw them instead of normalising them — otherwise a redirect silently becomes an application failure.
+Because of (3), **the declaration knows nothing about the framework and must not**: it lives in a layer that may import domain only. Framework navigation is implemented by throwing, so it belongs *outside* — the declaration returns `not_found` or a value, and the entry point turns that into navigation. A boundary that recognised framework signals would have to import the framework, which is the dependency this layer exists to keep out.
 
-A one-line body is fine once the declaration is real: the leverage is in the guarantees.
+Two surfaces per slice, and the split is what makes composition work:
 
-**Composition never reaches through a declaration.** Name the body as an internal operation and let both use it — the declaration owns the public contract, the operation is trusted and reusable:
-
-```ts
-async function loadBoardOperation(ctx: Context, filters: BoardFilters) {
-  const [items, labels] = await Promise.all([listItems(ctx, filters), listLabels(ctx)])
-  return toBoardView(items, labels)
-}
+```text
+entries/**      the declaration: validates, normalises, reports once
+operations/**   a typed function: throws typed failures, reports nothing
 ```
 
-The declaration owns only the contract:
+A one-line body is fine once the declaration is real: the leverage is in the guarantees.
 
 ```ts
 export const loadBoard = defineBoundary({
@@ -40,8 +36,8 @@ export const loadBoard = defineBoundary({
 })
 ```
 
-A declaration that exposes its raw body — a public `.run` — is an escape hatch around its own guarantees: the outer output schema rejects the inner result object, so callers normalise twice or not at all. A body two slices share is a named internal function, not a field on someone's contract.
+`loadBoardOperation` composes other operations — including another slice's, which is the only surface a slice exposes across its own edge. Declarations never call declarations: the inner one would normalise and report the failure under its own name, and its result object would then fail the outer output schema. That is the defect a public `.run` accessor had, and it is why there is no such accessor.
 
 Do not re-wrap. An entry point that re-logs what the boundary already reported produces duplicate telemetry and makes failure counts meaningless.
 
-Reference: one application boundary owns validation, normalisation, and reporting.
+Reference: one application boundary owns validation, normalisation, and reporting; operations stay typed and silent.

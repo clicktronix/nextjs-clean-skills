@@ -18,7 +18,7 @@ explaining why the boundaries exist.
 ## Documents
 
 - [Architecture Contract](./architecture-contract.md) — layer model, dependency direction, why a
-  port is not automatic, why one wrapper, runtime flow, security boundary, data ownership,
+  port is not automatic, why one declaration, runtime flow, security boundary, data ownership,
   persistence rules, and the **rationale** behind each forbidden import.
 - [Agent Decision Maps](./agent-decision-maps.md) — compact flowcharts for coding agents and
   reviewers to decide where code belongs before editing, plus a copy-paste prompt add-on.

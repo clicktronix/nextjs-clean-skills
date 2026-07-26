@@ -29,7 +29,7 @@ Do not put business rules in the handler. Do not expose raw exceptions. Do not r
 
 A Server Component must not reach its own Route Handler over HTTP. It already runs on the server: call the read entrypoint directly. The extra hop costs a request, drops the in-process request context, and repeats auth work that has to be done again anyway.
 
-`redirect()` and `notFound()` are implemented by throwing. Call them outside the boundary's catch, or re-throw with `unstable_rethrow` — a universal catch turns a redirect into a normalised application failure and the navigation never happens.
+`redirect()`, `permanentRedirect()` and `notFound()` are implemented by throwing, and so are the request-time APIs under a static route. Keep them **outside** the boundary: it returns a value, the handler navigates. `unstable_rethrow` exists for a catch that already mixes both, but the docs mark it unstable and not recommended for production — it is a migration aid, not the design.
 
 Keep provider-specific choices in repository documentation rather than in the handler.
 

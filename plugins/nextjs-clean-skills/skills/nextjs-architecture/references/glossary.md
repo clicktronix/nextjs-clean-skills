@@ -8,8 +8,8 @@ Use these terms consistently. Do not redefine them in feature code.
 | --- | --- |
 | Domain | Pure business schemas, types, invariants, and helpers. No framework or I/O. |
 | Slice | A business capability that owns behaviour across several layers. |
-| Use-case | An application scenario: an effect, a pure transformation, an effect. |
-| Wrapper | The single application boundary that validates, normalises failures, and reports them once. |
+| Use-case | A scenario holding logic of its own: `entries/**` declares it, `operations/**` is the typed function others compose. |
+| Declaration | The single application boundary: validates, normalises failures, reports once. |
 | Seam | A place where behaviour can be substituted without editing the code that uses it. |
 | Port | A contract at a seam describing a capability needed from outside the process. |
 | Adapter | A concrete thing satisfying a port. Two adapters make a seam real; one makes it hypothetical. |

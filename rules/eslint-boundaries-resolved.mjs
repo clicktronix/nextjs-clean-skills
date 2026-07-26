@@ -95,8 +95,20 @@ const zonesFor = (source) => {
   )
 }
 
+// Same-layer rules the cross-product cannot reach: it skips source === target. These must merge
+// into the layer's own block — a second block with the same `files` would REPLACE its zones rather
+// than add to them.
+const selfZonesFor = (source) =>
+  (table.selfRules ?? [])
+    .filter((rule) => rule.layer === source)
+    .map((rule) => ({
+      target: `./${root(source)}`,
+      from: `./${root(source)}/${rule.fromSubpath}`,
+      message: rule.message,
+    }))
+
 const sourceBlocks = names
-  .map((source) => ({ source, zones: zonesFor(source) }))
+  .map((source) => ({ source, zones: [...zonesFor(source), ...selfZonesFor(source)] }))
   .filter(({ zones }) => zones.length > 0)
   .map(({ source, zones }) => {
     const nested = nestedIn(source)

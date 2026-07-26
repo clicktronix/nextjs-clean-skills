@@ -1,17 +1,19 @@
 {
-  "skills": ["nextjs-architecture"],
+  "skills": [
+    "nextjs-architecture"
+  ],
   "tests_reference": "references/inbound/route-handlers.md",
   "query": "A work-item detail page must render the not-found page when the record is missing, and the create Server Action must redirect to the new item on success. Both paths go through our application boundary.",
-  "baseline_failure": "RED hypothesis: the agent calls notFound() or redirect() inside the boundary body. Those are implemented by throwing, so the declaration's universal catch converts the framework signal into a typed application failure — the page renders an error state and the redirect never happens, often with a failure kind invented to describe it.",
+  "baseline_failure": "RED hypothesis: the agent calls notFound() or redirect() inside the boundary body. Those are implemented by throwing, so the declaration's universal catch converts the framework signal into a typed application failure \u2014 the page renders an error state and the redirect never happens, often with a failure kind invented to describe it.",
   "expected_behavior": [
-    "Keeps the navigation call outside the catch, or re-throws the framework signal before normalising",
-    "Has the boundary return not_found as a value and lets the entry point turn it into navigation",
-    "Names the guarantee explicitly: 'no thrown value escapes' excludes framework control flow",
+    "Keeps the navigation call outside the boundary: the declaration returns not_found or a value and the entry point navigates",
+    "States why the portable boundary cannot recognise the signal \u2014 it may import domain only, and recognising it would mean importing the framework",
+    "Treats unstable_rethrow as a limited workaround for an existing mixed catch, noting the docs mark it not recommended for production",
     "Adds a test asserting the redirect and the not-found render still occur through the boundary"
   ],
   "anti_expectation": [
     "Does NOT disable failure normalisation to make navigation work",
-    "Does NOT move the business rule into the route to avoid the boundary",
-    "Does NOT catch the framework signal and re-issue navigation from a different layer"
+    "Does NOT import the framework into the boundary layer to classify its exceptions",
+    "Does NOT move the business rule into the route to avoid the boundary"
   ]
 }

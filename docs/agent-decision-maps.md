@@ -19,9 +19,9 @@ flowchart LR
   UI -->|build next| Tests["8 Tests by layer"]
 ```
 
-Two steps are conditional, and that is deliberate. A port exists only when the dependency
-category calls for one; a use-case exists only when there is a pure transformation between
-effects. Building either unconditionally is what produces layers full of forwarding.
+Two steps are conditional, and that is deliberate. A port exists only when the core needs a
+capability stated independently of the technology behind it; a use-case exists only when it would
+hold logic of its own. Building either unconditionally is what produces layers full of forwarding.
 
 Agent prompt guardrail:
 
@@ -41,7 +41,7 @@ flowchart TD
   Orchestrate -->|No| Done["Done"]
 ```
 
-> A port whose only second implementation is a test mock is indirection, not a seam. When the
+> A port over an engine that already runs locally is usually indirection, not a seam. When the
 > real engine already runs locally, the port hides your own queries and a green suite can sit on
 > a broken filter or a wrong policy.
 
@@ -94,7 +94,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  Start["Review changed files"] --> Forward{"Any forwarding function\nwith no wrapper behind it?"}
+  Start["Review changed files"] --> Forward{"Any forwarding function\nwith no declaration behind it?"}
   Forward -->|Yes| Block["Block: empty layer"]
   Forward -->|No| Imports{"Use-case imports adapters/framework?"}
   Imports -->|Yes| Block

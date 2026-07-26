@@ -1,8 +1,8 @@
 {
-  "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every pair listed in `mayImport` must lint clean, every pair NOT listed must error. Hand-picked fixture samples let real gaps through — that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
+  "$comment": "THE declarative source for both the layer contract and its test matrix. scripts/validate-rules.mjs generates a source x target cross-product from `layers`: every pair listed in `mayImport` must lint clean, every pair NOT listed must error. Hand-picked fixture samples let real gaps through \u2014 that is why this is a table, not a list of examples. Keep it in step with references/placement/layers-and-imports.md.",
   "specimen": {
     "domain": "@/domain/work-item/work-item",
-    "use-cases": "@/use-cases/work-items/list",
+    "use-cases": "@/use-cases/work-items/entries/list",
     "ports": "@/ports/work-items",
     "data": "@/data/work-items",
     "outbound": "@/adapters/outbound/agent/http",
@@ -51,28 +51,36 @@
       "dir": "src/adapters/inbound/next",
       "mayImport": [
         "domain",
-        "use-cases",
         "ports",
         "data",
         "outbound",
         "infrastructure",
         "read",
         "boundary"
-      ]
+      ],
+      "mayImportAt": {
+        "use-cases": [
+          "entries"
+        ]
+      }
     },
     "read": {
       "root": "src/adapters/inbound/read",
       "dir": "src/adapters/inbound/read",
       "mayImport": [
         "domain",
-        "use-cases",
         "ports",
         "data",
         "outbound",
         "infrastructure",
         "inbound",
         "boundary"
-      ]
+      ],
+      "mayImportAt": {
+        "use-cases": [
+          "entries"
+        ]
+      }
     },
     "client-cache": {
       "root": "src/client-cache",
@@ -128,8 +136,8 @@
       ]
     }
   },
-  "$note_roots": "`root` is the layer ROOT (what lint scopes to); `dir` is a representative slice inside it (what the matrix writes fixtures into). They differ because a permission is granted to a layer but exercised through a slice. `read` nests inside `inbound`, so the resolved-path config must exclude it from the parent zone target — nesting is derived from these paths, never hand-listed.",
-  "$note_ports": "`ports` is its own top-level layer, `src/ports/**`. A use-case owns the contract and an outbound adapter implements it, so both must reach it while neither may reach the other's implementation — which is only expressible in lint if the contract is not nested inside either.",
+  "$note_roots": "`root` is the layer ROOT (what lint scopes to); `dir` is a representative slice inside it (what the matrix writes fixtures into). They differ because a permission is granted to a layer but exercised through a slice. `read` nests inside `inbound`, so the resolved-path config must exclude it from the parent zone target \u2014 nesting is derived from these paths, never hand-listed.",
+  "$note_ports": "`ports` is its own top-level layer, `src/ports/**`. A use-case owns the contract and an outbound adapter implements it, so both must reach it while neither may reach the other's implementation \u2014 which is only expressible in lint if the contract is not nested inside either.",
   "extraForbidden": [
     {
       "case": "domain imports a database driver",
@@ -282,6 +290,17 @@
       "layer": "client-cache",
       "code": "const layer = 'data'\nexport default () => import(`@/${layer}/work-items`)",
       "resolvedOnly": true
+    },
+    {
+      "case": "an inbound adapter reaches an operation instead of the declaration",
+      "layer": "inbound",
+      "code": "import { listWorkItems } from '@/use-cases/work-items/operations/list'\nexport default listWorkItems",
+      "resolvedOnly": true
+    },
+    {
+      "case": "a declaration calls another declaration",
+      "layer": "use-cases",
+      "code": "import { listWorkItems } from '@/use-cases/work-items/entries/list'\nexport default listWorkItems"
     }
   ],
   "extraAllowed": [
@@ -296,7 +315,7 @@
       "code": "export default process.env.DATABASE_URL"
     },
     {
-      "case": "data module imports a driver — this is the layer that may",
+      "case": "data module imports a driver \u2014 this is the layer that may",
       "layer": "data",
       "code": "import { createClient } from '@supabase/supabase-js'\nexport default createClient"
     },
@@ -329,8 +348,21 @@
       "case": "app imports the server-side prefetch entry",
       "layer": "app",
       "code": "import { prefetchWorkItems } from '@/client-cache/work-items/prefetch'\nexport default prefetchWorkItems"
+    },
+    {
+      "case": "a use-case composes another slice's operation",
+      "layer": "use-cases",
+      "code": "import { listLabels } from '@/use-cases/labels/operations/list'\nexport default listLabels"
     }
   ],
-  "$note_tiers": "`mayImportAt` grants an edge at named modules only — `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
-  "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries."
+  "$note_tiers": "`mayImportAt` grants an edge at named modules only \u2014 `app` may reach `client-cache` at its `prefetch` entry and nowhere else. `resolvedOnly: true` marks a case the string tier provably cannot see (a subpath carve-out, or a specifier assembled at runtime): it must lint CLEAN under `eslint-boundaries.mjs` alone and ERROR once `eslint-boundaries-resolved.mjs` is present. That keeps the two tiers in a subset relation instead of letting them contradict each other.",
+  "$note_specimens": "Specimens are subpath-precise on purpose. Certifying `use-cases -> infrastructure` with a generic module would grant the whole layer, while the contract permits only the boundary wrapper; `app -> client-cache` likewise means the prefetch entry, not browser queries.",
+  "$note_surfaces": "`use-cases/<slice>/entries/**` holds the boundary declarations: they validate, normalise and report exactly once, and inbound adapters reach only these. `use-cases/<slice>/operations/**` holds typed in-process functions that throw typed failures and report nothing; composition uses those, so a composed scenario reports once at its own outermost declaration instead of twice under the inner one's name. A declaration never calls another declaration.",
+  "selfRules": [
+    {
+      "layer": "use-cases",
+      "fromSubpath": "*/entries/**",
+      "message": "A declaration never calls another declaration \u2014 compose the operation it wraps, so the failure is reported once at the outermost boundary."
+    }
+  ]
 }

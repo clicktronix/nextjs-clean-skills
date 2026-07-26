@@ -130,7 +130,15 @@ export default [
     forbid: ['app', 'ui', 'client-cache', 'adapters/inbound', 'adapters/outbound', 'infrastructure'],
     message:
       'Outbound adapters are supplied by the composition root. Import `data/**` where the dependency has no port, the port contract where it has one, and `boundary/**` to declare.',
-    imports: [{ group: [...FRAMEWORK, ...DRIVERS, ...NODE_BUILTIN_PATTERNS], message: 'Use-cases reach the outside through a data module or a port, never directly.' }],
+    imports: [
+      { group: [...FRAMEWORK, ...DRIVERS, ...NODE_BUILTIN_PATTERNS], message: 'Use-cases reach the outside through a data module or a port, never directly.' },
+      {
+        // A declaration validates, normalises and reports. Calling one from another reports the
+        // failure twice, under the inner name. Compose `operations/**` instead.
+        group: ['@/use-cases/*/entries/**', '**/use-cases/*/entries/**'],
+        message: 'A declaration never calls another declaration. Compose the operation it wraps.',
+      },
+    ],
     paths: NODE_BUILTIN_PATHS,
   }),
 
@@ -214,4 +222,3 @@ export default [
     rules: { 'no-restricted-syntax': 'off', 'no-restricted-imports': 'off' },
   },
 ]
-

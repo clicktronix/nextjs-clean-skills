@@ -2,30 +2,33 @@
 
 **Impact: CRITICAL** · **Scope: portable**
 
-Classify every external dependency before deciding whether it gets a port. The category decides, not the layer you happen to be editing.
+Decide whether a dependency gets a port before deciding where its code lives. A database is external infrastructure even when it runs on your laptop — that much is canonical. What does not follow is that being external earns a port.
 
-| Category | Example | Local stand-in | Port |
-| --- | --- | --- | --- |
-| in-process | pure calculation, formatting | not needed | no |
-| local-substitutable | a database engine started from checked-in migrations | the real engine, locally | no |
-| remote but owned | a service your team ships, reached over the network | fake server or in-memory adapter | yes |
-| true external | third-party API you do not control | mock | yes |
+Four questions, in order:
 
-A database is external infrastructure even when it runs on your laptop. What does not follow — and this is our judgement, not canon — is that being external earns a port. A port is earned when the core has to state a capability independently of the technology behind it.
+1. Must the scenario run independently of this particular technology or device?
+2. Does the contract read as a purposeful conversation in the application's language — not a table's CRUD, not an SDK's method list?
+3. Is there a real consumer and a production implementation today?
+4. If all three hold, declare the port. A test adapter counts as an adapter; production variation is not required.
 
-Second condition: a seam only counts if something varies across it. **One adapter is hypothetical, two is real.** Count what exists today, production plus test. "We might swap the database later" is not an adapter.
+**Adapter count is evidence, not a gate.** A third-party payment provider usually has exactly one production implementation and still needs a port: the isolation is the point, not the swapping. **Repository-per-table is blocked by question 2** — six methods mirroring six table operations is not a conversation in the application's language, whatever it is named.
 
-Ports-and-Adapters treats an in-memory mock as a legitimate adapter, and calls the number of ports a matter of intuition with no particular damage in getting it wrong. The narrower rule here is ours and rests on what we measured: when the real engine already runs locally, a port per table hides our own SQL, and a green suite sits on a broken query, a wrong policy, or a drifted column list.
+| Dependency | Default |
+| --- | --- |
+| pure calculation, formatting | no port |
+| an engine that runs locally from checked-in migrations | no port — a module in `data/` |
+| a service your team ships, reached over the network | port |
+| third-party API you do not control | port |
 
-**Incorrect (port over an engine that already runs locally):**
+The local-engine row is a **default, not a ban**: a scenario that must run without the store answers question 1 with yes. What the default buys is measured — when a substitute stands in for your own queries, a green suite sits on a broken filter, a wrong policy, or a drifted column list. A port over a local engine still needs integration tests against the real one.
+
+**Incorrect (a table's methods, renamed):**
 
 ```ts
 export type WorkItemsRepository = {
   list; getById; create; update; archive; restore
 }
 ```
-
-Six methods, six one-line forwards, and the tests now exercise a fake instead of the database.
 
 **Correct (module boundary, no port) — lives in `data/<slice>`, not `adapters/outbound`:**
 
@@ -34,8 +37,6 @@ export async function listWorkItems(ctx: DataContext, params: ListParams): Promi
 export async function saveWorkItem(ctx: DataContext, edit: WorkItemEdit): Promise<WorkItem>
 ```
 
-`ctx` carries the request-scoped client and caller identity. Tests run against the local engine. Naming matters: an adapter satisfies a port, so a module with no port is not one.
-
-Exception: a scenario that orchestrates several sources and must run without the database defines narrow ports named for the role it needs, not for a table.
+`ctx` carries the request-scoped client and caller identity. Naming matters: an adapter satisfies a port, so a module with no port is not one.
 
 Reference: a port is a purposeful conversation with something outside the process — Cockburn's definition. When one is *required* is our own criterion.

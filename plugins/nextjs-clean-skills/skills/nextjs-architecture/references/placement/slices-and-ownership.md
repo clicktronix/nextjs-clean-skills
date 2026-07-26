@@ -14,7 +14,7 @@ adapters/inbound/…/work-items · client-cache/work-items · app/…/work-items
 Rules that keep slices meaningful:
 
 - one name for the capability, spelled identically in every layer
-- a slice does not import another slice's internals; shared meaning moves down into `domain`
+- a slice does not import another slice's internals; it reaches only the published `operations/**` surface, and shared *meaning* still moves down into `domain`
 - do not invent a generic abstraction to avoid choosing an owner
 - a shared technical helper is not a slice; it belongs to a layer
 

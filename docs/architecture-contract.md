@@ -4,7 +4,7 @@ This document is the human-readable model behind the `nextjs-architecture` and
 `react-component-creator` skills. The skills are short operational guardrails; this document is
 the rationale and visual map for teams.
 
-> **Terms:** seam, port, adapter, dependency category, wrapper, read entrypoint, row type,
+> **Terms:** seam, port, adapter, dependency category, declaration, read entrypoint, row type,
 > client cache — all defined in [`glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
 > Open it side-by-side if any term feels unfamiliar.
 
@@ -54,7 +54,7 @@ flowchart LR
     Factories["outbound factories\ncomposition root"]
   end
   subgraph Application["Application core"]
-    UseCases["use-cases/\nwrapper + orchestration"]
+    UseCases["use-cases/\nentries + operations"]
     Domain["domain/\nschemas + pure rules"]
   end
   subgraph Persistence["Data + integrations"]
@@ -124,24 +124,29 @@ that — but externality alone does not earn a port. The canonical pattern sets 
 Cockburn calls that "a matter of intuition" with "no particular damage" in getting it wrong. "Not
 one per stored entity" is our rule, and the reason is below.
 
-| Dependency | Can it run in the test suite? | Contract at the seam |
-| --- | --- | --- |
-| pure computation | yes, trivially | no |
-| store with local engine + migrations | yes | no — a module in `data/`, tested against the engine |
-| owned service over the network | no | yes — production adapter and fake |
-| third-party service | no | yes — adapter and mock |
+Four ordered questions decide it: must the scenario run independently of this technology; does
+the contract read as a purposeful conversation in the application's language rather than a table's
+CRUD or an SDK's method list; is there a real consumer and a production implementation today. If
+all hold, the port is justified — and a test adapter counts as an adapter, so production variation
+is not required.
 
-Two consequences worth stating plainly.
+| Dependency | Default |
+| --- | --- |
+| pure computation | no port |
+| store with a local engine + migrations | no port — a module in `data/`, tested against the engine |
+| owned service over the network | port |
+| third-party service | port |
 
-**A port over a locally runnable store weakens tests.** The substitute stands in for your own
-queries, so a broken filter, a wrong policy, or a drifted column list stays green.
+**The store row is a default, not a ban.** What it buys is measured: when a substitute stands in
+for your own queries, a broken filter, a wrong policy, or a drifted column list stays green. A port
+declared over a local engine still owes integration tests against the real one.
 
 **The application does not need a container.** Closures and an explicit request context provide
 constructor injection, scoping, decoration, and test doubles. A registry earns its place only at
 a scale this shape of application does not reach; the thresholds are written down in the skill so
 the decision can be revisited with evidence rather than taste.
 
-## Why One Wrapper
+## Why One Declaration
 
 Cross-cutting concerns at the application seam — validating the declared input and output,
 turning any failure into a value, reporting it once — are the same work for every scenario.
@@ -151,12 +156,14 @@ grow their own arrangement, and a fourth channel means writing the rules a fourt
 Written once, they also make a thin scenario body legitimate: the leverage is in the guarantees,
 not the line count.
 
-Two guardrails on that wrapper, both learned the hard way. **Framework control flow is re-thrown,
-never normalised** — navigation and not-found signals are implemented by throwing, so a universal
-catch turns a redirect into an application failure and the navigation never happens. **A
-declaration never exposes its raw body.** Composition uses a named internal operation that both the
-declaration and the composer call; a public accessor onto the unwrapped body is an escape hatch
-around the guarantees the declaration exists to make.
+Two guardrails, both learned the hard way. **The declaration knows nothing about the framework.**
+It may import domain only, and navigation is implemented by throwing — so `redirect()` and
+`notFound()` belong outside it: the boundary returns a value, the entry point navigates. A boundary
+that recognised framework signals would have to import the framework, which is precisely what the
+layer exists to keep out. **A declaration never calls another declaration.** Composition goes
+through the slice's `operations/**` surface — typed functions that throw and report nothing — so
+the failure is normalised and reported once, at the outermost declaration, instead of twice under
+an inner one's name.
 
 ## Runtime Flow vs Import Direction
 

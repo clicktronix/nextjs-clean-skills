@@ -203,11 +203,21 @@ if (ESLint && errors.length === 0) {
   // tier-one blind spot: clean there, rejected once the resolved tier is present.
   const expectIn = (tier, testCase) =>
     testCase.resolvedOnly ? (tier === 'strings' ? 'clean' : 'error') : testCase.expect
-  // The resolved tier owns project-internal paths only; drivers, builtins and environment reads
-  // are tier one's job, so the extras stay out of its run. The generated cross-product already
-  // covers every layer pair there, in all three spellings.
+  // The resolved tier owns project-internal paths: drivers, builtins and environment reads are
+  // tier one's job. Which extras qualify is DERIVED from their code — every specifier is an alias
+  // or a relative path — rather than hand-flagged. A hand-flagged list let a subpath rule ship
+  // untested: it was caught only by tier one, and deleting the tier-two zone changed nothing.
+  const SPECIFIER = /from '([^']+)'|import\('([^']+)'\)|require\('([^']+)'\)/g
+  const projectOnly = (testCase) => {
+    const specifiers = [...testCase.code.matchAll(SPECIFIER)].map((m) => m[1] ?? m[2] ?? m[3])
+    return specifiers.length > 0 && specifiers.every((s) => s.startsWith('@/') || s.startsWith('.'))
+  }
+  for (const testCase of cases) testCase.projectOnly = projectOnly(testCase)
+
   const runsIn = (tier, testCase) =>
-    tier === 'resolved' ? testCase.layerEdge === true || testCase.resolvedOnly === true : true
+    tier === 'resolved'
+      ? testCase.layerEdge === true || testCase.resolvedOnly === true || testCase.projectOnly
+      : true
 
   const TIERS = {
     strings: `import strings from './eslint-boundaries.mjs'\nexport default [...strings]\n`,
