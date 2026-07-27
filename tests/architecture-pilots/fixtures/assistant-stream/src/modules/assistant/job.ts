@@ -8,7 +8,11 @@ import {
   type GenerateResponseDependencies,
   type GenerateResponseInput,
 } from './application/generate-response.js'
-import { reportUnexpected, type Reporter } from '../../shared/server/reporting.js'
+import {
+  reportUnexpected,
+  type Reporter,
+  type ReportingContext,
+} from '../../shared/server/reporting.js'
 
 export type AssistantJobResult =
   | { status: 'completed'; text: string }
@@ -17,7 +21,10 @@ export type AssistantJobResult =
 
 export async function runAssistantJob(
   input: GenerateResponseInput,
-  dependencies: GenerateResponseDependencies & { reporter: Reporter }
+  dependencies: GenerateResponseDependencies & {
+    reporter: Reporter
+    reportingContext: ReportingContext
+  }
 ): Promise<AssistantJobResult> {
   const tokens: string[] = []
 
@@ -37,7 +44,12 @@ export async function runAssistantJob(
       return { status: 'retry', reason: 'DEADLINE' }
     }
 
-    reportUnexpected(dependencies.reporter, error, 'assistant.job')
+    reportUnexpected(
+      dependencies.reporter,
+      error,
+      'assistant.job',
+      dependencies.reportingContext
+    )
     return { status: 'retry', reason: 'PROVIDER_FAILURE' }
   }
 }

@@ -5,7 +5,10 @@ import {
 } from '../../modules/board/server.js'
 import type { LabelsServer } from '../../modules/labels/server.js'
 import type { WorkItemsServer } from '../../modules/work-items/server.js'
-import type { Reporter } from '../../shared/server/reporting.js'
+import type {
+  Reporter,
+  ReportingContext,
+} from '../../shared/server/reporting.js'
 
 export function composeBoardPage(dependencies: {
   labels: LabelsServer
@@ -15,9 +18,9 @@ export function composeBoardPage(dependencies: {
 }
 
 export async function renderBoardPage(
-  tenantId: string,
+  context: ReportingContext & { tenantId: string },
   server: BoardServer,
   reporter: Reporter
 ) {
-  return readBoardForRsc(tenantId, server, reporter)
+  return readBoardForRsc(context, server, reporter)
 }

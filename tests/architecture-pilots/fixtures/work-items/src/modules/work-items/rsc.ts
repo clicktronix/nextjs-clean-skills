@@ -9,7 +9,7 @@ export async function readWorkItemsForRsc(
   try {
     return await server.list(context)
   } catch (error) {
-    reportUnexpected(reporter, error, 'work-items.rsc')
+    reportUnexpected(reporter, error, 'work-items.rsc', context)
     throw error
   }
 }

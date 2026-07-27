@@ -26,7 +26,7 @@ export async function getWorkItems(
       { headers: { 'x-request-id': context.requestId } }
     )
   } catch (error) {
-    reportUnexpected(dependencies.reporter, error, 'work-items.http')
+    reportUnexpected(dependencies.reporter, error, 'work-items.http', context)
     return Response.json(
       { error: { code: 'INTERNAL_ERROR' }, requestId: context.requestId },
       { status: 500, headers: { 'x-request-id': context.requestId } }

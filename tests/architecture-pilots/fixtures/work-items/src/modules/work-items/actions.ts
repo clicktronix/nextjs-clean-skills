@@ -25,7 +25,7 @@ export async function createWorkItemAction(
     if (error instanceof WorkItemInputError) {
       return { ok: false, code: 'INVALID_INPUT' }
     }
-    reportUnexpected(reporter, error, 'work-items.action')
+    reportUnexpected(reporter, error, 'work-items.action', context)
     throw error
   }
 }

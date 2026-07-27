@@ -28,7 +28,7 @@ export async function getLabels(
       { headers: { 'x-request-id': context.requestId } }
     )
   } catch (error) {
-    reportUnexpected(dependencies.reporter, error, 'labels.http')
+    reportUnexpected(dependencies.reporter, error, 'labels.http', context)
     return Response.json(
       { error: { code: 'INTERNAL_ERROR' }, requestId: context.requestId },
       { status: 500, headers: { 'x-request-id': context.requestId } }

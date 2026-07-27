@@ -184,6 +184,46 @@ async function testWorkItems(load) {
   )
   assert.equal(failingReports.calls.length, 1)
   assert.equal(failingReports.calls[0].attributes.boundary, 'work-items.rsc')
+  assert.equal(failingReports.calls[0].attributes.requestId, 'request-a')
+
+  const actionFailureReports = createReporter()
+  await assert.rejects(
+    () =>
+      actionsModule.createWorkItemAction(
+        { title: 'Valid input' },
+        context,
+        {
+          list: server.list,
+          create: async () => {
+            throw failure
+          },
+        },
+        actionFailureReports.reporter
+      ),
+    failure
+  )
+  assert.equal(actionFailureReports.calls.length, 1)
+  assert.equal(actionFailureReports.calls[0].attributes.boundary, 'work-items.action')
+  assert.equal(actionFailureReports.calls[0].attributes.requestId, 'request-a')
+
+  const httpFailureReports = createReporter()
+  const httpFailure = await routeModule.getWorkItems(
+    new Request('https://fixture.test/api/work-items'),
+    {
+      authenticate: async () => context,
+      server: {
+        list: async () => {
+          throw failure
+        },
+        create: server.create,
+      },
+      reporter: httpFailureReports.reporter,
+    }
+  )
+  assert.equal(httpFailure.status, 500)
+  assert.equal(httpFailureReports.calls.length, 1)
+  assert.equal(httpFailureReports.calls[0].attributes.boundary, 'work-items.http')
+  assert.equal(httpFailureReports.calls[0].attributes.requestId, 'request-a')
 }
 
 async function testAssistantStream(load) {
@@ -207,6 +247,7 @@ async function testAssistantStream(load) {
       { token: 'world' },
     ]),
     reporter: successReports.reporter,
+    reportingContext: { requestId: 'stream-success', actorId: 'actor-a' },
   })
   assert.equal(success.status, 200)
   assert.deepEqual(await collect(success.events), [
@@ -223,12 +264,14 @@ async function testAssistantStream(load) {
       { error: new Error('provider unavailable') },
     ]),
     reporter: beforeReports.reporter,
+    reportingContext: { requestId: 'stream-before', actorId: 'actor-a' },
   })
   assert.equal(before.status, 503)
   assert.deepEqual(await collect(before.events), [
     { type: 'error', code: 'STREAM_INTERRUPTED' },
   ])
   assert.equal(beforeReports.calls[0].attributes.boundary, 'assistant.stream.before-commit')
+  assert.equal(beforeReports.calls[0].attributes.requestId, 'stream-before')
 
   const afterReports = createReporter()
   const after = await streamModule.openAssistantStream(input, {
@@ -238,6 +281,7 @@ async function testAssistantStream(load) {
       { error: new Error('provider interrupted') },
     ]),
     reporter: afterReports.reporter,
+    reportingContext: { requestId: 'stream-after', actorId: 'actor-a' },
   })
   assert.equal(after.status, 200)
   assert.deepEqual(await collect(after.events), [
@@ -253,6 +297,7 @@ async function testAssistantStream(load) {
       clock,
       generator: providerModule.createScriptedTextGenerator([{ token: 'late' }]),
       reporter: deadlineReports.reporter,
+      reportingContext: { requestId: 'stream-deadline', actorId: 'actor-a' },
     }
   )
   assert.equal(deadline.status, 504)
@@ -271,6 +316,7 @@ async function testAssistantStream(load) {
         },
       },
       reporter: cancellationReports.reporter,
+      reportingContext: { requestId: 'stream-cancelled', actorId: 'actor-a' },
     }
   )
   assert.equal(cancelled.status, 200)
@@ -287,9 +333,11 @@ async function testAssistantStream(load) {
       { error: new Error('provider unavailable') },
     ]),
     reporter: jobReports.reporter,
+    reportingContext: { requestId: 'job-failure', actorId: 'worker' },
   })
   assert.deepEqual(job, { status: 'retry', reason: 'PROVIDER_FAILURE' })
   assert.equal(jobReports.calls[0].attributes.boundary, 'assistant.job')
+  assert.equal(jobReports.calls[0].attributes.requestId, 'job-failure')
 
   const deadlineJobReports = createReporter()
   const deadlineJob = await jobModule.runAssistantJob(
@@ -298,6 +346,7 @@ async function testAssistantStream(load) {
       clock,
       generator: providerModule.createScriptedTextGenerator([{ token: 'late' }]),
       reporter: deadlineJobReports.reporter,
+      reportingContext: { requestId: 'job-deadline', actorId: 'worker' },
     }
   )
   assert.deepEqual(deadlineJob, { status: 'retry', reason: 'DEADLINE' })
@@ -330,7 +379,12 @@ async function testBoardWorkflow(load) {
   )
   const server = pageModule.composeBoardPage({ workItems, labels })
   const reports = createReporter()
-  const board = await pageModule.renderBoardPage('tenant-a', server, reports.reporter)
+  const boardContext = {
+    tenantId: 'tenant-a',
+    requestId: 'board-request',
+    actorId: 'actor-a',
+  }
+  const board = await pageModule.renderBoardPage(boardContext, server, reports.reporter)
 
   assert.deepEqual(board, {
     cards: [
@@ -340,9 +394,14 @@ async function testBoardWorkflow(load) {
     unlabeledCount: 1,
   })
   assert.equal(reports.calls.length, 0)
-  assert.deepEqual(await labelsRscModule.readLabelsForRsc('tenant-a', labels, reports.reporter), [
-    { id: 'urgent', name: 'Urgent' },
-  ])
+  assert.deepEqual(
+    await labelsRscModule.readLabelsForRsc(
+      { tenantId: 'tenant-a', requestId: 'labels-rsc', actorId: 'actor-a' },
+      labels,
+      reports.reporter
+    ),
+    [{ id: 'urgent', name: 'Urgent' }]
+  )
   const labelsResponse = await labelsRouteModule.getLabels(
     new Request('https://fixture.test/api/labels'),
     {
@@ -360,13 +419,54 @@ async function testBoardWorkflow(load) {
   await assert.rejects(
     () =>
       pageModule.renderBoardPage(
-        'tenant-a',
+        boardContext,
         { load: async () => Promise.reject(failure) },
         failureReports.reporter
       ),
     failure
   )
   assert.equal(failureReports.calls[0].attributes.boundary, 'board.rsc')
+  assert.equal(failureReports.calls[0].attributes.requestId, 'board-request')
+
+  const labelsFailure = new Error('labels failed')
+  const labelsRscReports = createReporter()
+  await assert.rejects(
+    () =>
+      labelsRscModule.readLabelsForRsc(
+        { tenantId: 'tenant-a', requestId: 'labels-rsc-failure' },
+        {
+          listForBoard: async () => {
+            throw labelsFailure
+          },
+        },
+        labelsRscReports.reporter
+      ),
+    labelsFailure
+  )
+  assert.equal(labelsRscReports.calls.length, 1)
+  assert.equal(labelsRscReports.calls[0].attributes.boundary, 'labels.rsc')
+  assert.equal(labelsRscReports.calls[0].attributes.requestId, 'labels-rsc-failure')
+
+  const labelsHttpReports = createReporter()
+  const labelsHttpFailure = await labelsRouteModule.getLabels(
+    new Request('https://fixture.test/api/labels'),
+    {
+      authenticate: async () => ({
+        tenantId: 'tenant-a',
+        requestId: 'labels-http-failure',
+      }),
+      labels: {
+        listForBoard: async () => {
+          throw labelsFailure
+        },
+      },
+      reporter: labelsHttpReports.reporter,
+    }
+  )
+  assert.equal(labelsHttpFailure.status, 500)
+  assert.equal(labelsHttpReports.calls.length, 1)
+  assert.equal(labelsHttpReports.calls[0].attributes.boundary, 'labels.http')
+  assert.equal(labelsHttpReports.calls[0].attributes.requestId, 'labels-http-failure')
 }
 
 try {

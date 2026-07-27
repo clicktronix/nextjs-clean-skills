@@ -10,7 +10,11 @@ import {
   type GenerateResponseDependencies,
   type GenerateResponseInput,
 } from './application/generate-response.js'
-import { reportUnexpected, type Reporter } from '../../shared/server/reporting.js'
+import {
+  reportUnexpected,
+  type Reporter,
+  type ReportingContext,
+} from '../../shared/server/reporting.js'
 
 export type AssistantStreamResponse = {
   status: number
@@ -38,7 +42,8 @@ async function* oneEvent(event: AssistantEvent): AsyncGenerator<AssistantEvent> 
 async function* committedEvents(
   first: AssistantEvent,
   iterator: AsyncIterator<AssistantEvent>,
-  reporter: Reporter
+  reporter: Reporter,
+  reportingContext: ReportingContext
 ): AsyncGenerator<AssistantEvent> {
   yield first
   try {
@@ -49,7 +54,7 @@ async function* committedEvents(
     }
   } catch (error) {
     if (!isExpectedGenerationError(error)) {
-      reportUnexpected(reporter, error, 'assistant.stream.after-commit')
+      reportUnexpected(reporter, error, 'assistant.stream.after-commit', reportingContext)
     }
     yield expectedErrorEvent(error)
   }
@@ -57,7 +62,10 @@ async function* committedEvents(
 
 export async function openAssistantStream(
   input: GenerateResponseInput,
-  dependencies: GenerateResponseDependencies & { reporter: Reporter }
+  dependencies: GenerateResponseDependencies & {
+    reporter: Reporter
+    reportingContext: ReportingContext
+  }
 ): Promise<AssistantStreamResponse> {
   const iterator = generateResponse(input, dependencies)
 
@@ -68,11 +76,21 @@ export async function openAssistantStream(
     }
     return {
       status: 200,
-      events: committedEvents(first.value, iterator, dependencies.reporter),
+      events: committedEvents(
+        first.value,
+        iterator,
+        dependencies.reporter,
+        dependencies.reportingContext
+      ),
     }
   } catch (error) {
     if (!isExpectedGenerationError(error)) {
-      reportUnexpected(dependencies.reporter, error, 'assistant.stream.before-commit')
+      reportUnexpected(
+        dependencies.reporter,
+        error,
+        'assistant.stream.before-commit',
+        dependencies.reportingContext
+      )
     }
     return {
       status: statusBeforeCommit(error),
