@@ -299,6 +299,7 @@ async function testBoardWorkflow(load) {
   const labelsStoreModule = await load('board-workflow/src/modules/labels/server/store.js')
   const labelsServerModule = await load('board-workflow/src/modules/labels/server.js')
   const labelsRscModule = await load('board-workflow/src/modules/labels/rsc.js')
+  const labelsRouteModule = await load('board-workflow/src/app/api/labels/route.js')
   const pageModule = await load('board-workflow/src/app/board/page.js')
 
   const workItems = workItemsServerModule.createWorkItemsServer(
@@ -327,6 +328,17 @@ async function testBoardWorkflow(load) {
   assert.deepEqual(await labelsRscModule.readLabelsForRsc('tenant-a', labels, reports.reporter), [
     { id: 'urgent', name: 'Urgent' },
   ])
+  const labelsResponse = await labelsRouteModule.getLabels(
+    new Request('https://fixture.test/api/labels'),
+    {
+      authenticate: async () => ({ tenantId: 'tenant-a', requestId: 'labels-request' }),
+      labels,
+      reporter: reports.reporter,
+    }
+  )
+  assert.equal(labelsResponse.status, 200)
+  assert.equal(labelsResponse.headers.get('x-request-id'), 'labels-request')
+  assert.deepEqual((await labelsResponse.json()).data, [{ id: 'urgent', name: 'Urgent' }])
 
   const failure = new Error('board failed')
   const failureReports = createReporter()
@@ -350,7 +362,20 @@ try {
     .flatMap((fixture) => fixture.baseFiles)
     .sort()
   const actualFiles = listTypeScriptFiles(path.join(pilotRoot, 'fixtures')).sort()
-  assert.deepEqual(actualFiles, expectedFiles, 'fixture files must match the preregistered plan')
+  const plannedNewFiles = candidate.preregisteredChanges.flatMap(
+    (scenario) => scenario.plannedCandidateTouches.new
+  )
+  const admittedFiles = new Set([...expectedFiles, ...plannedNewFiles])
+  assert.deepEqual(
+    actualFiles.filter((file) => !admittedFiles.has(file)),
+    [],
+    'fixture inventory contains a file that was not preregistered'
+  )
+  assert.deepEqual(
+    expectedFiles.filter((file) => !actualFiles.includes(file)),
+    [],
+    'fixture inventory is missing a preregistered base file'
+  )
 
   fs.writeFileSync(path.join(output, 'package.json'), '{"type":"module"}\n')
   const compile = spawnSync(
