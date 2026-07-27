@@ -1,8 +1,8 @@
 # Capability-First Pilot Results
 
-Status: candidate fixtures and the baseline replay pass their checks. The architecture gate remains
-open because the provider-swap candidate did not model production composition and agent evaluation
-has not run.
+Status: candidate fixtures and the baseline replay pass their checks. The corrected provider replay
+now includes a production composition surface. The architecture gate remains open for final review,
+and agent evaluation has not run.
 
 ## Evidence
 
@@ -14,6 +14,8 @@ has not run.
 - Six architecture invariants are executable. Ten mutations prove their critical branches fail.
 - Every candidate change is anchored to its own commit and checked against
   `candidate-plan.json`.
+- The provider replay has a separate composition control at `37b9f97`; the corrected swap is
+  `759276b`. The original `69060dd` result is retained only as superseded evidence.
 - The layer-first replay is published at
   `fullstack-ai-template@research/layer-first-baseline-replays`, head `46b5bc5`. `bun run check`
   and the full `991`-test suite pass.
@@ -24,7 +26,7 @@ has not run.
 | --- | ---: | ---: | ---: | --- |
 | add `dueAt` | 3 | 1 | 9 | candidate is more local; baseline needed one unplanned locale update |
 | add labels HTTP GET | 1 | 1 | 3 | candidate route is local; baseline adds handler, route export, and test |
-| replace work-item source | 1 | 1 | 10 | invalid comparison: candidate hid config and composition in its harness |
+| replace work-item source | 2 | 1 | 10 | capability composition and adapter changed; channel callers did not |
 | request-aware reporting | 12 | 1 | 11 | not directly comparable; candidate also covers stream and job |
 
 The replay found two preregistration errors. `add-due-at` also changed the English locale.
@@ -43,13 +45,18 @@ test-isolation fix because a Bun module mock polluted the full suite.
 5. Explicit reporting context touched one framework composition file that the plan omitted. This
    is a real cost of explicit context, not noise to hide.
 6. `stream.ts` and `job.ts` belong in the admitted public-surface vocabulary.
-7. A provider-swap claim requires a production composition surface. Dependency injection performed
-   only by a test harness is not evidence that configuration and framework callers remain local.
+7. A provider-swap claim requires a production composition surface. With that control present, the
+   source change touched `server.ts` and `server/store.ts`, not the RSC, action, or HTTP callers.
+8. These fixtures prove framework-independent contracts, not Next.js integration. The current
+   action accepts caller-supplied identity and non-serializable server dependencies, and the route
+   fixture does not export `GET`. They must not be cited as a valid Server Action or Route Handler.
 
 ## Open Gates
 
-- Correct the provider fixture and replay its source swap against a production-like composition
-  surface.
+- Review the corrected provider composition and the remaining architecture acceptance gates.
+- Run one capability through a real Next.js App Router integration: derive identity server-side,
+  expose a serializable Server Action, export a named Route Handler method, verify server/client
+  poisoning, and pass `next build`.
 - Run the 24-cell agent smoke matrix.
 - Run the 96-cell release matrix only if smoke shows a useful signal.
 - Keep the ADR Proposed until both architecture and skill gates pass.

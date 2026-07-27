@@ -10,6 +10,7 @@
     },
     "candidatePlan": "0c6ee8b7e63b5e6e8fdf667410e866efd224d310",
     "candidateBase": "b9f8b3a165ac4e1d7acd8b31446f58ea2c8f25a4",
+    "providerReplayControl": "37b9f970cf8ffa592fe52aba4b6f95bebddd3cd6",
     "invariantFloor": "54fc7ea0e0da85de89e51dcae80b3171f691899e"
   },
   "pilotEvidence": {
@@ -96,18 +97,27 @@
     },
     {
       "id": "replace-work-item-source",
-      "commit": "69060ddd4a91c0420cd1b7d9ccc337938c06d249",
+      "commit": "759276b79f712dafb3a47b984448478b5c389550",
       "candidate": {
         "actualPaths": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
           "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
           "tests/architecture-pilots/run-runtime-tests.mjs"
         ],
-        "productionTypeScriptFiles": 1,
+        "productionTypeScriptFiles": 2,
         "testOrHarnessFiles": 1,
-        "matchesPlan": true,
-        "deviations": [],
-        "comparisonStatus": "invalid",
-        "comparisonLimit": "The fixture selected its concrete data source in the runtime test harness rather than a production configuration and composition surface. The one-file result therefore hides costs that the baseline replay exposed."
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+            "reason": "The corrected control introduced a capability-owned production composition surface so provider selection was no longer performed by the test harness."
+          }
+        ],
+        "comparisonStatus": "valid",
+        "supersededEvidence": {
+          "commit": "69060ddd4a91c0420cd1b7d9ccc337938c06d249",
+          "reason": "The original one-file result selected its concrete data source in the runtime harness and hid production composition cost."
+        }
       },
       "baselineObserved": {
         "commits": [
@@ -205,11 +215,12 @@
   ],
   "findings": [
     "Simple CRUD did not require an application operation or capability port.",
-    "The provider-swap comparison is invalid until the candidate models production configuration and composition; the first fixture hid those costs in its test harness.",
+    "After adding a capability-owned composition control, the provider swap changed two production files and no RSC, action, or HTTP caller.",
     "A new HTTP read required one route-owned production file and no changes to label internals.",
     "Public module surfaces must narrow private models; one-to-one store wrappers recreated the measured forwarding defect.",
     "Streaming and jobs require explicit runtime-specific public surfaces in addition to RSC, actions, server, client, and UI.",
     "Request-aware reporting remains channel work: shared semantics do not remove explicit context propagation at each boundary.",
-    "The baseline replay passes repository checks and 991 tests; the architecture decision remains Proposed until the provider control is corrected and agent evaluation finishes."
+    "The plain TypeScript fixtures do not yet prove Next.js integration: the action accepts non-serializable server dependencies and caller-supplied identity, while the route fixture does not export GET.",
+    "The baseline replay passes repository checks and 991 tests; the architecture decision remains Proposed until the architecture review and agent evaluation finish."
   ]
 }

@@ -337,9 +337,14 @@ architecture roots, duplicated auth/wiring/cache blocks, boundary parses, and pu
 
 The layer-first replay is complete and published at
 `fullstack-ai-template@research/layer-first-baseline-replays`. It invalidated the first
-provider-swap comparison: the candidate selected its concrete provider in the runtime harness and
-therefore did not expose production configuration and composition costs. That scenario must be
-corrected before the architecture gate can pass.
+provider-swap comparison because the candidate selected its concrete provider in the runtime
+harness. The corrected replay adds a capability-owned composition control: swapping the source
+changes the public server composition and private adapter, but not RSC, action, or HTTP callers.
+
+The isolated fixtures are not sufficient Next.js evidence. Before acceptance, one capability must
+also run inside a real App Router application. Its Server Action must accept only serializable
+client input and derive identity server-side; its `route.ts` must export a named HTTP method; and
+the production build must exercise server/client poisoning.
 
 ## Acceptance Gates
 
