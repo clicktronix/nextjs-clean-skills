@@ -16,6 +16,11 @@ export type WorkItemDataSource = {
   insert(row: WorkItemRow): Promise<WorkItemRow>
 }
 
+export type WorkItemsFetcher = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>
+
 export type WorkItemStore = {
   list(tenantId: string): Promise<WorkItem[]>
   create(tenantId: string, input: CreateWorkItemInput): Promise<WorkItem>
@@ -31,6 +36,27 @@ function toWorkItem(row: WorkItemRow): WorkItem {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseWorkItemRow(value: unknown): WorkItemRow {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.tenant_id !== 'string' ||
+    typeof value.title !== 'string' ||
+    (value.description !== null && typeof value.description !== 'string') ||
+    typeof value.is_priority !== 'boolean' ||
+    (value.due_at !== null && typeof value.due_at !== 'string') ||
+    typeof value.created_at !== 'string' ||
+    typeof value.updated_at !== 'string'
+  ) {
+    throw new Error('work-item provider returned an invalid row')
+  }
+  return value as WorkItemRow
 }
 
 export function createWorkItemStore(source: WorkItemDataSource): WorkItemStore {
@@ -55,15 +81,35 @@ export function createWorkItemStore(source: WorkItemDataSource): WorkItemStore {
   }
 }
 
-export function createMemoryWorkItemSource(seed: WorkItemRow[] = []): WorkItemDataSource {
-  const rows = seed.map((row) => ({ ...row }))
+export function createHttpWorkItemSource({
+  baseUrl,
+  fetcher = fetch,
+}: {
+  baseUrl: string
+  fetcher?: WorkItemsFetcher
+}): WorkItemDataSource {
   return {
     async selectByTenant(tenantId) {
-      return rows.filter((row) => row.tenant_id === tenantId).map((row) => ({ ...row }))
+      const response = await fetcher(
+        new URL(`/work-items?tenantId=${encodeURIComponent(tenantId)}`, baseUrl)
+      )
+      const body: unknown = await response.json()
+      if (!response.ok || !Array.isArray(body)) {
+        throw new Error(`work-item provider list failed with ${response.status}`)
+      }
+      return body.map(parseWorkItemRow)
     },
     async insert(row) {
-      rows.push({ ...row })
-      return { ...row }
+      const response = await fetcher(new URL('/work-items', baseUrl), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(row),
+      })
+      const body: unknown = await response.json()
+      if (response.status !== 201) {
+        throw new Error(`work-item provider create failed with ${response.status}`)
+      }
+      return parseWorkItemRow(body)
     },
   }
 }

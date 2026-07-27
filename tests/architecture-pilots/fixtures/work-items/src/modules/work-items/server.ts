@@ -4,9 +4,9 @@ import {
   listAuthorizedWorkItems,
 } from './server/service.js'
 import {
-  createMemoryWorkItemSource,
+  createHttpWorkItemSource,
   createWorkItemStore,
-  type WorkItemRow,
+  type WorkItemsFetcher,
 } from './server/store.js'
 
 export type { CreateWorkItemInput, WorkItem } from './domain/work-item.js'
@@ -34,8 +34,9 @@ export type WorkItemsServer = {
 }
 
 export type WorkItemsRuntimeOptions = {
+  baseUrl: string
   cache: WorkItemsServerDependencies['cache']
-  seed?: WorkItemRow[]
+  fetcher?: WorkItemsFetcher
 }
 
 export function createWorkItemsServer(
@@ -48,11 +49,12 @@ export function createWorkItemsServer(
 }
 
 export function createWorkItemsRuntime({
+  baseUrl,
   cache,
-  seed = [],
+  fetcher,
 }: WorkItemsRuntimeOptions): WorkItemsServer {
   return createWorkItemsServer({
-    store: createWorkItemStore(createMemoryWorkItemSource(seed)),
+    store: createWorkItemStore(createHttpWorkItemSource({ baseUrl, fetcher })),
     cache,
   })
 }

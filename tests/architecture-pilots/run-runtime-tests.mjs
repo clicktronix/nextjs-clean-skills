@@ -48,29 +48,40 @@ async function testWorkItems(load) {
   const routeModule = await load('work-items/src/app/api/work-items/route.js')
 
   const invalidated = []
+  const rows = [
+    {
+      id: 'item-a',
+      tenant_id: 'tenant-a',
+      title: 'Alpha',
+      description: null,
+      is_priority: true,
+      due_at: '2026-08-01T00:00:00.000Z',
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'item-b',
+      tenant_id: 'tenant-b',
+      title: 'Beta',
+      description: null,
+      is_priority: false,
+      due_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+  ]
   const server = serverModule.createWorkItemsRuntime({
-    seed: [
-      {
-        id: 'item-a',
-        tenant_id: 'tenant-a',
-        title: 'Alpha',
-        description: null,
-        is_priority: true,
-        due_at: '2026-08-01T00:00:00.000Z',
-        created_at: '2026-01-01T00:00:00.000Z',
-        updated_at: '2026-01-01T00:00:00.000Z',
-      },
-      {
-        id: 'item-b',
-        tenant_id: 'tenant-b',
-        title: 'Beta',
-        description: null,
-        is_priority: false,
-        due_at: null,
-        created_at: '2026-01-01T00:00:00.000Z',
-        updated_at: '2026-01-01T00:00:00.000Z',
-      },
-    ],
+    baseUrl: 'https://provider.test',
+    fetcher: async (input, init) => {
+      const url = new URL(String(input))
+      if (init?.method === 'POST') {
+        const row = JSON.parse(String(init.body))
+        rows.push(row)
+        return Response.json(row, { status: 201 })
+      }
+      const tenantId = url.searchParams.get('tenantId')
+      return Response.json(rows.filter((row) => row.tenant_id === tenantId))
+    },
     cache: {
       async invalidate(tenantId) {
         invalidated.push(tenantId)
