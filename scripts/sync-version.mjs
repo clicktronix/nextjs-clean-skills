@@ -17,7 +17,7 @@ const keywords = [
   'mantine',
   'supabase',
   'tanstack-query',
-  'composeHooks',
+  'react-hooks',
   'dal',
   'rls',
   'agent-skills',

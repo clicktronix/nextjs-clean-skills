@@ -40,7 +40,7 @@ Read-heavy queries:
   RSC/page/layout -> server-only DAL/read entrypoint -> use-case/port -> outbound implementation
 
 Client-interactive queries:
-  Client component -> ui/server-state -> Server Action/API -> use-case -> port -> outbound
+  Client component -> ui/server-state -> GET Route Handler or stream -> use-case -> port -> outbound
 
 Compile-time imports:
   domain          imports pure domain helpers and schema libraries only
@@ -97,6 +97,7 @@ If any field is unclear, resolve that decision before adding files.
 - Use-case imports `next/*`, React, Supabase clients, outbound repositories, or TanStack Query.
 - Server data is copied into Context, Zustand, or `useState` instead of RSC props or TanStack Query.
 - Server Action trusts client validation and skips server-side auth/authz checks.
+- Server Action is used as a browser read, polling, or TanStack Query transport.
 - Route Handler is used for same-app form commands that belong in Server Actions.
 - Cache tags are broad, tenant-unsafe, or invalidated without matching ownership.
 
@@ -105,6 +106,8 @@ If any field is unclear, resolve that decision before adding files.
 Before reporting success:
 
 1. Check changed imports against the compile-time boundary list: domain stays pure; use-cases depend on ports, not adapters/framework/React/TanStack; outbound implements ports; `app/` entrypoints stay thin.
-2. Confirm every data access path re-checks auth/authz server-side and cache tags are scoped by entity, user, or tenant.
-3. Run the smallest relevant test or static check available in the target repo.
-4. State any unverified layer explicitly instead of implying it is covered.
+2. Confirm RSC reads call server-only code directly, browser-owned reads use GET/stream transport,
+   and Server Actions remain mutation boundaries.
+3. Confirm every data access path re-checks auth/authz server-side and cache tags are scoped by entity, user, or tenant.
+4. Run the smallest relevant test or static check available in the target repo.
+5. State any unverified layer explicitly instead of implying it is covered.

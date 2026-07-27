@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-07-27
+
+### Added
+
+- Added hypothesis scenarios for static Hook calls, imported Server Action modules, and
+  browser-owned query transport. They enforce reference drift but are not eval-proven until
+  isolated RED-to-GREEN runs are recorded.
+- Added a CWD-independence regression check that inventories both skills from `docs/`.
+
+### Changed
+
+- Replaced the `composeHooks` default with a Controller that calls a named custom Hook directly
+  and passes plain props to a View. The existing reference filename is retained for external-link
+  compatibility.
+- Clarified that Server Actions imported by Client Components require module-level `'use server'`
+  and should expose async mutations.
+- Routed browser-owned TanStack Query reads through GET or stream transport while keeping
+  Server Actions mutation-only and RSC reads on direct server calls.
+
+### Fixed
+
+- Derived the validator repository root from the script location instead of `process.cwd()`, so
+  validation from a subdirectory cannot silently inspect the wrong tree.
+
 ## [1.3.1] - 2026-07-10
 
 ### Added

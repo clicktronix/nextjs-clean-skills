@@ -1,0 +1,15 @@
+{
+  "skills": ["react-component-creator"],
+  "tests_reference": "references/component-structure-composehooks.md#controller-and-view",
+  "query": "Refactor a Client Component whose rendering is simple but whose state mapping and callbacks belong in useWorkItemsProps. Keep the View independently testable.",
+  "baseline_failure": "Agent passes useWorkItemsProps into composeHooks, a render prop, or another generic higher-order helper instead of calling the Hook statically.",
+  "expected_behavior": [
+    "Calls useWorkItemsProps by name inside the WorkItems Controller",
+    "Passes the returned plain props to a declarative WorkItemsView",
+    "Keeps Hook and view-model logic in lib.ts without adding a generic Hook composer"
+  ],
+  "anti_expectation": [
+    "Does NOT add a Provider or third component file unless reuse, testing, or a server-compatible render path justifies it",
+    "Does NOT add memo without measured need"
+  ]
+}

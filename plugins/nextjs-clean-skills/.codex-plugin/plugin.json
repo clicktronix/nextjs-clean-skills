@@ -1,6 +1,6 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
   "author": {
     "name": "Clicktronix",
@@ -21,7 +21,7 @@
     "mantine",
     "supabase",
     "tanstack-query",
-    "composeHooks",
+    "react-hooks",
     "dal",
     "rls",
     "agent-skills"

@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 
-export const root = process.cwd()
+export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export function readJson(file) {
   return JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))

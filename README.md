@@ -96,10 +96,10 @@ their local equivalents unless the task requests a migration.
 - **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
 - **Reads**: Server Components through server-only DAL/read use-cases by default.
-- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared async/server-state cache lifecycle across client islands.
+- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared async/server-state cache lifecycle across client islands; reads use GET/stream transport.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
-- **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
-- **Components**: Server Components by default; `composeHooks(View)(useProps)` for Client Components with logic.
+- **Actions**: Thin validated mutation-only Server Actions, with module-level `'use server'` when imported by Client Components.
+- **Components**: Server Components by default; Client Controllers call named custom Hooks directly and pass plain props to Views.
 
 ## Human Architecture Docs
 

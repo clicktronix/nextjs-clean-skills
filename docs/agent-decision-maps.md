@@ -56,7 +56,7 @@ flowchart TD
 flowchart TD
   Command["Command boundary"] --> Caller{"Who calls it?"}
   Caller -->|Form/button in this Next.js UI| Action["Server Action"]
-  Caller -->|Browser client needing query lifecycle| ServerState["TanStack mutation -> inbound action/API"]
+  Caller -->|Browser client needing query lifecycle| ServerState["TanStack query -> GET/stream Route Handler"]
   Caller -->|External service, mobile app, CLI, webhook sender| Route["Route Handler"]
   Route --> Retry{"Can the caller retry?"}
   Retry -->|Yes| Idempotency["Require Idempotency-Key or provider event id"]
@@ -98,5 +98,5 @@ Then implement in layer order. Do not import outbound adapters from use-cases.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-10 (skill version 1.3.1). When a skill rule
+*Last reviewed against the live skill set: 2026-07-27 (skill version 1.3.2). When a skill rule
 or template pattern changes, refresh this document in the same PR.*

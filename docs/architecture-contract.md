@@ -33,7 +33,7 @@ flowchart LR
   end
   subgraph ClientServerBridge["Client server-state"]
     ServerState["ui/server-state/\nTanStack Query hooks"]
-    LocalActions["feature-local actions.ts\nthin form/action wrappers"]
+    LocalActions["feature-local actions.ts\nmodule-level use server"]
   end
   subgraph Server["Server entrypoints"]
     DAL["server-only DAL/read entrypoints"]
@@ -52,8 +52,8 @@ flowchart LR
   ClientUI --> ServerState
   ClientUI --> LocalActions
   SharedUI -. "no data access" .-> ClientUI
-  ServerState --> Inbound
-  LocalActions --> Inbound
+  ServerState -->|"GET or stream"| Inbound
+  LocalActions -->|"mutation"| Inbound
   DAL --> UseCases
   Inbound --> UseCases
   Inbound --> OutboundFactories
@@ -127,7 +127,7 @@ Query, or Next.js request/cache APIs.
 flowchart TD
   Need["Need data or mutation?"] --> ReadWrite{"Read or command?"}
   ReadWrite -->|Read-heavy UI| RSC["Server Component\nserver-only DAL/read entrypoint"]
-  ReadWrite -->|Client interactive read| Query["ui/server-state\nTanStack Query opt-in"]
+  ReadWrite -->|Client interactive read| Query["ui/server-state\nTanStack Query -> GET/stream"]
   ReadWrite -->|User form/button command| Action["Server Action\nvalidated inbound boundary"]
   ReadWrite -->|External API / service client| Route["Route Handler\nJSON envelope + request id"]
   ReadWrite -->|Webhook| Webhook["Route Handler\nraw body + signature verification"]
@@ -135,7 +135,7 @@ flowchart TD
 ```
 
 Server Actions are for UI commands. Route Handlers are for service APIs, webhooks, external
-clients, mobile apps, integrations, and retryable HTTP commands.
+clients, mobile apps, integrations, retryable HTTP commands, and browser-owned GET/stream reads.
 
 ## Security Boundary
 
@@ -202,5 +202,5 @@ backend truth.
 
 ---
 
-*Last reviewed against the live skill set: 2026-07-10 (skill version 1.3.1). When a skill rule
+*Last reviewed against the live skill set: 2026-07-27 (skill version 1.3.2). When a skill rule
 or template pattern changes, refresh this document in the same PR.*

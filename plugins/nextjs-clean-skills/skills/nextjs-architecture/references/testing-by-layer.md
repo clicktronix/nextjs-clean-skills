@@ -10,7 +10,7 @@ Test the boundary owned by each layer. Mocking across the wrong boundary signals
 | `use-cases/**` | orchestration and outcomes | fake ports |
 | `adapters/outbound/**` | SQL/API mapping and errors | lowest transport/client |
 | `adapters/inbound/next/**` | parse, authz, use-case call, response/invalidation | use-cases and framework helpers |
-| `ui/server-state/**` | query keys, enabled rules, invalidation ownership | actions/API transport |
+| `ui/server-state/**` | query keys, enabled rules, invalidation ownership | GET/stream transport |
 | `ui/**` | rendering and user interaction | contexts and network boundary |
 | e2e | real route, auth, data, browser flow | nothing |
 

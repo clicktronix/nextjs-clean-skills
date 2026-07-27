@@ -1,6 +1,6 @@
 ---
 name: react-component-creator
-description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app; deciding Server vs Client boundaries, component file structure, composeHooks usage, form/action boundaries, state placement, styling, i18n, notifications, loading states, or test ids.
+description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app; deciding Server vs Client boundaries, component file structure, custom Hook placement, form/action boundaries, state placement, styling, i18n, notifications, loading states, or test ids.
 ---
 
 # React Component Creator
@@ -13,7 +13,7 @@ Use these defaults literally for greenfield or explicitly adopted projects; othe
 
 - Start with a Server Component.
 - Add `'use client'` only for event handlers, hooks, refs, browser APIs, opt-in TanStack Query, Mantine forms, or client i18n hooks.
-- Client Components with logic use `composeHooks(View)(useProps)`.
+- Client Components call named custom Hooks directly; never pass a Hook through a generic composer.
 - `index.tsx` contains the View and exported component; it is not a barrel file.
 - `lib.ts` contains view-model and hook logic.
 - `interfaces.ts` is used when types are shared or exceed five local definitions.
@@ -42,7 +42,7 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 ## Reference Map
 
 - [Server/Client Boundary](references/server-client-boundary.md)
-- [Component Structure And composeHooks](references/component-structure-composehooks.md)
+- [Component Structure And Static Hook Calls](references/component-structure-composehooks.md)
 - [Forms And Actions](references/forms-and-actions.md)
 - [State Placement](references/state-placement.md)
 - [Styling And i18n](references/styling-and-i18n.md)
@@ -54,9 +54,11 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 2. Classify data and state ownership before adding hooks or stores.
 3. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
 4. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.
-5. For Client Components with logic, split View and `use<Component>Props` with `composeHooks`.
+5. For Client Components with logic, call `use<Component>Props` directly in a Controller and pass
+   plain props to the View.
 6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `ui/server-state`.
-7. Keep Server Action wrappers feature-local only when TanStack Query semantics are unnecessary.
+7. Keep mutations in feature-local Server Action modules whose first statement is `'use server'`
+   when imported by Client Components. Browser-owned reads use GET/stream transport, not actions.
 8. Add stable `data-testid` to e2e-critical interactive controls.
 
 ## Decision Gate
@@ -68,6 +70,7 @@ component boundary: Server | Client | split
 server data owner: RSC props | TanStack Query | none
 local state owner: URL | component hook | route hook | Context | justified external store
 mutation boundary: Server Action | Route Handler | none
+client read transport: RSC props | GET/stream | none
 files: index.tsx | lib.ts | interfaces.ts | styles.module.css | server-state
 ```
 
@@ -83,7 +86,9 @@ If the answer is "Client because it is easier," re-check the trigger for hooks, 
 - In a repository that adopted this profile, using `interface`, `class`, `any`, inline `style={}`, or namespace exports (use `type`, function composition, narrowed `unknown`, the local styling system, and named imports).
 - Validating a form only on the client and trusting it for authority — the server re-validates with the same schema.
 - Hardcoding user-facing text (including `aria-label`, `placeholder`, `alt`) instead of the project i18n layer.
-- Reaching for `composeHooks` or a context split on a trivial View that is fine as a plain component.
+- Passing a Hook as a regular value through a generic composer instead of calling it statically.
+- Using a Server Action as a TanStack Query or polling read transport.
+- Importing a Server Action into a Client Component from a module without top-level `'use server'`.
 
 ## Verification Gate
 
@@ -91,5 +96,7 @@ Before reporting success:
 
 1. Confirm the smallest possible Client boundary; client logic lives in `lib.ts`, not the View.
 2. Confirm server data remains serializable: read-heavy data arrives via RSC props, client-interactive data lives in `ui/server-state`, never in client UI state.
-3. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
-4. State any visual, i18n, or accessibility behavior not verified.
+3. Confirm every custom Hook is called by name inside a component or another Hook.
+4. Confirm imported Server Actions have a module-level directive and represent mutations.
+5. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
+6. State any visual, i18n, or accessibility behavior not verified.

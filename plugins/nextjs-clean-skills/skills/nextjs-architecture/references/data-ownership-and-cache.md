@@ -14,6 +14,13 @@ Pick one owner for each read path.
 
 Do not back the same read with both RSC props and `useQuery`. Do not use TanStack Query in Server Components. Do not wrap a Server Action in `useMutation` only to invalidate a TanStack key when the affected read is RSC-owned.
 
+## Browser-Owned Reads
+
+For browser-owned reads, TanStack Query calls a GET Route Handler or an explicit stream endpoint.
+It does not call a Server Action: Server Functions are mutation-oriented, processed as actions, and
+are not recommended for data fetching. RSC-owned reads call server-only code directly instead of
+making an HTTP request to the app itself.
+
 Cache Components and tag APIs are framework syntax. The architecture decision is simpler:
 
 - RSC-owned reads invalidate server cache tags.

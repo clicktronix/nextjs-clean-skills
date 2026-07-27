@@ -11,7 +11,15 @@ Default choices:
 - server result messages: return typed error keys/categories; localize in the client.
 - expected failures: auth, authz, validation, conflict, not found, rate limit.
 
-Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority. Server Actions parse input, authorize after parsing, call use-cases, and return public-safe results.
+Client validation, hidden fields, disabled buttons, and bound args carry no authority. Server
+Actions parse, authorize, call use-cases, and return public-safe results.
+
+## Imported Action Modules
+
+When a Client Component imports a Server Action, put `'use server'` at the top of the action module,
+before imports or other statements. An inline directive marks a function declared in server code;
+it does not make an arbitrary module importable by client code. Export only async mutation
+functions from the action module. Server Functions are not a browser data-fetching transport.
 
 **Incorrect (hydration-only submit):**
 
@@ -26,7 +34,7 @@ const [state, formAction, isPending] = useActionState(saveAction, initial)
 return <form action={formAction}><button disabled={isPending}>Save</button></form>
 ```
 
-Fetch current React/next-safe-action/Mantine docs for exact API syntax. This rule decides the boundary and authority model.
+Fetch current React/next-safe-action/Mantine docs for exact API syntax.
 
 ## Localized Validator Bridge
 

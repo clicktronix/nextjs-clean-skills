@@ -93,6 +93,11 @@ transport-neutral error mapping, Sentry instrumentation ownership, and the publi
 MutationCache callback. They enforce reference/anchor drift in CI but are not called load-bearing
 until isolated RED and GREEN runs are recorded.
 
+Three correctness scenarios added in 1.3.2 are also hypotheses: static Hook calls, module-level
+`'use server'` for imported actions, and GET/stream transport for browser-owned queries. Their
+rules follow official React contracts, but their value as agent guidance still needs isolated RED
+and GREEN evidence.
+
 The larger Profile Gate candidate was rejected after an ablation run on 2026-07-10: Haiku with
 each full skill minus only that gate preserved the existing stack in architecture 2/2 and component
 2/2 runs. The multi-line gates and scenario were cut; one fallback sentence remains to define what
@@ -107,8 +112,8 @@ When editing an untested reference, consider authoring its scenario first.
 | Reference | Scenario | Status |
 | --- | --- | --- |
 | nextjs-architecture/security-dal-and-auth | defense-in-depth-ownership | **eval-proven** (RED 3/3 → GREEN) |
-| nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read | inconsistent baseline → section merged to one prose line |
-| react-component-creator/component-structure-composehooks | compound-provider-split | **eval-proven** (RED 3/3 → GREEN) |
+| nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read, browser-owned-query-transport | hybrid inconsistent; browser transport hypothesis |
+| react-component-creator/component-structure-composehooks | compound-provider-split, static-hook-calls | provider split eval-proven; static calls hypothesis |
 | react-component-creator/state-placement | explicit-variants-over-mode | **eval-proven** (RED 2/2 → GREEN) |
 | nextjs-architecture/clean-architecture-boundaries | — | untested |
 | nextjs-architecture/runtime-and-compile-time-boundaries | — | untested |
@@ -119,6 +124,6 @@ When editing an untested reference, consider authoring its scenario first.
 | nextjs-architecture/testing-by-layer | — | untested |
 | nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |
 | react-component-creator/server-client-boundary | — | untested |
-| react-component-creator/forms-and-actions | — | untested |
+| react-component-creator/forms-and-actions | imported-server-action-module | hypothesis (not run) |
 | react-component-creator/notifications-and-feedback | global-mutation-error-notifier | hypothesis (not run) |
 | react-component-creator/styling-and-i18n | — | untested |
