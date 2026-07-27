@@ -11,7 +11,7 @@ Choose the layer before writing files. Dependency direction is compile-time, not
 | `adapters/outbound/**` | Port implementations | domain, use-case port types |
 | `adapters/inbound/next/**` | Server Actions, Route Handlers, webhooks | use-cases, outbound factories, infrastructure |
 | server-only DAL/read entrypoints | Authenticated read composition | use-cases, outbound factories, infrastructure |
-| `ui/server-state/**` | TanStack query keys/hooks | inbound APIs/actions, client-safe transport |
+| `ui/server-state/**` | TanStack query keys/hooks | GET/stream inbound APIs, client-safe transport |
 | `app/**` | routes, layouts, metadata, RSC entrypoints | DAL/read entrypoints, UI, server actions |
 | `ui/**` | views and client interaction | UI hooks, server-state, domain types, local actions |
 | `infrastructure/**` | auth, env, logging, cache helpers | domain and technical libraries |

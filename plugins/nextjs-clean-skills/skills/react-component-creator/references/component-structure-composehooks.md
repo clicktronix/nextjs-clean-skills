@@ -1,47 +1,60 @@
-# Component Structure And composeHooks
+# Component Structure And Static Hook Calls
 
 **Impact: HIGH**
 
-Use `composeHooks(View)(useProps)` for Client Components with non-trivial logic. Skip it for pure Server Components and simple presentation components.
+Call Hooks statically inside a component or another custom Hook. Do not pass a Hook through
+`composeHooks`, props, dependency injection, or another generic higher-order helper. React requires
+Hooks to remain visible as direct calls so component behavior supports local reasoning and automatic
+optimization.
 
 Project file convention:
 
 | File | Owns |
 | --- | --- |
-| `index.tsx` | View component and exported composed component |
+| `index.tsx` | exported Controller and View while both remain readable |
 | `lib.ts` | `use<Props>` hook, view-model mapping, callbacks |
 | `interfaces.ts` | shared or numerous local types |
 | `*.module.css` | custom styling not covered by Mantine props |
 
-The View should be declarative and side-effect free. `lib.ts` may use hooks, compose state sources, and create stable handlers.
+The Controller calls the named custom Hook directly and passes plain props to the View. The View
+should be declarative and side-effect free. `lib.ts` may use Hooks, compose state sources, and create
+stable handlers. Keep Controller and View in one file by default; split `view.tsx` only when the View
+has independent reuse, tests, or a server-compatible render path.
 
-Do not create barrel `index.ts` re-export files. Do not export namespace objects. Import concrete files directly; this avoids RSC namespace export traps and keeps tree-shaking predictable.
+Import concrete files; do not add barrel re-exports or namespace objects.
+
+## Controller And View
 
 **Correct shape:**
 
 ```tsx
 export function WorkItemsView(props: ViewProps) { return <Table {...props} /> }
-export const WorkItems = composeHooks<ViewProps, Props>(WorkItemsView)(useWorkItemsProps)
+
+export function WorkItems(props: Props) {
+  const viewProps = useWorkItemsProps(props)
+  return <WorkItemsView {...viewProps} />
+}
 ```
 
 ## Compound Provider Split
 
-When a feature view takes 30+ props or contains several independent sections, stop growing the View prop list. Split the View into sub-components and pass state through colocated context providers instead. Split contexts by re-render frequency, not by "what feels related":
+When a View reaches 30+ props or several independent sections, split it into sub-components and
+colocated contexts grouped by re-render frequency:
 
-- A `Data` context for fetched entity + derived/label maps (stable until refetch).
-- A `Mutations` context for action callbacks (stable via `useCallback`) and the small subset of flags those callbacks toggle (`isEditing`, `isSaving`).
+- `Data` for fetched entities and derived maps.
+- `Mutations` for stable callbacks and their flags.
 - A `FormState` context for per-keystroke values and errors.
 - A `FormActions` context for `onChange`/`onSubmit` (stable).
 
-Sub-components subscribe only to what they render. A `Stats` block that reads only `Data` does not re-render on form input. A `Header` reading `Mutations` does not re-render on data refetch.
-
-Build each context value with its own `useMemo` and per-slice deps. Bundling unrelated slices into one memo invalidates them together.
+Each sub-component subscribes only to what it renders. Memoize each context value with its own
+dependencies; one combined memo invalidates every slice.
 
 ```tsx
 const dataValue = useMemo(() => ({ blog, labels }), [blog, labels])
 const formStateValue = useMemo(() => ({ values, errors }), [values, errors])
 ```
 
-Use this pattern only when the cost is justified — three or more sub-sections, measurable re-render cost, or a prop list that has stopped fitting on one screen. A small View stays a `composeHooks` pair.
+Require three or more sections, measured re-render cost, or an off-screen prop list. Keep small
+Views as a Controller/View pair or one component.
 
-Reference: project composeHooks convention.
+Reference: React's rule to call Hooks statically inside components or Hooks.

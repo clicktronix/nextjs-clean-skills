@@ -1,0 +1,15 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/data-ownership-and-cache.md#browser-owned-reads",
+  "query": "Implement a client-interactive activity feed with TanStack Query. It polls every 15 seconds and supports infinite scrolling. The project uses Next.js App Router.",
+  "baseline_failure": "Agent wraps a Server Action in useQuery and uses the action as the browser read and polling transport.",
+  "expected_behavior": [
+    "Uses a GET Route Handler or explicit stream endpoint as the browser-owned query transport",
+    "Keeps the query key, polling, pagination, and invalidation lifecycle in ui/server-state",
+    "Keeps Server Actions for mutations and calls server-only read code directly from RSC-owned paths"
+  ],
+  "anti_expectation": [
+    "Does NOT add an HTTP self-call for an RSC-owned read",
+    "Does NOT move query data into Context, Zustand, or local component state"
+  ]
+}
