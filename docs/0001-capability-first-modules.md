@@ -335,6 +335,12 @@ Replay four preregistered changes:
 The exact touched files are recorded before implementation. Count source files, test files, unique
 architecture roots, duplicated auth/wiring/cache blocks, boundary parses, and public surfaces.
 
+The layer-first replay is complete and published at
+`fullstack-ai-template@research/layer-first-baseline-replays`. It invalidated the first
+provider-swap comparison: the candidate selected its concrete provider in the runtime harness and
+therefore did not expose production configuration and composition costs. That scenario must be
+corrected before the architecture gate can pass.
+
 ## Acceptance Gates
 
 The architecture gate passes only if:

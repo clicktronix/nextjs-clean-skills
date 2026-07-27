@@ -67,6 +67,19 @@ function validateUniquePaths(values, label, allowTimestampPlaceholder = false) {
   return values
 }
 
+function matchesPlannedPath(actual, planned) {
+  if (!planned.includes('<timestamp>')) return actual === planned
+
+  const [prefix, suffix] = planned.split('<timestamp>')
+  const middle = actual.slice(prefix.length, actual.length - suffix.length)
+  return (
+    actual.startsWith(prefix) &&
+    actual.endsWith(suffix) &&
+    middle.length > 0 &&
+    !middle.includes('/')
+  )
+}
+
 if (baseline.schemaVersion !== 1) {
   errors.push('baseline schemaVersion must be 1')
 }
@@ -208,6 +221,15 @@ if (results.schemaVersion !== 1) {
 if (results.controls?.sourceBaseline !== baseline.source?.commit) {
   errors.push('pilot results sourceBaseline must match the pinned baseline commit')
 }
+if (results.controls?.baselineReplay?.repository !== baseline.source?.repository) {
+  errors.push('pilot results baseline replay repository must match the pinned baseline repository')
+}
+if (typeof results.controls?.baselineReplay?.branch !== 'string') {
+  errors.push('pilot results baseline replay branch must be a string')
+}
+if (!/^[a-f0-9]{40}$/.test(results.controls?.baselineReplay?.head ?? '')) {
+  errors.push('pilot results baseline replay head must be a full lowercase Git SHA')
+}
 if (results.pilotEvidence?.typeScriptFiles !== listFiles(
   'tests/architecture-pilots/fixtures',
   (file) => file.endsWith('.ts')
@@ -292,12 +314,62 @@ if (!Array.isArray(results.changes)) {
       errors.push(`${result.id}: testOrHarnessFiles does not match the observed diff`)
     }
 
-    const projectedBaselinePaths = [
+    const plannedBaselinePaths = [
       ...baselineScenario.plannedBaselineTouches.existing,
       ...baselineScenario.plannedBaselineTouches.new,
-    ].length
-    if (result.baselineProjection?.plannedPaths !== projectedBaselinePaths) {
+    ]
+    if (result.baselineObserved?.plannedPaths !== plannedBaselinePaths.length) {
       errors.push(`${result.id}: baseline planned path count does not match baseline.json`)
+    }
+
+    const observedCommits = result.baselineObserved?.commits
+    if (!Array.isArray(observedCommits) || observedCommits.length === 0) {
+      errors.push(`${result.id}: baseline observed commits must be a non-empty array`)
+    } else {
+      const uniqueCommits = new Set(observedCommits)
+      if (uniqueCommits.size !== observedCommits.length) {
+        errors.push(`${result.id}: baseline observed commits contain duplicates`)
+      }
+      for (const commit of observedCommits) {
+        if (!/^[a-f0-9]{40}$/.test(commit)) {
+          errors.push(`${result.id}: invalid baseline observed commit ${commit}`)
+        }
+      }
+    }
+
+    const observedPaths = validateUniquePaths(
+      result.baselineObserved?.actualPaths,
+      `${result.id}.baselineObserved.actualPaths`
+    )
+    if (result.baselineObserved?.observedPaths !== observedPaths.length) {
+      errors.push(`${result.id}: baseline observed path count does not match actualPaths`)
+    }
+
+    const unexpectedBaselinePaths = observedPaths.filter(
+      (actual) => !plannedBaselinePaths.some((planned) => matchesPlannedPath(actual, planned))
+    )
+    const missingBaselinePaths = plannedBaselinePaths.filter(
+      (planned) => !observedPaths.some((actual) => matchesPlannedPath(actual, planned))
+    )
+    const baselineDeviationPaths = (result.baselineObserved?.deviations ?? [])
+      .map((deviation) => deviation.path)
+      .sort()
+    if (missingBaselinePaths.length > 0) {
+      errors.push(
+        `${result.id}: planned baseline paths missing from replay: ${missingBaselinePaths.join(', ')}`
+      )
+    }
+    if (
+      JSON.stringify(unexpectedBaselinePaths.sort()) !==
+      JSON.stringify(baselineDeviationPaths)
+    ) {
+      errors.push(`${result.id}: baseline deviations must name every unplanned replay path`)
+    }
+    if (
+      result.baselineObserved?.matchesPlan !==
+      (unexpectedBaselinePaths.length === 0 && missingBaselinePaths.length === 0)
+    ) {
+      errors.push(`${result.id}: baseline matchesPlan does not match the observed replay`)
     }
   }
 }

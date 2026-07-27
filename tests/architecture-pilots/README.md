@@ -7,8 +7,9 @@ paths. `candidate-plan.json` records the candidate fixture inventory and expecte
 before implementation. Pilot implementation must not edit either plan after candidate results are
 known. Correct an objective plan error in a separate commit with an explanation.
 
-[`RESULTS.md`](./RESULTS.md) summarizes the observed candidate results and their current limits.
-`results.json` binds each observation to an exact commit and diff.
+[`RESULTS.md`](./RESULTS.md) summarizes the observed candidate and baseline results and their current
+limits. `results.json` binds candidate observations to exact local commits and records the exact
+remote baseline replay commits and paths.
 
 ## Measurements
 
@@ -38,6 +39,10 @@ Nested folders inside one capability do not increase root scatter.
 `baseline.json` lists the exact expected baseline paths before implementation. For each candidate
 change, add its expected paths before modifying the fixture. If implementation proves either list
 wrong, record the reason in the result; do not silently redefine the metric.
+
+The layer-first replay is published on
+`fullstack-ai-template@research/layer-first-baseline-replays`. Its head and per-change SHAs are
+recorded in `results.json`; the replay branch is a research control, not a product PR.
 
 ## Pilot Fixtures
 
