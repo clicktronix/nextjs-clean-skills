@@ -1,0 +1,20 @@
+{
+  "id": "remote-stream",
+  "title": "Remote assistant stream",
+  "task": "Design the file placement and call flows for an assistant capability in a Next.js 16 App Router application. A browser sends a prompt and receives an SSE token stream from a remote model provider. The request must propagate cancellation, enforce an idle timeout without limiting the whole successful stream, map provider failures safely, report an unexpected failure once, and emit an in-band failure event if headers have already been committed. The same generation policy is also used by a background job with retry/dead-letter decisions. Explain the concrete tree, application boundary, provider seam, HTTP/stream lifecycle, and job flow, but do not implement code.",
+  "rubric": {
+    "positive": [
+      "Assistant behavior is colocated under one capability root with only justified segments and runtime surfaces.",
+      "The generation policy is a framework-neutral application operation and the remote provider is behind a capability-shaped port.",
+      "Streaming uses a Route Handler/SSE surface, propagates abort, distinguishes idle timeout from total deadline, and changes failure representation after commit.",
+      "HTTP stream and job keep native contracts while sharing semantic failure/redaction/reporting primitives.",
+      "Provider text and SDK types do not leak into public/domain contracts."
+    ],
+    "negative": [
+      "Streaming through a Server Action.",
+      "Retrying a partially committed stream as if it were an ordinary request.",
+      "One universal boundary/result wrapper for HTTP, stream, and job.",
+      "Provider SDK imports in domain/application code."
+    ]
+  }
+}
