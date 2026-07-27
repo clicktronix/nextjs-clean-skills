@@ -89,11 +89,20 @@ async function gitArchive(commit, skillDir, target) {
     ["archive", commit, skillDir],
     { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );
+  const archiveExited = new Promise((resolvePromise, reject) => {
+    archive.once("error", reject);
+    archive.once("exit", resolvePromise);
+  });
   const extract = spawn(
     "tar",
     ["-x", "-C", target, "--strip-components=4"],
-    { stdio: [archive.stdout, "pipe", "pipe"] },
+    { stdio: ["pipe", "pipe", "pipe"] },
   );
+  const extractExited = new Promise((resolvePromise, reject) => {
+    extract.once("error", reject);
+    extract.once("exit", resolvePromise);
+  });
+  archive.stdout.pipe(extract.stdin);
   let archiveError = "";
   let extractError = "";
   archive.stderr.on("data", (chunk) => {
@@ -103,8 +112,8 @@ async function gitArchive(commit, skillDir, target) {
     extractError += chunk;
   });
   const [archiveCode, extractCode] = await Promise.all([
-    new Promise((resolvePromise) => archive.on("close", resolvePromise)),
-    new Promise((resolvePromise) => extract.on("close", resolvePromise)),
+    archiveExited,
+    extractExited,
   ]);
   if (archiveCode !== 0 || extractCode !== 0) {
     throw new Error(`git archive failed (${archiveCode}/${extractCode})\n${archiveError}${extractError}`);
