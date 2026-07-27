@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
-import { fail, readJson, readText } from './_lib.mjs'
+import { fail, listFiles, readJson, readText, root } from './_lib.mjs'
 
 const errors = []
 const baseline = readJson('tests/architecture-pilots/baseline.json')
 const candidate = readJson('tests/architecture-pilots/candidate-plan.json')
+const results = readJson('tests/architecture-pilots/results.json')
 const readme = readText('tests/architecture-pilots/README.md')
 const adr = readText('docs/0001-capability-first-modules.md')
 
@@ -196,8 +198,111 @@ if (!adr.includes('tests/architecture-pilots/baseline.json')) {
 if (!adr.includes('tests/architecture-pilots/candidate-plan.json')) {
   errors.push('ADR 0001 must link the preregistered candidate plan')
 }
+if (!adr.includes('tests/architecture-pilots/RESULTS.md')) {
+  errors.push('ADR 0001 must link the pilot results')
+}
+
+if (results.schemaVersion !== 1) {
+  errors.push('pilot results schemaVersion must be 1')
+}
+if (results.controls?.sourceBaseline !== baseline.source?.commit) {
+  errors.push('pilot results sourceBaseline must match the pinned baseline commit')
+}
+if (results.pilotEvidence?.typeScriptFiles !== listFiles(
+  'tests/architecture-pilots/fixtures',
+  (file) => file.endsWith('.ts')
+).length) {
+  errors.push('pilot results typeScriptFiles does not match the fixture inventory')
+}
+
+if (!Array.isArray(results.changes)) {
+  errors.push('pilot results changes must be an array')
+} else {
+  const resultIds = results.changes.map((change) => change.id)
+  if (JSON.stringify(resultIds) !== JSON.stringify(expectedScenarioIds)) {
+    errors.push(`pilot result ids must be ${expectedScenarioIds.join(', ')} in that order`)
+  }
+
+  for (const result of results.changes) {
+    const candidateScenario = candidate.preregisteredChanges.find(
+      (scenario) => scenario.id === result.id
+    )
+    const baselineScenario = baseline.preregisteredChanges.find(
+      (scenario) => scenario.id === result.id
+    )
+    if (!candidateScenario || !baselineScenario) continue
+
+    if (!/^[a-f0-9]{40}$/.test(result.commit ?? '')) {
+      errors.push(`${result.id}: result commit must be a full lowercase Git SHA`)
+      continue
+    }
+
+    let commitPaths = []
+    try {
+      commitPaths = execFileSync(
+        'git',
+        ['diff-tree', '--no-commit-id', '--name-only', '-r', result.commit],
+        { cwd: root, encoding: 'utf8' }
+      )
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .sort()
+    } catch {
+      errors.push(`${result.id}: cannot inspect result commit ${result.commit}`)
+      continue
+    }
+
+    const recordedPaths = [...(result.candidate?.actualPaths ?? [])].sort()
+    if (JSON.stringify(recordedPaths) !== JSON.stringify(commitPaths)) {
+      errors.push(`${result.id}: recorded actualPaths do not match the commit diff`)
+    }
+
+    const plannedPaths = [
+      ...candidateScenario.plannedCandidateTouches.existing,
+      ...candidateScenario.plannedCandidateTouches.new,
+    ].sort()
+    const unexpected = commitPaths.filter((file) => !plannedPaths.includes(file))
+    const missing = plannedPaths.filter((file) => !commitPaths.includes(file))
+    const deviationPaths = (result.candidate?.deviations ?? [])
+      .map((deviation) => deviation.path)
+      .sort()
+
+    if (missing.length > 0) {
+      errors.push(`${result.id}: planned paths missing from result: ${missing.join(', ')}`)
+    }
+    if (JSON.stringify(unexpected) !== JSON.stringify(deviationPaths)) {
+      errors.push(`${result.id}: deviations must name every unplanned commit path`)
+    }
+    if (result.candidate?.matchesPlan !== (unexpected.length === 0 && missing.length === 0)) {
+      errors.push(`${result.id}: matchesPlan does not match the observed diff`)
+    }
+
+    const productionTypeScriptFiles = commitPaths.filter(
+      (file) =>
+        file.startsWith('tests/architecture-pilots/fixtures/') &&
+        (file.endsWith('.ts') || file.endsWith('.tsx'))
+    ).length
+    if (result.candidate?.productionTypeScriptFiles !== productionTypeScriptFiles) {
+      errors.push(`${result.id}: productionTypeScriptFiles does not match the observed diff`)
+    }
+
+    const testOrHarnessFiles = commitPaths.length - productionTypeScriptFiles
+    if (result.candidate?.testOrHarnessFiles !== testOrHarnessFiles) {
+      errors.push(`${result.id}: testOrHarnessFiles does not match the observed diff`)
+    }
+
+    const projectedBaselinePaths = [
+      ...baselineScenario.plannedBaselineTouches.existing,
+      ...baselineScenario.plannedBaselineTouches.new,
+    ].length
+    if (result.baselineProjection?.plannedPaths !== projectedBaselinePaths) {
+      errors.push(`${result.id}: baseline planned path count does not match baseline.json`)
+    }
+  }
+}
 
 fail(errors)
 console.log(
-  'architecture pilots ok (SHA anchor, 3 planned fixtures, 4 preregistered changes)'
+  'architecture pilots ok (SHA anchor, 3 fixtures, 4 commit-bound change results)'
 )

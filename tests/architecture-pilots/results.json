@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-27",
+  "controls": {
+    "sourceBaseline": "0bae9739e5d688f55ebe971658ce4b533a24daf3",
+    "candidatePlan": "0c6ee8b7e63b5e6e8fdf667410e866efd224d310",
+    "candidateBase": "b9f8b3a165ac4e1d7acd8b31446f58ea2c8f25a4",
+    "invariantFloor": "54fc7ea0e0da85de89e51dcae80b3171f691899e"
+  },
+  "pilotEvidence": {
+    "typeScriptFiles": 33,
+    "strictCompilation": true,
+    "runtimeSuites": [
+      "work-items",
+      "assistant-stream",
+      "board-workflow"
+    ],
+    "enforcedInvariants": 6,
+    "failingMutations": 10
+  },
+  "changes": [
+    {
+      "id": "add-due-at",
+      "commit": "d3ac0e96bb397e4bfc4188e90d4097dd6d3903fa",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui/form.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 3,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": true,
+        "deviations": []
+      },
+      "baselineProjection": {
+        "plannedPaths": 8,
+        "status": "not-replayed"
+      }
+    },
+    {
+      "id": "add-http-read-channel",
+      "commit": "05e7c8b6bc19b2951100da22c55e6e0f6a5f7e37",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 1,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": true,
+        "deviations": []
+      },
+      "baselineProjection": {
+        "plannedPaths": 3,
+        "status": "not-replayed"
+      }
+    },
+    {
+      "id": "replace-work-item-source",
+      "commit": "69060ddd4a91c0420cd1b7d9ccc337938c06d249",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 1,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": true,
+        "deviations": []
+      },
+      "baselineProjection": {
+        "plannedPaths": 6,
+        "status": "not-replayed"
+      }
+    },
+    {
+      "id": "change-unexpected-reporting",
+      "commit": "6f21ad402ee3f10c0ea4696c1290a6af27c06e31",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/job.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/stream.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/board/page.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 12,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": "tests/architecture-pilots/fixtures/board-workflow/src/app/board/page.ts",
+            "reason": "The framework composition surface must pass request context into the board RSC boundary; omitting it would make context propagation implicit."
+          }
+        ]
+      },
+      "baselineProjection": {
+        "plannedPaths": 11,
+        "status": "not-replayed",
+        "comparisonLimit": "The baseline has no stream or job channel, so raw path counts are not equivalent."
+      }
+    }
+  ],
+  "findings": [
+    "Simple CRUD did not require an application operation or capability port.",
+    "A provider swap stayed inside one capability data adapter and changed no channel or application caller.",
+    "A new HTTP read required one route-owned production file and no changes to label internals.",
+    "Public module surfaces must narrow private models; one-to-one store wrappers recreated the measured forwarding defect.",
+    "Streaming and jobs require explicit runtime-specific public surfaces in addition to RSC, actions, server, client, and UI.",
+    "Request-aware reporting remains channel work: shared semantics do not remove explicit context propagation at each boundary.",
+    "The candidate fixtures pass; the architecture decision remains Proposed until baseline replay and agent evaluation finish."
+  ]
+}

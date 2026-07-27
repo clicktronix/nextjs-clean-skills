@@ -5,6 +5,7 @@
 - Decision owner: nextjs-clean-skills maintainers
 - Baseline: `tests/architecture-pilots/baseline.json`
 - Candidate plan: `tests/architecture-pilots/candidate-plan.json`
+- Pilot results: `tests/architecture-pilots/RESULTS.md`
 - Layer-first control: `626140b5d68e5b3afcfc80e209df5d881f35d59c`
 
 This ADR is a hypothesis to test, not the current skill contract. It becomes Accepted only after
@@ -95,7 +96,9 @@ src/modules/work-items/
 ├── rsc.ts           # current-request RSC API
 ├── actions.ts       # top-level 'use server', async mutations only
 ├── client.ts        # browser-safe API
-└── ui.ts            # reusable capability UI
+├── ui.ts            # reusable capability UI
+├── stream.ts        # streaming channel contract, when owned by the capability
+└── job.ts           # worker/job contract, when owned by the capability
 ```
 
 This is a maximum vocabulary, not a required tree. A universal `api/` directory is rejected because

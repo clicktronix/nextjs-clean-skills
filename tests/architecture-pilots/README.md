@@ -7,6 +7,9 @@ paths. `candidate-plan.json` records the candidate fixture inventory and expecte
 before implementation. Pilot implementation must not edit either plan after candidate results are
 known. Correct an objective plan error in a separate commit with an explanation.
 
+[`RESULTS.md`](./RESULTS.md) summarizes the observed candidate results and their current limits.
+`results.json` binds each observation to an exact commit and diff.
+
 ## Measurements
 
 - `sourceFiles`: changed production `.ts`/`.tsx` files.
