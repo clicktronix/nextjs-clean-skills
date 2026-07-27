@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -37,6 +37,7 @@ function parseArgs(argv) {
     judgeOnly: false,
     summaryOnly: false,
     resume: false,
+    candidateOnly: false,
     scenarios: scenarioIds,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -45,6 +46,8 @@ function parseArgs(argv) {
     else if (arg === "--judge-only") options.judgeOnly = true;
     else if (arg === "--summary-only") options.summaryOnly = true;
     else if (arg === "--resume") options.resume = true;
+    else if (arg === "--candidate-only") options.candidateOnly = true;
+    else if (arg === "--control-source") options.controlSource = resolve(argv[++index]);
     else if (arg === "--scenario") options.scenario = argv[++index];
     else if (arg === "--scenarios") options.scenarios = argv[++index].split(",");
     else if (arg === "--arm") options.arm = argv[++index];
@@ -68,6 +71,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(options.repeat) || options.repeat < 1) {
     throw new Error("--repeat must be a positive integer.");
+  }
+  if (options.candidateOnly && (!options.smoke || !options.controlSource)) {
+    throw new Error("--candidate-only requires --smoke and --control-source.");
   }
   return options;
 }
@@ -392,6 +398,22 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume = 
   }
 }
 
+async function reuseControlRuns({ scenarioId, repeat, outputRoot, controlSource, resume = false }) {
+  for (const arm of arms.filter((item) => item !== "capability-first")) {
+    const source = join(controlSource, "runs", scenarioId, `repeat-${repeat}`, arm);
+    const target = join(outputRoot, "runs", scenarioId, `repeat-${repeat}`, arm);
+    if (resume && (await fileExists(target))) {
+      process.stdout.write(`skip reused control ${scenarioId} repeat=${repeat} arm=${arm}\n`);
+      continue;
+    }
+    if (await fileExists(target)) {
+      throw new Error(`Refusing to overwrite existing control run: ${target}`);
+    }
+    await cp(source, target, { recursive: true, errorOnExist: true, force: false });
+    process.stdout.write(`reuse control ${scenarioId} repeat=${repeat} arm=${arm}\n`);
+  }
+}
+
 async function readUsage(path) {
   const lines = (await readFile(path, "utf8")).trim().split("\n");
   for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -464,23 +486,52 @@ async function writeSummary(outputRoot, selectedScenarios = scenarioIds) {
   );
 }
 
-async function writeManifest(outputRoot) {
+async function writeManifest(outputRoot, options) {
   const { stdout: codexVersion } = await run("codex", ["--version"], { cwd: root });
   const { stdout: head } = await run("git", ["rev-parse", "HEAD"], { cwd: root });
+  const { stdout: candidateCommit } = await run(
+    "git",
+    [
+      "log",
+      "-1",
+      "--format=%H",
+      "--",
+      "tests/architecture-evals/candidate/SKILL.md",
+    ],
+    { cwd: root },
+  );
   const manifest = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
     repositoryHead: head.trim(),
+    candidateCommit: candidateCommit.trim(),
     codexVersion: codexVersion.trim(),
     generationModel: model,
     judgeModel,
     framing,
     arms,
-    scenarios: scenarioIds,
+    scenarios: options.scenarios,
     repeats: 2,
-    generationRuns: 24,
-    blindJudgeRuns: 6,
+    generationRuns: options.scenarios.length * 2 * (options.candidateOnly ? 1 : arms.length),
+    blindJudgeRuns: options.scenarios.length * 2,
   };
+  if (options.candidateOnly) {
+    const controlManifest = JSON.parse(
+      await readFile(join(options.controlSource, "manifest.json"), "utf8"),
+    );
+    const controlPath = relative(root, options.controlSource);
+    const { stdout: controlSourceCommit } = await run(
+      "git",
+      ["log", "-1", "--format=%H", "--", controlPath],
+      { cwd: root },
+    );
+    Object.assign(manifest, {
+      reusedControlRuns: options.scenarios.length * 2 * (arms.length - 1),
+      controlSource: controlPath,
+      controlSourceCommit: controlSourceCommit.trim(),
+      controlRepositoryHead: controlManifest.repositoryHead,
+    });
+  }
   await mkdir(outputRoot, { recursive: true });
   await writeFile(join(outputRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -518,19 +569,37 @@ async function main() {
     }
 
     if (!options.resume || !(await fileExists(join(options.output, "manifest.json")))) {
-      await writeManifest(options.output);
+      await writeManifest(options.output, options);
     }
-    for (const scenarioId of scenarioIds) {
+    for (const scenarioId of options.scenarios) {
       for (const repeat of [1, 2]) {
-        for (const arm of arms) {
+        if (options.candidateOnly) {
+          await reuseControlRuns({
+            scenarioId,
+            repeat,
+            outputRoot: options.output,
+            controlSource: options.controlSource,
+            resume: options.resume,
+          });
           await runCell({
             scenarioId,
-            arm,
+            arm: "capability-first",
             repeat,
             outputRoot: options.output,
             codexHome,
             resume: options.resume,
           });
+        } else {
+          for (const arm of arms) {
+            await runCell({
+              scenarioId,
+              arm,
+              repeat,
+              outputRoot: options.output,
+              codexHome,
+              resume: options.resume,
+            });
+          }
         }
         await judgeGroup({
           scenarioId,
@@ -541,7 +610,7 @@ async function main() {
         });
       }
     }
-    await writeSummary(options.output);
+    await writeSummary(options.output, options.scenarios);
   } finally {
     await rm(tempBase, { recursive: true, force: true });
   }

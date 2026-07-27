@@ -1,0 +1,230 @@
+{
+  "aggregate": [
+    {
+      "arm": "no-skill",
+      "cells": 2,
+      "total": 7,
+      "mean": 3.5,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 2,
+      "total": 20,
+      "mean": 10,
+      "fatalCount": 0
+    },
+    {
+      "arm": "layer-first",
+      "cells": 2,
+      "total": 18,
+      "mean": 9,
+      "fatalCount": 0
+    },
+    {
+      "arm": "capability-first",
+      "cells": 2,
+      "total": 20,
+      "mean": 10,
+      "fatalCount": 0
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns orchestration and policy through board-language ports, while narrow work-items and labels server surfaces retain authorization and persistence ownership. The route uses the board RSC surface, dependencies remain acyclic, and unexpected failures are reported once at the outer boundary. Arithmetic: 10 - 0 = 10."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The board use case owns policy and defines local reader ports; the server-only board entrypoint adapts independently authorized capability readers. The RSC route stays thin, no foreign internals or cycles are introduced, and infrastructure failures have one reporting location in the DAL. Arithmetic: 10 - 0 = 10."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "layer-first",
+      "positive": [
+        2,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The boards use-case owns orchestration, uses published capability operations, preserves acyclic independence, exposes a board RSC entrypoint, and centralizes reporting. The dependency/port criterion is only partial because the proposal explicitly rejects board-owned ports and ambiguously describes direct data-module dependencies. Arithmetic: 9 - 0 = 9."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        0,
+        1,
+        2,
+        0,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "total": 4,
+      "reportedTotal": 4,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Authorization and capability independence are preserved, trusted APIs are narrow, and failures are handled centrally. However, cross-capability policy is owned by the route layer instead of a board capability, the RSC route does not consume a board public/RSC surface, and the proposal explicitly permits orchestration directly in the page. Arithmetic: 5 - 1 = 4."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        0,
+        1,
+        2,
+        0,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "total": 3,
+      "reportedTotal": 3,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The page, not a board capability, owns the cross-capability policy and orchestration. It uses narrow trusted APIs and preserves capability independence, but places board logic in the RSC route and does not clearly define report-once handling for unexpected failures."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "layer-first",
+      "positive": [
+        2,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "A board slice clearly owns policy, authorization consequences, orchestration, failure normalization, and reporting. It consumes narrow public capability operations, though its deliberate omission of board-owned ports/adapters makes the dependency-boundary criterion only partial."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The board use case owns orchestration and policy through board-language ports, capability adapters preserve independent authorization and persistence, the RSC route uses a board DAL surface, and unexpected failures are reported once."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The proposal cleanly assigns policy to a board capability, uses narrow trusted server surfaces, maintains an acyclic dependency graph, exposes a dedicated board RSC surface, enforces layered authorization, and specifies report-once failure behavior."
+    }
+  ],
+  "usage": {
+    "generation": {
+      "input_tokens": 295066,
+      "cached_input_tokens": 174336,
+      "output_tokens": 16677
+    },
+    "judge": {
+      "input_tokens": 113632,
+      "cached_input_tokens": 80640,
+      "output_tokens": 2958
+    }
+  }
+}
