@@ -19,6 +19,7 @@ const evalRoot = join(root, "tests", "architecture-evals");
 const defaultOutput = join(evalRoot, "results", "smoke-2026-07-27");
 const model = process.env.ARCH_EVAL_MODEL ?? "gpt-5.6-luna";
 const judgeModel = process.env.ARCH_EVAL_JUDGE_MODEL ?? "gpt-5.6-sol";
+const timeoutMs = Number(process.env.ARCH_EVAL_TIMEOUT_MS ?? 600_000);
 const arms = ["no-skill", "v1.3.2", "layer-first", "capability-first"];
 const scenarioIds = ["simple-crud", "remote-stream", "cross-capability"];
 
@@ -27,12 +28,21 @@ function sha256(value) {
 }
 
 function parseArgs(argv) {
-  const options = { output: defaultOutput, repeat: 1, smoke: false, judgeOnly: false };
+  const options = {
+    output: defaultOutput,
+    repeat: 1,
+    smoke: false,
+    judgeOnly: false,
+    summaryOnly: false,
+    scenarios: scenarioIds,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--smoke") options.smoke = true;
     else if (arg === "--judge-only") options.judgeOnly = true;
+    else if (arg === "--summary-only") options.summaryOnly = true;
     else if (arg === "--scenario") options.scenario = argv[++index];
+    else if (arg === "--scenarios") options.scenarios = argv[++index].split(",");
     else if (arg === "--arm") options.arm = argv[++index];
     else if (arg === "--repeat") options.repeat = Number(argv[++index]);
     else if (arg === "--output") options.output = resolve(argv[++index]);
@@ -41,12 +51,16 @@ function parseArgs(argv) {
   if (
     !options.smoke &&
     !options.judgeOnly &&
+    !options.summaryOnly &&
     (!scenarioIds.includes(options.scenario) || !arms.includes(options.arm))
   ) {
     throw new Error("Single run requires a known --scenario and --arm.");
   }
   if (options.judgeOnly && !scenarioIds.includes(options.scenario)) {
     throw new Error("--judge-only requires a known --scenario.");
+  }
+  if (options.scenarios.some((scenario) => !scenarioIds.includes(scenario))) {
+    throw new Error("--scenarios contains an unknown scenario.");
   }
   if (!Number.isInteger(options.repeat) || options.repeat < 1) {
     throw new Error("--repeat must be a positive integer.");
@@ -59,10 +73,28 @@ function run(command, args, options = {}) {
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
+      detached: options.killGroup ?? false,
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    let forceTimer;
+    const killChild = (signal) => {
+      try {
+        if (options.killGroup && child.pid) process.kill(-child.pid, signal);
+        else child.kill(signal);
+      } catch (error) {
+        if (error?.code !== "ESRCH") throw error;
+      }
+    };
+    const timer = options.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          killChild("SIGTERM");
+          forceTimer = setTimeout(() => killChild("SIGKILL"), 5_000);
+        }, options.timeoutMs)
+      : undefined;
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
     });
@@ -71,6 +103,12 @@ function run(command, args, options = {}) {
     });
     child.on("error", reject);
     child.on("close", (code, signal) => {
+      if (timer) clearTimeout(timer);
+      if (forceTimer) clearTimeout(forceTimer);
+      if (timedOut) {
+        reject(new Error(`${command} timed out after ${options.timeoutMs}ms`));
+        return;
+      }
       if (code === 0) {
         resolvePromise({ stdout, stderr });
         return;
@@ -189,6 +227,8 @@ async function executeCodex({ cwd, codexHome, prompt, schema, output, events, se
     cwd,
     env: { ...process.env, CODEX_HOME: codexHome },
     input: prompt,
+    timeoutMs,
+    killGroup: true,
   });
   await writeFile(events, result.stdout);
   if (result.stderr) await writeFile(`${events}.stderr`, result.stderr);
@@ -315,13 +355,13 @@ async function readUsage(path) {
   return {};
 }
 
-async function writeSummary(outputRoot) {
+async function writeSummary(outputRoot, selectedScenarios = scenarioIds) {
   const rows = [];
   const usage = {
     generation: { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 },
     judge: { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 },
   };
-  for (const scenarioId of scenarioIds) {
+  for (const scenarioId of selectedScenarios) {
     for (const repeat of [1, 2]) {
       const judgeDir = join(outputRoot, "judges", scenarioId, `repeat-${repeat}`);
       const mapping = JSON.parse(await readFile(join(judgeDir, "mapping.json"), "utf8"));
@@ -402,6 +442,10 @@ async function writeManifest(outputRoot) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   await mkdir(options.output, { recursive: true });
+  if (options.summaryOnly) {
+    await writeSummary(options.output, options.scenarios);
+    return;
+  }
   const tempBase = await mkdtemp(join(tmpdir(), "nextjs-arch-eval-home-"));
   const codexHome = await prepareCodexHome(tempBase);
   try {
