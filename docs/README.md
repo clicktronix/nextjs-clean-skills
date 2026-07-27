@@ -2,6 +2,9 @@
 
 Human-facing documentation for `nextjs-clean-skills`.
 
+> [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) is a Proposed research
+> hypothesis. It is not part of the current architecture contract.
+
 ## Reading Path
 
 1. Start with [Architecture Contract](./architecture-contract.md) for placement, layers, slices,
@@ -17,6 +20,7 @@ Human-facing documentation for `nextjs-clean-skills`.
 
 | Document | Purpose |
 | --- | --- |
+| [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) | proposed topology and pilot gates |
 | [Architecture Contract](./architecture-contract.md) | normative placement and dependency model |
 | [Runtime Boundaries](./runtime-boundaries.md) | runtime authority and cross-cutting invariants |
 | [Frontend Composition](./frontend-composition.md) | human UI architecture |
