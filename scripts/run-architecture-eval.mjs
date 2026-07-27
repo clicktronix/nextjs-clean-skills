@@ -27,18 +27,26 @@ function sha256(value) {
 }
 
 function parseArgs(argv) {
-  const options = { output: defaultOutput, repeat: 1, smoke: false };
+  const options = { output: defaultOutput, repeat: 1, smoke: false, judgeOnly: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--smoke") options.smoke = true;
+    else if (arg === "--judge-only") options.judgeOnly = true;
     else if (arg === "--scenario") options.scenario = argv[++index];
     else if (arg === "--arm") options.arm = argv[++index];
     else if (arg === "--repeat") options.repeat = Number(argv[++index]);
     else if (arg === "--output") options.output = resolve(argv[++index]);
     else throw new Error(`Unknown argument: ${arg}`);
   }
-  if (!options.smoke && (!scenarioIds.includes(options.scenario) || !arms.includes(options.arm))) {
+  if (
+    !options.smoke &&
+    !options.judgeOnly &&
+    (!scenarioIds.includes(options.scenario) || !arms.includes(options.arm))
+  ) {
     throw new Error("Single run requires a known --scenario and --arm.");
+  }
+  if (options.judgeOnly && !scenarioIds.includes(options.scenario)) {
+    throw new Error("--judge-only requires a known --scenario.");
   }
   if (!Number.isInteger(options.repeat) || options.repeat < 1) {
     throw new Error("--repeat must be a positive integer.");
@@ -396,6 +404,15 @@ async function main() {
   const tempBase = await mkdtemp(join(tmpdir(), "nextjs-arch-eval-home-"));
   const codexHome = await prepareCodexHome(tempBase);
   try {
+    if (options.judgeOnly) {
+      await judgeGroup({
+        scenarioId: options.scenario,
+        repeat: options.repeat,
+        outputRoot: options.output,
+        codexHome,
+      });
+      return;
+    }
     if (!options.smoke) {
       await runCell({
         scenarioId: options.scenario,

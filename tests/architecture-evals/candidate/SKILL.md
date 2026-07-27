@@ -19,6 +19,9 @@ For the requested change, identify:
 5. the public surface each external consumer needs;
 6. where authentication, business authorization, and store authorization run.
 
+Classify only behavior the task or existing product actually requires. Do not invent future policy,
+alternate providers, reuse, or coordination to justify an abstraction.
+
 Preserve an existing project's stack unless migration is requested. Fetch current framework docs
 for API details.
 
@@ -83,6 +86,8 @@ channel boundary -> capability server service -> private store adapter
 ```
 
 Do not add a forwarding operation or mirrored repository port to satisfy a folder template.
+Input validation, authentication, row mapping, provider-error mapping, cache invalidation, and an
+ordinary store uniqueness conflict do not by themselves justify an application operation.
 
 When application behavior is real:
 
@@ -99,6 +104,8 @@ Adapter count, locality, and test mocks are evidence, not gates.
 
 Cross-capability orchestration belongs to an orchestrating capability or outer composition root.
 Its adapters call other capabilities' public surfaces; they do not import internals.
+Sequence calls when a later call needs IDs or other data from an earlier result. Claim parallelism
+only when the inputs are independent.
 
 ## Runtime Channels
 
