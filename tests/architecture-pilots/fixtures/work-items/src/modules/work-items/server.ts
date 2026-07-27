@@ -3,6 +3,11 @@ import {
   createAuthorizedWorkItem,
   listAuthorizedWorkItems,
 } from './server/service.js'
+import {
+  createMemoryWorkItemSource,
+  createWorkItemStore,
+  type WorkItemRow,
+} from './server/store.js'
 
 export type { CreateWorkItemInput, WorkItem } from './domain/work-item.js'
 
@@ -28,6 +33,11 @@ export type WorkItemsServer = {
   create(context: RequestContext, input: CreateWorkItemInput): Promise<WorkItem>
 }
 
+export type WorkItemsRuntimeOptions = {
+  cache: WorkItemsServerDependencies['cache']
+  seed?: WorkItemRow[]
+}
+
 export function createWorkItemsServer(
   dependencies: WorkItemsServerDependencies
 ): WorkItemsServer {
@@ -35,4 +45,14 @@ export function createWorkItemsServer(
     list: (context) => listAuthorizedWorkItems(context, dependencies),
     create: (context, input) => createAuthorizedWorkItem(context, input, dependencies),
   }
+}
+
+export function createWorkItemsRuntime({
+  cache,
+  seed = [],
+}: WorkItemsRuntimeOptions): WorkItemsServer {
+  return createWorkItemsServer({
+    store: createWorkItemStore(createMemoryWorkItemSource(seed)),
+    cache,
+  })
 }

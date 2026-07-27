@@ -40,7 +40,6 @@ async function collect(iterable) {
 }
 
 async function testWorkItems(load) {
-  const storeModule = await load('work-items/src/modules/work-items/server/store.js')
   const serverModule = await load('work-items/src/modules/work-items/server.js')
   const rscModule = await load('work-items/src/modules/work-items/rsc.js')
   const actionsModule = await load('work-items/src/modules/work-items/actions.js')
@@ -48,31 +47,30 @@ async function testWorkItems(load) {
   const uiModule = await load('work-items/src/modules/work-items/ui.js')
   const routeModule = await load('work-items/src/app/api/work-items/route.js')
 
-  const source = storeModule.createMemoryWorkItemSource([
-    {
-      id: 'item-a',
-      tenant_id: 'tenant-a',
-      title: 'Alpha',
-      description: null,
-      is_priority: true,
-      due_at: '2026-08-01T00:00:00.000Z',
-      created_at: '2026-01-01T00:00:00.000Z',
-      updated_at: '2026-01-01T00:00:00.000Z',
-    },
-    {
-      id: 'item-b',
-      tenant_id: 'tenant-b',
-      title: 'Beta',
-      description: null,
-      is_priority: false,
-      due_at: null,
-      created_at: '2026-01-01T00:00:00.000Z',
-      updated_at: '2026-01-01T00:00:00.000Z',
-    },
-  ])
   const invalidated = []
-  const server = serverModule.createWorkItemsServer({
-    store: storeModule.createWorkItemStore(source),
+  const server = serverModule.createWorkItemsRuntime({
+    seed: [
+      {
+        id: 'item-a',
+        tenant_id: 'tenant-a',
+        title: 'Alpha',
+        description: null,
+        is_priority: true,
+        due_at: '2026-08-01T00:00:00.000Z',
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'item-b',
+        tenant_id: 'tenant-b',
+        title: 'Beta',
+        description: null,
+        is_priority: false,
+        due_at: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ],
     cache: {
       async invalidate(tenantId) {
         invalidated.push(tenantId)
