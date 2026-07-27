@@ -40,7 +40,6 @@ async function collect(iterable) {
 }
 
 async function testWorkItems(load) {
-  const storeModule = await load('work-items/src/modules/work-items/server/store.js')
   const serverModule = await load('work-items/src/modules/work-items/server.js')
   const rscModule = await load('work-items/src/modules/work-items/rsc.js')
   const actionsModule = await load('work-items/src/modules/work-items/actions.js')
@@ -70,24 +69,19 @@ async function testWorkItems(load) {
       updated_at: '2026-01-01T00:00:00.000Z',
     },
   ]
-  const source = storeModule.createHttpWorkItemSource({
-    async request(method, pathname, body) {
-      if (method === 'GET') {
-        const tenantId = new URL(`https://provider.test${pathname}`).searchParams.get(
-          'tenantId'
-        )
-        return {
-          status: 200,
-          body: remoteRows.filter((row) => row.tenant_id === tenantId),
-        }
-      }
-      remoteRows.push(body)
-      return { status: 201, body }
-    },
-  })
   const invalidated = []
-  const server = serverModule.createWorkItemsServer({
-    store: storeModule.createWorkItemStore(source),
+  const server = serverModule.createWorkItemsRuntime({
+    baseUrl: 'https://provider.test',
+    fetcher: async (input, init) => {
+      const url = new URL(String(input))
+      if (init?.method === 'POST') {
+        const row = JSON.parse(String(init.body))
+        remoteRows.push(row)
+        return Response.json(row, { status: 201 })
+      }
+      const tenantId = url.searchParams.get('tenantId')
+      return Response.json(remoteRows.filter((row) => row.tenant_id === tenantId))
+    },
     cache: {
       async invalidate(tenantId) {
         invalidated.push(tenantId)

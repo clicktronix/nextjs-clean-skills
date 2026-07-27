@@ -16,13 +16,10 @@ export type WorkItemDataSource = {
   insert(row: WorkItemRow): Promise<WorkItemRow>
 }
 
-export type WorkItemsHttpClient = {
-  request(
-    method: 'GET' | 'POST',
-    path: string,
-    body?: WorkItemRow
-  ): Promise<{ status: number; body: unknown }>
-}
+export type WorkItemsFetcher = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+) => Promise<Response>
 
 export type WorkItemStore = {
   list(tenantId: string): Promise<WorkItem[]>
@@ -84,24 +81,35 @@ export function createWorkItemStore(source: WorkItemDataSource): WorkItemStore {
   }
 }
 
-export function createHttpWorkItemSource(client: WorkItemsHttpClient): WorkItemDataSource {
+export function createHttpWorkItemSource({
+  baseUrl,
+  fetcher = fetch,
+}: {
+  baseUrl: string
+  fetcher?: WorkItemsFetcher
+}): WorkItemDataSource {
   return {
     async selectByTenant(tenantId) {
-      const response = await client.request(
-        'GET',
-        `/work-items?tenantId=${encodeURIComponent(tenantId)}`
+      const response = await fetcher(
+        new URL(`/work-items?tenantId=${encodeURIComponent(tenantId)}`, baseUrl)
       )
-      if (response.status !== 200 || !Array.isArray(response.body)) {
+      const body: unknown = await response.json()
+      if (!response.ok || !Array.isArray(body)) {
         throw new Error(`work-item provider list failed with ${response.status}`)
       }
-      return response.body.map(parseWorkItemRow)
+      return body.map(parseWorkItemRow)
     },
     async insert(row) {
-      const response = await client.request('POST', '/work-items', row)
+      const response = await fetcher(new URL('/work-items', baseUrl), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(row),
+      })
+      const body: unknown = await response.json()
       if (response.status !== 201) {
         throw new Error(`work-item provider create failed with ${response.status}`)
       }
-      return parseWorkItemRow(response.body)
+      return parseWorkItemRow(body)
     },
   }
 }
