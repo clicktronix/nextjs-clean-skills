@@ -4,6 +4,7 @@
 - Date: 2026-07-27
 - Decision owner: nextjs-clean-skills maintainers
 - Baseline: `tests/architecture-pilots/baseline.json`
+- Candidate plan: `tests/architecture-pilots/candidate-plan.json`
 - Layer-first control: `626140b5d68e5b3afcfc80e209df5d881f35d59c`
 
 This ADR is a hypothesis to test, not the current skill contract. It becomes Accepted only after

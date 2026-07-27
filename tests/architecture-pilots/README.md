@@ -2,9 +2,10 @@
 
 These fixtures test ADR 0001 before it becomes skill guidance.
 
-`baseline.json` pins the layer-first reference template by SHA and preregisters the comparison
-method. Pilot implementation must not edit the baseline after candidate results are known. Correct
-an objective baseline error in a separate commit with an explanation.
+`baseline.json` pins the layer-first reference template by SHA and preregisters its comparison
+paths. `candidate-plan.json` records the candidate fixture inventory and expected change paths
+before implementation. Pilot implementation must not edit either plan after candidate results are
+known. Correct an objective plan error in a separate commit with an explanation.
 
 ## Measurements
 
