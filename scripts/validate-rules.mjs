@@ -51,7 +51,7 @@ const loaded = new Map()
 for (const file of modules) {
   let blocks
   try {
-    blocks = (await import(pathToFileURL(path.resolve(file)).href)).default
+    blocks = (await import(pathToFileURL(path.join(root, file)).href)).default
   } catch (error) {
     errors.push(`${file}: does not load (${error.message})`)
     continue
@@ -106,6 +106,8 @@ const rootOf = (name) => table.layers[name].root
 const rootMatcher = (root) =>
   new RegExp(`^${root.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]+')}(/|$)`)
 
+const specimenPath = (specimen) => specimen.replace(/^@\//, 'src/')
+
 for (const name of layerNames) {
   if (!rootOf(name)) errors.push(`rules/import-table.json: layer ${name} has no "root"`)
   else if (!rootMatcher(rootOf(name)).test(table.layers[name].dir))
@@ -114,7 +116,39 @@ for (const name of layerNames) {
     )
   if (typeof table.layers[name].mayImportSelf !== 'boolean')
     errors.push(`rules/import-table.json: layer ${name} must declare boolean "mayImportSelf"`)
+
+  // A layer with no specimen is invisible as an import TARGET: the cross-product below has
+  // nothing to import, so every rule about importing INTO it goes untested while the assertion
+  // count still rises. Requiring one here is what makes "every pair the table omits must error"
+  // true, rather than true only for targets that happen to have a specimen.
+  const specimen = table.specimen[name]
+  if (typeof specimen !== 'string' || specimen.trim() === '')
+    errors.push(
+      `rules/import-table.json: layer ${name} has no "specimen", so no case is generated for importing INTO it`
+    )
+  else if (rootOf(name) && !rootMatcher(rootOf(name)).test(specimenPath(specimen)))
+    errors.push(
+      `rules/import-table.json: layer ${name} has a "specimen" (${specimen}) outside its "root" (${rootOf(name)})`
+    )
 }
+
+for (const name of Object.keys(table.specimen))
+  if (!layerNames.includes(name))
+    errors.push(
+      `rules/import-table.json: specimen "${name}" names no layer, so it would generate a target column the contract never describes`
+    )
+
+// Checked here rather than where the case is built: a mistyped layer name used to surface deep in
+// the matrix as "Cannot read properties of undefined", naming neither the field nor the case.
+for (const [kind, entries] of [
+  ['extraForbidden', table.extraForbidden],
+  ['extraAllowed', table.extraAllowed],
+])
+  for (const entry of entries)
+    if (!entry.dir && !Object.hasOwn(table.layers, entry.layer))
+      errors.push(
+        `rules/import-table.json: ${kind} case "${entry.case}" names layer "${entry.layer}", which the table does not define`
+      )
 
 // A nested layer has its own permissions (`read` lives inside `inbound`). Because flat config
 // replaces rule options for overlapping file sets, a parent block that does not exclude the child
@@ -152,9 +186,8 @@ if (ESLint && errors.length === 0) {
   for (const source of layerNames) {
     const allowed = new Set(table.layers[source].mayImport)
     const at = table.layers[source].mayImportAt ?? {}
-    for (const target of new Set([...layerNames, ...Object.keys(table.specimen)])) {
+    for (const target of layerNames) {
       const specimen = table.specimen[target]
-      if (!specimen) continue
       // A subpath permission ("app may import client-cache only at its prefetch entry") is granted
       // to a module, not a layer, so the expectation is read off the specimen rather than the row.
       const grantedAtSpecimen = (at[target] ?? []).some(
@@ -207,10 +240,30 @@ if (ESLint && errors.length === 0) {
   // check cannot see — it reads the layer table, not the code fences — and it shipped twice: an
   // example that violated the very rule its reference states. A fence opts in by naming its path;
   // `expect=error` marks a deliberate counter-example.
-  const FENCE = /```ts path=(\S+?)(?: expect=(error))?\n([\s\S]*?)```/g
-  for (const file of listFiles('plugins', (name) => name.endsWith('.md'))) {
+  //
+  // The info string is parsed in two steps on purpose. Matching `path=` inside the fence pattern
+  // meant an unrecognised tail — `expect=clean`, or a `tsx` example — simply did not match, and
+  // the example left the matrix with no counter moving and no error. A tag the parser cannot read
+  // is now a failure, which is the same lesson as the resolver canary: silence is not a pass.
+  const FENCE = /```(tsx?)([^\n]*)\n([\s\S]*?)```/g
+  const TAGGED = /^ path=(\S+)(?: expect=(error))?$/
+  let tagged = 0
+  const documents = [
+    ...listFiles('plugins', (name) => name.endsWith('.md')),
+    ...listFiles('docs', (name) => name.endsWith('.md')),
+  ]
+  for (const file of documents) {
     const text = fs.readFileSync(path.join(root, file), 'utf8')
-    for (const [, target, expectError, code] of text.matchAll(FENCE)) {
+    for (const [, , info, code] of text.matchAll(FENCE)) {
+      if (!info.includes('path=')) continue
+      const attributes = info.match(TAGGED)
+      if (!attributes) {
+        errors.push(
+          `${file}: fence info string "\`\`\`ts${info}" is tagged but not understood. Write \` path=<path under src/>\`, optionally followed by \` expect=error\` — an unrecognised tag drops the example from the matrix without a word.`
+        )
+        continue
+      }
+      const [, target, expectError] = attributes
       const normalised = path.posix.normalize(target)
       const unsafe =
         !target.startsWith('src/') ||
@@ -230,6 +283,7 @@ if (ESLint && errors.length === 0) {
         )
         continue
       }
+      tagged += 1
       cases.push({
         dir: path.dirname(target),
         name: path.basename(target),
@@ -239,6 +293,14 @@ if (ESLint && errors.length === 0) {
       })
     }
   }
+
+  // Untagging an example used to shrink coverage in silence — the case count dropped by one and
+  // the run still said `ok`. The floor only moves up; lowering it should need a reason.
+  const TAGGED_FLOOR = 3
+  if (tagged < TAGGED_FLOOR)
+    errors.push(
+      `rules matrix: ${tagged} linted reference examples, below the floor of ${TAGGED_FLOOR}. An example lost its \`path=\` tag, or a document moved out of the scanned set.`
+    )
 
   for (const entry of table.extraAllowed)
     cases.push({

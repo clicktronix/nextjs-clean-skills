@@ -56,7 +56,10 @@ Do not put server data in `useState`, Context, or any client store. Do not use T
 4. For Server Components, fetch through server-only read entrypoints and pass serializable props.
 5. For Client Components with logic, split View and `use<Component>Props` with `composeHooks`.
 6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `src/client-cache`.
-7. Keep Server Action wrappers feature-local only when TanStack Query semantics are unnecessary.
+7. Keep a Server Action in the slice's inbound adapter, in a module whose first line is
+   `'use server'` — a Client Component can import one no other way. Bind to it from a route
+   segment, where `app/**` may import `inbound`; a component under `src/ui/**` receives the action
+   as a prop, and a re-export does not make that edge legal.
 8. Add stable `data-testid` to e2e-critical interactive controls.
 
 ## Decision Gate

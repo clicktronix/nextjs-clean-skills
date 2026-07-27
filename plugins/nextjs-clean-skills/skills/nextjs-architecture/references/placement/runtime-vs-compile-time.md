@@ -17,14 +17,15 @@ RSC/page/layout -> read entrypoint -> entry + operation, or declared data/port c
 client island -> client-cache -> Server Action or transport -> entry + operation, or declared data/port call
 ```
 
-Compile-time import rule:
+Compile-time import rule: the generated table in
+[Layers And Imports](./layers-and-imports.md) states it completely. Do not restate a row here —
+a summary that stays *almost* right is how the two documents came to disagree about whether an
+entry may import `domain/**`.
 
-- operations import domain, ports and `data/**`; entries import the combinator and their slice's operations.
-- outbound adapters import the port type they implement; data modules import domain only.
-- inbound adapters are composition roots and may import outbound factories; they do not import the
-  server-only RSC read layer.
-- UI does not import outbound adapters.
-- Client Components do not import server-only modules.
+What the table cannot express, and this file owns:
+
+- Client Components do not import server-only modules. That is a bundling rule, not a layer edge:
+  it constrains what reaches the browser, and the same import may be legal on the server.
 
 Runtime flow descends through more steps than the import graph has edges. That is expected: an inbound adapter constructs an outbound implementation and hands it down, so the call reaches code the callee never imported.
 

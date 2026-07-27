@@ -84,7 +84,14 @@ const skillImports = [
 ].join('\n')
 
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
-const write = (file, text) => fs.writeFileSync(path.join(root, file), text)
+// Written through a sibling temp file: `--fix` rewrites three documents in sequence, and a crash
+// midway through one of them would leave a generated surface truncated rather than merely stale.
+const write = (file, text) => {
+  const absolute = path.join(root, file)
+  const temporary = `${absolute}.tmp`
+  fs.writeFileSync(temporary, text)
+  fs.renameSync(temporary, absolute)
+}
 const count = (text, marker) => text.split(marker).length - 1
 
 const replaceRegion = (file, text, open, close, expected) => {
@@ -114,6 +121,49 @@ const replaceRegion = (file, text, open, close, expected) => {
   }
 
   return text.slice(0, start) + expected + text.slice(end + close.length)
+}
+
+// The Decision Gate's `layer:` enum is the agent's only always-loaded list of layers, and it has
+// drifted before — `data` reached the table a release before it reached this line, and `app` was
+// missing from it entirely while `app/**` was a first-class enforced layer. Checked rather than
+// generated, because the gate deliberately uses short classification names instead of table keys;
+// a layer with no name here is an error, so adding a layer cannot silently skip the gate.
+const GATE = {
+  domain: 'domain',
+  'use-case-operations': 'operation',
+  'use-case-entries': 'entry',
+  data: 'data',
+  outbound: 'outbound',
+  inbound: 'inbound',
+  read: 'read-entry',
+  'client-cache': 'client-cache',
+  ui: 'UI',
+  app: 'app',
+  infrastructure: 'infrastructure',
+  ports: 'port',
+  boundary: 'boundary',
+}
+
+const unnamed = names.filter((name) => !GATE[name])
+if (unnamed.length > 0)
+  errors.push(
+    `scripts/validate-contract-sync.mjs: layer(s) ${unnamed.join(', ')} have no Decision Gate name, so an agent has no valid answer for a file in them`
+  )
+
+const gateLine = read(SKILL).match(/^layer: +(.+)$/m)
+if (!gateLine) {
+  errors.push(`${SKILL}: the Decision Gate has no "layer:" line to check`)
+} else {
+  const listed = new Set(gateLine[1].split('|').map((token) => token.trim()).filter(Boolean))
+  const expected = names.filter((name) => GATE[name]).map((name) => GATE[name])
+  const missing = expected.filter((token) => !listed.has(token))
+  const extra = [...listed].filter((token) => !expected.includes(token))
+  if (missing.length > 0)
+    errors.push(`${SKILL}: the Decision Gate omits ${missing.join(', ')}`)
+  if (extra.length > 0)
+    errors.push(
+      `${SKILL}: the Decision Gate lists ${extra.join(', ')}, naming no layer in rules/import-table.json`
+    )
 }
 
 const documents = [

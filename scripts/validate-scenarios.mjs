@@ -113,5 +113,33 @@ if (fs.existsSync(coverageAbs)) {
   }
 }
 
+// docs/evidence.md publishes three exact counts about this directory. They were correct when
+// written and checked by nothing — the same drift the contract table is generated to prevent,
+// one document over. Derived here rather than restated there.
+const EVIDENCE = 'docs/evidence.md'
+const evidenceAbs = path.join(root, EVIDENCE)
+if (fs.existsSync(evidenceAbs)) {
+  const architecture = files.filter((file) => file.includes('/nextjs-architecture/'))
+  const observed = architecture.filter((file) => readJson(file).baseline_observed !== undefined)
+  const text = fs.readFileSync(evidenceAbs, 'utf8')
+  const claims = [
+    [/contains (\d+) `nextjs-architecture` scenarios/, architecture.length, 'scenario files'],
+    [/- (\d+) contain recorded baseline observations;/, observed.length, 'baseline observations'],
+    [
+      /- (\d+) remain RED hypotheses;/,
+      architecture.length - observed.length,
+      'scenarios without a baseline observation',
+    ],
+  ]
+  for (const [pattern, actual, label] of claims) {
+    const match = text.match(pattern)
+    if (!match) errors.push(`${EVIDENCE}: the stated count of ${label} is no longer where CI reads it`)
+    else if (Number(match[1]) !== actual)
+      errors.push(`${EVIDENCE}: states ${match[1]} ${label}; ${actual} on disk`)
+  }
+}
+
 fail(errors)
-console.log(`scenarios ok (${files.length})`)
+console.log(
+  `scenarios ok (${files.length}, evidence counts match ${files.filter((file) => file.includes('/nextjs-architecture/')).length} architecture scenarios)`
+)

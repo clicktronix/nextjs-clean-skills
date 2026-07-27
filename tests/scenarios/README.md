@@ -106,10 +106,11 @@ says which for each — but on **no** eval run.
 
 Measured evidence and a reproduced baseline answer different questions. The counts show the
 failure exists in shipped code; only a RED run shows an agent commits it unprompted, which is the
-bar for keeping a reference. Ten `nextjs-architecture` scenarios are authored for the highest-value new rules and are
+bar for keeping a reference. Ten `nextjs-architecture` scenarios stand as
 **hypotheses until run** — the five below, plus `nested-composition-no-bypass`,
-`framework-control-flow-not-swallowed`, `portable-rules-on-existing-stack`,
-`sentry-instrumentation-first` and `transport-neutral-error-mapping`:
+`framework-control-flow-not-swallowed` and `portable-rules-on-existing-stack`, which were authored
+for 2.0.0, and `sentry-instrumentation-first` and `transport-neutral-error-mapping`, which were
+added in 1.3.1 and rewritten for the 2.0.0 contract rather than authored here:
 
 | Scenario | Predicted RED | Why it looks reproducible |
 | --- | --- | --- |

@@ -28,7 +28,15 @@ template teaching the wrong shape.
 pair for real — static, `import()` and `require()` spellings — so a permitted edge that errors and
 a forbidden edge that passes are both build failures. It runs that matrix against tier one alone,
 tier two alone, and the two composed; `npm run validate` prints the case count it actually ran,
-rather than a number in prose that drifts. Three earlier
+rather than a number in prose that drifts.
+
+What that proves is not the same for both tiers. Tier one's forbid lists are written by hand, so
+the matrix checks them from the outside: weaken a list and a case goes red. Tier two derives its
+zones from the same `mayImport` fields the expectations are read from, so the matrix cannot catch
+it disagreeing with the table — what it checks there is the derivation (root globs, nested layers,
+subpath carve-outs), which is where that tier's real bugs have been. The generated cases also
+spell every import as an alias; the relative spellings tier one exists to catch are pinned by
+named cases in `extraForbidden` rather than by the cross-product. Three earlier
 versions of this check were weaker (shape-only, then hand-picked fixtures) and each certified gaps
 that a later review found by running ESLint itself.
 

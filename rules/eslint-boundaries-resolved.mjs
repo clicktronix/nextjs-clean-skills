@@ -87,7 +87,11 @@ const zonesFor = (source) => {
             message: `${source} may reach ${target} only at its ${entries.join(', ')} entry. See references/placement/layers-and-imports.md.`,
           }
         }
-        // The parent layer is reachable but a layer nested inside it is not, or vice versa.
+        // The parent layer is forbidden but a layer nested inside it is allowed. UNEXERCISED by
+        // the current table: `read` inside `inbound` is the only nesting, and `app`, the only
+        // source that may reach `read`, may reach `inbound` too — so no zone takes this path and
+        // the matrix cannot cover it. A table that ever forbids a parent while allowing its child
+        // runs code no case has linted; add a case with it.
         const except = nestedIn(target)
           .filter((nested) => allowed.has(nested))
           .map((nested) => `./${path.relative(root(target), root(nested))}`)

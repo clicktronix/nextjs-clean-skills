@@ -2,7 +2,7 @@
 
 **Impact: HIGH** · **Scope: stack (Sentry)**
 
-Fetch current Sentry docs for exact setup. Keep telemetry in infrastructure; domain and use-cases do not import the SDK. Separate server and client config.
+Fetch current Sentry docs for setup. Keep telemetry in infrastructure; domain and use-cases do not import the SDK. Separate server and client config.
 
 ## Instrumentation First
 
@@ -23,14 +23,14 @@ export const onRequestError = (error, request, context) =>
   isAlreadyReported(error) ? undefined : Sentry.captureRequestError(error, request, context)
 ```
 
-Exporting the SDK helper directly would recapture failures the application boundary already
-reported: the render channel re-raises them by design. Wrap it so marked errors are skipped.
+Exporting the SDK helper directly would recapture what the boundary already reported: the render
+channel re-raises by design. Wrap it so marked errors are skipped.
 
 ## One Capture Owner
 
-Single-report is a guarantee of the boundary declaration, not something an entry point arranges. Reporting the same failure a second time higher up produces duplicate events and makes failure counts unusable.
+Single-report is a guarantee of the boundary declaration, not something a caller arranges. The declaration reports through a reporter handed to it on `ctx`, so the combinator never imports the SDK. Reporting the same failure higher up produces duplicate events and unusable counts.
 
-Capture at an entry point only for what never reaches the boundary: a defect in the adapter itself, or a client Error Boundary. Do not `flush()` every request — drain only in short-lived runtimes where current SDK guidance requires it.
+Capture at a framework entrypoint only for what never reaches the boundary: a defect in the adapter itself, or a client Error Boundary. Do not `flush()` every request — drain only where SDK guidance requires it.
 
 ```ts
 try { return await handler(request) }
@@ -44,8 +44,8 @@ Expected failures — a rejected schema, a conflict — are application behaviou
 
 ## PII Redaction
 
-`sendDefaultPii: false` scrubs neither messages, exceptions, breadcrumbs, contexts, nor user fields. Scrub email, phone, UUID, JWT and provider-key shapes, Replay events included; if Replay is off, set `replaysSessionSampleRate: 0`.
+`sendDefaultPii: false` scrubs neither messages, exceptions, breadcrumbs, contexts, nor user fields. Scrub email, phone, UUID, JWT and provider-key shapes, Replay included; if Replay is off, set `replaysSessionSampleRate: 0`.
 
-Reported payloads carry field paths, never values: declared sensitive fields are stripped before anything leaves the boundary, and headers or cookies attach by allowlist. Identify users by id, not email; clear user and scope tags on logout.
+Reported payloads carry field paths, never values: declared sensitive fields are stripped before anything leaves the boundary; headers and cookies attach by allowlist. Identify users by id; clear user and scope tags on logout.
 
 Reference: project observability boundary; Sentry Next.js instrumentation + privacy posture.

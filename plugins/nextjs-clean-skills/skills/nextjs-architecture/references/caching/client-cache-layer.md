@@ -22,9 +22,9 @@ hydrate do.
 Name the layer after the tier, not its contents: its job is to hold a keyed copy with a lifecycle,
 and every rule here follows from that.
 
-May import: inbound adapters, domain types, its own keys, shared timing constants, and browser-side
-transports it owns — auth events, realtime subscriptions, stream clients. Must not import outbound
-data adapters, database clients, presentation components, or `app/`.
+What this tier may import is the generated row for `client-cache/**`, not a list restated here.
+What the row cannot say is which of its own contents belong to the tier: its keys, and the
+browser-side transports it owns — auth events, realtime subscriptions, stream clients.
 
 A read hook whose fetcher reaches a data module or an adapter has skipped the entry point and
 its authorization.

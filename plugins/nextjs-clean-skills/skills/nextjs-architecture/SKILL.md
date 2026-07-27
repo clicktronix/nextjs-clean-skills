@@ -124,9 +124,9 @@ Quality:
 Terminology: [Glossary](references/glossary.md)
 
 This contract adapts Alistair Cockburn's Ports and Adapters and Alex Bespoyasov's
-frontend Clean Architecture to an App Router application. Where a rule came from a
-measurement rather than from those sources, the count is recorded in the repository's
-`docs/evidence.md`.
+frontend Clean Architecture to an App Router application. Rules that come from neither —
+from a measurement, or from this project's own judgement — are recorded as such in the
+repository's `docs/evidence.md`, which says which of the three each rule rests on.
 
 ## Decision Gate
 
@@ -135,7 +135,7 @@ Before code changes, write or hold this classification:
 ```text
 scope:               narrowest actual consumer set; repository is the product boundary
 slice:               which capability owns this behaviour
-layer:               domain | operation | entry | data | port | outbound | inbound | read-entry | client-cache | UI | infrastructure | boundary
+layer:               domain | operation | entry | data | port | outbound | inbound | read-entry | client-cache | UI | app | infrastructure | boundary
 dependency category: in-process | local-substitutable | remote-owned | external
 adapters today:      how many implementations exist now, not how many might
 behavior owned:      what this module does that callers would otherwise repeat

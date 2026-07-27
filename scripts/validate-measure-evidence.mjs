@@ -10,8 +10,26 @@ const errors = []
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'nextjs-clean-evidence-'))
 const script = path.join(root, 'scripts/measure-evidence.mjs')
 
+// The fixture must not inherit the contributor's git configuration. Overriding identity alone was
+// not enough: with `commit.gpgsign` set globally, `npm run validate` died on a signing key, in a
+// stack trace that named neither this script nor the reason.
+const ISOLATED = [
+  '-c',
+  'user.name=Validator',
+  '-c',
+  'user.email=validator@example.com',
+  '-c',
+  'commit.gpgsign=false',
+  '-c',
+  'tag.gpgsign=false',
+  '-c',
+  `core.hooksPath=${path.join(repo, '.no-hooks')}`,
+  '-c',
+  'init.templateDir=',
+]
+
 const git = (...args) =>
-  execFileSync('git', ['-C', repo, ...args], {
+  execFileSync('git', ['-C', repo, ...ISOLATED, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -67,9 +85,67 @@ try {
     "import { api } from '@/integrations/api'\nexport const specValue = api\n"
   )
 
+  // Everything below exists because a metric with no assertion is a metric with no test. Each of
+  // these files is the smallest thing that makes exactly one filter or counter load-bearing:
+  // remove the filter, and a number in docs/evidence.md moves.
+  fs.mkdirSync(path.join(repo, 'src/application/__tests__'), { recursive: true })
+  fs.writeFileSync(
+    path.join(repo, 'src/application/deep.ts'),
+    [
+      // Relative spelling of the adapters root — the alias branch alone left this untested.
+      "import { helper } from '../integrations/helper'",
+      // `await deps.x()`: the commonest forward in an async application layer, and the form that
+      // vanishes from the count if callRoot stops unwrapping AwaitExpression.
+      'export const awaited = async () => await deps.seven()',
+      'export function wide() {',
+      '  assertValidUuid(a)',
+      '  assertValidUuidOrNull(b)',
+      '  parse(c)',
+      '  const one = 1',
+      '  const two = 2',
+      '  const three = 3',
+      '  const four = 4',
+      '  return helper(one, two, three, four)',
+      '}',
+      '',
+    ].join('\n')
+  )
+  // Excluded by name, one file per name: dropping either from the list must move a count.
+  fs.writeFileSync(
+    path.join(repo, 'src/application/ports.ts'),
+    'export const fromPorts = () => deps.eight()\n'
+  )
+  fs.writeFileSync(
+    path.join(repo, 'src/application/types.ts'),
+    'export const fromTypes = () => deps.nine()\n'
+  )
+  // Deliberately not valid TypeScript for a declaration file: the parser only reads text, and the
+  // point is that the `.d.ts` exclusion is what keeps this out, not the absence of a body.
+  fs.writeFileSync(
+    path.join(repo, 'src/application/shapes.d.ts'),
+    'export const declaredOnly = () => deps.ten()\n'
+  )
+  // The two test filters overlapped on a single file, so neither was tested alone.
+  fs.writeFileSync(
+    path.join(repo, 'src/application/detached.test.ts'),
+    'export const detached = () => deps.eleven()\n'
+  )
+  fs.writeFileSync(
+    path.join(repo, 'src/application/__tests__/support.ts'),
+    'export const support = () => deps.twelve()\n'
+  )
+  fs.writeFileSync(
+    path.join(repo, 'src/presentation/standalone.test.tsx'),
+    "import { api } from '@/integrations/api'\nexport const standalone = api\n"
+  )
+  fs.writeFileSync(
+    path.join(repo, 'src/presentation/__tests__/support.tsx'),
+    "import { api } from '@/integrations/api'\nexport const support = api\n"
+  )
+
   git('init', '-q')
   git('add', '.')
-  git('-c', 'user.name=Validator', '-c', 'user.email=validator@example.com', 'commit', '-qm', 'fixture')
+  git('commit', '-qm', 'fixture')
 
   const measured = run(
     '--use-cases-root=src/application',
@@ -87,10 +163,14 @@ try {
       uiRoot: 'src/presentation',
       adaptersRoot: 'src/integrations',
       outboundApiRoot: 'src/integrations/api',
-      useCaseFiles: 3,
-      exportedCallables: 6,
-      depsForwards: 6,
-      useCaseFilesImportingAdapters: 1,
+      useCaseFiles: 4,
+      exportedCallables: 8,
+      depsForwards: 7,
+      atMostTwoStatements: 7,
+      moreThanSixStatements: 1,
+      uuidAssertions: 2,
+      schemaParses: 1,
+      useCaseFilesImportingAdapters: 2,
       uiFilesImportingOutboundApi: 1,
     }
     for (const [key, value] of Object.entries(expected)) {

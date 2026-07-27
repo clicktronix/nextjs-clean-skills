@@ -264,16 +264,26 @@ export default [
     ],
   }),
 
+  // Two layers, one block: their rights are identical today, and the table models them separately
+  // for different reasons (see the same-layer note in docs/architecture-contract.md). If either
+  // row moves, the matrix goes red rather than silent — but the fix is to split this block first.
   block(['src/ports/**/*.{ts,tsx}', 'src/boundary/**/*.{ts,tsx}'], {
     forbid: ['app', 'ui', 'client-cache', 'use-cases', 'data', 'adapters', 'infrastructure', 'ports', 'boundary'],
     message:
       'A contract depends on domain only; anything more makes it a second implementation.',
   }),
 
-  // The validated env module is the one place allowed to read the environment; tests are
-  // exempt from the boundary rules so fixtures and doubles can reach across layers.
+  // The validated env module is the one place allowed to read the environment. Only the
+  // environment selectors are lifted: the layer's import row still applies, or this subtree
+  // would be an exemption from the whole contract that no matrix case can see — the infrastructure
+  // specimen lives at `logging`, so nothing here is generated against `env/`.
   {
-    files: ['src/infrastructure/env/**/*.{ts,tsx}', '**/__tests__/**/*', '**/*.test.{ts,tsx}'],
+    files: ['src/infrastructure/env/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': 'off' },
+  },
+  // Tests are exempt from the boundary rules so fixtures and doubles can reach across layers.
+  {
+    files: ['**/__tests__/**/*', '**/*.test.{ts,tsx}'],
     rules: { 'no-restricted-syntax': 'off', 'no-restricted-imports': 'off' },
   },
 ]

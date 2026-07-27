@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **Said how the boundary combinator reports.** It promised one log and one telemetry event per
+  failure while its layer may import `domain` only, and neither the shown signature nor the request
+  context carried a reporter — so the first file an adopter writes could satisfy the guarantee only
+  by importing an SDK into `boundary/**`. The reporter now arrives on `ctx` from the composition
+  root: the combinator imports no telemetry, `boundary/**` keeps its domain-only row, and the SDK
+  stays in `infrastructure/**`.
+- **Placed the Server Action.** The docs called it an inbound adapter and then drew `actions.ts`
+  inside the component folder, where `ui/**` can reach neither an entry nor the boundary. The action
+  lives in the slice's inbound adapter; a file beside the component is at most a re-export.
+- **Gave `boundary/**` its own reason for refusing sibling imports.** It shared a sentence with
+  `ports/**`, whose rationale — contracts with nothing to factor out — does not describe a layer
+  that owns validation, classification, redaction and reporting. Each row now carries its own
+  argument, and the condition for revisiting the boundary row is stated.
+
+### Fixed
+
 - Replaced version-coupled review footers in human architecture docs with content validation.
   Architecture docs now stay concise and normative; release history remains in this changelog.
 - Expanded the human architecture into separate placement, runtime, frontend-composition, decision,
@@ -14,6 +30,48 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- **Closed an exemption that was wider than its reason.** `src/infrastructure/env/**` disabled
+  `no-restricted-imports` along with the environment selectors, so the one subtree allowed to read
+  the environment could import every layer — invisible to the matrix, whose infrastructure specimen
+  is `logging`. Only the environment rule is lifted now.
+- **Required a `specimen` per layer.** A layer without one generated no case importing *into* it,
+  so a new layer could arrive with its whole inbound column untested while the assertion count rose.
+  A specimen naming no layer is an error too.
+- **Pinned the relative import spellings.** Every generated case spelled its import as an alias, so
+  deleting half of each layer's patterns — the ones that catch `../../../data/work-items` — left
+  1376 assertions green. Named cases now fail without them.
+- **Made an unreadable fence tag a failure.** `expect=clean`, a `tsx` example, or a dropped `path=`
+  tag used to remove an example from the matrix with no error and no counter moving; `docs/` was
+  never scanned. All three now fail, the parser reads `tsx`, and a floor keeps coverage from
+  shrinking in silence.
+- **Tested the measurements that were only published.** Four of the nine numbers behind
+  `docs/evidence.md` had no assertion: zeroing the UUID and `parse()` counters, dropping statement
+  counts, removing the `await` unwrap that finds `await deps.x()` forwards, breaking relative-path
+  imports, or deleting either test filter, the `ports.ts`/`types.ts` names, or the `.d.ts`
+  exclusion all passed. The fixture now moves a number for each.
+- **Stopped inheriting the contributor's git configuration.** The evidence fixture overrode
+  identity but not `commit.gpgsign`, so `npm run validate` died on a signing key in a stack trace
+  that named neither the script nor the reason.
+- **Checked the Decision Gate against the table.** Its `layer:` enum listed twelve values for
+  thirteen layers and omitted `app`, leaving an agent no answer for a route file. A layer with no
+  gate name now fails, as does a gate value naming no layer.
+- **Derived the repository root from the script, not the shell.** A validator run from a
+  subdirectory found nothing and reported success.
+- **Deleted four restatements of the layer table.** A CRITICAL reference summarised the
+  `Same layer` column beside the generated copy of it; a second document said entries import the
+  combinator and their operations, omitting the `domain` import its own linted example makes; the
+  client-cache reference published a partial allow/deny list; the glossary restated an edge. Each
+  could drift while CI stayed green.
+- **Named the confound in the boundary-enforcement finding.** The heading claimed enforcement
+  changed product shape, while the products also differ store-backed versus service-backed, and the
+  use-case column is n=2.
+- **Made the comparison in the use-case reference fair.** Its Incorrect example was an operation and
+  its Correct example a declaration, so the pair compared two layers rather than two designs.
+- **Corrected stale numbers and vocabulary.** The changelog claimed 363 matrix cases and a flowchart
+  heading that does not exist; the README omitted `data/`, `ports/` and `boundary/`; two scenarios
+  still asked for an outbound adapter over an unported store and mapped errors per inbound boundary
+  instead of once at the declaration; the scenario README counted two 1.3.1 scenarios as authored
+  for 2.0.0.
 - Generated the complete layer table from `rules/import-table.json` into both human and agent
   documentation. `validate-docs.mjs` now checks internal links and anchors, requires vertical
   accessible Mermaid diagrams, and parses every diagram in CI.
@@ -235,7 +293,7 @@ All notable changes to this project are documented in this file.
   `layer:` enum, not in the layer table's `inbound`/read-entrypoint rows, not in the glossary, and
   in none of the diagrams in `docs/`. An agent following the always-loaded file or the
   prompt-ready decision maps produced code the shipped lint rejects. All six now agree, and the
-  `data/` destination is reachable from the "Where Does This Code Go?" flowchart.
+  `data/` destination is named in the placement table that follows the "Place New Code" map.
 - **Restored the `auth boundary` Decision Gate field.** `authority:` replaced it in error: one
   says who commits the transaction, the other where the session is re-verified. Every gate field
   was answerable without deciding on authorization, which is the failure the one eval-proven
@@ -269,7 +327,8 @@ All notable changes to this project are documented in this file.
   declaration combinator, which use-cases need but which is not generic infrastructure.
 - **The enforcement matrix is generated, not written.** `rules/import-table.json` is the
   machine-readable contract; `validate-rules.mjs` produces a source × target cross-product from it
-  and lints all 363 cases — static, `import()` and `require()`. Three earlier versions of this
+  and lints every case — static, `import()` and `require()`; the run prints the count it actually
+  executed, so no number here can go stale. Three earlier versions of this
   check were weaker and each certified real gaps: shape-only, then hand-picked fixtures, then a
   matrix missing `ports` as a source and using specimens too generic to distinguish
   `use-cases -> boundary` from `use-cases -> all of infrastructure`.

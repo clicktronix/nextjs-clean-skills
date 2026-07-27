@@ -128,9 +128,15 @@ request boundary and translates the result for rendering or HTTP. The table is g
 document, the critical agent reference, and the always-loaded skill contract. Change the table, run
 the fixer, and review all generated surfaces in the same pull request.
 
-Same-layer imports are explicit, not implied. Operations may compose operations, while declarations
-never call declarations. `ports/**` and `boundary/**` are contract roots: split definitions share
-domain types instead of importing sibling contracts.
+Same-layer imports are explicit, not implied: read the `Same layer` column rather than assume it
+follows from the layer's nature. The reasons behind that column differ, and only one of them is
+about contracts. An operation may compose operations because composition is the behaviour it owns.
+A declaration may not call a declaration, because the inner one would normalize and report the
+same failure under its own name. `ports/**` holds contracts with nothing to factor out, so a split
+definition shares domain types instead of importing a sibling. `boundary/**` is closed for a
+different reason again: the combinator is one policy applied to every entry, and a sibling import
+is how a second policy begins. If that policy outgrows a single module, treat it as a reason to
+revisit this row rather than to route around it.
 
 Runtime flow may descend through code a module never imports. An inbound adapter constructs an
 outbound implementation and supplies it to an operation through a port-shaped dependency. The

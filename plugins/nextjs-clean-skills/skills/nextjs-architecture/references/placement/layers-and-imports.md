@@ -22,8 +22,6 @@ Place files before coding; import direction is compile-time.
 | `boundary/**` | shared declaration policy | no | domain |
 <!-- /contract:layer-table -->
 
-Self-imports: operations yes; entries, ports, and boundary no.
-
 Entry -> data skips the operation; operation -> boundary reports twice.
 
 `data/**` means no port; [Dependency Categories](../seams/dependency-categories.md) decides.

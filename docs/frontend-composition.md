@@ -107,12 +107,36 @@ Feature/
 ├── Feature.tsx          public composition
 ├── FeatureView.tsx      rendering from props
 ├── use-feature-props.ts client interaction and derived props, when needed
-├── actions.ts           colocated Server Actions, when needed
 └── feature.module.css   local styles, when used by the project
 ```
 
 This is a responsibility map, not a required five-file scaffold. Keep a component in one file while
 the responsibilities remain readable.
+
+There is no `actions.ts` in that map, and the reason is worth stating because two independent rules
+govern it — satisfying one does not satisfy the other.
+
+**The layer rule.** A Server Action *is* an inbound adapter, and it lives under
+`adapters/inbound/**` with the rest of its slice. `ui/**` may import neither `inbound` nor a
+re-export of one: a re-export does not launder the edge, because the re-exporting file is the one
+doing the import. `app/**` may import `inbound`, so a component that binds to an action belongs to
+its route, under `app/<route>/_internal/ui/`. A component in `src/ui/**` — there because more than
+one route renders it — receives the action as a prop from the route segment.
+
+**The framework rule.** A Client Component may import a Server Action only from a module whose
+first line is `'use server'`. An inline directive inside a function body works only inside a Server
+Component. So the inbound adapter module carries the directive at its top, and that is what makes
+it importable from the client at all:
+
+```ts
+// src/adapters/inbound/next/work-items/rename.ts
+'use server'
+
+export async function renameWorkItem(state: RenameState, form: FormData) { /* … */ }
+```
+
+Import that module from the route segment. Colocating a thin `actions.ts` beside the component is
+optional and buys nothing here — the directive lives with the adapter, not with the view.
 
 For logic-heavy Client Components, `composeHooks(View)(useProps)` keeps the view testable and the hook
 focused on browser behaviour. Do not introduce the pattern for a component with no meaningful

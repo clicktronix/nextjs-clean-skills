@@ -95,7 +95,7 @@ their local equivalents unless the task requests a migration.
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
 - **Rules**: [`rules/`](./rules/) ships an executable ESLint boundaries config for the layer
   contract, plus a note on the depth failures no lint rule can catch.
-- **Architecture**: Hybrid Clean Architecture with domain, use-cases (only where a scenario is warranted), inbound/outbound adapters, server-only read entrypoints, a client cache tier, and thin `app/` entrypoints.
+- **Architecture**: Hybrid Clean Architecture with domain, data modules, ports, use-cases split into operations and entries (only where a scenario is warranted), a shared boundary combinator, inbound/outbound adapters, server-only read entrypoints, a client cache tier, and thin `app/` entrypoints. The complete layer list is generated into [`docs/architecture-contract.md`](./docs/architecture-contract.md).
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
 - **Reads**: Server Components through server-only read entrypoints; add a use-case only when the
   read owns application behaviour.

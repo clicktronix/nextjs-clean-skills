@@ -351,6 +351,26 @@
       "layer": "inbound",
       "code": "import { read } from '../read/work-items'\nexport default read",
       "resolvedOnly": true
+    },
+    {
+      "case": "presentation reaches a data module by relative path",
+      "layer": "ui",
+      "code": "import { rows } from '../../../data/work-items'\nexport default rows"
+    },
+    {
+      "case": "presentation reaches an application entry by relative path",
+      "layer": "ui",
+      "code": "import { list } from '../../../use-cases/work-items/entries/list'\nexport default list"
+    },
+    {
+      "case": "the client cache reaches infrastructure by relative path",
+      "layer": "client-cache",
+      "code": "import { logger } from '../../infrastructure/logging'\nexport default logger"
+    },
+    {
+      "case": "domain reaches a data module by relative path",
+      "layer": "domain",
+      "code": "import { rows } from '../../data/work-items'\nexport default rows"
     }
   ],
   "extraAllowed": [
@@ -375,7 +395,7 @@
       "code": "import { fetch as undici } from 'undici'\nexport default undici"
     },
     {
-      "case": "ui imports a local action",
+      "case": "ui imports a sibling module by relative path (NOT the action pattern: a re-export of an inbound adapter would still be ui -> inbound, which the cross-product rejects)",
       "layer": "ui",
       "code": "import { submit } from './actions'\nexport default submit"
     },

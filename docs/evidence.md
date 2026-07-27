@@ -35,8 +35,8 @@ node scripts/measure-evidence.mjs \
 ```
 
 The script parses TypeScript with the compiler API. It counts exported function declarations,
-exported arrow/function expressions, and static import declarations, so the population does not
-depend on formatting.
+exported arrow/function expressions, statements per body, named call sites, and static import
+declarations, so no population depends on formatting.
 
 Two of those three repositories are private, so the numbers above are not reproducible by a reader.
 Point the script at **your own** repository to report the same measures. It defaults to
@@ -83,7 +83,7 @@ their own validation, logging, call, catch, and result mapping.
 This motivates one declaration contract. Whether failures are represented as returned values or
 typed throws remains a design choice at the public boundary.
 
-### Enforced Boundaries Changed Product Shape
+### The Enforced Product And The Unenforced One Differ In Shape
 
 | Product | Use-case files with static adapter imports | UI files with static outbound API imports |
 | --- | ---: | ---: |
@@ -94,6 +94,12 @@ Marqa enforces path-scoped restrictions; Stokli does not enforce an equivalent c
 supports shipping executable layer rules rather than relying on prose alone. It does not imply that
 Marqa's two production UI imports are correct; they remain migration debt or explicit exceptions to
 inspect. Test files are excluded from both populations.
+
+Enforcement is not the only difference between these two products, and this table cannot separate
+the causes. Marqa is store-backed and Stokli is service-backed, so Stokli's UI has API-shaped
+modules available to import that Marqa's structurally does not — some of the gap is the second
+axis, not the rule. The use-case column is also n=2. Read the row as two products that differ in
+shape, one of them enforced, rather than as a measured effect of enforcement.
 
 ## Measured, Not Scripted
 

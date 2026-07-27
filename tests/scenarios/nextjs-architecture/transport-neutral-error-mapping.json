@@ -3,12 +3,12 @@
     "nextjs-architecture"
   ],
   "tests_reference": "references/errors/error-taxonomy.md",
-  "query": "A Supabase repository receives Postgres unique-violation code 23505 while a createProject use-case runs. Show where that error is translated for both a Server Action and a Route Handler without exposing the database message.",
+  "query": "A Supabase data module receives Postgres unique-violation code 23505 while a createProject use-case runs. Show where that error is translated for both a Server Action and a Route Handler without exposing the database message.",
   "baseline_failure": "RED hypothesis: the data module throws an HTTP-oriented ApiError, or the use-case imports a Response/framework error class, coupling application logic to one inbound transport.",
   "expected_behavior": [
     "Maps the known database code in the data module or outbound adapter to a transport-neutral application error such as ConflictError",
     "Keeps the raw Postgres payload only in server-side diagnostic context",
-    "Maps the application error independently at each inbound boundary to a Server Action result or HTTP response"
+    "Classifies the failure once in the boundary declaration, then translates that one classification per channel: a result for the Server Action, a status and envelope for the Route Handler"
   ],
   "anti_expectation": [
     "Does NOT expose error.message, SQL details, or PostgREST payloads to the client",

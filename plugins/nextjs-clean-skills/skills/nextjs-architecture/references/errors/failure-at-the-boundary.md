@@ -33,7 +33,7 @@ return res.ok ? { ok: true, data: res.value } : { ok: false, code: res.error.cod
 // HTTP channel — status plus envelope
 return res.ok ? apiJson(res.value, ctx.requestId) : apiError(res.error, ctx.requestId)
 
-// render channel — surface to the route's error boundary, already reported
+// render channel, from the read entrypoint — the route's error boundary sees it, already reported
 if (!res.ok) throw asReported(toRenderError(res.error))
 ```
 
@@ -43,7 +43,7 @@ outcome to branch on, and wrapping it adds unwrapping ceremony with nothing behi
 Do not let a data module or an adapter return one either. They throw; that is ordinary I/O
 behaviour, and the boundary is what turns it into a value.
 
-The render channel is the one that re-raises rather than returns, so it is the one that can double-report: the framework's request-error hook will capture what the boundary already logged. Mark the re-raised error as reported and have the hook skip marked errors — one fault, one event.
+The render channel re-raises rather than returns, so it is the one that can double-report: the request-error hook captures what the boundary already logged. Mark the re-raised error as reported and have the hook skip marked errors — one fault, one event.
 
 Errors raised after a response has begun streaming cannot change its status — they travel as an
 event inside the stream instead.

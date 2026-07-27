@@ -7,7 +7,7 @@ Dependencies are supplied by the caller, not resolved from a registry. Closures 
 | Container feature | Plain equivalent |
 | --- | --- |
 | constructor injection | factory returning an object literal |
-| request scope | explicit `ctx` (client + caller identity) |
+| request scope | explicit `ctx` (client, caller identity, reporter) |
 | singleton | module-level constant, or a per-request memo |
 | resolution graph | composition root in the inbound adapter |
 | decorators (retry, logging) | a wrapping function |
@@ -15,9 +15,14 @@ Dependencies are supplied by the caller, not resolved from a registry. Closures 
 
 The composition root is the inbound adapter: it holds the request, so it is the only place that can build request-scoped collaborators.
 
-Repeated wiring is a hint to extract a helper, not to install a container:
+Repeated wiring is a hint to extract a helper, not to install a container. The helper lives with
+the composition root, which is why it may name a concrete implementation:
 
-```ts
+```ts path=src/adapters/inbound/next/work-items/agent-port.ts
+import { createHttpAgentPort } from '@/adapters/outbound/agent/http'
+import type { AgentPort } from '@/ports/agent'
+import type { RequestContext } from '@/infrastructure/request-context'
+
 export function agentPort(ctx: RequestContext): AgentPort {
   return createHttpAgentPort(ctx.fetch, ctx.serviceToken)
 }
