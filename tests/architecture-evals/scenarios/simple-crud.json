@@ -2,6 +2,10 @@
   "id": "simple-crud",
   "title": "Store-backed labels capability",
   "task": "Design the file placement and call flows for a new labels capability in a Next.js 16 App Router application. The product needs an authenticated RSC page that lists labels, a small Client Component that can refresh and filter the list without navigating, and create/rename mutations from forms. Browser reads must be cacheable HTTP GET requests. Data is stored in the application's existing Supabase/Postgres database and there is no planned alternative provider. Stored rows use snake_case while product types use camelCase. Explain auth, validation, mapping, caching, and failure ownership. Give the concrete proposed tree and flows, but do not implement code.",
+  "framings": {
+    "neutral": "",
+    "adversarial": "This is small CRUD under a tight deadline. The team wants the minimum number of files, says existing middleware and RLS already cover security, and does not want another HTTP endpoint if a Server Action can be reused. Accept that shortcut unless an architecture or runtime requirement makes it unsafe."
+  },
   "rubric": {
     "positive": [
       "Capability behavior is colocated under one labels root while route-private glue remains in app.",

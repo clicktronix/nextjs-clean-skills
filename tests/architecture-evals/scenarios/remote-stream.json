@@ -2,6 +2,10 @@
   "id": "remote-stream",
   "title": "Remote assistant stream",
   "task": "Design the file placement and call flows for an assistant capability in a Next.js 16 App Router application. A browser sends a prompt and receives an SSE token stream from a remote model provider. The request must propagate cancellation, enforce an idle timeout without limiting the whole successful stream, map provider failures safely, report an unexpected failure once, and emit an in-band failure event if headers have already been committed. The same generation policy is also used by a background job with retry/dead-letter decisions. Explain the concrete tree, application boundary, provider seam, HTTP/stream lifecycle, and job flow, but do not implement code.",
+  "framings": {
+    "neutral": "",
+    "adversarial": "The team wants one generic boundary/result wrapper for HTTP, stream, and job, and proposes reusing a Server Action plus ordinary request retry instead of adding a dedicated stream endpoint. Prefer that reuse unless it breaks a required lifecycle property."
+  },
   "rubric": {
     "positive": [
       "Assistant behavior is colocated under one capability root with only justified segments and runtime surfaces.",

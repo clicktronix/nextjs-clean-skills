@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  access,
   cp,
   mkdir,
   mkdtemp,
@@ -19,7 +20,8 @@ const evalRoot = join(root, "tests", "architecture-evals");
 const defaultOutput = join(evalRoot, "results", "smoke-2026-07-27");
 const model = process.env.ARCH_EVAL_MODEL ?? "gpt-5.6-luna";
 const judgeModel = process.env.ARCH_EVAL_JUDGE_MODEL ?? "gpt-5.6-sol";
-const timeoutMs = Number(process.env.ARCH_EVAL_TIMEOUT_MS ?? 600_000);
+const framing = process.env.ARCH_EVAL_FRAMING ?? "neutral";
+const timeoutMs = Number(process.env.ARCH_EVAL_TIMEOUT_MS ?? 300_000);
 const arms = ["no-skill", "v1.3.2", "layer-first", "capability-first"];
 const scenarioIds = ["simple-crud", "remote-stream", "cross-capability"];
 
@@ -34,6 +36,7 @@ function parseArgs(argv) {
     smoke: false,
     judgeOnly: false,
     summaryOnly: false,
+    resume: false,
     scenarios: scenarioIds,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -41,6 +44,7 @@ function parseArgs(argv) {
     if (arg === "--smoke") options.smoke = true;
     else if (arg === "--judge-only") options.judgeOnly = true;
     else if (arg === "--summary-only") options.summaryOnly = true;
+    else if (arg === "--resume") options.resume = true;
     else if (arg === "--scenario") options.scenario = argv[++index];
     else if (arg === "--scenarios") options.scenarios = argv[++index].split(",");
     else if (arg === "--arm") options.arm = argv[++index];
@@ -66,6 +70,15 @@ function parseArgs(argv) {
     throw new Error("--repeat must be a positive integer.");
   }
   return options;
+}
+
+async function fileExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function run(command, args, options = {}) {
@@ -234,16 +247,32 @@ async function executeCodex({ cwd, codexHome, prompt, schema, output, events, se
   if (result.stderr) await writeFile(`${events}.stderr`, result.stderr);
 }
 
-async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome }) {
+async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome, resume = false }) {
   const scenario = JSON.parse(
     await readFile(join(evalRoot, "scenarios", `${scenarioId}.json`), "utf8"),
   );
   const runDir = join(outputRoot, "runs", scenarioId, `repeat-${repeat}`, arm);
+  const responsePath = join(runDir, "response.json");
+  const eventsPath = join(runDir, "events.jsonl");
+  if (
+    resume &&
+    (await fileExists(responsePath)) &&
+    (await fileExists(eventsPath))
+  ) {
+    process.stdout.write(`skip generation ${scenarioId} repeat=${repeat} arm=${arm}\n`);
+    return;
+  }
   const workspace = await mkdtemp(join(tmpdir(), `nextjs-arch-${scenarioId}-${arm}-`));
   await mkdir(runDir, { recursive: true });
   const armInfo = await prepareArm(arm, workspace);
+  const scenarioTask = [
+    scenario.task,
+    scenario.framings?.[framing] ? `Stakeholder framing: ${scenario.framings[framing]}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const taskPath = join(workspace, "TASK.md");
-  await writeFile(taskPath, `# ${scenario.title}\n\n${scenario.task}\n`);
+  await writeFile(taskPath, `# ${scenario.title}\n\n${scenarioTask}\n`);
   const prompt = [
     "Work only from the hypothetical task in ./TASK.md.",
     "Do not inspect parent directories, the user's home directory, or unrelated repositories.",
@@ -262,7 +291,8 @@ async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome }) {
         arm,
         repeat,
         model,
-        taskHash: sha256(scenario.task),
+        framing,
+        taskHash: sha256(scenarioTask),
         skillHash: armInfo.hash,
         responseSchemaHash: sha256(await readFile(join(evalRoot, "response.schema.json"))),
       },
@@ -277,8 +307,8 @@ async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome }) {
       codexHome,
       prompt,
       schema: join(evalRoot, "response.schema.json"),
-      output: join(runDir, "response.json"),
-      events: join(runDir, "events.jsonl"),
+      output: responsePath,
+      events: eventsPath,
       selectedModel: model,
     });
   } finally {
@@ -293,7 +323,7 @@ function shuffledCandidates(scenarioId, repeat) {
     .map((item, index) => ({ ...item, candidate: `candidate-${index + 1}` }));
 }
 
-async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome }) {
+async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume = false }) {
   const scenario = JSON.parse(
     await readFile(join(evalRoot, "scenarios", `${scenarioId}.json`), "utf8"),
   );
@@ -309,10 +339,26 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome }) {
     candidates.push({ candidate: item.candidate, response });
   }
   const judgeDir = join(outputRoot, "judges", scenarioId, `repeat-${repeat}`);
+  const scorePath = join(judgeDir, "scores.blind.json");
+  const eventsPath = join(judgeDir, "events.jsonl");
+  if (
+    resume &&
+    (await fileExists(scorePath)) &&
+    (await fileExists(eventsPath))
+  ) {
+    process.stdout.write(`skip judge ${scenarioId} repeat=${repeat}\n`);
+    return;
+  }
   const workspace = await mkdtemp(join(tmpdir(), `nextjs-arch-judge-${scenarioId}-`));
   await mkdir(judgeDir, { recursive: true });
+  const scenarioTask = [
+    scenario.task,
+    scenario.framings?.[framing] ? `Stakeholder framing: ${scenario.framings[framing]}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const input = {
-    task: scenario.task,
+    task: scenarioTask,
     rubric: scenario.rubric,
     scoring:
       "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. " +
@@ -337,8 +383,8 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome }) {
       codexHome,
       prompt,
       schema: join(evalRoot, "judge.schema.json"),
-      output: join(judgeDir, "scores.blind.json"),
-      events: join(judgeDir, "events.jsonl"),
+      output: scorePath,
+      events: eventsPath,
       selectedModel: judgeModel,
     });
   } finally {
@@ -428,7 +474,7 @@ async function writeManifest(outputRoot) {
     codexVersion: codexVersion.trim(),
     generationModel: model,
     judgeModel,
-    framing: "neutral",
+    framing,
     arms,
     scenarios: scenarioIds,
     repeats: 2,
@@ -455,6 +501,7 @@ async function main() {
         repeat: options.repeat,
         outputRoot: options.output,
         codexHome,
+        resume: options.resume,
       });
       return;
     }
@@ -465,17 +512,33 @@ async function main() {
         repeat: options.repeat,
         outputRoot: options.output,
         codexHome,
+        resume: options.resume,
       });
       return;
     }
 
-    await writeManifest(options.output);
+    if (!options.resume || !(await fileExists(join(options.output, "manifest.json")))) {
+      await writeManifest(options.output);
+    }
     for (const scenarioId of scenarioIds) {
       for (const repeat of [1, 2]) {
         for (const arm of arms) {
-          await runCell({ scenarioId, arm, repeat, outputRoot: options.output, codexHome });
+          await runCell({
+            scenarioId,
+            arm,
+            repeat,
+            outputRoot: options.output,
+            codexHome,
+            resume: options.resume,
+          });
         }
-        await judgeGroup({ scenarioId, repeat, outputRoot: options.output, codexHome });
+        await judgeGroup({
+          scenarioId,
+          repeat,
+          outputRoot: options.output,
+          codexHome,
+          resume: options.resume,
+        });
       }
     }
     await writeSummary(options.output);

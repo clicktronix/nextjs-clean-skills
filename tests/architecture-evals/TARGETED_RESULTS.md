@@ -57,4 +57,4 @@ the candidate for a frozen release-gate design; it does not by itself accept the
 
 Three judge attempts stalled in the Codex transport and produced no result. Each was discarded and
 retried with identical generation outputs, judge input, and candidate mapping. The runner now gives
-each Codex process group a ten-minute timeout so the 96-run matrix cannot hang indefinitely.
+each Codex process group a five-minute timeout so the 96-run matrix cannot hang indefinitely.
