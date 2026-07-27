@@ -1,0 +1,443 @@
+{
+  "task": "Design the file placement and call flow for a board page in a Next.js 16 App Router application. Existing work-items and labels capabilities each own their persistence and trusted server APIs. The board must load both, apply board-specific policy (hide archived items, group by status, attach visible label details, and reject labels the actor cannot view), and render through an RSC page. Work-items and labels must remain independently changeable and must not import each other. Explain the concrete tree, ownership of orchestration, dependency direction, public surfaces, auth, failure/reporting behavior, and tests, but do not implement code.",
+  "rubric": {
+    "positive": [
+      "A board capability owns the cross-capability policy and application orchestration.",
+      "Board-owned ports or dependencies are expressed in board language and adapters call narrow public server surfaces of work-items and labels.",
+      "Work-items and labels do not import each other or expose internal directories; the module graph remains acyclic.",
+      "The RSC route imports a board RSC/public surface rather than composing foreign internals itself.",
+      "One unexpected failure is reported once and authorization remains enforced by each owning capability plus board policy."
+    ],
+    "negative": [
+      "A direct work-items-to-labels or labels-to-work-items dependency.",
+      "Cross-capability imports of server/application internals.",
+      "Duplicated board orchestration in the page or multiple channels.",
+      "Forwarding wrappers that add no policy or boundary."
+    ]
+  },
+  "scoring": "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. Subtract one for each distinct negative violation. total = sum(positive) - violations. fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
+  "candidates": [
+    {
+      "candidate": "candidate-1",
+      "response": {
+        "summary": "Make `board` the orchestrating capability. It reads work items and labels through their trusted server surfaces, applies board policy in its application layer, and exposes an RSC read surface consumed by the App Router page. Work-items and labels remain independent and never import one another.",
+        "tree": [
+          {
+            "path": "app/board/page.tsx",
+            "purpose": "RSC route-private composition; obtains request identity and calls `board/rsc.ts`."
+          },
+          {
+            "path": "src/modules/board/application/load-board.ts",
+            "purpose": "Framework-neutral orchestration: load items and label details, reject unauthorized labels, hide archived items, group by status, and build the board projection."
+          },
+          {
+            "path": "src/modules/board/domain/board-policy.ts",
+            "purpose": "Pure board rules and projection helpers for archive filtering, status grouping, and visible-label attachment."
+          },
+          {
+            "path": "src/modules/board/server.ts",
+            "purpose": "Trusted server API for board reads; accepts request identity and explicit dependencies, maps infrastructure failures, and returns typed outcomes."
+          },
+          {
+            "path": "src/modules/board/rsc.ts",
+            "purpose": "Server-only current-request API; authenticates the request, invokes the board server operation, and preserves RSC-native not-found/redirect behavior."
+          },
+          {
+            "path": "src/modules/work-items/server.ts",
+            "purpose": "Existing trusted work-items read API, enforcing work-item authorization and ownership/tenant predicates."
+          },
+          {
+            "path": "src/modules/labels/server.ts",
+            "purpose": "Existing trusted labels read API, returning visible label details only and reporting inaccessible requested labels."
+          },
+          {
+            "path": "src/modules/board/ui/board-view.tsx",
+            "purpose": "Reusable presentational board component if it has consumers beyond the route; otherwise keep presentation in `app/board/`."
+          },
+          {
+            "path": "src/modules/board/application/__tests__/load-board.test.ts",
+            "purpose": "Tests orchestration outcomes, policy projection, inaccessible-label rejection, and dependency failures."
+          },
+          {
+            "path": "src/modules/board/domain/__tests__/board-policy.test.ts",
+            "purpose": "Pure tests for archived-item filtering, status grouping, and label attachment."
+          },
+          {
+            "path": "app/board/__tests__/page.test.tsx",
+            "purpose": "RSC boundary tests for authenticated access and channel-native not-found/error behavior."
+          }
+        ],
+        "flows": [
+          "`GET /board` → `app/board/page.tsx` → `src/modules/board/rsc.ts` → authenticate request → `board/server.ts` → `board/application/load-board.ts`.",
+          "`load-board.ts` derives the required item and label IDs, then concurrently calls `work-items/server.ts` and `labels/server.ts` with the same actor, tenant/ownership scope, request ID, and trace ID.",
+          "The application operation rejects the projection if the labels API reports any requested label that the actor cannot view; it does not silently attach unauthorized details.",
+          "The application operation removes archived items, groups remaining items by status, attaches returned visible label details, and returns a board-specific projection.",
+          "`board/rsc.ts` maps the typed result to the RSC page. Unexpected defects/outages remain exceptions; framework control flow such as `notFound()` remains outside generic error handling."
+        ],
+        "decisions": [
+          {
+            "topic": "Orchestration ownership",
+            "choice": "`board/application/load-board.ts` owns cross-capability coordination and board policy",
+            "rationale": "The workflow has meaningful branching, projection, authorization interpretation, and coordination; it should not be pushed into the page or either source capability."
+          },
+          {
+            "topic": "Dependency direction",
+            "choice": "Board depends on `work-items/server.ts` and `labels/server.ts`; those capabilities do not depend on board or each other",
+            "rationale": "This preserves independent changeability and an acyclic capability graph."
+          },
+          {
+            "topic": "Public surfaces",
+            "choice": "Use only trusted `server.ts` surfaces for cross-capability reads and `board/rsc.ts` for the RSC boundary",
+            "rationale": "Internal stores and adapters remain private; no unnecessary client, action, or route-handler surface is introduced."
+          },
+          {
+            "topic": "Authorization",
+            "choice": "Authenticate at the RSC/server boundary, enforce board policy in the application layer, and enforce tenant/ownership predicates in each capability's store boundary",
+            "rationale": "Each layer protects a distinct trust boundary while preserving actor context through both calls."
+          },
+          {
+            "topic": "Failure behavior",
+            "choice": "Unauthorized requested labels produce a typed board authorization failure; dependency outages are reported once with request/trace context and surfaced as channel-appropriate errors",
+            "rationale": "Unauthorized data must not be hidden as a successful partial projection, while unexpected failures remain distinguishable from expected outcomes."
+          },
+          {
+            "topic": "Caching",
+            "choice": "Keep the board read request-scoped initially; if caching is later added, return cache ownership metadata from the portable operation and map it to Next.js invalidation at the channel boundary",
+            "rationale": "Board composition depends on two independently changing capabilities and should not introduce stale cross-capability cache semantics prematurely."
+          }
+        ],
+        "risks": [
+          "Concurrent reads can observe different revisions of work items and labels; use a documented best-effort snapshot unless both capabilities later expose a shared version or consistency contract.",
+          "The board contract must define behavior for missing labels separately from labels the actor cannot view; treat inaccessible labels as forbidden and unexpected missing references as a typed data-integrity failure.",
+          "Production checks should enforce `server-only`/`client-only` boundaries, prevent client imports of server surfaces, and verify the module graph remains acyclic."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-2",
+      "response": {
+        "summary": "Add a board-owned read slice that composes independent work-item and label capabilities. The RSC page reads through a server-only DAL, which authenticates the actor, injects capability ports, applies board policy, and returns serializable board DTOs.",
+        "tree": [
+          {
+            "path": "src/domain/board/board-schemas.ts",
+            "purpose": "Valibot schemas for board filters, grouped results, visible label details, and stable failure types."
+          },
+          {
+            "path": "src/use-cases/board/get-board.ts",
+            "purpose": "Board orchestration and policy: load work items and labels, hide archived items, group by status, attach visible labels, and discard inaccessible label associations."
+          },
+          {
+            "path": "src/use-cases/board/board-ports.ts",
+            "purpose": "Ports for reading work items and actor-visible labels; contains no persistence or framework imports."
+          },
+          {
+            "path": "src/use-cases/work-items/list-work-items.ts",
+            "purpose": "Existing public work-item capability read contract."
+          },
+          {
+            "path": "src/use-cases/labels/get-visible-labels.ts",
+            "purpose": "Existing public label capability read contract that enforces actor visibility."
+          },
+          {
+            "path": "src/adapters/outbound/work-items/work-items-reader.ts",
+            "purpose": "Work-item persistence adapter implementing the work-item read port."
+          },
+          {
+            "path": "src/adapters/outbound/labels/labels-reader.ts",
+            "purpose": "Label persistence adapter implementing the label visibility/read port."
+          },
+          {
+            "path": "src/infrastructure/auth/verify-request-actor.ts",
+            "purpose": "Server-only session/claims verification and actor context creation."
+          },
+          {
+            "path": "src/infrastructure/observability/report-board-read.ts",
+            "purpose": "Structured logging and error reporting with request ID, actor scope, and failure category; excludes sensitive row data."
+          },
+          {
+            "path": "src/dal/board/get-board-read.ts",
+            "purpose": "Server-only authenticated composition root; verifies auth, creates outbound adapters, invokes get-board, and maps failures to read-safe results."
+          },
+          {
+            "path": "src/app/board/page.tsx",
+            "purpose": "Thin App Router RSC entrypoint; reads URL filters, calls the board DAL, and renders the board view or safe error state."
+          },
+          {
+            "path": "src/ui/board/BoardView.tsx",
+            "purpose": "Pure/server-renderable board presentation using board DTOs; no persistence or capability imports."
+          },
+          {
+            "path": "src/ui/board/BoardErrorState.tsx",
+            "purpose": "User-safe unavailable/unauthorized rendering without exposing provider or authorization details."
+          },
+          {
+            "path": "tests/use-cases/board/get-board.test.ts",
+            "purpose": "Fake-port tests for board filtering, grouping, label attachment, inaccessible-label rejection, and dependency failures."
+          },
+          {
+            "path": "tests/dal/board/get-board-read.test.ts",
+            "purpose": "Auth boundary and safe failure/reporting tests."
+          },
+          {
+            "path": "tests/adapters/outbound/work-items/work-items-reader.test.ts",
+            "purpose": "Persistence mapping and scoped-query tests."
+          },
+          {
+            "path": "tests/adapters/outbound/labels/labels-reader.test.ts",
+            "purpose": "Visibility enforcement, mapping, and persistence-error tests."
+          },
+          {
+            "path": "tests/ui/board/BoardView.test.tsx",
+            "purpose": "Board rendering tests for groups, labels, empty state, and safe error state."
+          },
+          {
+            "path": "tests/e2e/board.spec.ts",
+            "purpose": "Authenticated browser flow covering visible items, archived-item exclusion, label visibility, and unavailable reads."
+          }
+        ],
+        "flows": [
+          "Board read: GET /board -> src/app/board/page.tsx -> src/dal/board/get-board-read.ts -> verify-request-actor.ts -> get-board.ts -> work-item reader and label reader -> Board DTO -> BoardView.tsx.",
+          "Work-item capability: get-board.ts -> work-item read port -> src/adapters/outbound/work-items/work-items-reader.ts -> work-item persistence. The board imports only the capability contract, never its persistence adapter directly.",
+          "Label capability: get-board.ts -> visible-label read port -> src/adapters/outbound/labels/labels-reader.ts -> label persistence, scoped to the actor. Returned labels are joined by ID; missing/inaccessible IDs are rejected from the board response.",
+          "Policy flow: fetch non-archived-capable work-item data, apply board-level archived filtering, group by status, collect referenced label IDs, fetch actor-visible label DTOs, attach only matching visible labels, and return stable grouped output."
+        ],
+        "decisions": [
+          {
+            "topic": "Orchestration ownership",
+            "choice": "Board use case owns cross-capability policy.",
+            "rationale": "Archived filtering, status grouping, label joining, and inaccessible-label handling are board concerns and must not couple work-items to labels."
+          },
+          {
+            "topic": "Dependency direction",
+            "choice": "Board use case depends on local ports; DAL/inbound composition injects outbound implementations.",
+            "rationale": "Use cases remain framework- and persistence-independent, while work-items and labels remain independently replaceable."
+          },
+          {
+            "topic": "Public surfaces",
+            "choice": "Expose capability read contracts and a board DAL read entrypoint; expose no raw repositories or database rows.",
+            "rationale": "The RSC needs a stable server-only read API, while capability ownership remains explicit."
+          },
+          {
+            "topic": "Authentication and authorization",
+            "choice": "Re-check authentication in the board DAL and enforce label visibility in the label capability/read adapter.",
+            "rationale": "Proxy protection is insufficient; every protected read must derive the actor server-side and fail closed."
+          },
+          {
+            "topic": "Read boundary and caching",
+            "choice": "RSC-owned read through the server-only DAL; no TanStack Query.",
+            "rationale": "The board is a read-heavy App Router page with no stated polling, realtime, or optimistic client lifecycle. Cache, if enabled, is owned by the DAL and scoped to actor/tenant and board inputs."
+          },
+          {
+            "topic": "Failures",
+            "choice": "Unauthorized reads return an authorization-safe result; capability or persistence failures return a generic unavailable state and emit structured telemetry.",
+            "rationale": "Clients must not receive raw exceptions, provider details, or visibility information. Inaccessible label associations are omitted rather than leaked."
+          },
+          {
+            "topic": "Testing",
+            "choice": "Test board policy with fake ports, adapters against their lowest transport boundary, DAL auth/reporting separately, and the complete behavior with e2e.",
+            "rationale": "Each test isolates the architectural boundary it protects."
+          }
+        ],
+        "risks": [
+          "If labels are fetched with a service-role client, explicit actor/tenant predicates and database RLS must still prevent visibility escalation.",
+          "A cached board response must include actor/tenant scope and relevant filters in its cache key or tag; otherwise one actor’s visible labels could be exposed to another.",
+          "The board use case should define whether an invalid work-item status is rejected or placed in an explicit fallback group; this must be covered by its schema and tests.",
+          "Large boards may require bounded reads or pagination, but pagination policy should remain board-owned rather than leaking persistence details into the UI."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-3",
+      "response": {
+        "summary": "Create a board-owned read slice. Its server-only RSC read entrypoint authenticates the actor and invokes a board operation that composes the published work-item and label read operations, applies board policy, and returns a board-specific grouped projection. Neither capability imports the other.",
+        "tree": [
+          {
+            "path": "src/domain/board/board-view.ts",
+            "purpose": "Board filters, status groups, visible label details, and serializable board view schema/types."
+          },
+          {
+            "path": "src/use-cases/board/operations/load-board.ts",
+            "purpose": "Board orchestration: load work items, hide archived items, collect label IDs, load actor-visible labels, reject unresolved/inaccessible labels, group by status, and build the projection."
+          },
+          {
+            "path": "src/use-cases/board/entries/load-board.ts",
+            "purpose": "Single application boundary declaration: validate input/output, normalize failures, and report once."
+          },
+          {
+            "path": "src/adapters/inbound/read/next/board/load-board.ts",
+            "purpose": "Server-only authenticated read entrypoint used by the RSC layer; creates request context and calls the board entry."
+          },
+          {
+            "path": "src/app/board/page.tsx",
+            "purpose": "Thin App Router RSC page; calls the composed board read entrypoint and renders the returned view or delegates navigation/error presentation."
+          },
+          {
+            "path": "src/ui/board/BoardView.tsx",
+            "purpose": "Pure board presentation using grouped board props; no persistence or cross-capability orchestration."
+          },
+          {
+            "path": "src/use-cases/work-items/operations/read-for-board.ts",
+            "purpose": "Published work-item read surface returning board-relevant work-item data, including status, archived state, and label IDs."
+          },
+          {
+            "path": "src/use-cases/labels/operations/read-visible-for-board.ts",
+            "purpose": "Published label read surface that evaluates the actor’s visibility and returns details or an explicit authorization result per requested label."
+          },
+          {
+            "path": "src/ports/board-read.ts",
+            "purpose": "Optional only if work-item or label access is a remote-owned service; otherwise omit and compose their existing in-process operations directly."
+          },
+          {
+            "path": "src/adapters/outbound/board-read/*",
+            "purpose": "Only if a remote service port is required; maps transport failures to application failures."
+          }
+        ],
+        "flows": [
+          "RSC flow: src/app/board/page.tsx -> src/adapters/inbound/read/next/board/load-board.ts -> src/use-cases/board/entries/load-board.ts -> src/use-cases/board/operations/load-board.ts.",
+          "Composition flow: board operation -> work-items published operation -> labels published operation; board imports only published operations, never persistence or inbound adapters.",
+          "Policy flow: authenticate actor -> load work items -> remove archived items -> collect referenced label IDs -> request actor-visible label details -> if any reference is inaccessible, return forbidden -> group remaining items by status -> return BoardView.",
+          "Failure flow: domain/data/adapter layers throw typed failures; load-board boundary classifies and reports once; the read adapter maps the result to the RSC render/error channel without re-reporting."
+        ],
+        "decisions": [
+          {
+            "topic": "Slice ownership",
+            "choice": "Board owns cross-capability policy and projection.",
+            "rationale": "Hiding archived items, grouping by status, attaching visible labels, and rejecting inaccessible labels are board behavior, not work-item or label persistence behavior."
+          },
+          {
+            "topic": "Dependency direction",
+            "choice": "Board operations depend on the published work-item and label operations surfaces.",
+            "rationale": "Capabilities remain independently changeable and do not import one another’s internals."
+          },
+          {
+            "topic": "Use-case",
+            "choice": "Use a board operation.",
+            "rationale": "It orchestrates two capabilities and creates a projection that neither source can return alone."
+          },
+          {
+            "topic": "Port decision",
+            "choice": "No new port for local in-process APIs; add narrow capability-level ports only for remote-owned services.",
+            "rationale": "A port is warranted by a remote seam, not merely by the existence of multiple capabilities; avoid repository-shaped CRUD contracts."
+          },
+          {
+            "topic": "Authorization",
+            "choice": "Reverify the session in the server-only read entrypoint and preserve actor scope through both capability reads.",
+            "rationale": "RSC rendering and proxy protection are not authorization boundaries. Label visibility must be evaluated server-side, with inaccessible references producing forbidden rather than silently attaching incomplete data."
+          },
+          {
+            "topic": "Caching",
+            "choice": "Use the RSC request/read path only initially.",
+            "rationale": "The board is a render read; no client cache is needed unless realtime, polling, or shared client lifecycle requirements arise."
+          },
+          {
+            "topic": "Consistency",
+            "choice": "All-or-error board response.",
+            "rationale": "A failed work-item or label read must not produce a misleading partial board; provider details remain internal and public failures use the shared taxonomy."
+          }
+        ],
+        "risks": [
+          "The existing trusted API contracts must expose board-relevant fields and an unambiguous inaccessible-label result; otherwise extend those published read operations without exposing persistence.",
+          "If label visibility is filtered into an indistinguishable empty result, the board cannot safely distinguish an inaccessible label from a missing reference; define that contract explicitly.",
+          "Tests should include board policy unit tests, boundary success/failure tests, real local-store integration tests for work-items and labels, authenticated read-adapter tests, and an end-to-end board authorization/render test."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-4",
+      "response": {
+        "summary": "Place board orchestration in a board-owned server module. The RSC page calls one board use case, which authenticates the actor, queries the independent work-items and labels server APIs, applies board policy, and returns a view model for rendering.",
+        "tree": [
+          {
+            "path": "app/board/page.tsx",
+            "purpose": "RSC entry point; obtains actor context and calls the board loader, then renders the board view."
+          },
+          {
+            "path": "features/board/server/load-board.ts",
+            "purpose": "Board orchestration use case: fetches work items and labels, applies visibility/filtering/grouping/enrichment policy, and returns the board view model."
+          },
+          {
+            "path": "features/board/server/board-policy.ts",
+            "purpose": "Pure board rules: hide archived items, group by status, attach visible label details, and reject inaccessible label references."
+          },
+          {
+            "path": "features/board/server/board-types.ts",
+            "purpose": "Board-specific input and view-model types; does not define or own work-item/label persistence types."
+          },
+          {
+            "path": "features/board/ui/board-view.tsx",
+            "purpose": "Presentation component receiving the board view model; no persistence or authorization logic."
+          },
+          {
+            "path": "features/work-items/server/api.ts",
+            "purpose": "Trusted server API owned by work-items; exposes actor-scoped work-item reads."
+          },
+          {
+            "path": "features/labels/server/api.ts",
+            "purpose": "Trusted server API owned by labels; exposes actor-scoped label reads/details."
+          },
+          {
+            "path": "lib/auth/server/get-actor.ts",
+            "purpose": "Server-only actor/session resolution used by the board use case and capability APIs."
+          },
+          {
+            "path": "tests/board/load-board.test.ts",
+            "purpose": "Orchestration and policy tests with mocked capability APIs."
+          },
+          {
+            "path": "tests/board/page.test.tsx",
+            "purpose": "RSC/page contract and rendering tests."
+          }
+        ],
+        "flows": [
+          "Request: `app/board/page.tsx` → `getActor()` → `loadBoard({ actor })` → `workItemsApi.listVisible({ actor })` and `labelsApi.listVisible({ actor })` → `board-policy.ts` filters archived items, groups remaining items by status, validates label visibility, and attaches visible label details → `BoardView` renders the returned view model.",
+          "Label authorization: board passes the actor to `labelsApi`; labels returns only viewable labels or an explicit inaccessible/missing result. Board policy excludes or rejects item label references that are not viewable; it never queries label persistence directly.",
+          "Independent changes: work-items and labels expose stable trusted server contracts and depend only on shared auth/domain primitives. Neither capability imports board, the other capability, or board policy.",
+          "Failure reporting: authentication failure returns the route’s unauthenticated/redirect behavior. Capability failures are captured as structured board load errors, logged server-side with request and actor identifiers, and surfaced as a generic retryable page state; no persistence or authorization details are exposed. Partial data should not be rendered unless the product explicitly defines a degraded mode.",
+          "Mutation extension: future board actions should call board-owned server actions/routes, re-authenticate, then delegate to the owning work-items or labels API; board must not mutate either store directly."
+        ],
+        "decisions": [
+          {
+            "topic": "Orchestration ownership",
+            "choice": "`features/board/server/load-board.ts`",
+            "rationale": "Board-specific policy belongs with the board, while capability APIs retain persistence and authorization ownership."
+          },
+          {
+            "topic": "Dependency direction",
+            "choice": "`app/board` → `features/board` → `features/work-items` and `features/labels` server APIs → their own persistence",
+            "rationale": "This keeps work-items and labels independently changeable and prevents cross-capability imports."
+          },
+          {
+            "topic": "Public surfaces",
+            "choice": "Expose only trusted server APIs from each capability and a board view-model loader",
+            "rationale": "The client receives a composed read model, not repositories, persistence models, or unrestricted data."
+          },
+          {
+            "topic": "Auth",
+            "choice": "Resolve the actor at the server boundary and pass it through every capability call",
+            "rationale": "Authorization remains enforced by each owning capability; board policy adds only board presentation rules."
+          },
+          {
+            "topic": "Data composition",
+            "choice": "Fetch work items and labels independently, then join in board policy by label ID",
+            "rationale": "The join is board-specific and avoids coupling persistence schemas."
+          },
+          {
+            "topic": "Failure semantics",
+            "choice": "Fail closed for authorization and return generic retryable errors for operational failures",
+            "rationale": "Inaccessible labels must not leak details, and incomplete board state is misleading."
+          },
+          {
+            "topic": "Rendering",
+            "choice": "RSC page plus board-owned presentation component",
+            "rationale": "The page can load trusted server data without exposing server APIs or credentials to the browser."
+          }
+        ],
+        "risks": [
+          "The exact behavior for an item referencing an inaccessible label must be product-defined; the proposal assumes the label reference is omitted and the item remains visible.",
+          "Sequential capability calls are simpler but slower; parallel reads are preferred, with all failures handled before policy application.",
+          "Large boards may require pagination or a board-specific bounded query contract without moving orchestration into persistence."
+        ]
+      }
+    }
+  ]
+}

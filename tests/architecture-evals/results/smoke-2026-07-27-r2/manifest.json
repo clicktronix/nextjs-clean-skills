@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-27T19:44:03.844Z",
+  "repositoryHead": "a20bec07b3ec8f166f4b71a224ded58a04690994",
+  "codexVersion": "codex-cli 0.145.0",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "layer-first",
+    "capability-first"
+  ],
+  "scenarios": [
+    "simple-crud",
+    "remote-stream",
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "generationRuns": 24,
+  "blindJudgeRuns": 6
+}

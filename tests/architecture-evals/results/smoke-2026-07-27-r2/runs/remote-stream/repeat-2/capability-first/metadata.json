@@ -1,0 +1,9 @@
+{
+  "scenario": "remote-stream",
+  "arm": "capability-first",
+  "repeat": 2,
+  "model": "gpt-5.6-luna",
+  "taskHash": "c0337d27bed11f1848e83bbfcdf08023178d322c5ccfcd99328bb9780174cf9b",
+  "skillHash": "d9233f35b6c40949d5e32097d73eace22fc3f62899f8ac3a9ba45aff8a603ae1",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}
