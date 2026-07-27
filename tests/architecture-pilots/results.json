@@ -11,7 +11,7 @@
     "nextIntegration": {
       "repository": "https://github.com/clicktronix/fullstack-ai-template",
       "branch": "research/capability-next-pilot",
-      "head": "161959acd6c78961f3f6d5789e6d7d99c5e41412",
+      "head": "0a3eeca514896f6efd67b8a773c0230b839cb251",
       "nextVersion": "16.2.10",
       "positive": {
         "check": true,

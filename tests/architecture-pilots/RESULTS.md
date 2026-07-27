@@ -20,7 +20,7 @@ gate remains open for final review, and agent evaluation has not run.
   `fullstack-ai-template@research/layer-first-baseline-replays`, head `46b5bc5`. `bun run check`
   and the full `991`-test suite pass.
 - The real App Router pilot is published at
-  `fullstack-ai-template@research/capability-next-pilot`, head `161959a`. It passes `bun run check`,
+  `fullstack-ai-template@research/capability-next-pilot`, head `0a3eeca`. It passes `bun run check`,
   `990` tests, and a Next.js 16.2.10 production build.
 
 ## Change Cost

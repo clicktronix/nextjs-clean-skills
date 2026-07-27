@@ -219,6 +219,16 @@ Authentication belongs to the channel/server boundary. Business authorization be
 domain/application policy. Store ownership and tenant predicates remain enforced at the
 database/RLS boundary.
 
+A capability may publish a server service created by an injectable runtime resolver. The default
+resolver obtains the authenticated platform context, separates identity from effects, and builds
+the private store. This keeps RSC, Server Action, and HTTP callers independent of the concrete data
+provider without turning provider clients into request identity.
+
+Command results may carry server-only ownership metadata such as affected cache scope. The channel
+maps that scope to its runtime semantics: a Server Action may use `updateTag` for read-your-writes,
+while HTTP or background work may use `revalidateTag` or another invalidation mechanism. Next.js
+cache APIs do not belong in portable application operations.
+
 ### 9. Validation follows trust boundaries
 
 - Validate untrusted input at the channel boundary.
@@ -342,7 +352,7 @@ harness. The corrected replay adds a capability-owned composition control: swapp
 changes the public server composition and private adapter, but not RSC, action, or HTTP callers.
 
 The isolated fixtures are complemented by a real App Router pilot at
-`fullstack-ai-template@research/capability-next-pilot` (`161959a`). Its Server Action accepts
+`fullstack-ai-template@research/capability-next-pilot` (`0a3eeca`). Its Server Action accepts
 `FormData`, identity and provider effects are resolved inside capability composition, its
 `route.ts` exports `GET`, and a Next.js 16.2.10 production build passes. A deliberate Client
 Component import of the server surface fails that build through `server-only`.
