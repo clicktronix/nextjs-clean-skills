@@ -102,10 +102,16 @@ A port belongs to the application behavior that needs it. Add one only when the 
 capability independently of technology, in application language, for a production consumer.
 Adapter count, locality, and test mocks are evidence, not gates.
 
-Cross-capability orchestration belongs to an orchestrating capability or outer composition root.
-Its adapters call other capabilities' public surfaces; they do not import internals.
-Sequence calls when a later call needs IDs or other data from an earlier result. Claim parallelism
-only when the inputs are independent.
+An outer composition root may wire public surfaces, but it does not own meaningful product policy.
+When deleting cross-capability code would move filtering, grouping, authorization consequences,
+projection, transaction intent, or coordination into a route, create an orchestrating capability
+even when it has one current consumer. Its operation owns dependencies in its own language; private
+adapters call other capabilities' narrow public surfaces and do not import internals.
+
+Sequence calls when a later call needs IDs or other data from an earlier result. Do not claim
+parallelism and then constrain a later query with values from the earlier result. The orchestrating
+channel reports an unexpected failure once; inner operations and capability adapters do not report
+it again.
 
 ## Runtime Channels
 
