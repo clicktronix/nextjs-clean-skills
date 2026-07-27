@@ -48,7 +48,7 @@ async function testWorkItems(load) {
   const uiModule = await load('work-items/src/modules/work-items/ui.js')
   const routeModule = await load('work-items/src/app/api/work-items/route.js')
 
-  const source = storeModule.createMemoryWorkItemSource([
+  const remoteRows = [
     {
       id: 'item-a',
       tenant_id: 'tenant-a',
@@ -69,7 +69,22 @@ async function testWorkItems(load) {
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     },
-  ])
+  ]
+  const source = storeModule.createHttpWorkItemSource({
+    async request(method, pathname, body) {
+      if (method === 'GET') {
+        const tenantId = new URL(`https://provider.test${pathname}`).searchParams.get(
+          'tenantId'
+        )
+        return {
+          status: 200,
+          body: remoteRows.filter((row) => row.tenant_id === tenantId),
+        }
+      }
+      remoteRows.push(body)
+      return { status: 201, body }
+    },
+  })
   const invalidated = []
   const server = serverModule.createWorkItemsServer({
     store: storeModule.createWorkItemStore(source),
