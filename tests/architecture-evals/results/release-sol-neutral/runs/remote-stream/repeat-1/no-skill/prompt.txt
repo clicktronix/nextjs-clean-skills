@@ -1,0 +1,4 @@
+Work only from the hypothetical task in ./TASK.md.
+Do not inspect parent directories, the user's home directory, or unrelated repositories.
+Return an architecture proposal only. Do not edit files.
+Use concrete paths and call flows. Keep the answer concise but complete.

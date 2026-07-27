@@ -41,4 +41,5 @@ node scripts/run-architecture-eval.mjs --smoke
 ```
 
 The frozen two-tier, two-framing release protocol and acceptance thresholds are in
-[`RELEASE_GATE.md`](RELEASE_GATE.md).
+[`RELEASE_GATE.md`](RELEASE_GATE.md). Its first completed result is recorded in
+[`RELEASE_RESULTS.md`](RELEASE_RESULTS.md).
