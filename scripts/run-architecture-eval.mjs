@@ -276,7 +276,8 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome }) {
     rubric: scenario.rubric,
     scoring:
       "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. " +
-      "Subtract one for each distinct negative violation. total = sum(positive) - violations. " +
+      "Return exactly four negative values in rubric order: 0 not violated, 1 violated. " +
+      "total = sum(positive) - sum(negative). " +
       "fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
     candidates,
   };
@@ -329,13 +330,13 @@ async function writeSummary(outputRoot) {
       for (const score of scores.candidates) {
         const calculatedTotal =
           score.positive.reduce((sum, value) => sum + value, 0) -
-          score.negative_violations.length;
+          score.negative.reduce((sum, value) => sum + value, 0);
         rows.push({
           scenario: scenarioId,
           repeat,
           arm: armByCandidate.get(score.candidate),
           positive: score.positive,
-          negativeViolations: score.negative_violations,
+          negative: score.negative,
           total: calculatedTotal,
           reportedTotal: score.total,
           arithmeticMatches: calculatedTotal === score.total,

@@ -16,7 +16,7 @@
         "required": [
           "candidate",
           "positive",
-          "negative_violations",
+          "negative",
           "total",
           "fatal",
           "explanation"
@@ -35,12 +35,14 @@
               "maximum": 2
             }
           },
-          "negative_violations": {
+          "negative": {
             "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
             "items": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 3
+              "maximum": 1
             }
           },
           "total": {
