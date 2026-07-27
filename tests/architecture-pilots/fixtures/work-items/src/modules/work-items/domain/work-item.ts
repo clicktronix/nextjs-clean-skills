@@ -3,6 +3,7 @@ export type WorkItem = {
   title: string
   description: string | null
   priority: boolean
+  dueAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -11,6 +12,7 @@ export type CreateWorkItemInput = {
   title: string
   description?: string | null
   priority?: boolean
+  dueAt?: string | null
 }
 
 export class WorkItemInputError extends Error {}
@@ -33,10 +35,14 @@ export function parseCreateWorkItemInput(value: unknown): CreateWorkItemInput {
   if (value.priority !== undefined && typeof value.priority !== 'boolean') {
     throw new WorkItemInputError('priority must be a boolean')
   }
+  if (value.dueAt !== undefined && value.dueAt !== null && typeof value.dueAt !== 'string') {
+    throw new WorkItemInputError('dueAt must be an ISO timestamp or null')
+  }
 
   return {
     title: value.title.trim(),
     description: value.description,
     priority: value.priority,
+    dueAt: value.dueAt,
   }
 }

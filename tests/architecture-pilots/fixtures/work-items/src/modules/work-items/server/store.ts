@@ -6,6 +6,7 @@ export type WorkItemRow = {
   title: string
   description: string | null
   is_priority: boolean
+  due_at: string | null
   created_at: string
   updated_at: string
 }
@@ -26,6 +27,7 @@ function toWorkItem(row: WorkItemRow): WorkItem {
     title: row.title,
     description: row.description,
     priority: row.is_priority,
+    dueAt: row.due_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -44,6 +46,7 @@ export function createWorkItemStore(source: WorkItemDataSource): WorkItemStore {
         title: input.title,
         description: input.description ?? null,
         is_priority: input.priority ?? false,
+        due_at: input.dueAt ?? null,
         created_at: now,
         updated_at: now,
       })

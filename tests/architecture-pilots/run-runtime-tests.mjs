@@ -55,6 +55,7 @@ async function testWorkItems(load) {
       title: 'Alpha',
       description: null,
       is_priority: true,
+      due_at: '2026-08-01T00:00:00.000Z',
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     },
@@ -64,6 +65,7 @@ async function testWorkItems(load) {
       title: 'Beta',
       description: null,
       is_priority: false,
+      due_at: null,
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
     },
@@ -89,6 +91,7 @@ async function testWorkItems(load) {
   assert.deepEqual(rscItems.map((item) => item.id), ['item-a'])
   assert.equal('tenant_id' in rscItems[0], false)
   assert.equal(rscItems[0].priority, true)
+  assert.equal(rscItems[0].dueAt, '2026-08-01T00:00:00.000Z')
 
   const invalidAction = await actionsModule.createWorkItemAction(
     { title: ' ' },
@@ -100,7 +103,7 @@ async function testWorkItems(load) {
   assert.equal(reports.calls.length, 0)
 
   const created = await actionsModule.createWorkItemAction(
-    { title: 'New item', priority: true },
+    { title: 'New item', priority: true, dueAt: '2026-08-15T00:00:00.000Z' },
     context,
     server,
     reports.reporter
@@ -130,11 +133,21 @@ async function testWorkItems(load) {
 
   const form = uiModule.createWorkItemFormModel(clientItems[0])
   assert.equal(form.initialValues.priority, true)
-  assert.deepEqual(form.submit({ title: 'Form item', description: '', priority: false }), {
+  assert.equal(form.initialValues.dueAt, '2026-08-01T00:00:00.000Z')
+  assert.deepEqual(
+    form.submit({
+      title: 'Form item',
+      description: '',
+      priority: false,
+      dueAt: '2026-09-01T00:00:00.000Z',
+    }),
+    {
     title: 'Form item',
     description: null,
     priority: false,
-  })
+      dueAt: '2026-09-01T00:00:00.000Z',
+    }
+  )
 
   const failure = new Error('store unavailable')
   const failingReports = createReporter()
