@@ -8,6 +8,24 @@
       "branch": "research/layer-first-baseline-replays",
       "head": "46b5bc548ac6ccece58501ca23e06acdf680636f"
     },
+    "nextIntegration": {
+      "repository": "https://github.com/clicktronix/fullstack-ai-template",
+      "branch": "research/capability-next-pilot",
+      "head": "161959acd6c78961f3f6d5789e6d7d99c5e41412",
+      "nextVersion": "16.2.10",
+      "positive": {
+        "check": true,
+        "productionBuild": true,
+        "tests": 990,
+        "routeHandler": "/api/architecture-pilot/work-items",
+        "serverActionInput": "FormData"
+      },
+      "poisoningMutation": {
+        "expected": "production build fails when a Client Component imports the capability server surface",
+        "observed": "Turbopack rejected server.ts and server/store.ts because server-only cannot be imported from a Client Component module",
+        "passed": true
+      }
+    },
     "candidatePlan": "0c6ee8b7e63b5e6e8fdf667410e866efd224d310",
     "candidateBase": "b9f8b3a165ac4e1d7acd8b31446f58ea2c8f25a4",
     "providerReplayControl": "37b9f970cf8ffa592fe52aba4b6f95bebddd3cd6",
@@ -220,7 +238,8 @@
     "Public module surfaces must narrow private models; one-to-one store wrappers recreated the measured forwarding defect.",
     "Streaming and jobs require explicit runtime-specific public surfaces in addition to RSC, actions, server, client, and UI.",
     "Request-aware reporting remains channel work: shared semantics do not remove explicit context propagation at each boundary.",
-    "The plain TypeScript fixtures do not yet prove Next.js integration: the action accepts non-serializable server dependencies and caller-supplied identity, while the route fixture does not export GET.",
-    "The baseline replay passes repository checks and 991 tests; the architecture decision remains Proposed until the architecture review and agent evaluation finish."
+    "A real Next.js pilot derives identity and provider effects inside capability composition, accepts only FormData at the action boundary, exports GET, and passes a production build.",
+    "A deliberate Client Component import of the capability server surface fails the production build on server-only as required.",
+    "The baseline replay and real Next.js pilot pass their checks; the architecture decision remains Proposed until final architecture review and agent evaluation finish."
   ]
 }

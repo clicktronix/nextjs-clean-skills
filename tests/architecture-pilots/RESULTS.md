@@ -1,8 +1,8 @@
 # Capability-First Pilot Results
 
-Status: candidate fixtures and the baseline replay pass their checks. The corrected provider replay
-now includes a production composition surface. The architecture gate remains open for final review,
-and agent evaluation has not run.
+Status: candidate fixtures, the baseline replay, and a real Next.js integration pilot pass their
+checks. The corrected provider replay includes a production composition surface. The architecture
+gate remains open for final review, and agent evaluation has not run.
 
 ## Evidence
 
@@ -19,6 +19,9 @@ and agent evaluation has not run.
 - The layer-first replay is published at
   `fullstack-ai-template@research/layer-first-baseline-replays`, head `46b5bc5`. `bun run check`
   and the full `991`-test suite pass.
+- The real App Router pilot is published at
+  `fullstack-ai-template@research/capability-next-pilot`, head `161959a`. It passes `bun run check`,
+  `990` tests, and a Next.js 16.2.10 production build.
 
 ## Change Cost
 
@@ -47,16 +50,18 @@ test-isolation fix because a Bun module mock polluted the full suite.
 6. `stream.ts` and `job.ts` belong in the admitted public-surface vocabulary.
 7. A provider-swap claim requires a production composition surface. With that control present, the
    source change touched `server.ts` and `server/store.ts`, not the RSC, action, or HTTP callers.
-8. These fixtures prove framework-independent contracts, not Next.js integration. The current
-   action accepts caller-supplied identity and non-serializable server dependencies, and the route
-   fixture does not export `GET`. They must not be cited as a valid Server Action or Route Handler.
+8. The first plain TypeScript fixture was not valid Next.js evidence. The follow-up App Router pilot
+   closes that gap: its action accepts `FormData`, identity and effects are resolved inside the
+   capability, and `route.ts` exports `GET`.
+9. Server/client poisoning is build-enforced. A Client Component import of `server.ts` makes
+   Turbopack reject both the public server surface and private store through `server-only`.
+10. Cache ownership and cache runtime are separate. The command returns a server-only cache scope;
+    the Server Action applies `updateTag`, leaving HTTP and job boundaries free to use their native
+    invalidation semantics.
 
 ## Open Gates
 
 - Review the corrected provider composition and the remaining architecture acceptance gates.
-- Run one capability through a real Next.js App Router integration: derive identity server-side,
-  expose a serializable Server Action, export a named Route Handler method, verify server/client
-  poisoning, and pass `next build`.
 - Run the 24-cell agent smoke matrix.
 - Run the 96-cell release matrix only if smoke shows a useful signal.
 - Keep the ADR Proposed until both architecture and skill gates pass.

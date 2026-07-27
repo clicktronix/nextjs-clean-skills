@@ -341,10 +341,11 @@ provider-swap comparison because the candidate selected its concrete provider in
 harness. The corrected replay adds a capability-owned composition control: swapping the source
 changes the public server composition and private adapter, but not RSC, action, or HTTP callers.
 
-The isolated fixtures are not sufficient Next.js evidence. Before acceptance, one capability must
-also run inside a real App Router application. Its Server Action must accept only serializable
-client input and derive identity server-side; its `route.ts` must export a named HTTP method; and
-the production build must exercise server/client poisoning.
+The isolated fixtures are complemented by a real App Router pilot at
+`fullstack-ai-template@research/capability-next-pilot` (`161959a`). Its Server Action accepts
+`FormData`, identity and provider effects are resolved inside capability composition, its
+`route.ts` exports `GET`, and a Next.js 16.2.10 production build passes. A deliberate Client
+Component import of the server surface fails that build through `server-only`.
 
 ## Acceptance Gates
 

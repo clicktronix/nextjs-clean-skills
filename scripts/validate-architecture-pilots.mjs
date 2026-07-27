@@ -230,6 +230,26 @@ if (typeof results.controls?.baselineReplay?.branch !== 'string') {
 if (!/^[a-f0-9]{40}$/.test(results.controls?.baselineReplay?.head ?? '')) {
   errors.push('pilot results baseline replay head must be a full lowercase Git SHA')
 }
+if (results.controls?.nextIntegration?.repository !== baseline.source?.repository) {
+  errors.push('pilot results Next integration repository must match the baseline repository')
+}
+if (typeof results.controls?.nextIntegration?.branch !== 'string') {
+  errors.push('pilot results Next integration branch must be a string')
+}
+if (!/^[a-f0-9]{40}$/.test(results.controls?.nextIntegration?.head ?? '')) {
+  errors.push('pilot results Next integration head must be a full lowercase Git SHA')
+}
+if (
+  results.controls?.nextIntegration?.positive?.check !== true ||
+  results.controls?.nextIntegration?.positive?.productionBuild !== true ||
+  !Number.isInteger(results.controls?.nextIntegration?.positive?.tests) ||
+  results.controls.nextIntegration.positive.tests <= 0
+) {
+  errors.push('pilot results Next integration must record passing check, build, and tests')
+}
+if (results.controls?.nextIntegration?.poisoningMutation?.passed !== true) {
+  errors.push('pilot results Next integration must record a passing poisoning mutation')
+}
 if (results.pilotEvidence?.typeScriptFiles !== listFiles(
   'tests/architecture-pilots/fixtures',
   (file) => file.endsWith('.ts')
