@@ -12,15 +12,21 @@ capability root, and add internal segments only when the behavior needs them.
 
 For the requested change, identify:
 
-1. the capability that owns the behavior;
-2. each runtime channel: RSC, Server Action, HTTP, stream, job, or browser;
-3. whether application policy survives the deletion test;
-4. which dependencies need capability-shaped ports;
-5. the public surface each external consumer needs;
-6. where authentication, business authorization, and store authorization run.
+1. the product goal, vocabulary, policy, and lifecycle that define the capability boundary;
+2. the capability that owns the behavior;
+3. each runtime channel: RSC, Server Action, HTTP, stream, job, or browser;
+4. whether application policy survives the deletion test;
+5. which dependencies need capability-shaped ports;
+6. the public surface each external consumer needs;
+7. where authentication, business authorization, and store authorization run.
 
 Classify only behavior the task or existing product actually requires. Do not invent future policy,
 persistence, alternate providers, reuse, or coordination to justify an abstraction.
+
+A table, page, endpoint, provider, CRUD surface, or separate role check does not create a capability.
+Group concepts that serve one product goal and change under one policy/lifecycle. Split a capability
+only when actor goals, business policy, lifecycle, change authority, or a stable public contract
+diverge. File count is not a boundary criterion.
 
 Preserve an existing project's stack unless migration is requested. Fetch current framework docs
 for API details.
@@ -54,12 +60,19 @@ rsc.ts      current-request RSC API
 actions.ts  top-level 'use server'; async mutations only
 client.ts   browser-safe API
 ui.ts       reusable capability UI
+query-cache.ts  serializable query-key identity shared by RSC prefetch and browser cache
 stream.ts   streaming contract
 job.ts      worker contract
 ```
 
 Only create surfaces that have real consumers. A surface must narrow internals, strengthen a
 contract, or establish a runtime boundary. A one-to-one rename or re-export is not an abstraction.
+
+`query-cache.ts` is the only runtime-neutral root surface. Create it only when the same
+serializable TanStack Query key identity is consumed by both a server prefetch/hydration path and a
+browser query path. It imports only its own `domain/**` or `shared/kernel`. Next.js cache tags,
+invalidation, fetchers, providers, and one-runtime-only keys remain private in `server/**` or
+`client/**`.
 
 ## Dependency Rules
 
@@ -70,6 +83,8 @@ contract, or establish a runtime boundary. A one-to-one rename or re-export is n
 - `server/**` implements driving or driven adapters for its own capability.
 - `client/**` imports browser-safe contracts and the exact `actions.ts` mutations it needs.
 - `ui/**` imports its own domain/client surfaces and exact action surface, not server internals.
+- Server and browser paths may both import `query-cache.ts`; no other runtime-neutral root surface
+  is admitted.
 - Browser code never imports `server.ts`, `rsc.ts`, or `server/**`.
 - Module dependencies are acyclic.
 
@@ -182,6 +197,7 @@ Read only the references needed for the decision:
 
 - Placement: [modules and imports](references/placement/modules-and-imports.md),
   [ownership and public surfaces](references/placement/capabilities-and-ownership.md),
+  [capability granularity](references/placement/capability-granularity.md),
   [runtime separation](references/placement/runtime-vs-compile-time.md).
 - Operations and ports: [operation gate](references/use-cases/when-a-use-case-exists.md),
   [channel boundaries](references/use-cases/channel-boundaries.md),

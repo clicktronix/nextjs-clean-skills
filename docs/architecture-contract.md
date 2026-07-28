@@ -57,6 +57,22 @@ flowchart TB
 Do not create a module for a page, table, transport, or provider. Name the product capability whose
 policy and vocabulary the code serves.
 
+### Capability Granularity
+
+A capability is a coherent product goal with its own vocabulary, policy, and lifecycle. The module
+boundary follows a present product distinction, not a storage or screen boundary.
+
+| Keep together when | Split when |
+| --- | --- |
+| concepts serve the same actor goal and business outcome | actor goals or business outcomes differ |
+| authorization consequences and lifecycle are shared | policy, authorization consequences, or lifecycle diverge |
+| the same owner changes the concepts together | change authority is independent |
+| consumers need one capability contract | a narrower stable contract can hide the other capability's internals |
+
+A table, CRUD screen, route, provider, dedicated role check, file count, or size threshold is not a
+boundary by itself. Related lookup entities should remain in their owning taxonomy or workflow
+capability until the product supplies an independent goal, policy, lifecycle, or contract.
+
 ## Optional Internal Segments
 
 A capability may use these reserved segments:
@@ -91,6 +107,7 @@ src/modules/work-items/
 ├── actions.ts         # top-level 'use server'; UI commands
 ├── client.ts          # browser-safe read or subscription surface
 ├── ui.ts              # reusable capability UI
+├── query-cache.ts     # shared serializable query-key identity for prefetch and hydration
 ├── stream.ts          # stream-channel contract
 └── job.ts             # worker contract
 ```
@@ -106,6 +123,12 @@ A public surface is valid only when it does at least one of these:
 A facade must expose fewer concepts than it hides. A one-to-one rename or re-export is not a
 facade. A one-to-one channel wrapper is valid only when it establishes real runtime behavior such
 as authentication, validation, failure translation, or telemetry ownership.
+
+`query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
+only when the same serializable TanStack Query key identity has both a server prefetch/hydration
+consumer and a browser query consumer. It imports only its own `domain/**` or `shared/kernel`.
+Next.js cache tags, invalidation, fetchers, providers, and one-runtime-only keys stay private in
+`server/**` or `client/**`.
 
 ## Dependency Direction
 
@@ -149,8 +172,10 @@ Normative rules:
 7. `client/**` imports only browser-safe values and the exact `actions.ts` mutations it needs.
 8. `ui/**` imports its own domain/client values and, when required, its exact action surface. It
    never imports `server.ts`, `rsc.ts`, or `server/**`.
-9. `server-only` and `client-only` protect runtime modules in addition to path rules.
-10. A production build must fail when a Client Component imports a server surface.
+9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
+   invalid with consumers on only one side.
+10. `server-only` and `client-only` protect runtime modules in addition to path rules.
+11. A production build must fail when a Client Component imports a server surface.
 
 The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
 import arbitrary server modules.

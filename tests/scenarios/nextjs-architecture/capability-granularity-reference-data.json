@@ -1,0 +1,16 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/placement/capability-granularity.md#capability-boundary-gate",
+  "query": "Design module boundaries for an admin feature that manages seven related pricing lookup tables. They share the same administrator role, lifecycle, and pricing workflow. Each table has basic CRUD. Explain whether to create seven capability modules, one generic catalogs module, or another boundary.",
+  "baseline_failure": "Agent maps one module per table because each table has CRUD, or creates a generic catalogs bucket without identifying the product capability and its policy.",
+  "expected_behavior": [
+    "Names a coherent pricing or pricing-taxonomy capability from the actor goal, vocabulary, policy, lifecycle, and change authority",
+    "Keeps related lookup entities in one capability while they share the same product outcome and ownership",
+    "States concrete split signals: a distinct actor outcome, independent policy or lifecycle, independent change authority, or a narrower stable public contract"
+  ],
+  "anti_expectation": [
+    "Does NOT create one capability per table merely because each table has CRUD or a route",
+    "Does NOT use a generic catalogs, lib, services, or utils bucket with no product vocabulary",
+    "Does NOT use file count or current table count as the module boundary"
+  ]
+}

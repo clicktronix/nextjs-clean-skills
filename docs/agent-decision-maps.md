@@ -39,6 +39,31 @@ flowchart TB
 
 Do not create an empty segment. Route-private UI stays under `app/**`; product policy does not.
 
+## Decide Capability Granularity
+
+```mermaid
+flowchart TB
+  accTitle: Decide capability granularity
+  accDescr: Keep related concepts together unless the product supplies a distinct goal, policy, lifecycle, owner, or stable contract.
+  Concepts["Related product concepts"]
+  SameGoal{"Same actor goal<br/>and outcome?"}
+  SamePolicy{"Same policy, lifecycle,<br/>and change authority?"}
+  Together["Keep one capability"]
+  Contract{"Independent stable contract<br/>needed now?"}
+  Split["Split capabilities"]
+
+  Concepts --> SameGoal
+  SameGoal -->|No| Split
+  SameGoal -->|Yes| SamePolicy
+  SamePolicy -->|Yes| Together
+  SamePolicy -->|No| Contract
+  Contract -->|Yes| Split
+  Contract -->|No| Together
+```
+
+Tables, CRUD screens, routes, providers, repeated role checks, and file counts are not module
+boundaries by themselves.
+
 ## Decide Whether An Operation Exists
 
 ```mermaid

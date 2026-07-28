@@ -254,6 +254,10 @@ Application operations may return ownership metadata, not call Next.js cache API
 surface maps a successful write to the current framework invalidation primitive. Cache keys include
 the full user or tenant scope whenever authorization changes the result.
 
+When RSC prefetch hydrates a browser-owned TanStack Query cache, both sides use one serializable
+query-key identity from the capability's `query-cache.ts`. This neutral surface contains keys only:
+Next.js cache tags and invalidation remain private server concerns.
+
 ## Authority And Transactions
 
 - A stored function owns the transaction it implements.

@@ -44,6 +44,12 @@ Framework routes remain under `src/app/**`. Route-private presentation stays bes
 Promote it to a module only when it represents product behavior, has another route consumer, or
 needs a stable runtime contract.
 
+A module boundary represents a coherent product goal, vocabulary, policy, and lifecycle. It does
+not follow a table or CRUD page by default. Related reference entities stay together when they serve
+one actor goal and change under one policy and owner. Split only for a distinct actor outcome,
+independent policy or lifecycle, independent change authority, or a narrower stable public contract.
+CRUD, a dedicated table, a route, or a repeated role check is insufficient by itself.
+
 ```mermaid
 flowchart TB
   accTitle: Capability placement decision
@@ -101,6 +107,7 @@ src/modules/work-items/
 ├── actions.ts       # top-level 'use server', async mutations only
 ├── client.ts        # browser-safe API
 ├── ui.ts            # reusable capability UI
+├── query-cache.ts   # serializable query-key identity shared by prefetch and browser cache
 ├── stream.ts        # streaming channel contract, when owned by the capability
 └── job.ts           # worker/job contract, when owned by the capability
 ```
@@ -116,6 +123,11 @@ A public surface is valid only when it:
 A facade exposes fewer concepts than it hides. A one-to-one channel wrapper is valid when it adds
 real runtime behavior such as authentication, validation, failure translation, or telemetry
 ownership.
+
+`query-cache.ts` is the sole runtime-neutral exception. It is justified only by a shared TanStack
+Query identity consumed by both server prefetch/hydration and browser query code. It imports only
+the capability's domain or `shared/kernel`; server cache tags, invalidation, fetchers, providers,
+and one-runtime-only keys remain private.
 
 Public surface drift must be checked against actual exports. The portable contract uses direct
 runtime-specific root files. A package may expose equivalent subpath exports only when the product

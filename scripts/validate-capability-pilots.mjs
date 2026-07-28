@@ -80,9 +80,11 @@ const serverExecutionSurfaceNames = new Set(
   serverExecutionSurfaces.map((surface) => `${surface}.ts`)
 )
 const clientSurfaceNames = new Set(clientSurfaces.map((surface) => `${surface}.ts`))
+const neutralSurfaceNames = new Set(neutralSurfaces.map((surface) => `${surface}.ts`))
 const applicationRuntimeSurfaceNames = new Set([
   ...serverExecutionSurfaceNames,
   ...clientSurfaceNames,
+  ...neutralSurfaceNames,
 ])
 const serverSegmentNames = new Set(segments.filter((segment) => serverSurfaces.includes(segment)))
 const clientSegmentNames = new Set(segments.filter((segment) => clientSurfaces.includes(segment)))
@@ -129,6 +131,66 @@ function moduleLocation(file, fixtureRoot) {
 function isShared(file, fixtureRoot) {
   const parts = path.relative(fixtureRoot, file).split(path.sep)
   return parts[0] === 'src' && parts[1] === 'shared'
+}
+
+function sharedLocation(file, fixtureRoot) {
+  const parts = path.relative(fixtureRoot, file).split(path.sep)
+  if (parts[0] !== 'src' || parts[1] !== 'shared' || parts.length < 3) return null
+  return { root: parts[2] }
+}
+
+function hasUseClientDirective(file, source) {
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  return parsed.statements.some(
+    (statement) =>
+      ts.isExpressionStatement(statement) &&
+      ts.isStringLiteral(statement.expression) &&
+      statement.expression.text === 'use client'
+  )
+}
+
+function runtimeSide(file, source, owner, fixtureRoot) {
+  const sourceSegment = owner?.tail.length > 1 ? owner.tail[0] : null
+  const sourceRoot = owner?.tail.length === 1 ? owner.tail[0] : null
+  if (
+    hasUseClientDirective(file, source) ||
+    clientSegmentNames.has(sourceSegment) ||
+    clientSurfaceNames.has(sourceRoot)
+  ) {
+    return 'client'
+  }
+  if (
+    serverSegmentNames.has(sourceSegment) ||
+    serverExecutionSurfaceNames.has(sourceRoot)
+  ) {
+    return 'server'
+  }
+  const parts = path.relative(fixtureRoot, file).split(path.sep)
+  if (parts[0] === 'src' && parts[1] === 'app') return 'server'
+  return null
+}
+
+function neutralConsumerSide(file, source, owner, fixtureRoot) {
+  const sourceSegment = owner?.tail.length > 1 ? owner.tail[0] : null
+  const sourceRoot = owner?.tail.length === 1 ? owner.tail[0] : null
+  if (
+    hasUseClientDirective(file, source) ||
+    clientSegmentNames.has(sourceSegment) ||
+    clientSurfaceNames.has(sourceRoot)
+  ) {
+    return 'client'
+  }
+  if (sourceRoot === 'rsc.ts') return 'server'
+
+  const parts = path.relative(fixtureRoot, file).split(path.sep)
+  if (
+    parts[0] === 'src' &&
+    parts[1] === 'app' &&
+    !['route.ts', 'route.tsx', 'actions.ts', 'actions.tsx'].includes(parts.at(-1))
+  ) {
+    return 'server'
+  }
+  return null
 }
 
 function importSpecifiers(file, source) {
@@ -206,6 +268,7 @@ function findCycles(graph) {
 function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
   const errors = []
   const moduleGraph = new Map()
+  const neutralConsumers = new Map()
 
   const addError = (code, file, message) => {
     errors.push({
@@ -215,8 +278,20 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
     })
   }
 
+  for (const file of sources.keys()) {
+    const owner = moduleLocation(file, fixtureRoot)
+    if (
+      owner?.tail.length === 1 &&
+      neutralSurfaceNames.has(owner.tail[0])
+    ) {
+      neutralConsumers.set(file, new Set())
+    }
+  }
+
   for (const [file, source] of sources) {
     const owner = moduleLocation(file, fixtureRoot)
+    const sourceSide = runtimeSide(file, source, owner, fixtureRoot)
+    const neutralSide = neutralConsumerSide(file, source, owner, fixtureRoot)
 
     if (owner && owner.tail.length === 1) {
       const [surface] = owner.tail
@@ -247,6 +322,14 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
 
     for (const specifier of importSpecifiers(file, source)) {
       const sourceSegment = owner?.tail.length > 1 ? owner.tail[0] : null
+      const sourceRoot = owner?.tail.length === 1 ? owner.tail[0] : null
+      if (!specifier.startsWith('.') && neutralSurfaceNames.has(sourceRoot)) {
+        addError(
+          'NEUTRAL_SURFACE_DIRECTION',
+          file,
+          `runtime-neutral surface imports package ${specifier}`
+        )
+      }
       if (
         !specifier.startsWith('.') &&
         ['domain', 'application'].includes(sourceSegment) &&
@@ -267,6 +350,28 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       if (target === null) continue
 
       const targetOwner = moduleLocation(target, fixtureRoot)
+      const targetShared = sharedLocation(target, fixtureRoot)
+
+      if (neutralSurfaceNames.has(sourceRoot)) {
+        const ownDomain =
+          targetOwner?.moduleName === owner.moduleName && targetOwner.tail[0] === 'domain'
+        if (!ownDomain && targetShared?.root !== 'kernel') {
+          addError(
+            'NEUTRAL_SURFACE_DIRECTION',
+            file,
+            `runtime-neutral surface imports ${specifier}`
+          )
+        }
+      }
+
+      if (
+        targetOwner?.tail.length === 1 &&
+        neutralSurfaceNames.has(targetOwner.tail[0]) &&
+        neutralSide
+      ) {
+        neutralConsumers.get(target)?.add(neutralSide)
+      }
+
       if (isShared(file, fixtureRoot) && targetOwner) {
         addError('SHARED_IMPORTS_MODULE', file, `shared code imports ${targetOwner.moduleName}`)
       }
@@ -333,6 +438,16 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
     }
   }
 
+  for (const [file, consumers] of neutralConsumers) {
+    if (!consumers.has('server') || !consumers.has('client')) {
+      addError(
+        'NEUTRAL_SURFACE_ONE_SIDED',
+        file,
+        'runtime-neutral surface requires both a server prefetch/hydration consumer and a client query consumer'
+      )
+    }
+  }
+
   for (const cycle of findCycles(moduleGraph)) {
     errors.push({
       code: 'MODULE_CYCLE',
@@ -370,10 +485,37 @@ function requireMutation(label, fixture, expectedCode) {
   return null
 }
 
+const workItemsFixture = loadFixture('work-items')
+const queryCacheFixture = addSource(
+  mutate(
+    mutate(
+      workItemsFixture,
+      'src/modules/work-items/rsc.ts',
+      (source) => `import { workItemKeys } from './query-cache.js'\n${source}
+export const workItemsRscQueryKey = workItemKeys.list()
+`
+    ),
+    'src/modules/work-items/client.ts',
+    (source) => `import { workItemKeys } from './query-cache.js'\n${source}
+export const workItemsClientQueryKey = workItemKeys.list()
+`
+  ),
+  'src/modules/work-items/query-cache.ts',
+  `import type { WorkItem } from './domain/work-item.js'
+
+export const workItemKeys = {
+  all: ['work-items'] as const,
+  list: () => [...workItemKeys.all, 'list'] as const,
+  detail: (id: WorkItem['id']) => [...workItemKeys.all, 'detail', id] as const,
+}
+`
+)
+
 const fixtures = {
   assistant: loadFixture('assistant-stream'),
   board: loadFixture('board-workflow'),
-  workItems: loadFixture('work-items'),
+  workItems: workItemsFixture,
+  queryCache: queryCacheFixture,
 }
 const errors = Object.values(fixtures).flatMap(analyzeFixture)
 
@@ -491,6 +633,53 @@ const mutations = [
     'SHADOWED_SEGMENT_INDEX'
   ),
   requireMutation(
+    'runtime-neutral surface imports a runtime package',
+    mutate(
+      fixtures.queryCache,
+      'src/modules/work-items/query-cache.ts',
+      (source) => `${source}\nimport 'next/cache'\n`
+    ),
+    'NEUTRAL_SURFACE_DIRECTION'
+  ),
+  requireMutation(
+    'runtime-neutral surface imports server internals',
+    mutate(
+      fixtures.queryCache,
+      'src/modules/work-items/query-cache.ts',
+      (source) => `${source}\nimport './server/store.js'\n`
+    ),
+    'NEUTRAL_SURFACE_DIRECTION'
+  ),
+  requireMutation(
+    'runtime-neutral surface has only a client consumer',
+    mutate(
+      fixtures.queryCache,
+      'src/modules/work-items/rsc.ts',
+      (source) =>
+        source
+          .replace("import { workItemKeys } from './query-cache.js'\n", '')
+          .replace('\nexport const workItemsRscQueryKey = workItemKeys.list()\n', '\n')
+    ),
+    'NEUTRAL_SURFACE_ONE_SIDED'
+  ),
+  requireMutation(
+    'action invalidation does not count as server prefetch',
+    mutate(
+      mutate(
+        fixtures.queryCache,
+        'src/modules/work-items/rsc.ts',
+        (source) =>
+          source
+            .replace("import { workItemKeys } from './query-cache.js'\n", '')
+            .replace('\nexport const workItemsRscQueryKey = workItemKeys.list()\n', '\n')
+      ),
+      'src/modules/work-items/actions.ts',
+      (source) =>
+        `${source}\nimport { workItemKeys } from './query-cache.js'\nexport const invalidatedKey = workItemKeys.list()\n`
+    ),
+    'NEUTRAL_SURFACE_ONE_SIDED'
+  ),
+  requireMutation(
     'port direction',
     mutate(
       fixtures.assistant,
@@ -515,4 +704,4 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (7 invariants, 14 failing mutations)')
+console.log('capability pilots ok (9 invariants, 17 failing mutations)')

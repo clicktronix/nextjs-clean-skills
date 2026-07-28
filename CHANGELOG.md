@@ -13,6 +13,14 @@ All notable changes to this project are documented in this file.
 - Named `server/` contents as persistence modules while keeping `store.ts` available as a concise
   private implementation filename.
 
+### Added
+
+- Added the narrow runtime-neutral `query-cache.ts` surface for serializable TanStack Query keys
+  shared by server prefetch/hydration and browser queries. Server cache tags and one-sided keys stay
+  private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
+- Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
+  and stable contract rather than by tables or CRUD screens.
+
 ## [2.0.0] - 2026-07-28
 
 > **Breaking.** Product behavior moves from global layer roots to
