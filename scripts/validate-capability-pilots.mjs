@@ -590,6 +590,15 @@ const mutations = [
     'APPLICATION_RUNTIME_IMPORT'
   ),
   requireMutation(
+    'application imports another capability runtime surface',
+    mutate(
+      fixtures.board,
+      'src/modules/board/application/ports.ts',
+      (source) => `${source}\nimport type { WorkItemsServer } from '../../work-items/server.js'\n`
+    ),
+    'APPLICATION_RUNTIME_IMPORT'
+  ),
+  requireMutation(
     'application framework package',
     mutate(
       fixtures.assistant,
@@ -760,4 +769,4 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (10 invariants, 19 failing mutations)')
+console.log('capability pilots ok (10 invariants, 20 failing mutations)')

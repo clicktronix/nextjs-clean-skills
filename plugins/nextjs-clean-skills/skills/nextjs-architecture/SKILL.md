@@ -78,9 +78,12 @@ invalidation, fetchers, providers, and one-runtime-only keys remain private in `
 ## Dependency Rules
 
 - `app/**` composes module public surfaces.
+- `app/**` never imports module-private schemas, auth helpers, stores, or composition files; keep
+  channel decoding local or expose a deliberate root contract.
 - A module never imports another module's internal path.
 - `domain/**` is pure and framework/provider independent.
-- `application/**` imports its domain, pure helpers, and capability-owned ports only.
+- `application/**` imports its domain, pure helpers, and capability-owned ports only. Its ports use
+  the owning capability's types; a private adapter maps another capability's public contract.
 - `server/**` implements driving or driven adapters for its own capability.
 - Private `server/**` imports domain/application/shared code, never its own root channel surfaces;
   `server.ts`, `rsc.ts`, and `actions.ts` depend inward.
@@ -141,6 +144,8 @@ operations, and capability adapters propagate it without reporting it again.
 - Browser-owned reads use `GET` Route Handlers or streams, not Server Actions.
 - Route Handlers own HTTP status, headers, and public response shapes.
 - Streams own commit state, cancellation, sliding idle timeout, and in-band failures after commit.
+- A stream uses one channel-owned `AbortController`: request abort and downstream stream cancel both
+  abort it, and its signal reaches the upstream producer.
 - Jobs own retry, deadline, idempotency, and dead-letter decisions.
 
 Do not force every channel into one result wrapper. Share safe failure codes, reporter context,

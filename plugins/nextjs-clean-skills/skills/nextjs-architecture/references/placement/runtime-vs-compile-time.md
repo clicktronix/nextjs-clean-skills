@@ -15,7 +15,11 @@ Worker -> capability job surface -> application operation -> provider adapter
 At compile time:
 
 - `app/**` imports module root surfaces, not internals;
+- channel-local decoding stays in the framework entrypoint unless a deliberate root contract owns
+  it; an `app/**` Route Handler never reaches into `server/**` for schemas, auth, or composition;
 - application code imports port types but not concrete adapters;
+- an orchestrating application's port declares its own input and output types; a private server
+  adapter imports and maps another capability's public surface;
 - adapters implement dependencies and are supplied by a public runtime surface;
 - browser code imports only browser-safe surfaces and exact Server Actions;
 - server/client poisoning must fail a production build.

@@ -28,7 +28,9 @@ Trusted `server.ts` composition surfaces, inner operations, and adapters do not 
 
 Cross-capability composition uses one outer orchestrating operation. It calls dependencies through
 its own port language; it does not call another channel wrapper or import another capability's
-internals.
+internals. The application port does not import types from another capability's `server.ts`,
+`rsc.ts`, or other runtime surface. A private server adapter imports that public surface and maps its
+values into the orchestrator's own input and output types.
 
 Framework control flow such as redirect and not-found remains outside generic catches.
 

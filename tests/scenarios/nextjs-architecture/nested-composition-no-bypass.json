@@ -8,11 +8,13 @@
   "expected_behavior": [
     "Places the orchestration in a board capability because the joined behavior belongs to neither source module alone",
     "Uses the public server surfaces of work-items and labels; it does not import either module's private internals",
+    "Declares board-owned port types and maps source public contracts in a private board server adapter",
     "Resolves the visible set completely: every referenced label is either returned or represented as an explicit missing or forbidden outcome",
     "Translates and reports the composed failure once at the board runtime surface"
   ],
   "anti_expectation": [
     "Does NOT import modules/labels/server/** or modules/work-items/server/** from the board module",
+    "Does NOT make board/application import runtime types from labels/server.ts or work-items/server.ts",
     "Does NOT duplicate either source query inside the board module",
     "Does NOT treat an inaccessible referenced label as if it had never been referenced"
   ]

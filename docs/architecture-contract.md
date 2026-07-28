@@ -183,6 +183,11 @@ Normative rules:
 10. `server-only` and `client-only` protect runtime modules in addition to path rules.
 11. A production build must fail when a Client Component imports a server surface.
 
+Within one capability, channel roots such as `rsc.ts` and `actions.ts` may call its trusted
+`server.ts` surface or the same private composition. This is inward reuse, not a license for
+`app/**` or another capability to import `server/**`. Cross-capability application ports declare
+their own types; private server adapters map other capabilities' public contracts into them.
+
 The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
 import arbitrary server modules.
 

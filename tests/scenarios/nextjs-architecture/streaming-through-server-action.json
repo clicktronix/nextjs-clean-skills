@@ -9,12 +9,13 @@
     "Uses a Route Handler plus modules/chat/stream.ts because this channel owns headers, status, cancellation, and a streaming body",
     "Resumes from the last delivered event id instead of retrying the whole stream",
     "Bounds the idle gap between events rather than the total duration",
-    "Wires the incoming request signal to the outgoing call so cancellation reaches the producer",
+    "Uses one channel-owned AbortController so both the incoming request signal and downstream ReadableStream cancel abort the outgoing producer",
     "Delivers post-headers failures as a terminal in-stream event, not a status code",
     "Keeps stream idle timeout distinct from any background job deadline"
   ],
   "anti_expectation": [
     "Does NOT apply stream handling to ordinary request/response calls to the same service",
+    "Does NOT claim cancellation after only setting a local boolean or stopping local iteration",
     "Does NOT treat a silent disconnect and a terminal error event as the same condition",
     "Does NOT accumulate stream state inside the presentational component"
   ]

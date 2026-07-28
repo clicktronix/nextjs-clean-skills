@@ -8,10 +8,12 @@
   "expected_behavior": [
     "Maps the known database code in the capability's private server adapter to a transport-neutral application error such as ConflictError",
     "Keeps the raw Postgres payload only in server-side diagnostic context",
-    "Keeps one application failure classification, then translates it per native surface: a serializable result for actions.ts and an HTTP status plus envelope for the Route Handler"
+    "Keeps one application failure classification, then translates it per native surface: a serializable result for actions.ts and an HTTP status plus envelope for the Route Handler",
+    "Makes the app/** Route Handler call modules/projects/server.ts instead of importing modules/projects/server/**"
   ],
   "anti_expectation": [
     "Does NOT expose error.message, SQL details, or PostgREST payloads to the client",
-    "Does NOT make domain/ or application/ depend on ApiError, Response, Next.js, or route status codes"
+    "Does NOT make domain/ or application/ depend on ApiError, Response, Next.js, or route status codes",
+    "Does NOT let app/** bypass the projects root public surface to call private composition"
   ]
 }

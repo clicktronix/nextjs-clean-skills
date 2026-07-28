@@ -15,6 +15,12 @@ The stream channel owns:
 6. post-commit in-band error or termination;
 7. one unexpected-error report.
 
+Create one channel-owned `AbortController`. Link the incoming `request.signal` to it, call
+`abort(reason)` from the response stream's `cancel(reason)` callback, and pass only the derived
+signal to the upstream fetch or SDK. Setting a boolean or stopping local iteration is not
+cancellation: the producer must observe the abort. Remove listeners and clear idle timers during
+cleanup.
+
 Resume from the last delivered event when the protocol supports it. Do not replay a committed stream
 as an ordinary retry.
 

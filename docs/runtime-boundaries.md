@@ -141,6 +141,10 @@ actor, role, tenant, price, or ownership values supplied by the client.
 Route Handlers live under `app/**` because they are framework files. They decode HTTP and call a
 capability public surface; durable product policy remains inside the capability.
 
+They never import a capability's private `server/**`, `application/**`, or `domain/**` files.
+Endpoint-only schemas stay with the route; reusable contracts are deliberately published through a
+narrow root surface.
+
 `GET` owns browser-readable query parameters, status, headers, cache policy, and public response
 shape. `client.ts` owns the browser-side fetch or subscription contract. Neither surface owns
 business authorization or provider rows.
@@ -180,6 +184,10 @@ The stream channel owns:
 - sliding idle timeout;
 - resume cursor or event ID when supported;
 - in-band error representation after commit.
+
+One channel-owned `AbortController` joins both cancellation sources. The incoming request signal and
+the response stream's `cancel()` callback abort that controller; its signal is passed to the upstream
+producer. A local boolean does not release the upstream resource.
 
 Do not retry an ordinary committed stream as if no bytes were sent. Reconnect/resume is a protocol
 decision.
