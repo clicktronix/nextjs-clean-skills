@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-27",
+  "source": {
+    "repository": "https://github.com/clicktronix/fullstack-ai-template",
+    "commit": "0bae9739e5d688f55ebe971658ce4b533a24daf3",
+    "verificationCommand": "git -C <fullstack-ai-template> ls-tree -r --name-only 0bae9739e5d688f55ebe971658ce4b533a24daf3"
+  },
+  "wholeRepository": {
+    "useCaseFiles": 4,
+    "exportedCallables": 11,
+    "directDependencyForwards": 5,
+    "callablesAtMostTwoStatements": 11
+  },
+  "workItems": {
+    "architectureRoots": [
+      "src/domain",
+      "src/use-cases",
+      "src/adapters/inbound",
+      "src/adapters/outbound",
+      "src/ui/server-state",
+      "src/app"
+    ],
+    "filesBeforeRoutePrivateUi": [
+      "src/domain/work-item/work-item.ts",
+      "src/use-cases/work-items/work-items.ts",
+      "src/use-cases/work-items/ports.ts",
+      "src/use-cases/work-items/types.ts",
+      "src/adapters/outbound/supabase/work-items.operations.ts",
+      "src/adapters/outbound/supabase/work-items.repository.ts",
+      "src/adapters/inbound/next/server-actions/work-items.ts",
+      "src/adapters/inbound/next/route-handlers/work-items.ts",
+      "src/ui/server-state/work-items/keys.ts",
+      "src/ui/server-state/work-items/mutations.ts",
+      "src/ui/server-state/work-items/prefetch.ts",
+      "src/ui/server-state/work-items/queries.ts",
+      "src/app/api/work-items/route.ts"
+    ],
+    "useCaseShape": {
+      "exportedCallables": 6,
+      "directDependencyForwards": 4,
+      "callablesAtMostTwoStatements": 6
+    },
+    "compositionRoots": [
+      "src/adapters/inbound/next/server-actions/work-items.ts",
+      "src/adapters/inbound/next/route-handlers/work-items.ts"
+    ],
+    "channels": {
+      "rsc": [
+        "src/app/(protected)/admin/work-items/page.tsx",
+        "src/app/(protected)/admin/work-items/archived/page.tsx",
+        "src/ui/server-state/work-items/prefetch.ts"
+      ],
+      "serverAction": [
+        "src/adapters/inbound/next/server-actions/work-items.ts"
+      ],
+      "http": [
+        "src/adapters/inbound/next/route-handlers/work-items.ts",
+        "src/app/api/work-items/route.ts"
+      ],
+      "browserQuery": [
+        "src/ui/server-state/work-items/queries.ts"
+      ]
+    },
+    "observedDefects": {
+      "browserReadUsesServerAction": true,
+      "domainModelUsesProviderRowNames": [
+        "is_priority",
+        "label_ids",
+        "created_at",
+        "updated_at"
+      ],
+      "runtimeParseSites": 9,
+      "duplicatedPolicy": [
+        "repository construction in Server Action and Route Handler",
+        "cache invalidation split across Server Action and Route Handler",
+        "RSC prefetch reaches the Server Action read transport"
+      ]
+    }
+  },
+  "preregisteredChanges": [
+    {
+      "id": "add-due-at",
+      "description": "Add optional dueAt from storage through create/edit UI.",
+      "countingRule": "Count every production and test file whose runtime type, provider mapping, validation, rendering, or form behavior changes.",
+      "plannedBaselineTouches": {
+        "existing": [
+          "src/adapters/outbound/supabase/work-items.operations.ts",
+          "src/adapters/supabase/types.ts",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/index.stories.tsx",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/index.tsx",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/lib.ts",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/messages.json",
+          "src/domain/work-item/work-item.ts"
+        ],
+        "new": [
+          "supabase/migrations/<timestamp>_add_work_items_due_at.sql"
+        ]
+      }
+    },
+    {
+      "id": "add-http-read-channel",
+      "description": "Add authenticated HTTP GET to labels, whose baseline read is exposed only through a Server Action to RSC and browser-query callers.",
+      "countingRule": "Count new channel files plus existing auth, composition, cache, operation, and data files that must change.",
+      "plannedBaselineTouches": {
+        "existing": [],
+        "new": [
+          "src/adapters/inbound/next/route-handlers/labels.ts",
+          "src/app/api/labels/__tests__/route.test.ts",
+          "src/app/api/labels/route.ts"
+        ]
+      }
+    },
+    {
+      "id": "replace-work-item-source",
+      "description": "Replace the Supabase work-item store with an HTTP provider while preserving the WorkItemsRepository contract.",
+      "countingRule": "Count provider/data implementation files and every caller or composition root changed to select the replacement.",
+      "plannedBaselineTouches": {
+        "existing": [
+          "src/adapters/inbound/next/route-handlers/work-items.ts",
+          "src/adapters/inbound/next/server-actions/work-items.ts",
+          "src/adapters/outbound/supabase/work-items.operations.ts",
+          "src/adapters/outbound/supabase/work-items.repository.ts"
+        ],
+        "new": [
+          "src/adapters/outbound/api/__tests__/work-items.repository.test.ts",
+          "src/adapters/outbound/api/work-items.repository.ts"
+        ]
+      }
+    },
+    {
+      "id": "change-unexpected-reporting",
+      "description": "Add request-aware unexpected-error reporting across all supported channels.",
+      "countingRule": "Count shared policy files and every RSC, action, HTTP, stream, or job boundary changed; count repeated policy blocks separately.",
+      "plannedBaselineTouches": {
+        "existing": [
+          "src/infrastructure/actions/__tests__/safe-action.test.ts",
+          "src/infrastructure/actions/safe-action.ts",
+          "src/infrastructure/api/__tests__/with-route-error-handling.test.ts",
+          "src/infrastructure/api/with-route-error-handling.ts",
+          "src/infrastructure/errors/__tests__/with-server-read-error-handling.test.ts",
+          "src/infrastructure/errors/with-server-read-error-handling.ts",
+          "src/infrastructure/sentry/capture.ts",
+          "src/ui/providers/__tests__/query-client.test.ts",
+          "src/ui/providers/query-client.ts"
+        ],
+        "new": [
+          "src/infrastructure/request-context/__tests__/request-context.test.ts",
+          "src/infrastructure/request-context/request-context.ts"
+        ]
+      }
+    }
+  ]
+}

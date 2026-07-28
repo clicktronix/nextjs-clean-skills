@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-27T23:36:47.392Z",
+  "repositoryHead": "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+  "candidateCommit": "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+  "controlSource": "results/release-luna-adversarial",
+  "controlSourceCommit": "4e51ba9",
+  "controlRepositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+  "codexVersion": "codex-cli 0.145.0",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "adversarial",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "layer-first",
+    "capability-first"
+  ],
+  "scenarios": [
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "generationRuns": 2,
+  "reusedControlRuns": 6,
+  "blindJudgeRuns": 2
+}

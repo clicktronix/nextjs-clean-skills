@@ -1,12 +1,13 @@
 # nextjs-clean-skills
 
-Portable Claude Code and Codex plugin marketplace for applying a Next.js 16 Hybrid Clean Architecture profile and React Server/Client Component rules.
+Portable Claude Code and Codex plugin marketplace for applying a capability-first Next.js 16
+architecture and React Server/Client Component rules.
 
 ## Plugin
 
 | Plugin | Skills | Purpose |
 | --- | --- | --- |
-| `nextjs-clean-skills` | `nextjs-architecture`, `react-component-creator` | Design full-stack Next.js feature slices and React components with explicit architecture and rendering boundaries. |
+| `nextjs-clean-skills` | `nextjs-architecture`, `react-component-creator` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
 
 Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
@@ -93,23 +94,34 @@ This is a fallback for greenfield or explicitly opted-in repositories. Existing 
 their local equivalents unless the task requests a migration.
 
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
-- **Architecture**: Hybrid Clean Architecture with domain, use-cases, inbound/outbound adapters, server-only DAL/read entrypoints, client server-state, and thin `app/` entrypoints.
+- **Rules**: [`rules/`](./rules/) ships an executable ESLint boundaries config for the capability
+  contract, plus a note on the depth failures no lint rule can catch.
+- **Architecture**: Product capabilities under `src/modules/<capability>`, optional
+  domain/application/server/client/UI segments, narrow runtime-specific public surfaces, and
+  route-private framework composition under `app/**`.
 - **Validation**: Valibot and Standard Schema-compatible action/form validation.
-- **Reads**: Server Components through server-only DAL/read use-cases by default.
-- **Client server-state**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or shared async/server-state cache lifecycle across client islands; reads use GET/stream transport.
+- **Reads**: Server Components call capability RSC/server surfaces directly. Browser-owned reads use
+  `GET` or streams, never Server Actions.
+- **Client cache**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or a shared async cache lifecycle across client islands.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
-- **Actions**: Thin validated mutation-only Server Actions, with module-level `'use server'` when imported by Client Components.
-- **Components**: Server Components by default; Client Controllers call named custom Hooks directly and pass plain props to Views.
+- **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
+- **Components**: Server Components by default; Client Components call named Hooks directly.
 
 ## Human Architecture Docs
 
 The skills are intentionally concise and operational. For team onboarding, rationale, and visual
 maps, use the human-facing docs:
 
-- [Architecture Contract](docs/architecture-contract.md) — layer graph, runtime flow,
-  command/query boundaries, auth boundary, persistence, and state ownership.
-- [Agent Decision Maps](docs/agent-decision-maps.md) — compact flowcharts for prompting and
-  reviewing coding agents.
+- [Architecture Contract](docs/architecture-contract.md) — capability ownership, optional
+  segments, dependency direction, operations, ports, and public surfaces.
+- [Runtime Boundaries](docs/runtime-boundaries.md) — request flow, trust, failures, cache ownership,
+  transactions, observability, and tests.
+- [Frontend Composition](docs/frontend-composition.md) — RSC, Client Components, forms, state, and
+  component ownership.
+- [Architecture Decision Maps](docs/agent-decision-maps.md) — compact placement and review
+  flowcharts.
+- [Adoption And Enforcement](docs/adoption-and-enforcement.md) — rollout, executable coverage, and
+  known gaps.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.

@@ -1,0 +1,221 @@
+{
+  "resultSet": "release",
+  "candidateCommit": "e7b9bdc8ce47bf79d258ca86c04caccaee14a579",
+  "matrices": [
+    {
+      "name": "release-luna-neutral",
+      "generationModel": "gpt-5.6-luna",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "neutral",
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-luna-adversarial",
+      "generationModel": "gpt-5.6-luna",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "adversarial",
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-sol-neutral",
+      "generationModel": "gpt-5.6-sol",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "neutral",
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-sol-adversarial",
+      "generationModel": "gpt-5.6-sol",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "adversarial",
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
+    }
+  ],
+  "counts": {
+    "generationRuns": 96,
+    "reusedControlRuns": 0,
+    "blindJudgeGroups": 24,
+    "additionalBlindJudgeGroups": 0,
+    "scoredRows": 96,
+    "candidateCells": 24
+  },
+  "overall": [
+    {
+      "arm": "no-skill",
+      "cells": 24,
+      "total": 193,
+      "mean": 8.042,
+      "minimum": 4,
+      "negativeViolations": 9,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 24,
+      "total": 190,
+      "mean": 7.917,
+      "minimum": 4,
+      "negativeViolations": 8,
+      "fatalCount": 1
+    },
+    {
+      "arm": "layer-first",
+      "cells": 24,
+      "total": 188,
+      "mean": 7.833,
+      "minimum": 6,
+      "negativeViolations": 10,
+      "fatalCount": 1
+    },
+    {
+      "arm": "capability-first",
+      "cells": 24,
+      "total": 235,
+      "mean": 9.792,
+      "minimum": 6,
+      "negativeViolations": 0,
+      "fatalCount": 0
+    }
+  ],
+  "perScenario": [
+    {
+      "arm": "no-skill",
+      "scenarios": {
+        "simple-crud": 7.5,
+        "remote-stream": 9.125,
+        "cross-capability": 7.5
+      }
+    },
+    {
+      "arm": "v1.3.2",
+      "scenarios": {
+        "simple-crud": 5.375,
+        "remote-stream": 8.5,
+        "cross-capability": 9.875
+      }
+    },
+    {
+      "arm": "layer-first",
+      "scenarios": {
+        "simple-crud": 6.75,
+        "remote-stream": 8,
+        "cross-capability": 8.75
+      }
+    },
+    {
+      "arm": "capability-first",
+      "scenarios": {
+        "simple-crud": 10,
+        "remote-stream": 10,
+        "cross-capability": 9.375
+      }
+    }
+  ],
+  "paired": [
+    {
+      "control": "no-skill",
+      "cells": 24,
+      "wins": 17,
+      "ties": 7,
+      "losses": 0,
+      "tieOrBeatRate": 1
+    },
+    {
+      "control": "v1.3.2",
+      "cells": 24,
+      "wins": 16,
+      "ties": 6,
+      "losses": 2,
+      "tieOrBeatRate": 0.917
+    },
+    {
+      "control": "layer-first",
+      "cells": 24,
+      "wins": 20,
+      "ties": 3,
+      "losses": 1,
+      "tieOrBeatRate": 0.958
+    }
+  ],
+  "candidateExceptions": [
+    {
+      "matrix": "release-luna-adversarial",
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "total": 6,
+      "positive": [
+        1,
+        1,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fatal": false,
+      "explanation": "Board-specific policy is coherently centralized in a route-private loader, and capability independence and authorization are preserved. However, it explicitly avoids a board capability, lacks board-language ports, exposes only a route-private rather than public board surface, and does not clearly specify once-only reporting for unexpected failures. Its claimed parallel label loading also conflicts with constraining the query to label IDs obtained from work-items, but this is correctable and not fatal."
+    },
+    {
+      "matrix": "release-luna-adversarial",
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "total": 9,
+      "positive": [
+        2,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fatal": false,
+      "explanation": "Route-private board code clearly owns the policy and exposes one loader to the RSC page. Work-items and labels remain acyclic behind narrow trusted server surfaces, with layered authorization and once-only unexpected-failure reporting. The design lacks board-language ports or adapters, making that rubric item partial."
+    }
+  ],
+  "automaticCriteria": {
+    "noFatalCandidateCell": true,
+    "noCandidateNegativeViolation": true,
+    "candidateLeadsOverall": true,
+    "candidateLeadsEveryScenario": false,
+    "candidateBeatsNoSkillByHalfPoint": true,
+    "candidateTiesOrBeatsEveryControlInThreeQuarters": true,
+    "noCandidateCellBelowEight": false,
+    "judgeArithmeticMatches": true
+  },
+  "automaticPass": false,
+  "adjudications": [],
+  "usage": {
+    "generation": {
+      "input_tokens": 4492434,
+      "cached_input_tokens": 3054080,
+      "output_tokens": 223484
+    },
+    "judge": {
+      "input_tokens": 1440176,
+      "cached_input_tokens": 920064,
+      "output_tokens": 36323
+    }
+  },
+  "usageCaveat": "Usage totals completed event files, includes reused controls in replay sets, and excludes timed-out judge attempts."
+}

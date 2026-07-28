@@ -1,8 +1,8 @@
 {
   "skills": ["react-component-creator"],
-  "tests_reference": "references/component-structure-composehooks.md#compound-provider-split",
+  "tests_reference": "references/component-structure.md#compound-provider-split",
   "query": "Refactor BlogEditor: its View now takes 34 props across a stats block, a header with save/edit actions, and a form with per-keystroke fields. Editing a form field re-renders the stats block.",
-  "baseline_failure": "Agent keeps growing one Controller/View prop list, or introduces one big Context whose value is rebuilt every render so every sub-section re-renders on each keystroke.",
+  "baseline_failure": "Agent keeps growing one controller/View prop list, or introduces one big Context whose value is rebuilt every render so every sub-section re-renders on each keystroke.",
   "expected_behavior": [
     "Splits the View into sub-components and passes state through colocated context providers split by re-render frequency (Data, Mutations, FormState, FormActions)",
     "Each context value has its own useMemo with per-slice deps so unrelated slices do not invalidate together",
@@ -10,7 +10,7 @@
     "Justifies the split by the trigger (3+ sub-sections, measurable re-render cost, prop list off-screen)"
   ],
   "anti_expectation": [
-    "Does NOT apply the compound-provider split to a small View that is fine as a direct Controller/View pair",
+    "Does NOT apply the compound-provider split to a small component that is clear with a direct named Hook call",
     "Does NOT bundle unrelated slices into one memo, which would defeat the point"
   ],
   "baseline_observed": {

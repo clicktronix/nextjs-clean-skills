@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-27",
+  "architecture": "capability-first",
+  "fixtures": {
+    "work-items": {
+      "purpose": "Store-backed CRUD across RSC, Server Action, HTTP, browser-query, and reusable UI surfaces.",
+      "baseFiles": [
+        "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/client.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/service.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui/form.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts"
+      ]
+    },
+    "assistant-stream": {
+      "purpose": "Remote provider streaming with cancellation, deadline, pre-commit failure, post-commit failure, and job semantics.",
+      "baseFiles": [
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/application/generate-response.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/application/ports/text-generator.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/domain/assistant-event.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/job.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/server/provider.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/stream.ts",
+        "tests/architecture-pilots/fixtures/assistant-stream/src/shared/server/reporting.ts"
+      ]
+    },
+    "board-workflow": {
+      "purpose": "Cross-capability orchestration through board-owned ports and public module surfaces.",
+      "baseFiles": [
+        "tests/architecture-pilots/fixtures/board-workflow/src/app/board/page.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/application/load-board.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/application/ports.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/rsc.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/server.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/server/adapters.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/domain/label.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/rsc.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/server.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/server/store.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/work-items/domain/work-item.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/work-items/server.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/modules/work-items/server/store.ts",
+        "tests/architecture-pilots/fixtures/board-workflow/src/shared/server/reporting.ts"
+      ]
+    }
+  },
+  "harnessFiles": [
+    "tests/architecture-pilots/run-runtime-tests.mjs",
+    "tests/architecture-pilots/tsconfig.json"
+  ],
+  "preregisteredChanges": [
+    {
+      "id": "add-due-at",
+      "plannedCandidateTouches": {
+        "existing": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui/form.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "new": []
+      }
+    },
+    {
+      "id": "add-http-read-channel",
+      "plannedCandidateTouches": {
+        "existing": [
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "new": [
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts"
+        ]
+      }
+    },
+    {
+      "id": "replace-work-item-source",
+      "plannedCandidateTouches": {
+        "existing": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "new": []
+      }
+    },
+    {
+      "id": "change-unexpected-reporting",
+      "plannedCandidateTouches": {
+        "existing": [
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/job.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/stream.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "new": []
+      }
+    }
+  ]
+}

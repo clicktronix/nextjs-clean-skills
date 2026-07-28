@@ -1,8 +1,11 @@
 # Notifications And Feedback
 
-**Impact: MEDIUM**
+**Impact: MEDIUM** · **Scope: stack (Mantine + TanStack)**
 
-Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names. Prerequisite: the inbound boundary maps application errors to public codes/results that `presentError` can format — see the nextjs-architecture skill's "Supabase Persistence Boundaries" reference (Error Mapping section).
+Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names.
+Prerequisite: the runtime channel maps semantic application failures to public codes/results that
+`presentError` can format — see
+[Error Taxonomy](../../nextjs-architecture/references/errors/error-taxonomy.md).
 
 Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
 
@@ -17,7 +20,8 @@ notifyError({ intl, title: msg.saveFailed, error })
 notifySuccess({ intl, title: msg.saved })
 ```
 
-With an `error` but no `message`, `notifyError` formats through `presentError(error)` so copy stays consistent with the inbound adapter's public error taxonomy.
+With an `error` but no `message`, `notifyError` formats through `presentError(error)` so copy stays
+consistent with the channel's public error taxonomy.
 
 ## Global Mutation Error Notifier
 

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-28T00:02:40.370Z",
+  "repositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65",
+  "candidateCommit": "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+  "codexVersion": "codex-cli 0.145.0",
+  "generationModel": "gpt-5.6-sol",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "layer-first",
+    "capability-first"
+  ],
+  "scenarios": [
+    "simple-crud",
+    "remote-stream",
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "generationRuns": 6,
+  "blindJudgeRuns": 6,
+  "reusedControlRuns": 18,
+  "controlSource": "tests/architecture-evals/results/release-sol-neutral",
+  "controlSourceCommit": "4e51ba9ab0d145eb63b52fca03e995db9bfd2b57",
+  "controlRepositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c"
+}

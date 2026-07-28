@@ -1,0 +1,10 @@
+{
+  "scenario": "simple-crud",
+  "arm": "capability-first",
+  "repeat": 2,
+  "model": "gpt-5.6-sol",
+  "framing": "neutral",
+  "taskHash": "6132936e6f4dc529640371d032df795ce8f23930351300fbe041c43447946c43",
+  "skillHash": "3a79080590ef925e35ce30db0499fc373f3cce2e64044eefdfe5f29c8565121e",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

@@ -1,206 +1,314 @@
 # Architecture Contract
 
-This document is the human-readable model behind the `nextjs-architecture` and
-`react-component-creator` skills. The skills are short operational guardrails; this document is
-the rationale and visual map for teams.
+This is the human-readable architecture behind `nextjs-architecture` and
+`react-component-creator`. It defines ownership, placement, dependency direction, and public
+surfaces. Runtime behavior is specified in [Runtime Boundaries](./runtime-boundaries.md).
 
-> **Terms:** DAL, port, adapter, composition root, inbound, outbound, server-state — all
-> defined in [`plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md`](../plugins/nextjs-clean-skills/skills/nextjs-architecture/references/glossary.md).
-> Open it side-by-side if any term feels unfamiliar.
+The default profile is Next.js App Router with TypeScript. Existing projects keep equivalent
+libraries and names unless a migration is explicitly requested.
 
-## Purpose
+## Quality Goals
 
-The architecture combines Next.js App Router with ports-and-adapters discipline:
+| Goal | Architectural response |
+| --- | --- |
+| local reasoning | keep one product capability under one discoverable root |
+| change isolation | forbid imports of another capability's internals |
+| semantic depth | add application operations and ports only when they own real behavior |
+| runtime safety | separate server, browser, and framework entry surfaces |
+| security | enforce identity, policy, and store predicates at their own boundaries |
+| evolvability | keep framework and provider details outside domain and application policy |
 
-- Next.js owns routing, rendering, Server Actions, Route Handlers, and cache APIs.
-- The application owns domain rules, use-cases, ports, adapters, and authorization decisions.
-- Framework entrypoints compose dependencies; use-cases do not import framework or adapter code.
+Folders do not produce these properties automatically. A rule is useful only when its failure mode
+and verification are named.
 
-This is a role map, not a package migration recipe. Package names below describe the default
-profile; existing repositories keep their established equivalents unless migration is requested.
+## Physical Model
 
-## Layer Dependency Graph
+Product behavior lives under one capability root:
 
-Nodes are grouped by the layer they belong to. Solid arrows are compile-time imports; the
-dotted edge is a runtime relationship (implementation, not import).
-
-```mermaid
-flowchart LR
-  subgraph Presentation["Presentation"]
-    RSC["app/ server entrypoints\npages + layouts + RSC"]
-    ClientUI["client UI components"]
-    SharedUI["shared ui/components\npresentation only"]
-  end
-  subgraph ClientServerBridge["Client server-state"]
-    ServerState["ui/server-state/\nTanStack Query hooks"]
-    LocalActions["feature-local actions.ts\nmodule-level use server"]
-  end
-  subgraph Server["Server entrypoints"]
-    DAL["server-only DAL/read entrypoints"]
-    Inbound["adapters/inbound/next/\nServer Actions + Route Handlers"]
-    OutboundFactories["outbound factories\ncomposition root"]
-  end
-  subgraph Application["Application core"]
-    UseCases["use-cases/\napplication orchestration + ports"]
-    Domain["domain/\nschemas + pure rules"]
-  end
-  subgraph Persistence["Persistence + integrations"]
-    Outbound["adapters/outbound/\nSupabase, APIs, queues"]
-  end
-
-  RSC --> DAL
-  ClientUI --> ServerState
-  ClientUI --> LocalActions
-  SharedUI -. "no data access" .-> ClientUI
-  ServerState -->|"GET or stream"| Inbound
-  LocalActions -->|"mutation"| Inbound
-  DAL --> UseCases
-  Inbound --> UseCases
-  Inbound --> OutboundFactories
-  OutboundFactories --> Outbound
-  UseCases --> Domain
-  Outbound --> Domain
-  Outbound -. "implements ports" .-> UseCases
+```text
+src/modules/<capability>/
 ```
 
-The important distinction: inbound adapters may create outbound implementations at runtime, but
-use-cases must not import those implementations at compile time.
-
-### Why these imports are forbidden
-
-The skill references list these as rules. The point of this section is to explain **why** —
-so that next year, when someone is tempted to "just import this Supabase client into a
-use-case for convenience", the rationale is preserved.
-
-- **`domain/` imports nothing project-specific.** Pure schema libraries and domain helpers are
-  allowed; schemas and rules must remain framework-agnostic so they keep working across Edge
-  runtime, Node runtime, tests, future workers, and any future deploy target. The day a domain
-  schema imports `next/headers`, you can no longer
-  unit-test domain logic without a Next.js request context, and you cannot reuse the schema in
-  a queue worker or a CLI.
-
-- **`use-cases/` cannot import adapters or framework APIs.** Use-cases describe *what* needs
-  to happen; ports describe *what capability* is needed; adapters decide *how* it is provided.
-  If a use-case imports a concrete Supabase repository, you can no longer swap it for Drizzle
-  or REST in tests or in another deployment without rewriting business rules. The same logic
-  blocks `react`, `next/cache`, `next/headers`, TanStack Query, and clocks: each of them ties
-  application logic to a specific runtime instead of a port.
-
-- **Client Components cannot import server-only modules.** `import 'server-only'` is a build-
-  time guard against accidentally bundling secrets, service-role clients, or cookie/session
-  decoders into the browser. A single forbidden import can leak a service-role key into the
-  public JS bundle.
-
-- **Inbound adapters MAY import outbound factories.** This is the composition root: someone
-  has to wire a concrete Supabase repository into a use-case at runtime. Server Actions and
-  Route Handlers are the natural place for that wiring. The rule is one-way — outbound adapters
-  never import inbound, and use-cases never import either.
-
-## Runtime Flow vs Import Direction
+Framework routes, metadata, layouts, and route-private presentation remain under `src/app/**`.
+Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
 
 ```mermaid
 flowchart TB
-  subgraph Runtime["Runtime call flow"]
-    Form["User submits form"] --> Action["Server Action"]
-    Action --> BuildRepo["create repository"]
-    BuildRepo --> UseCase["call use-case"]
-    UseCase --> Port["call port interface"]
-    Port --> Repo["Supabase repository"]
-  end
+  accTitle: Primary placement decision
+  accDescr: Product behavior goes to an owning capability, route-only composition stays under app, and proven capability-neutral code may enter an admitted shared root.
+  Change["New behavior"]
+  Owner{"One capability<br/>owns it?"}
+  Module["modules/capability"]
+  Route{"Only route-specific<br/>framework or UI glue?"}
+  App["app/route"]
+  Shared{"Proven capability-neutral<br/>contract?"}
+  SharedRoot["shared/runtime-scope"]
+  Stop["Resolve ownership"]
 
-  subgraph CompileTime["Compile-time imports"]
-    ActionFile["server-actions/*.ts"] --> UseCaseFile["use-cases/*.ts"]
-    ActionFile --> RepoFile["adapters/outbound/*.repository.ts"]
-    RepoFile --> PortFile["use-cases/*/ports.ts"]
-    UseCaseFile --> PortFile
-    UseCaseFile --> DomainFile["domain/*"]
-  end
+  Change --> Owner
+  Owner -->|Yes| Module
+  Owner -->|No| Route
+  Route -->|Yes| App
+  Route -->|No| Shared
+  Shared -->|Yes| SharedRoot
+  Shared -->|No| Stop
 ```
 
-This is why "inbound can call use-cases" is correct. The violation is the opposite direction:
-use-cases importing inbound adapters, outbound repositories, Supabase clients, React, TanStack
-Query, or Next.js request/cache APIs.
+Do not create a module for a page, table, transport, or provider. Name the product capability whose
+policy and vocabulary the code serves.
 
-## Command And Query Boundaries
+## Optional Internal Segments
 
-```mermaid
-flowchart TD
-  Need["Need data or mutation?"] --> ReadWrite{"Read or command?"}
-  ReadWrite -->|Read-heavy UI| RSC["Server Component\nserver-only DAL/read entrypoint"]
-  ReadWrite -->|Client interactive read| Query["ui/server-state\nTanStack Query -> GET/stream"]
-  ReadWrite -->|User form/button command| Action["Server Action\nvalidated inbound boundary"]
-  ReadWrite -->|External API / service client| Route["Route Handler\nJSON envelope + request id"]
-  ReadWrite -->|Webhook| Webhook["Route Handler\nraw body + signature verification"]
-  ReadWrite -->|Long-running work| Queue["Durable job/queue\nprovider adapter"]
-```
+A capability may use these reserved segments:
 
-Server Actions are for UI commands. Route Handlers are for service APIs, webhooks, external
-clients, mobile apps, integrations, retryable HTTP commands, and browser-owned GET/stream reads.
-
-## Security Boundary
-
-```mermaid
-flowchart LR
-  Proxy["src/proxy.ts\nrefresh session, redirect, headers"] --> App["app/ route"]
-  App --> DAL["server-only DAL / inbound adapter"]
-  DAL --> Verify["verify auth + role + tenant"]
-  Verify --> UseCase["use-case"]
-  UseCase --> Repo["outbound repository"]
-  Repo --> DTO["DTO / safe response"]
-
-  Proxy -. "not enough for authorization" .-> UseCase
-```
-
-`proxy.ts` is not the authorization boundary. Data access paths must re-check auth and return
-DTOs rather than leaking raw database rows or service-role data.
-
-## Persistence Boundary
-
-```mermaid
-flowchart LR
-  UseCase["use-case"] -->|"depends on"| Port["Repository port"]
-  Port -. "implemented by" .-> Adapter["Supabase repository"]
-  Adapter --> SQL["Postgres + RLS"]
-  SQL --> Policy["RLS policies\n(select auth.uid())\nwith check authority columns"]
-```
-
-Read the dotted edge as "is satisfied by" — the use-case never knows about the Supabase
-repository, only its port. The adapter sits below the port and implements it.
-
-Use-cases describe what persistence capability they need. Outbound adapters decide how Supabase,
-RPCs, transactions, queues, or external APIs implement that capability.
-
-## UI State Ownership
-
-```mermaid
-flowchart TD
-  State["What kind of state?"] --> URL{"Shareable/bookmarkable?"}
-  URL -->|Yes| SearchParams["URL search params"]
-  URL -->|No| Server{"Server-owned data?"}
-  Server -->|Read-heavy| RSCProps["RSC props"]
-  Server -->|Realtime/polling/optimistic/infinite| TanStack["TanStack Query"]
-  Server -->|No| Scope{"Scope?"}
-  Scope -->|One component| Local["useState/useReducer"]
-  Scope -->|One route| FeatureHook["feature-local hook"]
-  Scope -->|Global static config| Context["React Context"]
-  Scope -->|Hot shared UI state| Zustand["External store opt-in\nwhen justified"]
-```
-
-Do not put server data in Context, Zustand, or local state. Client stores own UI behavior, not
-backend truth.
-
-## What Belongs In Skills vs Docs
-
-| Content | Put in skill references | Put in human docs |
+| Segment | Owns | Create when |
 | --- | --- | --- |
-| Layer import contract | Yes | Yes |
-| Decision tables used while coding | Yes | Yes |
-| Rationale and diagrams | No | Yes |
-| External API syntax | No | No, link to official docs |
-| Long implementation walkthroughs | No | Sometimes, if onboarding needs it |
-| Historical audit notes | No | Archive outside the plugin |
+| `domain/` | pure invariants, calculations, and domain values | a rule exists independently of framework and I/O |
+| `application/` | policy, orchestration, projection, and owned ports | behavior passes the deletion test |
+| `server/` | private server adapters, stores, providers, and cache wiring | the capability performs server I/O |
+| `client/` | browser async lifecycle, realtime, polling, and optimistic state | the browser owns that lifecycle |
+| `ui/` | reusable capability presentation and interaction | more than route-private rendering is required |
 
----
+Segments are optional. Empty segments and placeholder files are invalid. The smallest valid module
+may be one private server file plus one public server surface.
 
-*Last reviewed against the live skill set: 2026-07-27 (skill version 1.3.2). When a skill rule
-or template pattern changes, refresh this document in the same PR.*
+Roles are architectural even when a tiny module keeps several roles in one file. Split a segment
+when the split makes a dependency rule or responsibility clearer, not to complete a template.
+
+## Public Surfaces
+
+Other capabilities and `app/**` import runtime-specific root files, never internal directories:
+
+```text
+src/modules/work-items/
+├── domain/            # optional, private
+├── application/       # optional, private
+├── server/            # optional, private
+├── client/            # optional, private
+├── ui/                # optional, private
+├── server.ts          # silent trusted composition API with explicit identity
+├── rsc.ts             # current-request RSC read surface
+├── actions.ts         # top-level 'use server'; UI commands
+├── client.ts          # browser-safe read or subscription surface
+├── ui.ts              # reusable capability UI
+├── stream.ts          # stream-channel contract
+└── job.ts             # worker contract
+```
+
+This is a vocabulary, not a required tree. Create only surfaces with real consumers.
+
+A public surface is valid only when it does at least one of these:
+
+1. narrows the internal surface;
+2. strengthens or translates a contract;
+3. establishes a runtime boundary.
+
+A facade must expose fewer concepts than it hides. A one-to-one rename or re-export is not a
+facade. A one-to-one channel wrapper is valid only when it establishes real runtime behavior such
+as authentication, validation, failure translation, or telemetry ownership.
+
+## Dependency Direction
+
+The module is the unit of ownership. Segments express dependency direction inside that unit.
+
+```mermaid
+flowchart TB
+  accTitle: Capability dependency direction
+  accDescr: Framework entrypoints consume public capability surfaces; private server and client adapters depend inward on application and domain policy.
+  App["app route"]
+  Public["module root surfaces"]
+  Server["server adapters"]
+  Client["client lifecycle"]
+  UI["capability UI"]
+  Application["application policy"]
+  Domain["domain rules"]
+  External["store or provider"]
+
+  App --> Public
+  Public --> Server
+  Public --> Client
+  Public --> UI
+  Server --> Application
+  Server --> Domain
+  Server --> External
+  Client --> Domain
+  UI --> Client
+  UI --> Domain
+  Application --> Domain
+```
+
+Normative rules:
+
+1. `app/**` imports module root surfaces, not module internals.
+2. A capability imports another capability only through its root public surface.
+3. Module dependencies are acyclic.
+4. `domain/**` is pure and imports only its own domain or admitted `shared/kernel`.
+5. `application/**` imports its domain, pure helpers, and capability-owned port types. It imports
+   no Next.js, React, database SDK, provider SDK, or concrete adapter.
+6. `server/**` implements server-side driving and driven adapters for its capability.
+7. `client/**` imports only browser-safe values and the exact `actions.ts` mutations it needs.
+8. `ui/**` imports its own domain/client values and, when required, its exact action surface. It
+   never imports `server.ts`, `rsc.ts`, or `server/**`.
+9. `server-only` and `client-only` protect runtime modules in addition to path rules.
+10. A production build must fail when a Client Component imports a server surface.
+
+The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
+import arbitrary server modules.
+
+## Application Operations
+
+Create an application operation only when deleting it moves meaningful complexity into callers.
+Qualifying behavior includes:
+
+- policy or branching not owned by a store;
+- orchestration across effects or capabilities;
+- a projection that combines sources;
+- transaction intent;
+- behavior shared by multiple runtime channels.
+
+Simple store-backed CRUD may be:
+
+```text
+channel boundary -> capability server service -> private store
+```
+
+Real application behavior is:
+
+```text
+channel boundary -> application operation -> explicit dependencies
+```
+
+An operation is framework-neutral, reports nothing, and receives the smallest dependency object it
+uses. Input validation, row mapping, cache invalidation, telemetry, or an ordinary uniqueness
+conflict do not by themselves justify a forwarding operation.
+
+Do not invent persistence, alternate providers, coordination, or reuse to make an operation look
+necessary.
+
+## Ports
+
+A port belongs to the application behavior that needs it:
+
+```text
+modules/<owner>/application/ports/<capability>.ts
+```
+
+Create one only when all are true:
+
+1. application behavior must name a capability independently of technology;
+2. the contract is written in application language, not CRUD or SDK vocabulary;
+3. inversion protects real volatility, ownership, or isolation;
+4. a production consumer exists now.
+
+Adapter count, locality, and test doubles are evidence, not gates. A local store can remain a
+private driven adapter without a mirrored repository interface. A remote provider can warrant a
+port with one implementation when the application must speak its capability independently.
+
+## Cross-Capability Workflows
+
+An outer route may wire existing behavior but may not own meaningful product policy.
+
+Create an orchestrating capability when deleting cross-capability code would move filtering,
+grouping, authorization consequences, projection, transaction intent, or coordination into a
+route or sibling capability. One current route consumer is enough when the policy is real.
+
+```mermaid
+flowchart TB
+  accTitle: Cross-capability orchestration
+  accDescr: A board capability owns board policy and adapts narrow public server surfaces from work-items and labels without coupling those source capabilities.
+  Route["app/board"]
+  BoardSurface["board/rsc.ts"]
+  BoardOperation["board application"]
+  WorkAdapter["board private adapter"]
+  LabelAdapter["board private adapter"]
+  WorkPublic["work-items/server.ts"]
+  LabelPublic["labels/server.ts"]
+
+  Route --> BoardSurface
+  BoardSurface --> BoardOperation
+  BoardOperation --> WorkAdapter
+  BoardOperation --> LabelAdapter
+  WorkAdapter --> WorkPublic
+  LabelAdapter --> LabelPublic
+```
+
+The orchestrator owns dependencies in its own language. Private adapters call narrow public
+surfaces of source capabilities. Source capabilities do not import the orchestrator or one another.
+Their trusted `server.ts` surfaces accept explicit identity, enforce their own policy, and remain
+silent so the outer runtime channel owns the one unexpected-error report.
+
+Sequence dependent calls. If label IDs come from work-items, load work-items before labels.
+Authorization-sensitive joins require a complete resolution result that distinguishes visible,
+missing, and forbidden references without exposing sensitive existence. Silent omission is not a
+valid substitute for a required rejection.
+
+## Shared Admission
+
+Allowed shared roots are runtime-specific:
+
+```text
+shared/kernel
+shared/server
+shared/client
+shared/ui
+```
+
+Admission requires:
+
+1. at least two real capability consumers;
+2. identical meaning and lifecycle;
+3. no natural capability owner;
+4. a named maintainer and narrow contract;
+5. copying is now more expensive than coordinating the shared contract.
+
+`shared/kernel` is stricter: terminology, invariants, and change cadence must also be identical.
+Similar names such as `Email`, `TenantId`, or `Money` are insufficient.
+
+Demote shared code when consumers diverge or one capability becomes the natural owner. Broad
+`utils`, `services`, or migration buckets are invalid.
+
+## Reference Capability
+
+This example shows ownership, not mandatory files:
+
+```text
+src/
+├── app/work-items/
+│   ├── page.tsx
+│   └── _components/
+├── modules/work-items/
+│   ├── domain/
+│   ├── application/
+│   ├── server/
+│   ├── client/
+│   ├── ui/
+│   ├── server.ts
+│   ├── rsc.ts
+│   ├── actions.ts
+│   ├── client.ts
+│   └── ui.ts
+└── shared/
+    ├── kernel/
+    ├── server/
+    ├── client/
+    └── ui/
+```
+
+A simple CRUD capability omits `application/`. An RSC-only capability omits `client/`,
+`client.ts`, and `actions.ts`. Route-private UI remains under `app/**`.
+
+## Non-Goals
+
+This architecture does not require:
+
+- a DI container;
+- a port per table;
+- a use-case per endpoint;
+- every optional segment;
+- TanStack Query for every read;
+- a universal result wrapper;
+- a generic shared library.
+
+Continue with [Runtime Boundaries](./runtime-boundaries.md) for channels, trust, failures, cache,
+transactions, and testing. Use [Frontend Composition](./frontend-composition.md) for RSC, Client
+Components, forms, state, and UI ownership.

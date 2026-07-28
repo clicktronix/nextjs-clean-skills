@@ -1,0 +1,598 @@
+{
+  "aggregate": [
+    {
+      "arm": "no-skill",
+      "cells": 6,
+      "total": 47,
+      "mean": 7.833,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 6,
+      "total": 45,
+      "mean": 7.5,
+      "fatalCount": 0
+    },
+    {
+      "arm": "layer-first",
+      "cells": 6,
+      "total": 43,
+      "mean": 7.167,
+      "fatalCount": 0
+    },
+    {
+      "arm": "capability-first",
+      "cells": 6,
+      "total": 60,
+      "mean": 10,
+      "fatalCount": 0
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        0,
+        0,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "total": 5,
+      "reportedTotal": 5,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Labels behavior is scattered across domain, use-case, adapter, DAL, and UI roots. Simple CRUD gains per-operation use cases and a speculative repository port. Runtime surfaces, server-derived auth, scoped authorization, and private row mapping are otherwise coherent."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The design uses a cohesive labels area with route-private App Router glue, direct repository CRUD, correct RSC/GET/Server Action flows, server-derived identity, scoped queries, and private mapping. Its generic lib bucket violates the final negative criterion."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "layer-first",
+      "positive": [
+        0,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "total": 6,
+      "reportedTotal": 6,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Labels behavior is dispersed across many architectural roots. It avoids ports and most operation wrappers, but adds a forwarding read entrypoint and mandates a generic boundary declaration. The runtime channels, authentication, authorization, and private mapping are sound."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The proposal colocates capability behavior under one labels module while keeping route glue in app, avoids speculative ports and forwarding operations, uses the required runtime surfaces, derives authentication server-side, enforces authorization at multiple boundaries, and keeps provider mapping private."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly colocates label behavior under src/modules/labels with only route glue in app. It explicitly avoids forwarding operations and repository ports, uses direct server-only RSC reads, a cacheable authenticated GET for browser reads, and top-level Server Actions for writes. Auth, scoped authorization/RLS, private row mapping, cache ownership, and channel-specific failure handling are coherent."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        1,
+        0,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 6,
+      "reportedTotal": 6,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The channels, server-derived authentication, authorization guidance, private caching, row mapping, and client/server separation are sound. However, capability behavior is split between app and lib, and the service plus repository layers add forwarding abstractions for simple single-store CRUD. Placement under a generic lib bucket directly violates the final negative criterion."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "layer-first",
+      "positive": [
+        0,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 6,
+      "reportedTotal": 6,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Runtime channels, server-side identity derivation, RLS/scoped authorization, private mapping, and browser isolation are clear. Behavior is scattered across domain, data, adapters, boundary, client-cache, and ui roots rather than one labels root. It avoids a repository port and named per-operation use cases, but its generic boundary declaration still intermediates otherwise direct CRUD. The shared application boundary that normalizes all failures/results is a universal wrapper violation."
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        0,
+        0,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "total": 5,
+      "reportedTotal": 5,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The required RSC, GET, and Server Action channels are correctly assigned, with server-derived auth, scoped authorization/RLS, private database mapping, safe DTOs, and appropriate caching. But the capability is dispersed across many architectural roots and introduces a speculative repository port plus separate forwarding use-case wrapper for every CRUD operation. Those per-operation wrappers violate the first negative criterion."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "layer-first",
+      "positive": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Strong framework-neutral operation, capability-shaped provider port, Route Handler/SSE lifecycle, cancellation and idle-timeout handling, commit-aware failures, separate job semantics, and safe provider isolation. It misses the requested single capability root because assistant files are spread across horizontal domain, ports, use-cases, adapters, boundary, and infrastructure roots."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly separates the shared application operation and provider port from SSE and job adapters. It correctly covers abort propagation, inactivity timeout, pre/post-commit failure behavior, once-only reporting, native queue semantics, and provider redaction. The assistant capability is distributed across several horizontal roots rather than colocated beneath one capability root."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Provides a transport-neutral shared service, provider-independent seam, Route Handler streaming, linked cancellation, activity-based timeout, commit-aware failure mapping, and distinct queue retry/dead-letter mechanics. Provider details remain isolated. Its files are organized across app, application, domain, and infrastructure roots instead of one capability root."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Fully satisfies the rubric: the capability is colocated under one focused module root with justified runtime surfaces; the application operation and provider port are framework-neutral; the Route Handler owns SSE, abort, idle timeout, and commit-aware failures; the job retains retry/dead-letter semantics while sharing classification, redaction, and reporting policy; provider payloads and exceptions remain private."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        1,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The framework-neutral operation, capability-shaped provider port, Route Handler/SSE lifecycle, abort propagation, per-read idle timeout, commit-aware failure handling, channel-native job behavior, redaction, and provider isolation are clear. Colocation is only partial because job and queue behavior is placed outside the assistant capability root."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "layer-first",
+      "positive": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The proposal clearly separates the shared application operation and provider port from Route Handler and job adapters, and correctly covers cancellation, idle timeout, post-commit SSE failure, retry classification, safe mapping, and provider isolation. It does not colocate the capability: its files are dispersed across domain, ports, use-cases, boundary, adapters, and infrastructure roots."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        0,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The provider-neutral use case and port, SSE Route Handler, abort flow, resettable idle timer, commit-aware failures, once-only reporting, job-specific retry/dead-letter handling, and SDK isolation are coherent. The behavior is not under one capability root; it is spread across app, ui, domain, application, infrastructure, lib, and tests."
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The design places the capability under one coherent module root with a justified App Router entry, uses a framework-neutral generation operation and capability-shaped provider port, and fully specifies abort propagation, idle-not-total timeout, and pre/post-commit failure representation. HTTP streaming and jobs retain native lifecycle contracts while sharing typed failures, redaction, reporting semantics, and provider-neutral contracts."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns orchestration and policy, uses board-local ports and narrow capability server APIs, preserves an acyclic module graph, exposes a board RSC surface, and specifies report-once handling with layered authorization. Arithmetic: 10 - 0 = 10."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The board use case, board-language ports, outbound adapters, public capability contracts, thin RSC route, fail-closed authorization, and single server-boundary reporting are all explicit and coherent. Arithmetic: 10 - 0 = 10."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "layer-first",
+      "positive": [
+        2,
+        1,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board ownership, acyclic direction, RSC entry, authorization, and report-once behavior are clear. However, board directly imports paths under foreign application/use-case internals instead of using board-owned ports and explicit public server entrypoints, making the dependency-language criterion partial and violating the internal-import criterion. Arithmetic: 9 - 1 = 8."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        1,
+        2,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board policy ownership, peer capability independence, narrow server APIs, and the thin RSC route are clear. Board-local ports/adapters are absent, and unexpected-failure report-once behavior is not specified; authorization and label rejection remain enforced without exposing inaccessible details. Arithmetic: 8 - 0 = 8."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        1,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board owns orchestration and policy, and the capability graph remains acyclic. The trusted APIs are narrow, though board-owned ports/adapters and a dedicated board RSC surface are absent. Inaccessible-label behavior is left ambiguous between rejection and omission, and unexpected-failure reporting is not explicitly report-once."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "layer-first",
+      "positive": [
+        2,
+        1,
+        2,
+        1,
+        2
+      ],
+      "negative": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns policy, authorization is layered correctly, and failures are reported once. However, the board directly calls published work-item and label application operations rather than consuming narrow trusted server surfaces through board-language adapters, creating cross-capability application-layer imports. The route-facing board boundary is coherent but not explicitly an RSC/public module surface."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board-owned ports, adapters, orchestration, and the server-only board DAL create a clear acyclic dependency structure without foreign internals. Authorization is enforced at the board boundary and by both owning capabilities. Unexpected errors receive safe telemetry, but report-once ownership is not stated explicitly."
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "The proposal cleanly places cross-capability policy in the board application layer, uses board-language ports with private adapters over narrow trusted server surfaces, keeps the graph acyclic, exposes a dedicated board RSC surface to the route, preserves layered authorization, and assigns unexpected-error reporting exactly once to the RSC boundary."
+    }
+  ],
+  "usage": {
+    "generation": {
+      "input_tokens": 1003544,
+      "cached_input_tokens": 643072,
+      "output_tokens": 54109
+    },
+    "judge": {
+      "input_tokens": 342455,
+      "cached_input_tokens": 203776,
+      "output_tokens": 8999
+    }
+  }
+}
