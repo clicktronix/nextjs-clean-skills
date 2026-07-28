@@ -53,6 +53,8 @@ analysis cannot infer package semantics from an npm name.
    depend on product capabilities.
 7. the strict tier rejects unresolved imports and computed dynamic loads; the graph checker rejects
    capability cycles even when the underlying files do not form a direct cycle.
+8. a private segment cannot define `index.ts(x)` when a same-named root surface exists; the root
+   file wins module resolution and would silently shadow the segment index.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.

@@ -1,27 +1,108 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
+import { builtinModules } from 'node:module'
 import path from 'node:path'
 import ts from 'typescript'
 
-import { fail, root } from './_lib.mjs'
+import { fail, readJson, root } from './_lib.mjs'
 
 const fixturesRoot = path.join(root, 'tests/architecture-pilots/fixtures')
-const publicSurfaceNames = new Set([
-  'actions.ts',
-  'client.ts',
-  'job.ts',
-  'rsc.ts',
-  'server.ts',
-  'stream.ts',
-  'ui.ts',
+const contract = readJson('rules/architecture-contract.json')
+const contractErrors = []
+
+function stringArray(name) {
+  const value = contract[name]
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    contractErrors.push(`architecture-contract.json ${name} must be an array of strings`)
+    return []
+  }
+  if (new Set(value).size !== value.length) {
+    contractErrors.push(`architecture-contract.json ${name} contains duplicate values`)
+  }
+  return value
+}
+
+function requireSubset(name, values, parentName, parentValues) {
+  const parent = new Set(parentValues)
+  for (const value of values) {
+    if (!parent.has(value)) {
+      contractErrors.push(
+        `architecture-contract.json ${name} contains ${value}, which is absent from ${parentName}`
+      )
+    }
+  }
+}
+
+function requireDisjoint(leftName, leftValues, rightName, rightValues) {
+  const right = new Set(rightValues)
+  for (const value of leftValues) {
+    if (right.has(value)) {
+      contractErrors.push(
+        `architecture-contract.json ${leftName} and ${rightName} both classify ${value}`
+      )
+    }
+  }
+}
+
+const segments = stringArray('segments')
+const publicSurfaces = stringArray('publicSurfaces')
+const serverSurfaces = stringArray('serverSurfaces')
+const serverExecutionSurfaces = stringArray('serverExecutionSurfaces')
+const clientSurfaces = stringArray('clientSurfaces')
+const neutralSurfaces = contract.neutralSurfaces
+  ? stringArray('neutralSurfaces')
+  : []
+const runtimePackages = stringArray('runtimePackages')
+
+requireSubset('serverSurfaces', serverSurfaces, 'publicSurfaces', publicSurfaces)
+requireSubset(
+  'serverExecutionSurfaces',
+  serverExecutionSurfaces,
+  'publicSurfaces',
+  publicSurfaces
+)
+requireSubset('clientSurfaces', clientSurfaces, 'publicSurfaces', publicSurfaces)
+requireSubset('neutralSurfaces', neutralSurfaces, 'publicSurfaces', publicSurfaces)
+requireSubset(
+  'serverSurfaces',
+  serverSurfaces,
+  'serverExecutionSurfaces',
+  serverExecutionSurfaces
+)
+requireDisjoint('neutralSurfaces', neutralSurfaces, 'serverExecutionSurfaces', serverExecutionSurfaces)
+requireDisjoint('neutralSurfaces', neutralSurfaces, 'clientSurfaces', clientSurfaces)
+requireDisjoint('serverSurfaces', serverSurfaces, 'clientSurfaces', clientSurfaces)
+
+const segmentNames = new Set(segments)
+const publicSurfaceNames = new Set(publicSurfaces.map((surface) => `${surface}.ts`))
+const serverSurfaceNames = new Set(serverSurfaces.map((surface) => `${surface}.ts`))
+const serverExecutionSurfaceNames = new Set(
+  serverExecutionSurfaces.map((surface) => `${surface}.ts`)
+)
+const clientSurfaceNames = new Set(clientSurfaces.map((surface) => `${surface}.ts`))
+const applicationRuntimeSurfaceNames = new Set([
+  ...serverExecutionSurfaceNames,
+  ...clientSurfaceNames,
 ])
-const runtimePackagePattern = /^(?:next(?:\/|$)|react(?:\/|$)|server-only$|client-only$|@sentry\/|@supabase\/)/
+const serverSegmentNames = new Set(segments.filter((segment) => serverSurfaces.includes(segment)))
+const clientSegmentNames = new Set(segments.filter((segment) => clientSurfaces.includes(segment)))
+const runtimePackageNames = new Set(runtimePackages)
+const nodeBuiltinNames = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
+
+function isRuntimePackage(specifier) {
+  const builtin = specifier.replace(/^node:/, '').split('/')[0]
+  if (nodeBuiltinNames.has(builtin)) return true
+  for (const packageName of runtimePackageNames) {
+    if (specifier === packageName || specifier.startsWith(`${packageName}/`)) return true
+  }
+  return false
+}
 
 function listTypeScriptFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name)
     if (entry.isDirectory()) return listTypeScriptFiles(absolute)
-    return entry.name.endsWith('.ts') ? [absolute] : []
+    return /\.tsx?$/.test(entry.name) ? [absolute] : []
   })
 }
 
@@ -80,10 +161,13 @@ function importSpecifiers(file, source) {
 function resolveRelativeImport(importer, specifier, sources) {
   if (!specifier.startsWith('.')) return null
   const unresolved = path.resolve(path.dirname(importer), specifier)
+  const withoutJavaScriptExtension = unresolved.replace(/\.jsx?$/, '')
   const candidates = [
     unresolved,
-    unresolved.endsWith('.js') ? `${unresolved.slice(0, -3)}.ts` : `${unresolved}.ts`,
+    `${withoutJavaScriptExtension}.ts`,
+    `${withoutJavaScriptExtension}.tsx`,
     path.join(unresolved, 'index.ts'),
+    path.join(unresolved, 'index.tsx'),
   ]
   return candidates.find((candidate) => sources.has(candidate)) ?? false
 }
@@ -147,12 +231,26 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       }
     }
 
+    if (
+      owner &&
+      owner.tail.length === 2 &&
+      segmentNames.has(owner.tail[0]) &&
+      publicSurfaceNames.has(`${owner.tail[0]}.ts`) &&
+      /^index\.tsx?$/.test(owner.tail[1])
+    ) {
+      addError(
+        'SHADOWED_SEGMENT_INDEX',
+        file,
+        `${owner.tail.join('/')} is shadowed by the ${owner.tail[0]}.ts root surface`
+      )
+    }
+
     for (const specifier of importSpecifiers(file, source)) {
       const sourceSegment = owner?.tail.length > 1 ? owner.tail[0] : null
       if (
         !specifier.startsWith('.') &&
         ['domain', 'application'].includes(sourceSegment) &&
-        runtimePackagePattern.test(specifier)
+        isRuntimePackage(specifier)
       ) {
         addError(
           sourceSegment === 'domain' ? 'DOMAIN_DIRECTION' : 'APPLICATION_RUNTIME_IMPORT',
@@ -203,30 +301,29 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       }
 
       if (sourceSegment === 'application') {
-        if (owner.tail[1] === 'ports' && ['server', 'client', 'ui'].includes(targetSegment)) {
+        if (
+          owner.tail[1] === 'ports' &&
+          (serverSegmentNames.has(targetSegment) || clientSegmentNames.has(targetSegment))
+        ) {
           addError('PORT_DIRECTION', file, `application port imports ${targetSegment}`)
         } else if (
-          ['server', 'client', 'ui'].includes(targetSegment) ||
-          ['server.ts', 'rsc.ts', 'actions.ts', 'stream.ts', 'job.ts', 'client.ts', 'ui.ts'].includes(
-            targetRoot
-          )
+          serverSegmentNames.has(targetSegment) ||
+          clientSegmentNames.has(targetSegment) ||
+          applicationRuntimeSurfaceNames.has(targetRoot)
         ) {
           addError('APPLICATION_RUNTIME_IMPORT', file, `application imports ${specifier}`)
         }
       }
 
       const sourceIsClient =
-        ['client', 'ui'].includes(sourceSegment) ||
-        ['client.ts', 'ui.ts'].includes(owner.tail[0])
+        clientSegmentNames.has(sourceSegment) || clientSurfaceNames.has(owner.tail[0])
       const targetIsServer =
-        targetSegment === 'server' ||
-        ['server.ts', 'rsc.ts', 'stream.ts', 'job.ts'].includes(targetRoot)
+        serverSegmentNames.has(targetSegment) || serverSurfaceNames.has(targetRoot)
       const sourceIsServer =
-        sourceSegment === 'server' ||
-        ['server.ts', 'rsc.ts', 'actions.ts', 'stream.ts', 'job.ts'].includes(owner.tail[0])
+        serverSegmentNames.has(sourceSegment) ||
+        serverExecutionSurfaceNames.has(owner.tail[0])
       const targetIsClient =
-        ['client', 'ui'].includes(targetSegment) ||
-        ['client.ts', 'ui.ts'].includes(targetRoot)
+        clientSegmentNames.has(targetSegment) || clientSurfaceNames.has(targetRoot)
       if (sourceIsClient && targetIsServer) {
         addError('CLIENT_SERVER_IMPORT', file, `browser-safe code imports ${specifier}`)
       }
@@ -254,6 +351,14 @@ function mutate(fixture, relativeFile, transform) {
   return {
     ...fixture,
     sources: new Map(fixture.sources).set(file, transform(source)),
+  }
+}
+
+function addSource(fixture, relativeFile, source) {
+  const file = path.join(fixturesRoot, fixture.fixtureId, relativeFile)
+  return {
+    ...fixture,
+    sources: new Map(fixture.sources).set(file, source),
   }
 }
 
@@ -314,6 +419,33 @@ const mutations = [
     'APPLICATION_RUNTIME_IMPORT'
   ),
   requireMutation(
+    'domain database package from contract',
+    mutate(
+      fixtures.workItems,
+      'src/modules/work-items/domain/work-item.ts',
+      (source) => `${source}\nimport 'drizzle-orm'\n`
+    ),
+    'DOMAIN_DIRECTION'
+  ),
+  requireMutation(
+    'application scoped provider package from contract',
+    mutate(
+      fixtures.assistant,
+      'src/modules/assistant/application/generate-response.ts',
+      (source) => `${source}\nimport '@prisma/client'\n`
+    ),
+    'APPLICATION_RUNTIME_IMPORT'
+  ),
+  requireMutation(
+    'application cache provider package from contract',
+    mutate(
+      fixtures.assistant,
+      'src/modules/assistant/application/generate-response.ts',
+      (source) => `${source}\nimport 'ioredis'\n`
+    ),
+    'APPLICATION_RUNTIME_IMPORT'
+  ),
+  requireMutation(
     'domain direction',
     mutate(
       fixtures.workItems,
@@ -350,6 +482,15 @@ const mutations = [
     'PUBLIC_BARREL_ONLY'
   ),
   requireMutation(
+    'segment index shadowed by root surface',
+    addSource(
+      fixtures.workItems,
+      'src/modules/work-items/server/index.tsx',
+      'export const shadowed = true\n'
+    ),
+    'SHADOWED_SEGMENT_INDEX'
+  ),
+  requireMutation(
     'port direction',
     mutate(
       fixtures.assistant,
@@ -370,7 +511,8 @@ const mutations = [
 ].filter(Boolean)
 
 fail([
+  ...contractErrors,
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (6 invariants, 10 failing mutations)')
+console.log('capability pilots ok (7 invariants, 14 failing mutations)')

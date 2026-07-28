@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Derived capability-pilot surfaces, runtime classifications, and provider package checks from
+  `architecture-contract.json` instead of maintaining a second silent copy.
+- Rejected private segment `index.ts(x)` files shadowed by same-named root surfaces, and corrected
+  the migration status of the downstream template.
+- Named `server/` contents as persistence modules while keeping `store.ts` available as a concise
+  private implementation filename.
+
 ## [2.0.0] - 2026-07-28
 
 > **Breaking.** Product behavior moves from global layer roots to

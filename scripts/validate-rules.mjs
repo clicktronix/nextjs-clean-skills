@@ -188,6 +188,9 @@ export default logger
 const name = './store.js'
 export const load = () => import(name)
 `,
+  'src/modules/work-items/server/index.tsx': `
+export const shadowed = true
+`,
   'src/app/unresolved/page.ts': `
 import { missing } from '@/modules/missing/server'
 export default missing
@@ -236,6 +239,7 @@ const expectedBase = new Map([
   ['src/shared/kernel/bad-server.ts', 'sharedKernelDirection'],
   ['src/shared/client/bad-server.ts', 'browserServer'],
   ['src/modules/work-items/server/hidden-dynamic.ts', 'hiddenDynamicImport'],
+  ['src/modules/work-items/server/index.tsx', 'shadowedSegmentIndex'],
 ])
 
 const expectedStrict = new Map([

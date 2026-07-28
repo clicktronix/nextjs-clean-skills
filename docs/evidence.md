@@ -165,4 +165,4 @@ See
   ownership.
 - Agent evaluations measure responses under a fixed scenario/model/framing matrix, not long-term
   maintainability.
-- The template and products still require separate migration PRs.
+- The template migration is complete. Product migrations still require separate, product-owned PRs.
