@@ -1,0 +1,22 @@
+[
+  {
+    "arm": "capability-first",
+    "key": "08a26b46694d",
+    "candidate": "candidate-1"
+  },
+  {
+    "arm": "no-skill",
+    "key": "ae36fc7496ba",
+    "candidate": "candidate-2"
+  },
+  {
+    "arm": "layer-first",
+    "key": "bb95ff06c9fc",
+    "candidate": "candidate-3"
+  },
+  {
+    "arm": "v1.3.2",
+    "key": "f60e46f2b288",
+    "candidate": "candidate-4"
+  }
+]

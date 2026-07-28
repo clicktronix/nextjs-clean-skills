@@ -1,0 +1,5 @@
+Work only from the hypothetical task in ./TASK.md.
+Do not inspect parent directories, the user's home directory, or unrelated repositories.
+An architecture skill is available at ./skill/SKILL.md. Read it before answering. Read only the linked references that are directly relevant to this task.
+Return an architecture proposal only. Do not edit files.
+Use concrete paths and call flows. Keep the answer concise but complete.

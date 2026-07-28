@@ -1,45 +1,66 @@
-# Architecture Docs
+# Architecture Documentation
 
-Human-facing architecture notes for `nextjs-clean-skills`.
+Human-facing documentation for `nextjs-clean-skills`.
 
-These documents explain the architecture contract behind the skills. They are not loaded by
-Claude Code or Codex automatically and should not be copied into `SKILL.md`. Keep the skills
-short and operational; use these docs when onboarding a team, reviewing a feature slice, or
-explaining why the boundaries exist.
+> [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) is Accepted. Its pilot
+> and comparative agent evidence are retained with the repository.
 
-## Audience
+## Reading Path
 
-| Document | Read this when you... |
+1. Start with [Architecture Contract](./architecture-contract.md) for capability placement,
+   optional segments, operations, ports, public surfaces, and dependency direction.
+2. Read [Runtime Boundaries](./runtime-boundaries.md) for request flow, trust, failures, state,
+   transactions, observability, and testing.
+3. Read [Frontend Composition](./frontend-composition.md) for RSC, Client Components, forms, state,
+   and component ownership.
+4. Use [Decision Maps](./agent-decision-maps.md) while designing or reviewing a change.
+5. Use [Adoption And Enforcement](./adoption-and-enforcement.md) when applying the contract to an
+   existing repository.
+6. Open [Evidence](./evidence.md) when reviewing or challenging a rule.
+
+| Document | Purpose |
 | --- | --- |
-| [Architecture Contract](./architecture-contract.md) | join the team, plan a major feature, review architecture, write an ADR, or need to explain *why* a layer rule exists |
-| [Agent Decision Maps](./agent-decision-maps.md) | configure a coding agent, review an agent-generated PR, or onboard a new contributor to placement decisions |
+| [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) | accepted decision, pilots, and evaluation gates |
+| [Architecture Contract](./architecture-contract.md) | normative placement and dependency model |
+| [Runtime Boundaries](./runtime-boundaries.md) | runtime authority and cross-cutting invariants |
+| [Frontend Composition](./frontend-composition.md) | human UI architecture |
+| [Decision Maps](./agent-decision-maps.md) | compact design and review flowcharts |
+| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, and known gaps |
+| [Evidence](./evidence.md) | sources, measurements, and explicit judgement |
+| [`rules/`](../rules/) | executable portion of the contract |
 
-## Documents
+## Contract Boundaries
 
-- [Architecture Contract](./architecture-contract.md) — layer model, dependency direction,
-  runtime flow, security boundary, data ownership, persistence rules, and the **rationale**
-  behind each forbidden import.
-- [Agent Decision Maps](./agent-decision-maps.md) — compact flowcharts for coding agents and
-  reviewers to decide where code belongs before editing, plus a copy-paste prompt add-on.
+- Human docs explain the architecture a team adopts.
+- `rules/` defines the executable subset of module ownership and runtime separation.
+- Skill references tell coding agents how to implement a decision.
+- `docs/evidence.md` explains why decisions exist; it does not create rules.
+- Product repositories provide concrete profiles, names, and stricter local constraints.
 
-## Maintenance Rule
+A disagreement between human docs, agent guidance, and executable rules is a defect, not an
+invitation to choose the convenient version.
 
-When you change a diagram or rationale:
+## Documentation Standard
 
-1. **If the change adds, removes, or modifies a rule** that agents must follow during
-   implementation (e.g. a new layer, a new forbidden import, a new boundary type), update both
-   the diagram **and** the matching skill reference in the same PR. The skills are operational;
-   docs-only changes leave them stale and an agent will follow the wrong rule.
-2. **If the change only adds rationale, visualization, or onboarding context**, keep it in docs
-   only.
-3. The PR description must call out whether this is a docs-only change or a docs+skill change,
-   so reviewers know which validation surface to check (`npm run validate` for skill changes;
-   visual review for docs-only).
+Human docs are concise and normative:
 
-**Stale rule symptom:** a skill reference says "X" but a doc diagram shows "Y". Treat that
-mismatch as a doc bug — the skills are the operational source of truth, the docs explain why.
+- one subject per document;
+- tables for contracts and decision inputs;
+- vertical Mermaid diagrams for flows;
+- no release history, evaluation transcripts, or copy-ready tutorials;
+- links to agent references for implementation procedure;
+- explicit distinction between normative, enforced, review-only, and known-gap rules.
 
-## Last Reviewed
+## Maintenance
 
-These documents are maintained alongside the `nextjs-clean-skills` plugin. Last reviewed
-against the live skill set: 2026-07-27 (skill version 1.3.2).
+The complete change procedure is in
+[Adoption And Enforcement](./adoption-and-enforcement.md#architecture-change).
+
+Run:
+
+```bash
+npm run validate
+```
+
+Then inspect the rendered Markdown and hosted CI. Local validation and hosted execution are separate
+verdicts.

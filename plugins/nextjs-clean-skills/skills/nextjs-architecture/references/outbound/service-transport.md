@@ -1,0 +1,29 @@
+# Owned Service Transport
+
+**Impact: HIGH** · **Scope: portable**
+
+Keep one transport per remote service inside the owning capability's private `server/` adapter.
+Application code sees a capability-shaped port, not HTTP or SDK mechanics.
+
+The transport owns:
+
+| Concern | Rule |
+| --- | --- |
+| timeout | every ordinary request; stream idle timeout belongs to the stream channel |
+| retry | idempotent calls only; committed streams resume instead |
+| backoff | bounded exponential policy |
+| credentials | one documented service or delegated-identity mode |
+| refresh | single-flight keyed by the identity carried by the call |
+| cancellation | caller signal reaches the outgoing request |
+| errors | provider envelope maps to semantic application failures |
+| correlation | request/trace id propagates |
+
+Under delegated identity, never share one unkeyed refresh promise between users. Remove a refresh
+entry after it settles; do not evict an in-flight entry merely to cap a map.
+
+Environment and credentials come from validated server-only configuration. Missing required values
+fail startup or the first intentional runtime access, not an unrelated browser import.
+
+A second transport for the same service is drift unless a separate runtime contract justifies it.
+
+Reference: one private transport per service with explicit lifecycle and identity semantics.

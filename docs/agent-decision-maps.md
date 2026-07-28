@@ -1,102 +1,189 @@
-# Agent Decision Maps
+# Architecture Decision Maps
 
-Use these diagrams when prompting or reviewing coding agents. They are intentionally compact:
-the goal is to force placement decisions before code changes, not to restate framework docs.
+These maps summarize [Architecture Contract](./architecture-contract.md). They do not define a
+second contract.
 
-## Feature Slice Build Order
-
-Arrows in this diagram mean implementation order, not import direction. See
-[Architecture Contract](./architecture-contract.md) for dependency direction.
+## Place New Code
 
 ```mermaid
-flowchart LR
-  Domain["1 Domain\nschema + pure rules"] -->|build next| Ports["2 Use-case ports/types"]
-  Ports -->|build next| UseCase["3 Use-case orchestration"]
-  UseCase -->|build next| Outbound["4 Outbound adapter"]
-  Outbound -->|build next| Inbound["5 Inbound adapter\nAction or Route Handler"]
-  Inbound -->|build next| UIState["6 Server-state or local action"]
-  UIState -->|build next| UI["7 UI component/page"]
-  UI -->|build next| Tests["8 Tests by layer"]
+flowchart TB
+  accTitle: Place new code
+  accDescr: Name the product owner first, then choose route glue, a capability role, or an admitted shared runtime root.
+  Start["New behavior"]
+  Owner{"Which capability<br/>owns it?"}
+  Route{"Only route framework<br/>or presentation glue?"}
+  App["app/route"]
+  Module["modules/capability"]
+  Role["Choose the optional segment<br/>from the role table"]
+  Shared{"Proven capability-neutral<br/>contract?"}
+  SharedRoot["shared/runtime-scope"]
+  Stop["Stop and resolve ownership"]
+
+  Start --> Owner
+  Owner -->|Known| Module
+  Module --> Role
+  Owner -->|Unknown| Route
+  Route -->|Yes| App
+  Route -->|No| Shared
+  Shared -->|Yes| SharedRoot
+  Shared -->|No| Stop
 ```
 
-Agent prompt guardrail:
+| Role | Segment |
+| --- | --- |
+| pure invariant or calculation | `domain/` |
+| product policy or orchestration | `application/` |
+| private server I/O or composition | `server/` |
+| browser-owned async lifecycle | `client/` |
+| reusable capability presentation | `ui/` |
 
-> Implement in this order and stop if a lower layer needs to import a higher layer.
+Do not create an empty segment. Route-private UI stays under `app/**`; product policy does not.
 
-## Where Does This Code Go?
+## Decide Whether An Operation Exists
 
 ```mermaid
-flowchart TD
-  Need["New code needed"] --> Pure{"Pure business rule/schema?"}
-  Pure -->|Yes| Domain["domain/"]
-  Pure -->|No| Scenario{"Application scenario?"}
-  Scenario -->|Yes| UseCase["use-cases/"]
-  Scenario -->|No| Framework{"Reads cookies, headers, request, cache, formData?"}
-  Framework -->|Yes| InboundOrDAL{"Read or command?"}
-  InboundOrDAL -->|Read| DAL["server-only DAL/read entrypoint"]
-  InboundOrDAL -->|Command| Inbound["adapters/inbound/next/"]
-  Framework -->|No| Reusable{"Reusable across many\nuse-cases or features?"}
-  Reusable -->|Yes| Infra["infrastructure/"]
-  Reusable -->|No| Persistence{"Implements a use-case's port\n(DB / API / queue)?"}
-  Persistence -->|Yes| Outbound["adapters/outbound/"]
-  Persistence -->|No| Presentation{"Presentation concern?"}
-  Presentation -->|Yes| UI["app/ or ui/"]
-  Presentation -->|No| Owner["place with owning layer"]
+flowchart TB
+  accTitle: Decide whether an application operation exists
+  accDescr: Keep an operation only when deleting it moves meaningful policy or coordination into callers.
+  Candidate["Candidate operation"]
+  Delete{"Delete it"}
+  Moves{"Does policy, branching,<br/>projection, transaction intent,<br/>or coordination move to callers?"}
+  Direct["Use direct server service<br/>or private adapter"]
+  Operation["Keep application operation"]
+  Forward{"Does it still only<br/>forward arguments?"}
+  Remove["Remove it"]
+  Keep["Operation earned its place"]
+
+  Candidate --> Delete
+  Delete --> Moves
+  Moves -->|No| Direct
+  Moves -->|Yes| Operation
+  Operation --> Forward
+  Forward -->|Yes| Remove
+  Forward -->|No| Keep
 ```
 
-> Disambiguator: shared technical plumbing that does **not** implement a feature use-case port
-> (env validation, logger, cache tag taxonomy, query client setup) belongs in `infrastructure/`,
-> not `adapters/outbound/`. Generic Supabase client factories can live in their own
-> adapter/support folder; feature repositories belong in `adapters/outbound/` because they
-> implement use-case ports.
+Line count is not the criterion. Validation, row mapping, cache invalidation, or telemetry alone do
+not create application behavior.
 
-## Server Action vs Route Handler
+## Decide Whether A Port Exists
 
 ```mermaid
-flowchart TD
-  Command["Command boundary"] --> Caller{"Who calls it?"}
-  Caller -->|Form/button in this Next.js UI| Action["Server Action"]
-  Caller -->|Browser client needing query lifecycle| ServerState["TanStack query -> GET/stream Route Handler"]
-  Caller -->|External service, mobile app, CLI, webhook sender| Route["Route Handler"]
-  Route --> Retry{"Can the caller retry?"}
-  Retry -->|Yes| Idempotency["Require Idempotency-Key or provider event id"]
-  Retry -->|No| Envelope["Return JSON envelope + request id"]
+flowchart TB
+  accTitle: Decide whether a port exists
+  accDescr: A capability-owned port appears only when application policy needs a technology-independent production capability.
+  Need["Application dependency"]
+  Independent{"Must policy name it<br/>independently of technology?"}
+  Direct["Use private concrete adapter"]
+  Language{"Contract in application<br/>language?"}
+  Redesign["Redesign the contract"]
+  Production{"Real production<br/>consumer now?"}
+  Defer["Defer the port"]
+  Port["Application-owned port<br/>plus private adapter"]
+
+  Need --> Independent
+  Independent -->|No| Direct
+  Independent -->|Yes| Language
+  Language -->|No| Redesign
+  Language -->|Yes| Production
+  Production -->|No| Defer
+  Production -->|Yes| Port
 ```
 
-## Review Checklist For Agent Output
+A test mock or possible second provider is not a gate. A remote provider can warrant a port with one
+implementation; a local store can remain direct.
+
+## Choose The Runtime Surface
 
 ```mermaid
-flowchart TD
-  Start["Review changed files"] --> Imports{"Use-case imports adapters/framework?"}
-  Imports -->|Yes| Block["Block: dependency inversion violation"]
-  Imports -->|No| Auth{"Data access re-verifies auth/authz?"}
-  Auth -->|No| Block
-  Auth -->|Yes| ServerData{"Server data placed in client store?"}
-  ServerData -->|Yes| Block
-  ServerData -->|No| Boundary{"Right boundary selected?\nRSC / Action / Route Handler / Queue"}
-  Boundary -->|No| Block
-  Boundary -->|Yes| Tests{"Tests match touched layer?"}
-  Tests -->|No| RequestTests["Request focused tests"]
-  Tests -->|Yes| Accept["Accept architecture shape"]
+flowchart TB
+  accTitle: Choose a runtime surface
+  accDescr: Select the surface from the caller and lifecycle rather than forcing every channel through one wrapper.
+  Need["Runtime need"]
+  Render{"Initial or server-rendered read?"}
+  Rsc["rsc.ts"]
+  Command{"UI command?"}
+  Action["actions.ts"]
+  Browser{"Browser-owned read lifecycle?"}
+  Client["GET or stream<br/>plus client.ts"]
+  External{"External HTTP or webhook?"}
+  Http["Route Handler<br/>plus server surface"]
+  Durable{"Durable background work?"}
+  Job["job.ts"]
+  Stop["No new surface"]
+
+  Need --> Render
+  Render -->|Yes| Rsc
+  Render -->|No| Command
+  Command -->|Yes| Action
+  Command -->|No| Browser
+  Browser -->|Yes| Client
+  Browser -->|No| External
+  External -->|Yes| Http
+  External -->|No| Durable
+  Durable -->|Yes| Job
+  Durable -->|No| Stop
 ```
 
-## Copy This Block To Your Agent's System Prompt
+Server Components call server code directly. Browser reads do not use Server Actions.
 
-> Paste verbatim into the system prompt, agent rules file, or CLAUDE.md instructions.
-> It forces architecture classification before code edits, which catches misplaced files
-> at planning time instead of review time.
+## Decide Cross-Capability Ownership
 
-```text
-Before editing, classify the change:
-- layer: domain | use-case | outbound | inbound | server-state | UI | infrastructure
-- boundary: RSC read | Server Action | Route Handler | webhook | durable job
-- server data owner: RSC/DAL | TanStack Query | none
-- auth boundary: where auth/authz is re-verified
+```mermaid
+flowchart TB
+  accTitle: Decide cross-capability ownership
+  accDescr: Routes may wire public surfaces, but meaningful combined policy creates an orchestrating capability.
+  Workflow["Workflow uses several capabilities"]
+  Delete{"Delete orchestration module"}
+  Policy{"Does filtering, grouping,<br/>authorization consequence,<br/>projection, or coordination<br/>move into the route?"}
+  Route["Route wires public surfaces"]
+  Orchestrator["Create orchestrating capability"]
+  Ports["Own dependencies<br/>in orchestrator language"]
+  Adapters["Private adapters call<br/>source public surfaces"]
+  Sequence{"Later input derived<br/>from earlier result?"}
+  Sequential["Sequence calls"]
+  Parallel["Parallel calls allowed"]
 
-Then implement in layer order. Do not import outbound adapters from use-cases.
+  Workflow --> Delete
+  Delete --> Policy
+  Policy -->|No| Route
+  Policy -->|Yes| Orchestrator
+  Orchestrator --> Ports
+  Ports --> Adapters
+  Adapters --> Sequence
+  Sequence -->|Yes| Sequential
+  Sequence -->|No| Parallel
 ```
 
----
+Source capabilities never import one another or the orchestrator.
 
-*Last reviewed against the live skill set: 2026-07-27 (skill version 1.3.2). When a skill rule
-or template pattern changes, refresh this document in the same PR.*
+## Review A Change
+
+```mermaid
+flowchart TB
+  accTitle: Review an architecture change
+  accDescr: Review ownership, module boundaries, semantic depth, runtime behavior, trust, and verification in order.
+  Start["Review change"]
+  Owner{"One discoverable<br/>capability owner?"}
+  Public{"Cross-module imports use<br/>narrow root surfaces?"}
+  Depth{"Operations and ports pass<br/>their gates?"}
+  Runtime{"Channel-native behavior<br/>preserved?"}
+  Auth{"Auth at channel, policy,<br/>and store boundaries?"}
+  Shared{"Shared code passes admission<br/>and has a demotion path?"}
+  Tests{"Outcome tests and runtime<br/>poisoning checks pass?"}
+  Accept["Architecture is coherent"]
+  Block["Any No<br/>Request changes"]
+
+  Start --> Owner
+  Owner --> Public
+  Public --> Depth
+  Depth --> Runtime
+  Runtime --> Auth
+  Auth --> Shared
+  Shared --> Tests
+  Tests --> Accept
+  Start -.-> Block
+```
+
+Do not copy these maps into `AGENTS.md`, `CLAUDE.md`, or a system prompt. Link the canonical
+document instead.

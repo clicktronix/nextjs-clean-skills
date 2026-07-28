@@ -1,20 +1,33 @@
 # Glossary
 
-**Impact: HIGH**
-
-Use these terms consistently. Do not redefine them in feature code.
+**Impact: HIGH** · **Scope: stack (Next.js App Router)**
 
 | Term | Meaning |
 | --- | --- |
-| Domain | Pure business schemas, types, invariants, and helpers. No framework or I/O. |
-| Use-case | Application scenario that orchestrates domain rules through ports. |
-| Port | Type owned by a use-case that describes what external capability it needs. |
-| Outbound adapter | Implementation of a port: Supabase, HTTP API, queue, file store, transport. |
-| Inbound adapter | Framework/request boundary: Server Action, Route Handler, webhook handler. |
-| DAL | Server-only read boundary that verifies auth/authz and maps rows to DTOs. |
-| Composition root | Place that wires concrete adapters into use-cases. Usually inbound/DAL. |
-| Server-state | Client-side async cache owned by TanStack Query, only when opt-in. |
+| Capability | Product behavior and vocabulary owned under one module root. |
+| Module | Physical capability root at `src/modules/<capability>`. |
+| Segment | Optional internal role: domain, application, server, client, or UI. |
+| Domain | Pure invariants, calculations, and product values. |
+| Application operation | Framework-neutral policy or orchestration that passes the deletion test. |
+| Deletion test | Remove a module; keep it only when meaningful complexity moves into callers. |
+| Public surface | Runtime-specific root file that narrows or translates module internals. |
+| Port | Application-owned capability contract independent of its technology. |
+| Adapter | Private implementation translating a runtime, store, or provider to a capability contract. |
+| Composition root | Outer runtime channel or helper that establishes identity and supplies concrete effects. |
+| Request identity | Actor, roles, tenant/ownership scope, request id, and trace id. |
+| Effect | Database, provider, reporter, clock, cache, or other runtime dependency. |
+| Channel | RSC, Server Action, HTTP, stream, job, or browser lifecycle. |
+| Provider row | External stored or wire shape owned by a private adapter. |
+| Client cache | Browser-owned keyed copy with explicit freshness and invalidation. |
+| Authority | Store, owned service, or application policy that commits a rule. |
+| Shared admission | Evidence required before capability-neutral code enters `shared/**`. |
 
-The most common confusion: inbound adapters **may call** use-cases. Use-cases must not import inbound or outbound adapters.
+**Direction is not depth.** Correct imports do not justify a forwarding operation.
 
-Reference: Clean Architecture terminology adapted to a Next.js App Router app.
+**A public surface is not automatically an abstraction.** It must narrow, translate, or establish a
+runtime boundary.
+
+**A seam is not a folder.** A port exists because application policy needs a capability, not because
+a directory is named `ports`.
+
+Reference: Ports and Adapters terms adapted to capability-first App Router architecture.

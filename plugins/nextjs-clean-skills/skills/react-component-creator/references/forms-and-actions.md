@@ -1,25 +1,23 @@
 # Forms And Actions
 
-**Impact: HIGH**
+**Impact: HIGH** · **Scope: stack (Next.js + Mantine)**
 
 Forms are UI boundaries around Server Actions. They are not business logic containers.
 
 Default choices:
 
 - simple login/signup/settings/create forms: native `<form action>` with `useActionState` or project safe-action state wrapper.
-- rich client editing: Mantine form in `lib.ts`, but mirror validation on the server.
+- rich client editing: use the project's form library in a named component or Hook, with
+  authoritative validation on the server.
 - server result messages: return typed error keys/categories; localize in the client.
 - expected failures: auth, authz, validation, conflict, not found, rate limit.
 
-Client validation, hidden fields, disabled buttons, and bound args carry no authority. Server
-Actions parse, authorize, call use-cases, and return public-safe results.
+Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority.
+Server Actions parse input, derive identity and tenant on the server, call the capability's server
+service or application operation, and return public-safe results.
 
-## Imported Action Modules
-
-When a Client Component imports a Server Action, put `'use server'` at the top of the action module,
-before imports or other statements. An inline directive marks a function declared in server code;
-it does not make an arbitrary module importable by client code. Export only async mutation
-functions from the action module. Server Functions are not a browser data-fetching transport.
+An importable action module starts with top-level `'use server'`. Server Actions are UI command
+boundaries, not transports for browser reads.
 
 **Incorrect (hydration-only submit):**
 
@@ -34,11 +32,13 @@ const [state, formAction, isPending] = useActionState(saveAction, initial)
 return <form action={formAction}><button disabled={isPending}>Save</button></form>
 ```
 
-Fetch current React/next-safe-action/Mantine docs for exact API syntax.
+Fetch current React/next-safe-action/Mantine docs for exact API syntax. This rule decides the boundary and authority model.
 
 ## Localized Validator Bridge
 
-Domain schemas must stay pure — they are imported by use-cases and outbound adapters that have no access to the client `intl` instance. Translation happens at the form boundary, in a small adapter that turns a Standard Schema-compatible validator into a Mantine form validator.
+Domain schemas stay pure because application policy, private adapters, and client forms may all use
+them. They do not import the client `intl` instance. Translation happens at the form boundary in a
+small adapter from a Standard Schema-compatible validator to a Mantine form validator.
 
 The adapter accepts an optional `intl` and a `messages` map keyed by `<path>` or `<path>:<issue-message>`, looks up the descriptor for each issue, and falls back to the raw issue message when no descriptor exists.
 

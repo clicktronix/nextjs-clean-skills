@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-27T21:02:01Z",
+  "controlResultSet": "../smoke-2026-07-27-r2",
+  "controlManifestSha256": "1682d73bd3e61912e6e01dd651c159d830056479b2eb7d0752efc6f289360c5f",
+  "candidateCommit": "e7b9bdc8ce47bf79d258ca86c04caccaee14a579",
+  "candidateSkillSha256": "3a79080590ef925e35ce30db0499fc373f3cce2e64044eefdfe5f29c8565121e",
+  "judgeContractCommit": "feaeb73b9c508130a5514bbda3d7382c81d5aa26",
+  "judgeSchemaSha256": "7cf594ce318600e4d8605c47f4a1831ed94d2287de4e04bdae08d9bf05d5c1c1",
+  "codexVersion": "codex-cli 0.145.0",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "scenarios": [
+    "simple-crud",
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "newCandidateRuns": 4,
+  "reusedControlRuns": 12,
+  "blindJudgeRuns": 4,
+  "infrastructureTimeouts": [
+    {
+      "stage": "judge",
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "contract": "legacy ambiguous penalties",
+      "action": "discarded before the judge-contract correction"
+    },
+    {
+      "stage": "judge",
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "contract": "fixed penalty vector",
+      "action": "retried with identical input and mapping"
+    },
+    {
+      "stage": "judge",
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "contract": "fixed penalty vector",
+      "action": "retried with identical input and mapping"
+    }
+  ]
+}

@@ -1,102 +1,130 @@
 ---
 name: react-component-creator
-description: Use when creating or refactoring UI in a Next.js 16 Hybrid Clean Architecture app; deciding Server vs Client boundaries, component file structure, custom Hook placement, form/action boundaries, state placement, styling, i18n, notifications, loading states, or test ids.
+description: Use when creating or refactoring UI in a Next.js 16 App Router application; deciding Server vs Client boundaries, component ownership, direct Hook composition, form and action boundaries, state placement, styling, i18n, notifications, loading states, accessibility, or test ids.
 ---
 
 # React Component Creator
 
-Use this skill for UI structure decisions in a Next.js 16 codebase. It is a project convention guide, not React, Mantine, Valibot, or i18n API documentation. For exact API syntax, fetch current official docs.
+Use this skill for UI structure decisions. Preserve the target project's component, schema, form,
+styling, cache, notification, and i18n stack unless migration is requested. Fetch current React and
+Next.js docs for exact APIs.
 
-## Profile Defaults
-
-Use these defaults literally for greenfield or explicitly adopted projects; otherwise preserve neighboring UI conventions unless migration is requested.
+## Defaults
 
 - Start with a Server Component.
-- Add `'use client'` only for event handlers, hooks, refs, browser APIs, opt-in TanStack Query, Mantine forms, or client i18n hooks.
-- Client Components call named custom Hooks directly; never pass a Hook through a generic composer.
-- `index.tsx` contains the View and exported component; it is not a barrel file.
-- `lib.ts` contains view-model and hook logic.
-- `interfaces.ts` is used when types are shared or exceed five local definitions.
-- User-facing text goes through project i18n.
-- Styling prefers Mantine props, then CSS Modules.
+- Add `'use client'` only for events, Hooks, refs, browser APIs, or browser-owned async lifecycle.
+- Call Hooks directly from named components or named custom Hooks.
+- Keep route-private UI under `app/<route>/_components`.
+- Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
+- Promote capability-neutral UI to `shared/ui` only after the shared-admission gate passes.
+- Pass serializable values from RSC to Client Components.
+- Use a dedicated top-level `'use server'` module for UI commands.
 
 ## State Placement
 
-| State kind                       | Default location                                                                                |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Read-heavy server data           | Server Component -> server-only DAL/read use-case -> serializable props                         |
-| Client-interactive server data   | RSC props by default; `src/ui/server-state/<feature>/` with TanStack Query only when opt-in[^1] |
-| Controlled form state            | Mantine `useForm` in `lib.ts`                                                                   |
-| URL-shareable state              | `useSearchParams` + `router.replace` (filters, tabs, paging that links should preserve)         |
-| Component-local state            | hook in `lib.ts`                                                                                |
-| Page UI state (one route)        | feature-local `useState`/`useReducer` hook                                                      |
-| Cross-component shared UI state  | Start with Context; use Zustand only for measured hot updates or required store middleware[^2]   |
-| Global UI state (theme/locale)   | React Context provider                                                                          |
-| Derived state                    | `useMemo` in `lib.ts`, or plain calculation in Server Components                                |
+| State | Owner |
+| --- | --- |
+| initial server-rendered data | RSC values |
+| realtime, polling, optimistic, infinite, or shared browser cache | capability `client/` |
+| URL-shareable filters, tabs, or paging | URL |
+| controlled form state and field errors | form boundary |
+| component-local interaction | owning component or named Hook |
+| compound component state | focused colocated provider |
+| global theme or locale | application provider |
+| identity and tenant | server request context |
+| derived value | calculate; do not store |
 
-[^1]: See [Data Ownership And Cache](../nextjs-architecture/references/data-ownership-and-cache.md).
-[^2]: See [State Placement](references/state-placement.md). Static config (theme/locale/auth status) uses Context; dynamic state starts local/Context and moves to Zustand only when profiling or store middleware needs justify it.
+Do not copy server-owned data into `useState`, Context, or an external store unless it is an
+explicit editable draft. Do not use a client cache in a Server Component.
 
-Do not put server data in `useState`, Context, or any client store. Do not use TanStack Query in Server Components.
+## Component Structure
+
+For a logic-bearing Client Component, call its Hook directly:
+
+```tsx
+'use client'
+
+export function WorkItems(props: WorkItemsProps) {
+  const viewProps = useWorkItemsProps(props)
+  return <WorkItemsView {...viewProps} />
+}
+```
+
+Do not pass a Hook to `composeHooks`, a render prop, a provider, or another generic helper. React
+requires Hooks to be called from components or Hooks, not passed as regular values.
+
+Extract `WorkItemsView` when independent rendering tests or server reuse justify it. Keep it in the
+same file while the component remains readable. A separate file is useful when file-level
+`'use client'` would otherwise make a pure view client-only.
+
+Do not add `memo`, `useMemo`, or `useCallback` by default. Keep them for a measured identity or
+rerender requirement.
+
+## Data And Mutations
+
+- RSC reads call the capability's `rsc.ts` or trusted server surface directly.
+- Browser-owned reads call the capability's `client.ts`, backed by `GET` or a stream.
+- Client reads do not use Server Actions.
+- UI commands import exact functions from capability `actions.ts`.
+- Every action revalidates input, identity, role, and tenant on the server.
+- Successful writes refresh the existing read owner.
+
+## Forms And Feedback
+
+- Client validation provides early feedback; server validation is authoritative.
+- Pending state comes from the action lifecycle.
+- Expected validation and conflict outcomes remain serializable action state.
+- Field errors stay associated with their controls.
+- Global failures use the product's semantic notification surface.
+- Raw provider messages never become user copy.
+- Unexpected failures are reported once at the action or channel boundary.
 
 ## Reference Map
 
 - [Server/Client Boundary](references/server-client-boundary.md)
-- [Component Structure And Static Hook Calls](references/component-structure-composehooks.md)
+- [Component Structure](references/component-structure.md)
 - [Forms And Actions](references/forms-and-actions.md)
 - [State Placement](references/state-placement.md)
 - [Styling And i18n](references/styling-and-i18n.md)
 - [Notifications And Feedback](references/notifications-and-feedback.md)
-
-## Workflow
-
-1. Decide Server vs Client before writing files.
-2. Classify data and state ownership before adding hooks or stores.
-3. Place route-local UI under the segment `_internal/ui`; shared UI under `src/ui/components`.
-4. For Server Components, fetch through server-only DAL/read entrypoints and pass serializable props.
-5. For Client Components with logic, call `use<Component>Props` directly in a Controller and pass
-   plain props to the View.
-6. Keep TanStack Query, optimistic updates, realtime, and invalidation in `ui/server-state`.
-7. Keep mutations in feature-local Server Action modules whose first statement is `'use server'`
-   when imported by Client Components. Browser-owned reads use GET/stream transport, not actions.
-8. Add stable `data-testid` to e2e-critical interactive controls.
+- [Client Cache Lifecycle](../nextjs-architecture/references/caching/client-cache.md)
 
 ## Decision Gate
 
-Before code changes, write or hold this classification:
+Before editing, classify:
 
 ```text
-component boundary: Server | Client | split
-server data owner: RSC props | TanStack Query | none
-local state owner: URL | component hook | route hook | Context | justified external store
-mutation boundary: Server Action | Route Handler | none
-client read transport: RSC props | GET/stream | none
-files: index.tsx | lib.ts | interfaces.ts | styles.module.css | server-state
+owner:             route | capability | shared UI
+component:         Server | Client | split
+server data:       RSC value | browser client surface | none
+local state:       URL | form | component | focused provider | none
+mutation:          capability action | Route Handler | none
+runtime imports:   server-safe | browser-safe
+verification:      type | lint | component | e2e | visual | accessibility
 ```
 
-If the answer is "Client because it is easier," re-check the trigger for hooks, events, refs, browser APIs, or client server-state.
+If the answer is "Client because it is easier," identify the event, Hook, ref, browser API, or
+client lifecycle that actually requires it.
 
 ## Common Failure Modes
 
-- Adding `'use client'` to a parent that could stay server-rendered.
-- Putting server-owned data in local state, Context, or Zustand.
-- Mixing View markup and hook/business logic in `index.tsx`.
-- Creating barrel exports or broad `interfaces.ts` files for one-off local types.
-- Using TanStack Query for a read that does not need client lifecycle semantics.
-- In a repository that adopted this profile, using `interface`, `class`, `any`, inline `style={}`, or namespace exports (use `type`, function composition, narrowed `unknown`, the local styling system, and named imports).
-- Validating a form only on the client and trusting it for authority — the server re-validates with the same schema.
-- Hardcoding user-facing text (including `aria-label`, `placeholder`, `alt`) instead of the project i18n layer.
-- Passing a Hook as a regular value through a generic composer instead of calling it statically.
-- Using a Server Action as a TanStack Query or polling read transport.
-- Importing a Server Action into a Client Component from a module without top-level `'use server'`.
+- Adding `'use client'` above a subtree that could stay server-rendered.
+- Passing a Hook as a value through a generic composition helper.
+- Hiding server data in local state, Context, or a broad store.
+- Using Server Actions for browser reads.
+- Importing `server.ts`, `rsc.ts`, or `server/**` from browser code.
+- Promoting route-private UI before a real second consumer exists.
+- Creating broad barrel or interface files for one local type.
+- Trusting client validation, identity, or tenant values.
+- Hardcoding user-facing copy outside the project i18n system.
+- Adding memoization without a measured reason.
 
 ## Verification Gate
 
-Before reporting success:
-
-1. Confirm the smallest possible Client boundary; client logic lives in `lib.ts`, not the View.
-2. Confirm server data remains serializable: read-heavy data arrives via RSC props, client-interactive data lives in `ui/server-state`, never in client UI state.
-3. Confirm every custom Hook is called by name inside a component or another Hook.
-4. Confirm imported Server Actions have a module-level directive and represent mutations.
-5. Run the smallest relevant type, lint, component, or e2e check available in the target repo.
-6. State any visual, i18n, or accessibility behavior not verified.
+1. Confirm the smallest possible Client boundary.
+2. Confirm every Hook call is direct, top-level, and visible to the Hooks linter.
+3. Confirm server data has one owner and browser code imports no server surface.
+4. Confirm loading, empty, success, expected failure, and unexpected failure states.
+5. Verify field/error association, keyboard behavior, focus, and responsive layout.
+6. Run the smallest relevant type, lint, component, e2e, and visual checks.
+7. State any unverified behavior explicitly.

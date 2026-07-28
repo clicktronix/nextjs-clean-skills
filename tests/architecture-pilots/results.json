@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-27",
+  "controls": {
+    "sourceBaseline": "0bae9739e5d688f55ebe971658ce4b533a24daf3",
+    "baselineReplay": {
+      "repository": "https://github.com/clicktronix/fullstack-ai-template",
+      "branch": "research/layer-first-baseline-replays",
+      "head": "46b5bc548ac6ccece58501ca23e06acdf680636f"
+    },
+    "nextIntegration": {
+      "repository": "https://github.com/clicktronix/fullstack-ai-template",
+      "branch": "research/capability-next-pilot",
+      "head": "0a3eeca514896f6efd67b8a773c0230b839cb251",
+      "nextVersion": "16.2.10",
+      "positive": {
+        "check": true,
+        "productionBuild": true,
+        "tests": 990,
+        "routeHandler": "/api/architecture-pilot/work-items",
+        "serverActionInput": "FormData"
+      },
+      "poisoningMutation": {
+        "expected": "production build fails when a Client Component imports the capability server surface",
+        "observed": "Turbopack rejected server.ts and server/store.ts because server-only cannot be imported from a Client Component module",
+        "passed": true
+      }
+    },
+    "candidatePlan": "0c6ee8b7e63b5e6e8fdf667410e866efd224d310",
+    "candidateBase": "b9f8b3a165ac4e1d7acd8b31446f58ea2c8f25a4",
+    "providerReplayControl": "37b9f970cf8ffa592fe52aba4b6f95bebddd3cd6",
+    "invariantFloor": "54fc7ea0e0da85de89e51dcae80b3171f691899e"
+  },
+  "pilotEvidence": {
+    "typeScriptFiles": 33,
+    "strictCompilation": true,
+    "runtimeSuites": [
+      "work-items",
+      "assistant-stream",
+      "board-workflow"
+    ],
+    "enforcedInvariants": 6,
+    "failingMutations": 10
+  },
+  "changes": [
+    {
+      "id": "add-due-at",
+      "commit": "d3ac0e96bb397e4bfc4188e90d4097dd6d3903fa",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui/form.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 3,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": true,
+        "deviations": []
+      },
+      "baselineObserved": {
+        "commits": [
+          "2ebc1b0ee5c8ba0f192fad81d068fd596aaafaed",
+          "0bd8a34fdf673b18e3e729ec8f4eb2406d53fe2e"
+        ],
+        "actualPaths": [
+          "src/adapters/outbound/supabase/work-items.operations.ts",
+          "src/adapters/supabase/types.ts",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/index.stories.tsx",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/index.tsx",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/lib.ts",
+          "src/app/(protected)/admin/work-items/_internal/ui/WorkItemFormModal/messages.json",
+          "src/domain/work-item/work-item.ts",
+          "src/infrastructure/i18n/locales/en.ts",
+          "supabase/migrations/20260727000000_add_work_items_due_at.sql"
+        ],
+        "plannedPaths": 8,
+        "observedPaths": 9,
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": "src/infrastructure/i18n/locales/en.ts",
+            "reason": "The form message added to messages.json also had to be registered in the generated English locale for the repository-wide translation check to pass."
+          }
+        ]
+      }
+    },
+    {
+      "id": "add-http-read-channel",
+      "commit": "05e7c8b6bc19b2951100da22c55e6e0f6a5f7e37",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 1,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": true,
+        "deviations": []
+      },
+      "baselineObserved": {
+        "commits": [
+          "d2220f92745e0b827da024c4fd0cae0ed4a6b2c1"
+        ],
+        "actualPaths": [
+          "src/adapters/inbound/next/route-handlers/labels.ts",
+          "src/app/api/labels/__tests__/route.test.ts",
+          "src/app/api/labels/route.ts"
+        ],
+        "plannedPaths": 3,
+        "observedPaths": 3,
+        "matchesPlan": true,
+        "deviations": []
+      }
+    },
+    {
+      "id": "replace-work-item-source",
+      "commit": "759276b79f712dafb3a47b984448478b5c389550",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 2,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+            "reason": "The corrected control introduced a capability-owned production composition surface so provider selection was no longer performed by the test harness."
+          }
+        ],
+        "comparisonStatus": "valid",
+        "supersededEvidence": {
+          "commit": "69060ddd4a91c0420cd1b7d9ccc337938c06d249",
+          "reason": "The original one-file result selected its concrete data source in the runtime harness and hid production composition cost."
+        }
+      },
+      "baselineObserved": {
+        "commits": [
+          "9fa541a04180bf6dc385848b77c630eee1b24ad0",
+          "46b5bc548ac6ccece58501ca23e06acdf680636f"
+        ],
+        "actualPaths": [
+          ".env.example",
+          "src/adapters/inbound/next/route-handlers/work-items.ts",
+          "src/adapters/inbound/next/server-actions/assistant-suggestions.ts",
+          "src/adapters/inbound/next/server-actions/work-items.ts",
+          "src/adapters/outbound/api/__tests__/work-items.repository.test.ts",
+          "src/adapters/outbound/api/work-items.repository.ts",
+          "src/adapters/outbound/supabase/work-items.operations.ts",
+          "src/adapters/outbound/supabase/work-items.repository.ts",
+          "src/app/api/work-items/__tests__/route.test.ts",
+          "src/infrastructure/env/server.ts"
+        ],
+        "plannedPaths": 6,
+        "observedPaths": 10,
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": ".env.example",
+            "reason": "The replacement provider needs a deployable endpoint configuration."
+          },
+          {
+            "path": "src/adapters/inbound/next/server-actions/assistant-suggestions.ts",
+            "reason": "This third production composition root also constructed the replaced repository and was missed during preregistration."
+          },
+          {
+            "path": "src/app/api/work-items/__tests__/route.test.ts",
+            "reason": "The route test had to supply the new provider configuration; a follow-up commit removed a leaking Bun module mock so the full suite remained isolated."
+          },
+          {
+            "path": "src/infrastructure/env/server.ts",
+            "reason": "The server environment contract must validate and expose the provider endpoint."
+          }
+        ]
+      }
+    },
+    {
+      "id": "change-unexpected-reporting",
+      "commit": "6f21ad402ee3f10c0ea4696c1290a6af27c06e31",
+      "candidate": {
+        "actualPaths": [
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/job.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/stream.ts",
+          "tests/architecture-pilots/fixtures/assistant-stream/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/api/labels/route.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/app/board/page.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/rsc.ts",
+          "tests/architecture-pilots/fixtures/board-workflow/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
+          "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts",
+          "tests/architecture-pilots/run-runtime-tests.mjs"
+        ],
+        "productionTypeScriptFiles": 12,
+        "testOrHarnessFiles": 1,
+        "matchesPlan": false,
+        "deviations": [
+          {
+            "path": "tests/architecture-pilots/fixtures/board-workflow/src/app/board/page.ts",
+            "reason": "The framework composition surface must pass request context into the board RSC boundary; omitting it would make context propagation implicit."
+          }
+        ]
+      },
+      "baselineObserved": {
+        "commits": [
+          "910e71796a2668b749c2f359bb19384835a15f88"
+        ],
+        "actualPaths": [
+          "src/infrastructure/actions/__tests__/safe-action.test.ts",
+          "src/infrastructure/actions/safe-action.ts",
+          "src/infrastructure/api/__tests__/with-route-error-handling.test.ts",
+          "src/infrastructure/api/with-route-error-handling.ts",
+          "src/infrastructure/errors/__tests__/with-server-read-error-handling.test.ts",
+          "src/infrastructure/errors/with-server-read-error-handling.ts",
+          "src/infrastructure/request-context/__tests__/request-context.test.ts",
+          "src/infrastructure/request-context/request-context.ts",
+          "src/infrastructure/sentry/capture.ts",
+          "src/ui/providers/__tests__/query-client.test.ts",
+          "src/ui/providers/query-client.ts"
+        ],
+        "plannedPaths": 11,
+        "observedPaths": 11,
+        "matchesPlan": true,
+        "deviations": [],
+        "comparisonLimit": "The baseline has no stream or job channel, so raw path counts are not equivalent."
+      }
+    }
+  ],
+  "findings": [
+    "Simple CRUD did not require an application operation or capability port.",
+    "After adding a capability-owned composition control, the provider swap changed two production files and no RSC, action, or HTTP caller.",
+    "A new HTTP read required one route-owned production file and no changes to label internals.",
+    "Public module surfaces must narrow private models; one-to-one store wrappers recreated the measured forwarding defect.",
+    "Streaming and jobs require explicit runtime-specific public surfaces in addition to RSC, actions, server, client, and UI.",
+    "Request-aware reporting remains channel work: shared semantics do not remove explicit context propagation at each boundary.",
+    "A real Next.js pilot derives identity and provider effects inside capability composition, accepts only FormData at the action boundary, exports GET, and passes a production build.",
+    "A deliberate Client Component import of the capability server surface fails the production build on server-only as required.",
+    "The baseline replay and real Next.js pilot pass their checks; candidate v3 passed the comparative agent gate and ADR 0001 is Accepted."
+  ]
+}

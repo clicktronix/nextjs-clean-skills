@@ -1,129 +1,88 @@
-# Skill evaluation scenarios
+# Reference Scenarios
 
-Eval scenarios for the two skills, following Anthropic's
-[evaluation-driven development](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices)
-and the superpowers `writing-skills` RED-GREEN-REFACTOR loop.
+These small scenarios guard one reference at a time. They complement, but do not replace, the
+comparative architecture release gate in [`../architecture-evals/`](../architecture-evals/).
 
-Each scenario records the full TDD cycle for one pattern, not just the happy path:
-
-- **`baseline_failure`** — the RED. What an agent does *without* the reference. If you cannot
-  reproduce this baseline (the agent already does the right thing unprompted), the reference is
-  redundant and should be cut — it only costs context.
-- **`expected_behavior`** — the GREEN. What the agent should do *with* the reference loaded.
-- **`anti_expectation`** — the REFACTOR guardrail. Overreach the agent must *not* commit
-  (e.g. applying a "rare" pattern everywhere). Catches the loophole where a reference makes the
-  agent over-apply a narrow technique.
-
-## Format
+## Contract
 
 ```json
 {
   "skills": ["nextjs-architecture"],
-  "tests_reference": "<skill-relative-file>.md#<anchor>",
+  "tests_reference": "references/<file>.md#<anchor>",
   "query": "the task given to the agent",
-  "baseline_failure": "RED: what the agent does without the reference",
-  "expected_behavior": ["GREEN bullet", "GREEN bullet"],
-  "anti_expectation": ["overreach the agent must not do"]
+  "baseline_failure": "the predicted failure without the reference",
+  "expected_behavior": ["required behavior"],
+  "anti_expectation": ["overreach the agent must avoid"]
 }
 ```
 
-`tests_reference` may target the skill body (`SKILL.md#<anchor>`) or a file under
-`references/`; it is resolved relative to the first skill in `skills`.
+`tests_reference` is relative to the first skill in `skills`. It may point to `SKILL.md` or to a
+file under `references/`. `npm run validate` checks required fields, known skill names, file paths,
+and GitHub-style anchors.
 
-Optional once a baseline has actually been run: record results in a `baseline_observed` object
-(`date`, `method`, `runs[]` of `{model, framing, red}`, and a `verdict`). This is what turns a
-scenario from "authored" into "eval-run" — the validator does not require it, but an unannotated
-scenario is still just a hypothesis.
+An authored `baseline_failure` is a hypothesis. It becomes evidence only after a
+`baseline_observed` record captures the model, framing, isolation method, runs, and verdict.
 
-This contract is enforced: `npm run validate` runs `scripts/validate-scenarios.mjs`, which checks
-every scenario for the required keys, non-empty `skills`/`expected_behavior`/`anti_expectation`,
-known skill names, and a `tests_reference` whose file and `#anchor` actually resolve (anchors are
-slugified with GitHub semantics — runs of spaces are not collapsed). A scenario that drifts out of
-sync with its reference fails CI rather than rotting silently.
+## Running One Scenario
 
-## Running
+1. Run the query in a fresh isolated session without the skill.
+2. Confirm the exact predicted failure. If it does not reproduce, narrow or remove the guidance.
+3. Run the same query with the referenced guidance loaded.
+4. Confirm every expected behavior and no anti-expectation.
+5. Repeat disputed cells; do not rewrite a response after seeing the result.
 
-There is no built-in LLM-judge runner (Anthropic does not ship one). Run manually:
+Do not run from a product repository. Files in the working directory can leak the intended answer
+into the baseline.
 
-1. **RED:** open a fresh agent session with the skill *disabled*, paste `query`, confirm it
-   produces `baseline_failure`. Record verbatim. If it doesn't fail, delete the scenario and the
-   reference it guards.
-2. **GREEN:** new session with the skill *enabled*, same `query`, confirm `expected_behavior`.
-3. **REFACTOR:** vary the `query` toward the `anti_expectation` trap; confirm the agent declines
-   to over-apply. Add an explicit counter to the reference if it falls for the trap.
+## Evidence Levels
 
-Test against every model the skill targets (Haiku/Sonnet/Opus) — guidance that an Opus session
-treats as obvious may still need spelling out for Haiku.
+The release decision uses the frozen four-arm architecture matrix:
 
-**Harness limitation — isolate the working directory.** Run the RED agent in an empty/throwaway
-directory, or explicitly tell it "this is a hypothetical, do not read the filesystem." A baseline
-agent that inherits a real project's CWD will explore it: in observed runs some agents got
-distracted and asked clarifying questions (invalid), and one read the template's own clean-arch
-patterns and produced the *correct* answer — a false pass that hides a real RED. Self-contained
-"write this method" scenarios are robust to this; open-ended "build this page/feature" scenarios
-are not. Treat any baseline where the agent referenced real project files as confounded.
+```text
+no skill | v1.3.2 | layer-first checkpoint | capability-first candidate
+```
 
-## Status
+The accepted candidate v3 scored `239/240`, had no negative or fatal cells, and led every scenario
+across 24 candidate cells. See
+[`../architecture-evals/RELEASE_V3_RESULTS.md`](../architecture-evals/RELEASE_V3_RESULTS.md).
+That matrix validates the architecture instruction as a whole.
 
-Three of the original four patterns are eval-proven (full RED->GREEN), recorded in their
-`baseline_observed` and `green_check`:
+Reference scenarios answer a narrower question: whether one paragraph changes one recurring agent
+decision. Historical results remain useful only for the behavior they actually tested:
 
-- **defense-in-depth-ownership** — RED 3/3 (haiku+adversarial), GREEN with reference loaded.
-- **explicit-variants-over-mode** — RED 2/2 valid, GREEN with reference loaded.
-- **compound-provider-split** — RED 3/3, GREEN with reference loaded.
+- `defense-in-depth-ownership`: RED 3/3 and GREEN under the v1.3.x wording. The ownership predicate
+  is proven; the capability-first placement wording needs a new run.
+- `explicit-variants-over-mode`: RED 2/2 to GREEN.
+- `compound-provider-split`: RED 3/3 to GREEN. Its current direct-Hook wording needs a targeted
+  regression because the old run mentioned `composeHooks`.
+- `rsc-hybrid-read`: inconsistent baseline. Retained guidance is deliberately narrow:
+  `initialData`, explicit freshness, and one cache owner.
 
-The same weak model under the same lazy framing flips from the failure to the correct pattern once
-the reference is present — so these references earn their place; they are not redundant for their
-audience (weak models / lazy prompts). Strong models, or weak models on neutral prompts, already do
-the right thing, so the value is narrow but real.
+All other files below are authored regression hypotheses until they contain an observed run.
 
-- **rsc-hybrid-read** — re-run isolated with a reshaped narrow query (the original "build a page"
-  wording was not cleanly eval-able). Baseline was INCONSISTENT — haiku reaches the correct
-  `initialData` hybrid ~half the time unprompted, only borderline-failing otherwise (useState
-  instead of `initialData`). This was the weakest-justified of the four, so its standalone section
-  was **merged into one prose line** in `data-ownership-and-cache.md` (seed initialData not
-  useState + explicit freshness); the scenario's `tests_reference` now points to the file. The
-  other three stay as full sections.
-
-GREEN here is n=1 per cell (single confirmation that the reference flips the behavior). Cheap to
-re-run if a reference is later edited — per the Iron Law, a reference edit needs its own RED->GREEN.
-
-Three audit-regression scenarios added in 1.3.1 are deliberately marked as hypotheses:
-transport-neutral error mapping, Sentry instrumentation ownership, and the public TanStack
-MutationCache callback. They enforce reference/anchor drift in CI but are not called load-bearing
-until isolated RED and GREEN runs are recorded.
-
-Three correctness scenarios added in 1.3.2 are also hypotheses: static Hook calls, module-level
-`'use server'` for imported actions, and GET/stream transport for browser-owned queries. Their
-rules follow official React contracts, but their value as agent guidance still needs isolated RED
-and GREEN evidence.
-
-The larger Profile Gate candidate was rejected after an ablation run on 2026-07-10: Haiku with
-each full skill minus only that gate preserved the existing stack in architecture 2/2 and component
-2/2 runs. The multi-line gates and scenario were cut; one fallback sentence remains to define what
-"Default Profile" means without adding a new behavioral procedure.
-
-## Coverage by reference
-
-Honest map of which references are eval-backed and which are still hypotheses (an
-unannotated reference is guidance we *believe* helps, not guidance we've *watched* help).
-When editing an untested reference, consider authoring its scenario first.
+## Coverage
 
 | Reference | Scenario | Status |
 | --- | --- | --- |
-| nextjs-architecture/security-dal-and-auth | defense-in-depth-ownership | **eval-proven** (RED 3/3 → GREEN) |
-| nextjs-architecture/data-ownership-and-cache | rsc-hybrid-read, browser-owned-query-transport | hybrid inconsistent; browser transport hypothesis |
-| react-component-creator/component-structure-composehooks | compound-provider-split, static-hook-calls | provider split eval-proven; static calls hypothesis |
-| react-component-creator/state-placement | explicit-variants-over-mode | **eval-proven** (RED 2/2 → GREEN) |
-| nextjs-architecture/clean-architecture-boundaries | — | untested |
-| nextjs-architecture/runtime-and-compile-time-boundaries | — | untested |
-| nextjs-architecture/backend-service-patterns | — | untested |
-| nextjs-architecture/supabase-persistence-boundaries | transport-neutral-error-mapping | hypothesis (not run) |
-| nextjs-architecture/security-env-validation | — | untested |
-| nextjs-architecture/observability-and-sentry | sentry-instrumentation-first | hypothesis (not run) |
-| nextjs-architecture/testing-by-layer | — | untested |
-| nextjs-architecture/glossary | — | n/a (terminology, no behaviour to eval) |
-| react-component-creator/server-client-boundary | — | untested |
-| react-component-creator/forms-and-actions | imported-server-action-module | hypothesis (not run) |
-| react-component-creator/notifications-and-feedback | global-mutation-error-notifier | hypothesis (not run) |
-| react-component-creator/styling-and-i18n | — | untested |
+| security/dal-and-auth | defense-in-depth-ownership | predicate proven; placement rerun required |
+| caching/client-cache | rsc-hybrid-read | inconsistent historical baseline |
+| caching/client-cache | browser-owned-query-transport | hypothesis |
+| seams/dependency-categories | port-over-local-engine | hypothesis |
+| use-cases/when-a-use-case-exists | crud-forwarding-use-cases | hypothesis |
+| use-cases/validation-once | validate-once-per-boundary | hypothesis |
+| use-cases/channel-boundaries | nested-composition-no-bypass | hypothesis |
+| outbound/row-vs-domain-types | select-derived-from-domain-schema | hypothesis |
+| inbound/streaming | streaming-through-server-action | hypothesis |
+| inbound/route-handlers | framework-control-flow-not-swallowed | hypothesis |
+| errors/error-taxonomy | transport-neutral-error-mapping | hypothesis |
+| quality/observability-and-sentry | sentry-instrumentation-first | hypothesis |
+| placement/modules-and-imports | portable-rules-on-existing-stack | hypothesis |
+| react/component-structure | compound-provider-split | old behavior proven; direct-Hook rerun required |
+| react/component-structure | static-hook-calls | hypothesis |
+| react/forms-and-actions | imported-server-action-module | hypothesis |
+| react/state-placement | explicit-variants-over-mode | eval-proven |
+| react/notifications-and-feedback | global-mutation-error-notifier | hypothesis |
+
+The release matrix already covers the three load-bearing architecture cases: simple CRUD,
+remote streaming plus job reuse, and cross-capability orchestration. The focused scenarios are not
+allowed to contradict that accepted contract.

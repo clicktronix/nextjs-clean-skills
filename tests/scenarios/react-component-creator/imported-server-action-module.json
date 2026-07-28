@@ -1,11 +1,11 @@
 {
   "skills": ["react-component-creator"],
-  "tests_reference": "references/forms-and-actions.md#imported-action-modules",
-  "query": "Create a Client Component profile form that imports updateProfile from a sibling actions.ts module and submits it through the existing form stack.",
+  "tests_reference": "references/forms-and-actions.md#forms-and-actions",
+  "query": "Create a Client Component profile form that imports updateProfile from a sibling actions.ts capability surface and submits it through the existing form stack.",
   "baseline_failure": "Agent omits the module-level 'use server' directive or places only an inline directive inside the exported function, leaving the action module invalid as a Client Component import boundary.",
   "expected_behavior": [
     "Places 'use server' at the top of actions.ts before imports or other statements",
-    "Exports updateProfile as an async mutation and validates and authorizes again on the server",
+    "Exports updateProfile as an async mutation and validates, authenticates, and applies capability authorization again on the server",
     "Keeps browser-owned reads out of the Server Action module"
   ],
   "anti_expectation": [

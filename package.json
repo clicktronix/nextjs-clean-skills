@@ -1,10 +1,11 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "1.3.2",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-cwd-independence.mjs && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/lint-docs-review-markers.mjs && node scripts/validate-scenarios.mjs",
+    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-cwd-independence.mjs && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/validate-docs.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-measure-evidence.mjs && node scripts/validate-architecture-pilots.mjs && node scripts/validate-capability-pilots.mjs && node tests/architecture-pilots/run-runtime-tests.mjs && node scripts/validate-rules.mjs",
+    "validate:pilots": "node tests/architecture-pilots/run-runtime-tests.mjs",
     "sync-version": "node scripts/sync-version.mjs"
   },
   "keywords": [
@@ -19,14 +20,21 @@
     "mantine",
     "supabase",
     "tanstack-query",
-    "react-hooks",
+    "capability-modules",
     "dal",
     "rls",
     "agent-skills"
   ],
   "devDependencies": {
+    "@typescript-eslint/parser": "^8.65.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "eslint": "^9.39.5",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "eslint-plugin-import": "^2.32.0",
+    "jsdom": "^29.1.1",
+    "mermaid": "^11.16.0",
+    "typescript": "^5.9.3",
     "yaml": "^2.8.3"
   }
 }

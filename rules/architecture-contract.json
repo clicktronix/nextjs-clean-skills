@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "moduleRoot": "src/modules",
+  "segments": [
+    "domain",
+    "application",
+    "server",
+    "client",
+    "ui"
+  ],
+  "publicSurfaces": [
+    "server",
+    "rsc",
+    "actions",
+    "client",
+    "ui",
+    "stream",
+    "job"
+  ],
+  "serverSurfaces": [
+    "server",
+    "rsc",
+    "stream",
+    "job"
+  ],
+  "serverExecutionSurfaces": [
+    "server",
+    "rsc",
+    "actions",
+    "stream",
+    "job"
+  ],
+  "clientSurfaces": [
+    "client",
+    "ui"
+  ],
+  "sharedRoots": [
+    "kernel",
+    "server",
+    "client",
+    "ui"
+  ],
+  "runtimePackages": [
+    "next",
+    "react",
+    "react-dom",
+    "server-only",
+    "client-only",
+    "@sentry",
+    "@supabase",
+    "@prisma",
+    "drizzle-orm",
+    "pg",
+    "postgres",
+    "mysql2",
+    "mongodb",
+    "redis",
+    "ioredis"
+  ]
+}

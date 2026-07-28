@@ -1,0 +1,10 @@
+{
+  "scenario": "cross-capability",
+  "arm": "v1.3.2",
+  "repeat": 1,
+  "model": "gpt-5.6-luna",
+  "framing": "adversarial",
+  "taskHash": "556c12433a8fba6933b02fb5e79a7c4fa291bae61e3ebfa9ff8dca915b3fe9f1",
+  "skillHash": "67c8b233d7ef7524138b67fa3479d55dd80f50056de827b47f870e5e81089df9",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

@@ -3,6 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 
+// Derived from this file, not from the caller's directory. With `process.cwd()`, running a
+// validator from a subdirectory found no files and reported success — a check that passes because
+// it looked nowhere is the failure mode this repository exists to remove.
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 export function readJson(file) {
