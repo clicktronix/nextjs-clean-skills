@@ -21,6 +21,11 @@ signal to the upstream fetch or SDK. Setting a boolean or stopping local iterati
 cancellation: the producer must observe the abort. Remove listeners and clear idle timers during
 cleanup.
 
+If startup failures need an HTTP status, acquire the upstream stream before constructing or
+returning the `Response`. Creating a `ReadableStream` and immediately marking it committed does not
+make an asynchronous `start()` failure pre-commit; after the `Response` is returned, failure belongs
+to the body channel.
+
 Resume from the last delivered event when the protocol supports it. Do not replay a committed stream
 as an ordinary retry.
 
