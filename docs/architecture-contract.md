@@ -65,7 +65,7 @@ A capability may use these reserved segments:
 | --- | --- | --- |
 | `domain/` | pure invariants, calculations, and domain values | a rule exists independently of framework and I/O |
 | `application/` | policy, orchestration, projection, and owned ports | behavior passes the deletion test |
-| `server/` | private server adapters, stores, providers, and cache wiring | the capability performs server I/O |
+| `server/` | private server adapters, persistence modules, providers, and cache wiring | the capability performs server I/O |
 | `client/` | browser async lifecycle, realtime, polling, and optimistic state | the browser owns that lifecycle |
 | `ui/` | reusable capability presentation and interaction | more than route-private rendering is required |
 

@@ -38,7 +38,7 @@ A module may contain these reserved, optional segments:
 ```text
 domain/       pure invariants and calculations
 application/  policy, orchestration, projections, and owned ports
-server/       private server adapters, stores, providers, and cache wiring
+server/       private server adapters, persistence modules, providers, and cache wiring
 client/       browser async lifecycle, realtime, and optimistic state
 ui/           reusable capability UI
 ```
