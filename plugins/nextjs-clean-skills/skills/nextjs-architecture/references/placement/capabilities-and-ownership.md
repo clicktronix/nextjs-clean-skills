@@ -16,8 +16,10 @@ Rules:
 - one capability is discoverable under one root;
 - route-private framework and UI glue stays under `app/**`;
 - cross-capability consumers use narrow root public surfaces;
-- a public surface narrows internals, strengthens a contract, or establishes a runtime boundary;
-- a one-to-one rename or re-export is not a facade;
+- a public surface publishes an explicit stable subset, strengthens a contract, or establishes a
+  runtime boundary;
+- a named re-export may define that API, but does not justify another forwarding abstraction;
+- `export *` is not a public contract;
 - broad `lib`, `utils`, and `services` directories are migration buckets, not destinations.
 
 When behavior uses several capabilities, apply the deletion test. If removing the coordinating code

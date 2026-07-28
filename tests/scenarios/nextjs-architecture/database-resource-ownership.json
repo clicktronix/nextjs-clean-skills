@@ -1,0 +1,16 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/database-resource-ownership.md#database-resource-ownership",
+  "query": "Add a Supabase-backed labels query. The work_items table already belongs to the work-items capability, and the labels screen needs work-item counts.",
+  "baseline_failure": "RED hypothesis: the agent joins or queries work_items directly from labels/server without declaring the cross-capability database dependency or using the work-items public contract.",
+  "expected_behavior": [
+    "Treats literal table and function names as a dependency graph in addition to TypeScript imports",
+    "Keeps work_items owned by work-items and prefers a narrow work-items public surface for policy-bearing data",
+    "Updates the database resource map only when direct cross-capability access is deliberate and reviewed",
+    "Rejects undeclared or dynamic Supabase resource names from the static ownership check"
+  ],
+  "anti_expectation": [
+    "Does NOT claim the static check replaces RLS, grants, migration review, or integration tests",
+    "Does NOT create one capability per table"
+  ]
+}

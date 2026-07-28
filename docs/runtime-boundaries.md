@@ -92,6 +92,11 @@ identity and scope established by an outer channel, enforces the source capabili
 translates provider failures, and propagates unexpected exceptions without reporting them. The RSC,
 action, HTTP, stream, or job that owns the request reports once.
 
+An effect factory may bind identity when the provider does. A cookie-scoped database client and its
+verified actor are created atomically from one session, then exposed as separate context fields. A
+privileged client uses a different server-only factory and an explicit trusted scope; it is never
+substituted into the user-scoped context.
+
 ## RSC Reads
 
 `rsc.ts` is a current-request surface. It may resolve request identity, wire private server
@@ -122,7 +127,9 @@ use framework control flow and must not be normalized as application failures.
 ## Server Actions
 
 `actions.ts` is a dedicated module with top-level `'use server'`. It is used for UI commands, not
-browser reads.
+browser reads. Next.js requires every value export from that module to be an async function declared
+there; import and call a private implementation instead of value-re-exporting it.
+[Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server).
 
 The action:
 
@@ -152,6 +159,12 @@ business authorization or provider rows.
 
 Do not create an HTTP round trip for an RSC merely to reuse a Route Handler. Reuse the capability
 behavior that both channels call.
+
+When Next.js fronts an authoritative external backend, the remote service owns business invariants
+and orchestration. The local module may own HTTP mapping, presentation values, aggregation, cache,
+browser lifecycle, and frontend/BFF-specific policy. Empty `domain/` or `application/` segments are
+the correct result when no local behavior survives the deletion test.
+[Next.js BFF guide](https://nextjs.org/docs/app/guides/backend-for-frontend).
 
 ## Streams
 

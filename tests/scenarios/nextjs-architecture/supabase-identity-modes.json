@@ -1,0 +1,16 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/supabase-rls.md#supabase-and-row-level-security",
+  "query": "Reuse one Supabase data service from an authenticated RSC and a nightly job. The RSC uses request cookies; the job uses a service-role key.",
+  "baseline_failure": "RED hypothesis: the agent injects either client into one context type with a userId argument, making it unclear whether RLS or explicit predicates enforce scope.",
+  "expected_behavior": [
+    "Uses separate user-scoped and privileged server-only factories",
+    "Derives the user-scoped client and verified actor from the same request session",
+    "Requires explicit actor, scope, and reason for privileged work and keeps ownership predicates in its queries",
+    "States that service-role access can bypass RLS and never places that key in a cookie SSR client"
+  ],
+  "anti_expectation": [
+    "Does NOT trust getSession embedded user data for server authorization",
+    "Does NOT assume a trusted job may omit product scope predicates"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/service-transport.md#owned-service-transport",
+  "query": "This Next.js app is a BFF for an existing Go service that owns pricing policy and order orchestration. Add an order summary page and a browser refresh flow.",
+  "baseline_failure": "RED hypothesis: the agent duplicates the remote service domain and adds forwarding application operations locally to complete every capability segment.",
+  "expected_behavior": [
+    "Keeps authoritative pricing and order orchestration in the Go service",
+    "Creates only local presentation contracts, transport mapping, cache, browser lifecycle, aggregation, or genuinely BFF-owned policy",
+    "Leaves domain or application segments absent when no local behavior survives the deletion test",
+    "Keeps one private service transport with explicit timeout, identity, cancellation, and error mapping"
+  ],
+  "anti_expectation": [
+    "Does NOT mirror the remote domain model as a second source of truth",
+    "Does NOT skip runtime validation of the remote response"
+  ]
+}

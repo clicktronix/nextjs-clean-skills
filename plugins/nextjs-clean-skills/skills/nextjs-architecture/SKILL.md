@@ -18,7 +18,8 @@ For the requested change, identify:
 4. whether application policy survives the deletion test;
 5. which dependencies need capability-shaped ports;
 6. the public surface each external consumer needs;
-7. where authentication, business authorization, and store authorization run.
+7. where authentication, business authorization, and store authorization run;
+8. whether Next.js or an external backend owns authoritative business behavior.
 
 Classify only behavior the task or existing product actually requires. Do not invent future policy,
 persistence, alternate providers, reuse, or coordination to justify an abstraction.
@@ -67,7 +68,11 @@ job.ts      worker contract
 ```
 
 Only create surfaces that have real consumers. A surface must narrow internals, strengthen a
-contract, or establish a runtime boundary. A one-to-one rename or re-export is not an abstraction.
+contract, or establish a runtime boundary. Explicit named re-exports may define a stable module API,
+but do not justify a forwarding operation or wrapper. Never use `export *`.
+
+`actions.ts` is different: with top-level `'use server'`, value exports must be locally declared
+async functions. It may import private implementations, but must not value-re-export them.
 
 `query-cache.ts` is the only runtime-neutral root surface. Create it only when the same
 serializable TanStack Query key identity is consumed by both a server prefetch/hydration path and a
@@ -81,9 +86,11 @@ invalidation, fetchers, providers, and one-runtime-only keys remain private in `
 - `app/**` never imports module-private schemas, auth helpers, stores, or composition files; keep
   channel decoding local or expose a deliberate root contract.
 - A module never imports another module's internal path.
-- `domain/**` is pure and framework/provider independent.
-- `application/**` imports its domain, pure helpers, and capability-owned ports only. Its ports use
-  the owning capability's types; a private adapter maps another capability's public contract.
+- `domain/**` is pure and framework/provider independent. Product dependencies must be classified
+  as pure or runtime-bound; an unclassified direct dependency fails the architecture check.
+- `application/**` imports its domain, classified pure helpers, and capability-owned ports only.
+  Its ports use the owning capability's types; a private adapter maps another capability's public
+  contract.
 - `server/**` implements driving or driven adapters for its own capability.
 - Private `server/**` imports domain/application/shared code, never its own root channel surfaces;
   `server.ts`, `rsc.ts`, and `actions.ts` depend inward.
@@ -172,6 +179,20 @@ clients, provider clients, reporter, clock, and other effects are explicit depen
 Keep provider rows distinct from domain/public values when names or semantics differ. Map them in
 the private adapter.
 
+For Supabase, do not mix user-scoped cookie clients and privileged clients behind one ambiguous
+factory. A user-scoped context derives the verified actor and client from the same session. A
+privileged context uses a separate server-only factory and carries explicit actor, scope, and
+reason; every query still applies the intended ownership predicates.
+
+Treat database object names as an ownership boundary when the provider API encodes them as strings.
+Declare table/function ownership in the product contract and reject undeclared, dynamic, or
+cross-capability `.from()`/`.rpc()` calls. This is a static canary, not a substitute for RLS,
+grants, migrations, or integration tests.
+
+When Next.js is a BFF for an authoritative external backend, do not duplicate that backend's domain
+and application policy locally. Keep presentation models, browser lifecycle, aggregation, cache,
+and genuinely frontend-owned policy; optional segments may remain absent.
+
 Portable operations return cache ownership metadata at most. Runtime channels map it to current
 Next.js invalidation APIs.
 
@@ -195,6 +216,9 @@ Demote shared code when consumers diverge or one capability becomes its owner. D
 - Putting cross-capability policy in `app/**` or importing another capability's internals.
 - Using Server Actions for browser reads or one generic wrapper for every runtime channel.
 - Letting browser code import server surfaces or provider credentials.
+- Mixing cookie-scoped and privileged database clients behind one context.
+- Reading another capability's tables or functions through string literals.
+- Duplicating an external backend's authoritative policy in a forwarding application layer.
 - Reporting one unexpected failure at both an inner adapter and the outer channel.
 - Treating test mocks, future reuse, or an alternate provider as current production requirements.
 - Promoting similar names into `shared/**` without identical meaning, lifecycle, and ownership.
@@ -219,6 +243,7 @@ Read only the references needed for the decision:
   [error taxonomy](references/errors/error-taxonomy.md).
 - Data and security: [authority and transactions](references/outbound/authority-and-transactions.md),
   [row mapping](references/outbound/row-vs-domain-types.md),
+  [database resource ownership](references/outbound/database-resource-ownership.md),
   [service transport](references/outbound/service-transport.md),
   [auth boundaries](references/security/dal-and-auth.md),
   [environment validation](references/security/env-validation.md),

@@ -257,12 +257,37 @@ function resolveRelativeImport(importer, specifier, sources) {
   return candidates.find((candidate) => sources.has(candidate)) ?? false
 }
 
-function exportedDeclarationCount(file, source) {
+function publicSurfaceExportErrors(file, source, surface) {
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  return parsed.statements.filter((statement) => {
-    if (ts.isExportDeclaration(statement) || ts.isExportAssignment(statement)) return false
-    return statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
-  }).length
+  const errors = []
+
+  for (const statement of parsed.statements) {
+    if (!ts.isExportDeclaration(statement) || !statement.moduleSpecifier) continue
+    if (!statement.exportClause && !statement.isTypeOnly) {
+      errors.push({
+        code: surface === 'actions.ts' ? 'ACTION_VALUE_REEXPORT' : 'PUBLIC_EXPORT_STAR',
+        message:
+          surface === 'actions.ts'
+            ? `${surface} must declare async Server Actions locally`
+            : `${surface} must use explicit named exports instead of export *`,
+      })
+      continue
+    }
+    if (
+      surface === 'actions.ts' &&
+      !statement.isTypeOnly &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause) &&
+      statement.exportClause.elements.some((element) => !element.isTypeOnly)
+    ) {
+      errors.push({
+        code: 'ACTION_VALUE_REEXPORT',
+        message: `${surface} must declare async Server Actions locally`,
+      })
+    }
+  }
+
+  return errors
 }
 
 function findCycles(graph) {
@@ -321,12 +346,10 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       const [surface] = owner.tail
       if (!publicSurfaceNames.has(surface)) {
         addError('UNKNOWN_PUBLIC_SURFACE', file, `${surface} is not an admitted root surface`)
-      } else if (exportedDeclarationCount(file, source) === 0) {
-        addError(
-          'PUBLIC_BARREL_ONLY',
-          file,
-          `${surface} must declare a narrowing contract instead of only re-exporting internals`
-        )
+      } else {
+        for (const error of publicSurfaceExportErrors(file, source, surface)) {
+          addError(error.code, file, error.message)
+        }
       }
     }
 
@@ -662,13 +685,22 @@ const mutations = [
     'SERVER_CLIENT_IMPORT'
   ),
   requireMutation(
-    'barrel-only public surface',
+    'star export from public surface',
     mutate(
       fixtures.workItems,
       'src/modules/work-items/server.ts',
       () => "export * from './server/service.js'\n"
     ),
-    'PUBLIC_BARREL_ONLY'
+    'PUBLIC_EXPORT_STAR'
+  ),
+  requireMutation(
+    'Server Action value re-export',
+    mutate(
+      fixtures.workItems,
+      'src/modules/work-items/actions.ts',
+      () => "'use server'\nexport { createWorkItem } from './server/service.js'\n"
+    ),
+    'ACTION_VALUE_REEXPORT'
   ),
   requireMutation(
     'segment index shadowed by root surface',
@@ -769,4 +801,4 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (10 invariants, 20 failing mutations)')
+console.log('capability pilots ok (11 invariants, 21 failing mutations)')

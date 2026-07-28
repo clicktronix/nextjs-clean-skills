@@ -170,6 +170,10 @@ export default mutation
 import { mutation } from '../work-items/client.js'
 export default mutation
 `,
+  'src/modules/bad-action-export/actions.ts': `
+'use server'
+export { getWorkItems } from '../work-items/server.js'
+`,
 
   // Public and shared vocabulary.
   'src/modules/work-items/repository.ts': `
@@ -264,6 +268,7 @@ const expectedBase = new Map([
   ['src/app/bad-client/page.tsx', 'browserServer'],
   ['src/modules/work-items/server/bad-client.ts', 'serverClient'],
   ['src/modules/bad-actions/actions.ts', 'serverClient'],
+  ['src/modules/bad-action-export/actions.ts', 'actionReexport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],

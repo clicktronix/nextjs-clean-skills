@@ -8,6 +8,8 @@ All notable changes to this project are documented in this file.
 
 - Derived capability-pilot surfaces, runtime classifications, and provider package checks from
   `architecture-contract.json` instead of maintaining a second silent copy.
+- Allowed explicit named re-exports as module APIs while forbidding `export *`, and enforced the
+  Next.js rule that top-level `'use server'` action modules declare value exports locally.
 - Rejected private segment `index.ts(x)` files shadowed by same-named root surfaces, and corrected
   the migration status of the downstream template.
 - Named `server/` contents as persistence modules while keeping `store.ts` available as a concise
@@ -20,6 +22,10 @@ All notable changes to this project are documented in this file.
   private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
 - Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
   and stable contract rather than by tables or CRUD screens.
+- Added exhaustive direct dependency classification and a Supabase resource ownership canary for
+  undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
+- Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
+  from RLS, and added the external-authority profile for Next.js BFF modules.
 
 ## [2.0.0] - 2026-07-28
 

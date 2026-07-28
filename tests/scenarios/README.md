@@ -78,6 +78,9 @@ All other files below are authored regression hypotheses until they contain an o
 | quality/observability-and-sentry | sentry-instrumentation-first | hypothesis |
 | placement/modules-and-imports | portable-rules-on-existing-stack | hypothesis |
 | placement/capability-granularity | capability-granularity-reference-data | hypothesis |
+| outbound/database-resource-ownership | database-resource-ownership | hypothesis |
+| outbound/service-transport | external-backend-authority | hypothesis |
+| outbound/supabase-rls | supabase-identity-modes | hypothesis |
 | react/component-structure | compound-provider-split | old behavior proven; direct-Hook rerun required |
 | react/component-structure | static-hook-calls | hypothesis |
 | react/forms-and-actions | imported-server-action-module | hypothesis |
