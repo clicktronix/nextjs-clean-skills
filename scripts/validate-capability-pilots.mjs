@@ -220,6 +220,29 @@ function importSpecifiers(file, source) {
   return specifiers
 }
 
+function consumerImportSpecifiers(file, source) {
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  const specifiers = []
+
+  function visit(node) {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      specifiers.push(node.moduleSpecifier.text)
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text)
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visit(parsed)
+  return specifiers
+}
+
 function resolveRelativeImport(importer, specifier, sources) {
   if (!specifier.startsWith('.')) return null
   const unresolved = path.resolve(path.dirname(importer), specifier)
@@ -292,6 +315,7 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
     const owner = moduleLocation(file, fixtureRoot)
     const sourceSide = runtimeSide(file, source, owner, fixtureRoot)
     const neutralSide = neutralConsumerSide(file, source, owner, fixtureRoot)
+    const consumedSpecifiers = new Set(consumerImportSpecifiers(file, source))
 
     if (owner && owner.tail.length === 1) {
       const [surface] = owner.tail
@@ -367,7 +391,8 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       if (
         targetOwner?.tail.length === 1 &&
         neutralSurfaceNames.has(targetOwner.tail[0]) &&
-        neutralSide
+        neutralSide &&
+        consumedSpecifiers.has(specifier)
       ) {
         neutralConsumers.get(target)?.add(neutralSide)
       }
@@ -663,6 +688,15 @@ const mutations = [
     'NEUTRAL_SURFACE_ONE_SIDED'
   ),
   requireMutation(
+    'a client re-export does not count as a query consumer',
+    mutate(
+      fixtures.queryCache,
+      'src/modules/work-items/client.ts',
+      () => "export { workItemKeys } from './query-cache.js'\n"
+    ),
+    'NEUTRAL_SURFACE_ONE_SIDED'
+  ),
+  requireMutation(
     'action invalidation does not count as server prefetch',
     mutate(
       mutate(
@@ -704,4 +738,4 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (9 invariants, 17 failing mutations)')
+console.log('capability pilots ok (9 invariants, 18 failing mutations)')
