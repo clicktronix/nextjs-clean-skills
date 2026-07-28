@@ -169,6 +169,8 @@ Normative rules:
 5. `application/**` imports its domain, pure helpers, and capability-owned port types. It imports
    no Next.js, React, database SDK, provider SDK, or concrete adapter.
 6. `server/**` implements server-side driving and driven adapters for its capability.
+   It does not import its own root public surfaces; `server.ts`, `rsc.ts`, and `actions.ts` depend
+   inward on private server implementation.
 7. `client/**` imports only browser-safe values and the exact `actions.ts` mutations it needs.
 8. `ui/**` imports its own domain/client values and, when required, its exact action surface. It
    never imports `server.ts`, `rsc.ts`, or `server/**`.

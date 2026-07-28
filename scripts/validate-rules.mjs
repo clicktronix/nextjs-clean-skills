@@ -202,6 +202,10 @@ export default logger
 const name = './store.js'
 export const load = () => import(name)
 `,
+  'src/modules/work-items/server/public-backedge.ts': `
+import { createWorkItem } from '../actions.js'
+export const leakedAction = createWorkItem
+`,
   'src/modules/bad-neutral/query-cache.ts': `
 import { revalidateTag } from 'next/cache'
 export const key = revalidateTag
@@ -267,6 +271,7 @@ const expectedBase = new Map([
   ['src/shared/kernel/bad-server.ts', 'sharedKernelDirection'],
   ['src/shared/client/bad-server.ts', 'browserServer'],
   ['src/modules/work-items/server/hidden-dynamic.ts', 'hiddenDynamicImport'],
+  ['src/modules/work-items/server/public-backedge.ts', 'privateServerBackedge'],
   ['src/modules/work-items/server/index.tsx', 'shadowedSegmentIndex'],
   ['src/modules/bad-neutral/query-cache.ts', 'neutralDirection'],
   ['src/modules/bad-neutral-local/query-cache.ts', 'neutralDirection'],

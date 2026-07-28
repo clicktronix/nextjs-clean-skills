@@ -81,6 +81,8 @@ invalidation, fetchers, providers, and one-runtime-only keys remain private in `
 - `domain/**` is pure and framework/provider independent.
 - `application/**` imports its domain, pure helpers, and capability-owned ports only.
 - `server/**` implements driving or driven adapters for its own capability.
+- Private `server/**` imports domain/application/shared code, never its own root channel surfaces;
+  `server.ts`, `rsc.ts`, and `actions.ts` depend inward.
 - `client/**` imports browser-safe contracts and the exact `actions.ts` mutations it needs.
 - `ui/**` imports its own domain/client surfaces and exact action surface, not server internals.
 - Server and browser paths may both import `query-cache.ts`; no other runtime-neutral root surface

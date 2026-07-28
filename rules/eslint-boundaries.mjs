@@ -156,6 +156,8 @@ const capabilityRule = {
         'Browser-safe code must not import the server surface {{target}}.',
       serverClient:
         'Server capability code must not import the browser surface {{target}}.',
+      privateServerBackedge:
+        'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
       neutralDirection:
         'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
@@ -311,6 +313,20 @@ const capabilityRule = {
         context.report({
           node,
           messageId: 'serverClient',
+          data: { target: targetLabel },
+        })
+        return
+      }
+
+      if (
+        sourceModule?.segment === 'server' &&
+        targetModule?.capability === sourceModule.capability &&
+        targetModule.surface &&
+        PUBLIC_SURFACES.has(targetModule.surface)
+      ) {
+        context.report({
+          node,
+          messageId: 'privateServerBackedge',
           data: { target: targetLabel },
         })
       }

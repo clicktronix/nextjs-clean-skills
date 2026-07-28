@@ -376,6 +376,19 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       const targetOwner = moduleLocation(target, fixtureRoot)
       const targetShared = sharedLocation(target, fixtureRoot)
 
+      if (
+        sourceSegment === 'server' &&
+        targetOwner?.moduleName === owner.moduleName &&
+        targetOwner.tail.length === 1 &&
+        publicSurfaceNames.has(targetOwner.tail[0])
+      ) {
+        addError(
+          'PRIVATE_SERVER_BACKEDGE',
+          file,
+          `private server implementation imports public surface ${specifier}`
+        )
+      }
+
       if (neutralSurfaceNames.has(sourceRoot)) {
         const ownDomain =
           targetOwner?.moduleName === owner.moduleName && targetOwner.tail[0] === 'domain'
@@ -697,6 +710,15 @@ const mutations = [
     'NEUTRAL_SURFACE_ONE_SIDED'
   ),
   requireMutation(
+    'private server implementation imports its action surface',
+    mutate(
+      fixtures.workItems,
+      'src/modules/work-items/server/store.ts',
+      (source) => `${source}\nimport '../actions.js'\n`
+    ),
+    'PRIVATE_SERVER_BACKEDGE'
+  ),
+  requireMutation(
     'action invalidation does not count as server prefetch',
     mutate(
       mutate(
@@ -738,4 +760,4 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (9 invariants, 18 failing mutations)')
+console.log('capability pilots ok (10 invariants, 19 failing mutations)')

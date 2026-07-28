@@ -9,7 +9,8 @@
     "Adds an explicit ownership predicate on top of RLS: `.eq('id', id).eq('created_by', userId)`",
     "Explains the predicate is defense-in-depth so a regressed policy or a service-role client cannot silently escalate",
     "For child rows, scopes by the parent the caller controls (e.g. .eq('campaign_id', scope.campaignId))",
-    "Keeps input decoding and authentication at the action surface; the private query receives typed input plus the authenticated scope and does not call the auth provider"
+    "Keeps input decoding and authentication at the action surface; the private query receives typed input plus the authenticated scope and does not call the auth provider",
+    "Keeps shared failure types inward; private server code does not import actions.ts or another public channel surface"
   ],
   "anti_expectation": [
     "Does NOT drop RLS in favor of the application-side filter (both layers stay)",

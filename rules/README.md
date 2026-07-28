@@ -57,6 +57,8 @@ analysis cannot infer package semantics from an npm name.
    file wins module resolution and would silently shadow the segment index.
 9. `query-cache.ts` imports only its own domain or `shared/kernel`; a whole-fixture check requires
    at least one server prefetch/hydration consumer and one browser query consumer.
+10. private `server/**` cannot import its own root public surfaces; channel dependencies point
+    inward.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.

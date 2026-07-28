@@ -18,6 +18,8 @@ Rules:
 - treat each Server Action as a public HTTP entrypoint;
 - pass established identity and scope into trusted `server.ts` and private store functions; those
   functions do not rediscover the current user through an auth provider;
+- keep shared failure types and policy contracts inward; private `server/**` never imports
+  `actions.ts`, `rsc.ts`, or another root channel surface;
 - keep secrets and service-role clients in server-only modules;
 - return stable public values, not provider rows;
 - accept post-login redirects only as validated same-origin paths;
