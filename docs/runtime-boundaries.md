@@ -141,6 +141,11 @@ actor, role, tenant, price, or ownership values supplied by the client.
 Route Handlers live under `app/**` because they are framework files. They decode HTTP and call a
 capability public surface; durable product policy remains inside the capability.
 
+They never import a capability's private `server/**`, `application/**`, or `domain/**` files.
+Endpoint-only schemas stay with the route; reusable contracts are deliberately published through a
+narrow root surface. Failure classifiers required by the handler are part of that root contract,
+not imports from private `application/**`.
+
 `GET` owns browser-readable query parameters, status, headers, cache policy, and public response
 shape. `client.ts` owns the browser-side fetch or subscription contract. Neither surface owns
 business authorization or provider rows.
@@ -180,6 +185,14 @@ The stream channel owns:
 - sliding idle timeout;
 - resume cursor or event ID when supported;
 - in-band error representation after commit.
+
+One channel-owned `AbortController` joins both cancellation sources. The incoming request signal and
+the response stream's `cancel()` callback abort that controller; its signal is passed to the upstream
+producer. A local boolean does not release the upstream resource.
+
+When startup failures require an HTTP status, the upstream stream is acquired before the `Response`
+is constructed or returned. A failure from asynchronous stream production after return is already a
+body-channel failure even if no application event has been enqueued.
 
 Do not retry an ordinary committed stream as if no bytes were sent. Reconnect/resume is a protocol
 decision.
@@ -253,6 +266,10 @@ Every read path has one owner:
 Application operations may return ownership metadata, not call Next.js cache APIs. The runtime
 surface maps a successful write to the current framework invalidation primitive. Cache keys include
 the full user or tenant scope whenever authorization changes the result.
+
+When RSC prefetch hydrates a browser-owned TanStack Query cache, both sides use one serializable
+query-key identity from the capability's `query-cache.ts`. This neutral surface contains keys only:
+Next.js cache tags and invalidation remain private server concerns.
 
 ## Authority And Transactions
 

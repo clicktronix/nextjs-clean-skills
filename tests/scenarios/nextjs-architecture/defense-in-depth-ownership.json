@@ -3,13 +3,14 @@
     "nextjs-architecture"
   ],
   "tests_reference": "references/security/dal-and-auth.md",
-  "query": "RLS is enabled on the campaigns table with a created_by policy. The store runs locally from checked-in migrations, so it has no port in front of it. Write the private campaigns server function that updates a campaign's name by id for the current user.",
-  "baseline_failure": "Agent writes `client.from('campaigns').update(patch).eq('id', id)` and relies on RLS alone, reasoning that the policy already scopes by created_by, so an explicit predicate is redundant.",
+  "query": "RLS is enabled on the campaigns table with a created_by policy. The store runs locally from checked-in migrations, so it has no port in front of it. The update enters through a Server Action. Show actions.ts and the private campaigns server function that updates a campaign's name by id.",
+  "baseline_failure": "Agent writes `client.from('campaigns').update(patch).eq('id', id)` and relies on RLS alone, reasoning that the policy already scopes by created_by, so an explicit predicate is redundant; or the private store rediscovers request identity instead of receiving established scope.",
   "expected_behavior": [
     "Adds an explicit ownership predicate on top of RLS: `.eq('id', id).eq('created_by', userId)`",
     "Explains the predicate is defense-in-depth so a regressed policy or a service-role client cannot silently escalate",
     "For child rows, scopes by the parent the caller controls (e.g. .eq('campaign_id', scope.campaignId))",
-    "Keeps input decoding and authorization at the action surface; the private query receives typed input plus the authenticated scope"
+    "Keeps input decoding and authentication at the action surface; the private query receives typed input plus the authenticated scope and does not call the auth provider",
+    "Keeps shared failure types inward; private server code does not import actions.ts or another public channel surface"
   ],
   "anti_expectation": [
     "Does NOT drop RLS in favor of the application-side filter (both layers stay)",

@@ -39,6 +39,13 @@ export interface WorkItem {
   id: string
 }
 `,
+  'src/modules/work-items/query-cache.ts': `
+import type { WorkItem } from './domain/model.js'
+export const workItemKeys = {
+  list: () => ['work-items'] as const,
+  detail: (id: WorkItem['id']) => ['work-items', id] as const,
+}
+`,
   'src/modules/work-items/application/list.ts': `
 import type { WorkItem } from '../domain/model.js'
 export function list(items: WorkItem[]) {
@@ -56,6 +63,8 @@ export { getWorkItems } from './server/store.js'
 `,
   'src/modules/work-items/rsc.ts': `
 import { getWorkItems } from './server.js'
+import { workItemKeys } from './query-cache.js'
+export const workItemsRscQueryKey = workItemKeys.list()
 export async function readWorkItems() {
   return getWorkItems()
 }
@@ -68,7 +77,9 @@ export async function createWorkItem() {
 `,
   'src/modules/work-items/client/query.ts': `
 import { createWorkItem } from '../actions.js'
+import { workItemKeys } from '../query-cache.js'
 export const mutation = createWorkItem
+export const queryKey = workItemKeys.list()
 `,
   'src/modules/work-items/client.ts': `
 export { mutation } from './client/query.js'
@@ -76,6 +87,9 @@ export { mutation } from './client/query.js'
   'src/modules/work-items/ui/view.ts': `
 import { mutation } from '../client.js'
 export const viewModel = mutation
+`,
+  'src/modules/work-items/ui/WorkItemsView/index.tsx': `
+export const NestedWorkItemsView = () => null
 `,
   'src/modules/work-items/ui.ts': `
 export { viewModel } from './ui/view.js'
@@ -188,6 +202,21 @@ export default logger
 const name = './store.js'
 export const load = () => import(name)
 `,
+  'src/modules/work-items/server/public-backedge.ts': `
+import { createWorkItem } from '../actions.js'
+export const leakedAction = createWorkItem
+`,
+  'src/modules/bad-neutral/query-cache.ts': `
+import { revalidateTag } from 'next/cache'
+export const key = revalidateTag
+`,
+  'src/modules/bad-neutral-local/server/store.ts': `
+export const store = true
+`,
+  'src/modules/bad-neutral-local/query-cache.ts': `
+import { store } from './server/store.js'
+export const key = store
+`,
   'src/modules/work-items/server/index.tsx': `
 export const shadowed = true
 `,
@@ -242,7 +271,10 @@ const expectedBase = new Map([
   ['src/shared/kernel/bad-server.ts', 'sharedKernelDirection'],
   ['src/shared/client/bad-server.ts', 'browserServer'],
   ['src/modules/work-items/server/hidden-dynamic.ts', 'hiddenDynamicImport'],
+  ['src/modules/work-items/server/public-backedge.ts', 'privateServerBackedge'],
   ['src/modules/work-items/server/index.tsx', 'shadowedSegmentIndex'],
+  ['src/modules/bad-neutral/query-cache.ts', 'neutralDirection'],
+  ['src/modules/bad-neutral-local/query-cache.ts', 'neutralDirection'],
 ])
 
 const expectedStrict = new Map([
@@ -255,6 +287,7 @@ const clean = new Set([
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
   'src/modules/work-items/application/list.ts',
+  'src/modules/work-items/query-cache.ts',
   'src/modules/work-items/server.ts',
   'src/modules/work-items/rsc.ts',
   'src/modules/work-items/actions.ts',
@@ -262,6 +295,7 @@ const clean = new Set([
   'src/modules/work-items/client/query.ts',
   'src/modules/work-items/client.ts',
   'src/modules/work-items/ui/view.ts',
+  'src/modules/work-items/ui/WorkItemsView/index.tsx',
   'src/modules/work-items/ui.ts',
   'src/modules/board/server/adapters.ts',
   'src/modules/board/server.ts',

@@ -12,6 +12,7 @@
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/contracts.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/service.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui.ts",

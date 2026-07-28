@@ -48,13 +48,17 @@ analysis cannot infer package semantics from an npm name.
 4. browser-safe code cannot import server surfaces; server capability code cannot import browser
    surfaces. `actions.ts` remains the explicit browser-to-server mutation boundary.
 5. module-root files use the admitted runtime vocabulary:
-   `server`, `rsc`, `actions`, `client`, `ui`, `stream`, or `job`.
+   `server`, `rsc`, `actions`, `client`, `ui`, `query-cache`, `stream`, or `job`.
 6. shared code uses `shared/kernel`, `shared/server`, `shared/client`, or `shared/ui` and cannot
    depend on product capabilities.
 7. the strict tier rejects unresolved imports and computed dynamic loads; the graph checker rejects
    capability cycles even when the underlying files do not form a direct cycle.
 8. a private segment cannot define `index.ts(x)` when a same-named root surface exists; the root
    file wins module resolution and would silently shadow the segment index.
+9. `query-cache.ts` imports only its own domain or `shared/kernel`; a whole-fixture check requires
+   at least one server prefetch/hydration consumer and one browser query consumer.
+10. private `server/**` cannot import its own root public surfaces; channel dependencies point
+    inward.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.

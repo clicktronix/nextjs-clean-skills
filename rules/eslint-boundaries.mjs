@@ -40,6 +40,7 @@ const PUBLIC_SURFACES = new Set(contract.publicSurfaces)
 const SERVER_SURFACES = new Set(contract.serverSurfaces)
 const SERVER_EXECUTION_SURFACES = new Set(contract.serverExecutionSurfaces)
 const CLIENT_SURFACES = new Set(contract.clientSurfaces)
+const NEUTRAL_SURFACES = new Set(contract.neutralSurfaces ?? [])
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
@@ -155,6 +156,10 @@ const capabilityRule = {
         'Browser-safe code must not import the server surface {{target}}.',
       serverClient:
         'Server capability code must not import the browser surface {{target}}.',
+      privateServerBackedge:
+        'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
+      neutralDirection:
+        'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
         'shared/** must remain capability-neutral and cannot import {{capability}}.',
       invalidSharedRoot:
@@ -188,7 +193,9 @@ const capabilityRule = {
 
       const targetPath = resolveProjectImport(filename, specifier)
       if (!targetPath) {
-        if (
+        if (sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
+          context.report({ node, messageId: 'neutralDirection' })
+        } else if (
           (sourceModule?.segment === 'domain' || sourceShared?.root === 'kernel') &&
           isRuntimePackage(specifier)
         ) {
@@ -206,6 +213,15 @@ const capabilityRule = {
       const targetModule = moduleLocation(targetPath)
       const targetShared = sharedLocation(targetPath)
       const targetLabel = posix(path.relative(PROJECT_ROOT, targetPath))
+
+      if (sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
+        const ownDomain =
+          targetModule?.capability === sourceModule.capability && targetModule.segment === 'domain'
+        if (!ownDomain && targetShared?.root !== 'kernel') {
+          context.report({ node, messageId: 'neutralDirection' })
+          return
+        }
+      }
 
       if (sourceShared && targetModule) {
         context.report({
@@ -297,6 +313,20 @@ const capabilityRule = {
         context.report({
           node,
           messageId: 'serverClient',
+          data: { target: targetLabel },
+        })
+        return
+      }
+
+      if (
+        sourceModule?.segment === 'server' &&
+        targetModule?.capability === sourceModule.capability &&
+        targetModule.surface &&
+        PUBLIC_SURFACES.has(targetModule.surface)
+      ) {
+        context.report({
+          node,
+          messageId: 'privateServerBackedge',
           data: { target: targetLabel },
         })
       }

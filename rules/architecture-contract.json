@@ -14,6 +14,7 @@
     "actions",
     "client",
     "ui",
+    "query-cache",
     "stream",
     "job"
   ],
@@ -33,6 +34,9 @@
   "clientSurfaces": [
     "client",
     "ui"
+  ],
+  "neutralSurfaces": [
+    "query-cache"
   ],
   "sharedRoots": [
     "kernel",

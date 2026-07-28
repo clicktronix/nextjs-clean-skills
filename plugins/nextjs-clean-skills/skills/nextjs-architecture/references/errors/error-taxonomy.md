@@ -22,6 +22,9 @@ failure kinds.
 
 Provider codes are translated in the private adapter that understands them. Preserve a recognized
 meaning; never expose raw provider messages, constraint names, query fragments, or SDK errors.
+Do not attach a raw provider error as `cause` to an expected semantic failure that leaves the
+adapter. Record only approved diagnostic context inside the adapter, then return or throw a clean
+semantic failure. An unrecognized unexpected exception may propagate to the one outer capture owner.
 
 Expected product outcomes are typed values. Unexpected defects and infrastructure outages use the
 exception path and are reported once by the outer channel. The channel may still expose a stable

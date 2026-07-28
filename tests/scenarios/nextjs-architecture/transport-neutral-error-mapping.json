@@ -7,11 +7,14 @@
   "baseline_failure": "RED hypothesis: the private server module throws an HTTP-oriented ApiError, or the application operation imports a Response/framework error class, coupling application behavior to one runtime channel.",
   "expected_behavior": [
     "Maps the known database code in the capability's private server adapter to a transport-neutral application error such as ConflictError",
-    "Keeps the raw Postgres payload only in server-side diagnostic context",
-    "Keeps one application failure classification, then translates it per native surface: a serializable result for actions.ts and an HTTP status plus envelope for the Route Handler"
+    "Keeps the raw Postgres payload only in private server diagnostic context and throws a clean ConflictError without the provider error as cause",
+    "Keeps one application failure classification, then translates it per native surface: a serializable result for actions.ts and an HTTP status plus envelope for the Route Handler",
+    "Makes every projects-module import in the app/** Route Handler come from modules/projects/server.ts, including its public failure classifier"
   ],
   "anti_expectation": [
     "Does NOT expose error.message, SQL details, or PostgREST payloads to the client",
-    "Does NOT make domain/ or application/ depend on ApiError, Response, Next.js, or route status codes"
+    "Does NOT make domain/ or application/ depend on ApiError, Response, Next.js, or route status codes",
+    "Does NOT let app/** bypass the projects root public surface to call private composition or import application errors",
+    "Does NOT carry the raw provider payload out of the private adapter as Error.cause"
   ]
 }

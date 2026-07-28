@@ -2,7 +2,7 @@ import type { CreateWorkItemInput, WorkItem } from '../domain/work-item.js'
 import type {
   RequestContext,
   WorkItemsServerDependencies,
-} from '../server.js'
+} from './contracts.js'
 
 function assertCanManageWorkItems(context: RequestContext): void {
   if (!context.roles.includes('admin')) {
