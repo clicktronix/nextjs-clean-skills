@@ -1,0 +1,245 @@
+{
+  "resultSet": "release-v3",
+  "candidateCommit": "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+  "matrices": [
+    {
+      "name": "release-v3-luna-neutral",
+      "generationModel": "gpt-5.6-luna",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "neutral",
+      "repositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65",
+      "generationRuns": 6,
+      "reusedControlRuns": 18,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-v3-luna-adversarial",
+      "generationModel": "gpt-5.6-luna",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "adversarial",
+      "repositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65",
+      "generationRuns": 6,
+      "reusedControlRuns": 18,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-v3-sol-neutral",
+      "generationModel": "gpt-5.6-sol",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "neutral",
+      "repositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65",
+      "generationRuns": 6,
+      "reusedControlRuns": 18,
+      "blindJudgeRuns": 6
+    },
+    {
+      "name": "release-v3-sol-adversarial",
+      "generationModel": "gpt-5.6-sol",
+      "judgeModel": "gpt-5.6-sol",
+      "framing": "adversarial",
+      "repositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65",
+      "generationRuns": 6,
+      "reusedControlRuns": 18,
+      "blindJudgeRuns": 6
+    }
+  ],
+  "counts": {
+    "generationRuns": 24,
+    "reusedControlRuns": 72,
+    "blindJudgeGroups": 24,
+    "additionalBlindJudgeGroups": 1,
+    "scoredRows": 96,
+    "candidateCells": 24
+  },
+  "overall": [
+    {
+      "arm": "no-skill",
+      "cells": 24,
+      "total": 188,
+      "mean": 7.833,
+      "minimum": 4,
+      "negativeViolations": 8,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 24,
+      "total": 190,
+      "mean": 7.917,
+      "minimum": 4,
+      "negativeViolations": 8,
+      "fatalCount": 0
+    },
+    {
+      "arm": "layer-first",
+      "cells": 24,
+      "total": 183,
+      "mean": 7.625,
+      "minimum": 4,
+      "negativeViolations": 10,
+      "fatalCount": 0
+    },
+    {
+      "arm": "capability-first",
+      "cells": 24,
+      "total": 239,
+      "mean": 9.958,
+      "minimum": 9,
+      "negativeViolations": 0,
+      "fatalCount": 0
+    }
+  ],
+  "perScenario": [
+    {
+      "arm": "no-skill",
+      "scenarios": {
+        "simple-crud": 7.375,
+        "remote-stream": 8.75,
+        "cross-capability": 7.375
+      }
+    },
+    {
+      "arm": "v1.3.2",
+      "scenarios": {
+        "simple-crud": 5.5,
+        "remote-stream": 8.5,
+        "cross-capability": 9.75
+      }
+    },
+    {
+      "arm": "layer-first",
+      "scenarios": {
+        "simple-crud": 6.25,
+        "remote-stream": 7.875,
+        "cross-capability": 8.75
+      }
+    },
+    {
+      "arm": "capability-first",
+      "scenarios": {
+        "simple-crud": 10,
+        "remote-stream": 9.875,
+        "cross-capability": 10
+      }
+    }
+  ],
+  "paired": [
+    {
+      "control": "no-skill",
+      "cells": 24,
+      "wins": 20,
+      "ties": 3,
+      "losses": 1,
+      "tieOrBeatRate": 0.958
+    },
+    {
+      "control": "v1.3.2",
+      "cells": 24,
+      "wins": 17,
+      "ties": 7,
+      "losses": 0,
+      "tieOrBeatRate": 1
+    },
+    {
+      "control": "layer-first",
+      "cells": 24,
+      "wins": 22,
+      "ties": 2,
+      "losses": 0,
+      "tieOrBeatRate": 1
+    }
+  ],
+  "candidateExceptions": [
+    {
+      "matrix": "release-v3-sol-neutral",
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "total": 9,
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "fatal": false,
+      "explanation": "It has a cohesive capability module, neutral operation and port, correct Route Handler/SSE lifecycle, abort propagation, sliding idle timeout, commit-aware failures, and provider-safe contracts. HTTP and job retain native outcomes and share failure taxonomy, but idle behavior and report-once handling are independently owned by outer handlers rather than clearly shared semantic primitives; the job timeout semantics are also less explicit."
+    }
+  ],
+  "automaticCriteria": {
+    "noFatalCandidateCell": true,
+    "noCandidateNegativeViolation": true,
+    "candidateLeadsOverall": true,
+    "candidateLeadsEveryScenario": true,
+    "candidateBeatsNoSkillByHalfPoint": true,
+    "candidateTiesOrBeatsEveryControlInThreeQuarters": true,
+    "noCandidateCellBelowEight": true,
+    "judgeArithmeticMatches": true
+  },
+  "automaticPass": true,
+  "adjudications": [
+    {
+      "matrix": "release-v3-sol-adversarial",
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "capability-first",
+      "result": "dispute-v3-sol-adversarial-simple-crud-repeat-2",
+      "candidate": "candidate-1",
+      "original": {
+        "positive": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "negative": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "total": 9,
+        "fatal": false,
+        "explanation": "Coherent minimal labels capability with route-private app glue, direct server-only RSC reads, an authenticated cacheable GET for browser reads, top-level Server Actions, server-derived identity, RLS enforcement, and private row mapping. The proposed src/shared bucket violates the rubric’s prohibition on generic shared/lib organization."
+      },
+      "replacement": {
+        "positive": [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "negative": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "total": 10,
+        "fatal": false,
+        "explanation": "Cohesive labels module with route-private app glue, direct server-only RSC reads, a cacheable GET browser channel, top-level Server Actions, server-derived authentication with RLS enforcement, and private row mapping. Existing shared auth/Supabase utilities do not turn capability logic into a generic shared bucket."
+      }
+    }
+  ],
+  "usage": {
+    "generation": {
+      "input_tokens": 4658759,
+      "cached_input_tokens": 3059968,
+      "output_tokens": 227811
+    },
+    "judge": {
+      "input_tokens": 1411728,
+      "cached_input_tokens": 860416,
+      "output_tokens": 34833
+    }
+  },
+  "usageCaveat": "Usage totals completed event files, includes reused controls in replay sets, and excludes timed-out judge attempts."
+}

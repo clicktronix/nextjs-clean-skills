@@ -1,4 +1,5 @@
 {
+  "resultSet": "release",
   "candidateCommit": "e7b9bdc8ce47bf79d258ca86c04caccaee14a579",
   "matrices": [
     {
@@ -6,33 +7,47 @@
       "generationModel": "gpt-5.6-luna",
       "judgeModel": "gpt-5.6-sol",
       "framing": "neutral",
-      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c"
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
     },
     {
       "name": "release-luna-adversarial",
       "generationModel": "gpt-5.6-luna",
       "judgeModel": "gpt-5.6-sol",
       "framing": "adversarial",
-      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c"
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
     },
     {
       "name": "release-sol-neutral",
       "generationModel": "gpt-5.6-sol",
       "judgeModel": "gpt-5.6-sol",
       "framing": "neutral",
-      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c"
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
     },
     {
       "name": "release-sol-adversarial",
       "generationModel": "gpt-5.6-sol",
       "judgeModel": "gpt-5.6-sol",
       "framing": "adversarial",
-      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c"
+      "repositoryHead": "9329a8c9d559a060dbabd261d7c0ead60af6ed4c",
+      "generationRuns": 24,
+      "reusedControlRuns": 0,
+      "blindJudgeRuns": 6
     }
   ],
   "counts": {
     "generationRuns": 96,
+    "reusedControlRuns": 0,
     "blindJudgeGroups": 24,
+    "additionalBlindJudgeGroups": 0,
     "scoredRows": 96,
     "candidateCells": 24
   },
@@ -189,6 +204,7 @@
     "judgeArithmeticMatches": true
   },
   "automaticPass": false,
+  "adjudications": [],
   "usage": {
     "generation": {
       "input_tokens": 4492434,
@@ -201,5 +217,5 @@
       "output_tokens": 36323
     }
   },
-  "usageCaveat": "Usage excludes timed-out judge attempts because the runner persists only complete events."
+  "usageCaveat": "Usage totals completed event files, includes reused controls in replay sets, and excludes timed-out judge attempts."
 }

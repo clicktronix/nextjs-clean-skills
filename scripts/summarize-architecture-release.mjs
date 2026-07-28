@@ -4,21 +4,55 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const evalRoot = join(root, "tests", "architecture-evals");
-const resultNames = [
-  "release-luna-neutral",
-  "release-luna-adversarial",
-  "release-sol-neutral",
-  "release-sol-adversarial",
-];
+const resultSets = {
+  release: {
+    candidateCommit: "e7b9bdc8ce47bf79d258ca86c04caccaee14a579",
+    names: [
+      "release-luna-neutral",
+      "release-luna-adversarial",
+      "release-sol-neutral",
+      "release-sol-adversarial",
+    ],
+  },
+  "release-v3": {
+    candidateCommit: "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+    names: [
+      "release-v3-luna-neutral",
+      "release-v3-luna-adversarial",
+      "release-v3-sol-neutral",
+      "release-v3-sol-adversarial",
+    ],
+    disputes: [
+      {
+        matrix: "release-v3-sol-adversarial",
+        scenario: "simple-crud",
+        repeat: 2,
+        arm: "capability-first",
+        result: "dispute-v3-sol-adversarial-simple-crud-repeat-2",
+      },
+    ],
+  },
+};
 const arms = ["no-skill", "v1.3.2", "layer-first", "capability-first"];
 const scenarios = ["simple-crud", "remote-stream", "cross-capability"];
 
 function parseArgs(argv) {
-  if (argv.length === 0) return {};
-  if (argv.length === 2 && argv[0] === "--output") {
-    return { output: resolve(argv[1]) };
+  const options = { resultSet: "release" };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--output") options.output = resolve(argv[++index]);
+    else if (arg === "--result-set") options.resultSet = argv[++index];
+    else {
+      throw new Error(
+        "Usage: node scripts/summarize-architecture-release.mjs " +
+          "[--result-set release|release-v3] [--output <path>]",
+      );
+    }
   }
-  throw new Error("Usage: node scripts/summarize-architecture-release.mjs [--output <path>]");
+  if (!resultSets[options.resultSet]) {
+    throw new Error(`Unknown result set: ${options.resultSet}`);
+  }
+  return options;
 }
 
 function mean(values) {
@@ -29,7 +63,7 @@ function sum(values) {
   return values.reduce((total, value) => total + value, 0);
 }
 
-async function loadRows() {
+async function loadRows(resultNames) {
   const matrices = [];
   const rows = [];
   const usage = {
@@ -47,6 +81,9 @@ async function loadRows() {
       judgeModel: manifest.judgeModel,
       framing: manifest.framing,
       repositoryHead: manifest.repositoryHead,
+      generationRuns: manifest.generationRuns,
+      reusedControlRuns: manifest.reusedControlRuns ?? 0,
+      blindJudgeRuns: manifest.blindJudgeRuns,
     });
     rows.push(
       ...summary.rows.map((row) => ({
@@ -66,7 +103,68 @@ async function loadRows() {
   return { matrices, rows, usage };
 }
 
-function summarize({ matrices, rows, usage }) {
+async function applyDisputes(rows, disputes = []) {
+  const adjudications = [];
+  for (const dispute of disputes) {
+    const judgeRoot = join(
+      evalRoot,
+      "results",
+      dispute.result,
+      "judges",
+      dispute.scenario,
+      `repeat-${dispute.repeat}`,
+    );
+    const mapping = JSON.parse(await readFile(join(judgeRoot, "mapping.json"), "utf8"));
+    const scores = JSON.parse(await readFile(join(judgeRoot, "scores.blind.json"), "utf8"));
+    const candidate = mapping.find((item) => item.arm === dispute.arm)?.candidate;
+    const replacement = scores.candidates.find((item) => item.candidate === candidate);
+    const rowIndex = rows.findIndex(
+      (row) =>
+        row.matrix === dispute.matrix &&
+        row.scenario === dispute.scenario &&
+        row.repeat === dispute.repeat &&
+        row.arm === dispute.arm,
+    );
+    if (!candidate || !replacement || rowIndex < 0) {
+      throw new Error(`Cannot resolve adjudication: ${JSON.stringify(dispute)}`);
+    }
+    const calculatedTotal =
+      sum(replacement.positive) - sum(replacement.negative);
+    const original = rows[rowIndex];
+    rows[rowIndex] = {
+      ...original,
+      positive: replacement.positive,
+      negative: replacement.negative,
+      total: calculatedTotal,
+      reportedTotal: replacement.total,
+      arithmeticMatches: calculatedTotal === replacement.total,
+      fatal: replacement.fatal,
+      explanation: replacement.explanation,
+      adjudicatedBy: dispute.result,
+    };
+    adjudications.push({
+      ...dispute,
+      candidate,
+      original: {
+        positive: original.positive,
+        negative: original.negative,
+        total: original.total,
+        fatal: original.fatal,
+        explanation: original.explanation,
+      },
+      replacement: {
+        positive: replacement.positive,
+        negative: replacement.negative,
+        total: calculatedTotal,
+        fatal: replacement.fatal,
+        explanation: replacement.explanation,
+      },
+    });
+  }
+  return adjudications;
+}
+
+function summarize({ matrices, rows, usage }, resultSet, adjudications) {
   const overall = arms.map((arm) => {
     const armRows = rows.filter((row) => row.arm === arm);
     return {
@@ -147,11 +245,14 @@ function summarize({ matrices, rows, usage }) {
   };
 
   return {
-    candidateCommit: "e7b9bdc8ce47bf79d258ca86c04caccaee14a579",
+    resultSet,
+    candidateCommit: resultSets[resultSet].candidateCommit,
     matrices,
     counts: {
-      generationRuns: 96,
-      blindJudgeGroups: 24,
+      generationRuns: sum(matrices.map((matrix) => matrix.generationRuns)),
+      reusedControlRuns: sum(matrices.map((matrix) => matrix.reusedControlRuns)),
+      blindJudgeGroups: sum(matrices.map((matrix) => matrix.blindJudgeRuns)),
+      additionalBlindJudgeGroups: adjudications.length,
       scoredRows: rows.length,
       candidateCells: candidateRows.length,
     },
@@ -177,14 +278,21 @@ function summarize({ matrices, rows, usage }) {
       })),
     automaticCriteria,
     automaticPass: Object.values(automaticCriteria).every(Boolean),
+    adjudications,
     usage,
     usageCaveat:
-      "Usage excludes timed-out judge attempts because the runner persists only complete events.",
+      "Usage totals completed event files, includes reused controls in replay sets, and excludes " +
+      "timed-out judge attempts.",
   };
 }
 
 const options = parseArgs(process.argv.slice(2));
-const report = summarize(await loadRows());
+const loaded = await loadRows(resultSets[options.resultSet].names);
+const adjudications = await applyDisputes(
+  loaded.rows,
+  resultSets[options.resultSet].disputes,
+);
+const report = summarize(loaded, options.resultSet, adjudications);
 const output = `${JSON.stringify(report, null, 2)}\n`;
 if (options.output) await writeFile(options.output, output);
 else process.stdout.write(output);

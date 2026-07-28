@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-28T06:01:43Z",
+  "kind": "single-blind-adjudication",
+  "candidateCommit": "6c35c86246fbd65fecfddef5c0d193f50c739f7d",
+  "sourceResult": "release-v3-sol-adversarial",
+  "scenario": "simple-crud",
+  "repeat": 2,
+  "generationModel": "gpt-5.6-sol",
+  "judgeModel": "gpt-5.6-sol",
+  "inputSha256": "2088085cac25973487fe3b415be49a5be1a655ff051a0864329e314d01590480",
+  "mappingSha256": "5b635b3342d6e2a25a09303dff0943be929aab7f28e0f2ba50742756a090d711",
+  "sourceInputMatches": true,
+  "sourceMappingMatches": true,
+  "primaryCandidateScore": 9,
+  "replacementCandidateScore": 10,
+  "completedViaResumeAfterTimeout": true,
+  "policy": "One additional blind pass over the same frozen outputs, input, mapping, schema, and judge model."
+}

@@ -1,0 +1,512 @@
+{
+  "task": "Design the file placement and call flows for an assistant capability in a Next.js 16 App Router application. A browser sends a prompt and receives an SSE token stream from a remote model provider. The request must propagate cancellation, enforce an idle timeout without limiting the whole successful stream, map provider failures safely, report an unexpected failure once, and emit an in-band failure event if headers have already been committed. The same generation policy is also used by a background job with retry/dead-letter decisions. Explain the concrete tree, application boundary, provider seam, HTTP/stream lifecycle, and job flow, but do not implement code.",
+  "rubric": {
+    "positive": [
+      "Assistant behavior is colocated under one capability root with only justified segments and runtime surfaces.",
+      "The generation policy is a framework-neutral application operation and the remote provider is behind a capability-shaped port.",
+      "Streaming uses a Route Handler/SSE surface, propagates abort, distinguishes idle timeout from total deadline, and changes failure representation after commit.",
+      "HTTP stream and job keep native contracts while sharing semantic failure/redaction/reporting primitives.",
+      "Provider text and SDK types do not leak into public/domain contracts."
+    ],
+    "negative": [
+      "Streaming through a Server Action.",
+      "Retrying a partially committed stream as if it were an ordinary request.",
+      "One universal boundary/result wrapper for HTTP, stream, and job.",
+      "Provider SDK imports in domain/application code."
+    ]
+  },
+  "scoring": "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. Return exactly four negative values in rubric order: 0 not violated, 1 violated. total = sum(positive) - sum(negative). fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
+  "candidates": [
+    {
+      "candidate": "candidate-1",
+      "response": {
+        "summary": "Use an `assistant` capability slice with one framework-neutral streaming entry shared by the Route Handler and job adapter. The entry validates the prompt, consumes the provider stream through a port, validates normalized events, classifies failures, and reports each unexpected failure exactly once. HTTP and job adapters only translate that normalized outcome into their channel-specific behavior.",
+        "tree": [
+          {
+            "path": "src/domain/assistant/generation.ts",
+            "purpose": "Valibot schemas and types for prompt input, token events, completion metadata, and the closed normalized stream-event union."
+          },
+          {
+            "path": "src/domain/failures.ts",
+            "purpose": "Closed application failure taxonomy such as `validation`, `rate_limited`, `network`, `upstream`, and `unknown`; contains no provider messages."
+          },
+          {
+            "path": "src/ports/assistant-model.ts",
+            "purpose": "Application-language port: `streamGeneration(input, signal): AsyncIterable<ModelEvent>`. It exposes cancellation and streaming without mirroring a provider SDK."
+          },
+          {
+            "path": "src/use-cases/assistant/operations/generate-assistant-response.ts",
+            "purpose": "Shared generation policy: consume provider events, apply any token/completion rules, and produce normalized application events. It imports only domain and the port."
+          },
+          {
+            "path": "src/use-cases/assistant/entries/generate-assistant-response.ts",
+            "purpose": "Stream-aware boundary declaration: validate input and every emitted event, catch iteration-time failures, classify them once, redact provider details, and report an unexpected failure once through `ctx.reporter`."
+          },
+          {
+            "path": "src/boundary/define-stream-boundary.ts",
+            "purpose": "Repository-wide framework-neutral boundary support for async iterables. It guarantees validation, classification, redaction, and single-report behavior during both stream creation and iteration."
+          },
+          {
+            "path": "src/adapters/outbound/remote-model/http.ts",
+            "purpose": "Production implementation of `AssistantModelPort`; converts provider frames to model events and provider errors to typed application failures."
+          },
+          {
+            "path": "src/adapters/outbound/remote-model/transport.ts",
+            "purpose": "The sole provider transport. Owns credentials, correlation headers, SSE/frame decoding, cancellation propagation, and an idle timer reset after every received event. It never applies a total successful-stream deadline or blindly retries a stream."
+          },
+          {
+            "path": "src/infrastructure/env.ts",
+            "purpose": "Startup validation for provider URL, credentials, and idle-timeout configuration."
+          },
+          {
+            "path": "src/infrastructure/reporting.ts",
+            "purpose": "Reporter implementation used by boundary context; sends unexpected failures to telemetry with request/job correlation and redacted metadata."
+          },
+          {
+            "path": "src/adapters/inbound/next/assistant/stream-response.ts",
+            "purpose": "Composes context and provider adapter, primes the application iterator before committing headers, encodes normalized events as SSE, and closes/cancels safely."
+          },
+          {
+            "path": "src/app/api/assistant/stream/route.ts",
+            "purpose": "Thin `POST` Route Handler delegating request decoding and response construction to the inbound adapter."
+          },
+          {
+            "path": "src/client-cache/assistant/use-assistant-stream.ts",
+            "purpose": "Browser stream owner: sends the prompt, parses the declared SSE union, accumulates tokens, handles terminal failure/done events, and aborts on cancellation or unmount."
+          },
+          {
+            "path": "src/ui/assistant/assistant-composer.tsx",
+            "purpose": "Presentation and prompt interaction; consumes assembled client state rather than owning fetch/SSE mechanics."
+          },
+          {
+            "path": "src/adapters/inbound/jobs/assistant/generate-response-job.ts",
+            "purpose": "Job composition root. Invokes the same generation entry, consumes normalized events, persists the completed result through the job’s existing output seam, and maps failure kinds to acknowledge, retry, or dead-letter decisions."
+          },
+          {
+            "path": "tests/adapters/outbound/remote-model/http.test.ts",
+            "purpose": "Fake-provider tests for frame mapping, idle timeout reset, provider failure sanitization, and upstream abort observation."
+          },
+          {
+            "path": "tests/use-cases/assistant/generate-assistant-response.test.ts",
+            "purpose": "Boundary tests for normalized success, event-contract failure, failure classification, redaction, and exactly-one unexpected report."
+          },
+          {
+            "path": "tests/adapters/inbound/next/assistant/stream-response.test.ts",
+            "purpose": "Tests pre-header HTTP failure, clean SSE completion, post-header in-band failure, disconnect, and cancellation."
+          },
+          {
+            "path": "tests/adapters/inbound/jobs/assistant/generate-response-job.test.ts",
+            "purpose": "Tests retry/dead-letter policy from normalized failure kinds without provider-specific branching."
+          }
+        ],
+        "flows": [
+          "HTTP success: browser `assistant-composer` → `use-assistant-stream` → `POST /api/assistant/stream` → Route Handler → `stream-response` composition root → shared generation entry → generation operation → `AssistantModelPort` → remote-model transport. Each provider event resets the idle timer and returns as a validated token SSE event; completion emits `done` and closes the response.",
+          "Header commitment: the inbound HTTP adapter obtains the iterator and awaits its first item before constructing the streaming `Response`. A validation/provider failure before that point becomes a stable JSON error with an appropriate HTTP status. The first successful event is buffered and emitted immediately after headers commit.",
+          "Post-header failure: an error raised while advancing the iterator is classified and reported by the stream boundary. The HTTP adapter does not classify or log it again; it writes one terminal SSE `error` event containing only taxonomy code, safe message, and request ID when appropriate, then closes the stream.",
+          "Cancellation: `request.signal` and the response body’s `cancel()` hook abort a request-scoped controller. That signal passes unchanged through entry → operation → port → provider fetch. The job runner’s cancellation signal follows the same path. Upstream work therefore stops when either consumer disappears.",
+          "Idle timeout: `transport.ts` arms a timer while waiting for the next provider frame and resets it after every frame. Expiry aborts the provider request and raises typed `network`; elapsed total generation time is never used to stop an otherwise active stream.",
+          "Provider failure: `http.ts` is the only module that understands provider status codes or envelopes. Recognized quota failures become `rate_limited`; transport/idle failures become `network`; other provider failures become `upstream`; malformed provider events become `contract`. Raw status text, bodies, and SDK exceptions never cross the adapter.",
+          "Single reporting: the stream boundary catches failures both when opening and iterating. Expected failures are structured outcomes; only unexpected/contract defects reach exception telemetry. A reported marker in the normalized failure prevents Route Handler, job adapter, and framework request hooks from capturing the same fault again.",
+          "Job flow: queue runner → `generate-response-job` → same generation entry and provider adapter → consume tokens until `done` → persist/acknowledge. `rate_limited` and transient `network` outcomes retry using queue-level bounded backoff; permanent input/authorization failures acknowledge as rejected; exhausted transient attempts plus `upstream`, `contract`, or `unknown` go to dead letter. The job adapter decides from taxonomy plus attempt count, never provider codes."
+        ],
+        "decisions": [
+          {
+            "topic": "Capability ownership",
+            "choice": "One repository-scoped `assistant` slice",
+            "rationale": "HTTP streaming and background generation are two inbound consumers of the same assistant policy."
+          },
+          {
+            "topic": "Application boundary",
+            "choice": "A stream-aware boundary declaration around an async iterable",
+            "rationale": "Ordinary promise wrappers cannot catch failures raised later during iteration; the boundary must retain ownership through stream completion to normalize and report exactly once."
+          },
+          {
+            "topic": "Provider seam",
+            "choice": "A narrow `AssistantModelPort` with one production HTTP adapter",
+            "rationale": "The remote provider is independently owned and the application must remain independent of its SDK, wire events, and error vocabulary."
+          },
+          {
+            "topic": "Composition",
+            "choice": "Construct concrete dependencies in each inbound adapter using small factories",
+            "rationale": "HTTP and job runtimes have different context and cancellation signals; explicit composition avoids framework imports in application code and needs no DI container."
+          },
+          {
+            "topic": "Timeout policy",
+            "choice": "Transport-level idle timeout only",
+            "rationale": "It bounds stalled upstream reads while allowing a healthy long stream to run indefinitely."
+          },
+          {
+            "topic": "Streaming retries",
+            "choice": "No automatic transport retry",
+            "rationale": "Repeating a partially delivered generation duplicates content. If resumability is required later, add provider-supported cursor/event IDs and resume explicitly."
+          },
+          {
+            "topic": "HTTP failure surface",
+            "choice": "Prime before headers; terminal SSE error afterward",
+            "rationale": "HTTP status is available only before response commitment, while later failures must be communicated in-band."
+          },
+          {
+            "topic": "Job retry authority",
+            "choice": "Job inbound adapter maps normalized taxonomy and attempt count",
+            "rationale": "Retry/dead-letter behavior belongs to the queue channel, while failure meaning remains shared and provider-independent."
+          }
+        ],
+        "risks": [
+          "If the provider offers no resumable cursor, a mid-stream disconnect cannot safely continue; the browser should treat disconnect as interrupted rather than replay the prompt automatically.",
+          "The stream boundary must guard against reporting both the original iterator error and a secondary cleanup/abort error; the first terminal failure owns reporting.",
+          "SSE proxies may buffer or terminate idle connections. Production configuration should disable buffering and may add safe heartbeat events; heartbeats must not incorrectly reset the provider idle timer.",
+          "Job completion persistence is a separate effect. If the queue is at-least-once, use the job ID as a durable idempotency key so a completed generation is not stored twice.",
+          "Do not send terminal `error` after client cancellation: abort is expected lifecycle termination, not an application failure or telemetry event."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-2",
+      "response": {
+        "summary": "Place generation policy in a framework-neutral use case, with the remote model behind a provider port and separate HTTP and durable-job inbound adapters. Use Node.js runtime for predictable streaming and cancellation. The use case owns provider-neutral failure categories and the per-chunk idle policy; inbound adapters own transport mapping and exactly-once unexpected-error reporting.",
+        "tree": [
+          {
+            "path": "src/domain/assistant/generation.ts",
+            "purpose": "Valibot prompt schema plus provider-neutral token and terminal event types."
+          },
+          {
+            "path": "src/use-cases/assistant/generate-assistant-response.ts",
+            "purpose": "Shared orchestration for opening and consuming a generation stream; accepts AbortSignal, idle timeout policy, and provider port."
+          },
+          {
+            "path": "src/use-cases/assistant/generation-provider.ts",
+            "purpose": "Port exposing openStream(input, signal) and an AsyncIterable of provider-neutral chunks."
+          },
+          {
+            "path": "src/use-cases/assistant/generation-errors.ts",
+            "purpose": "Closed error taxonomy: invalid request, rejected, unavailable, rate-limited, idle-timeout, cancelled, and unexpected."
+          },
+          {
+            "path": "src/adapters/outbound/remote-model/remote-generation-provider.ts",
+            "purpose": "Calls the remote provider, propagates AbortSignal, parses its stream, and converts SDK/HTTP failures into application errors without leaking provider details."
+          },
+          {
+            "path": "src/adapters/inbound/next/assistant-stream-handler.ts",
+            "purpose": "HTTP composition root: validation/auth, dependency construction, SSE encoding, cancellation wiring, safe status mapping, and telemetry ownership."
+          },
+          {
+            "path": "src/app/api/assistant/stream/route.ts",
+            "purpose": "Thin POST Route Handler exporting runtime = 'nodejs' and delegating to assistant-stream-handler."
+          },
+          {
+            "path": "src/adapters/inbound/jobs/generate-assistant-job.ts",
+            "purpose": "Durable-job composition root that consumes the same generation use case and returns acknowledge, retry, or dead-letter decisions."
+          },
+          {
+            "path": "src/infrastructure/async/idle-timeout.ts",
+            "purpose": "Abortable iterator/watchdog utility that resets only when a provider chunk arrives; it never imposes a total stream deadline."
+          },
+          {
+            "path": "src/infrastructure/observability/report-unexpected-once.ts",
+            "purpose": "Per-execution deduplication wrapper for sanitized unexpected-failure capture."
+          },
+          {
+            "path": "src/ui/assistant/assistant-client.tsx",
+            "purpose": "Submits the prompt, parses SSE events, appends tokens, handles terminal failure, and aborts on stop/unmount."
+          },
+          {
+            "path": "src/use-cases/assistant/generate-assistant-response.test.ts",
+            "purpose": "Fake-port tests for idle reset, cancellation, error classification, and unlimited healthy stream duration."
+          },
+          {
+            "path": "src/adapters/outbound/remote-model/remote-generation-provider.test.ts",
+            "purpose": "Tests provider protocol parsing, abort propagation, and safe failure normalization."
+          },
+          {
+            "path": "src/adapters/inbound/next/assistant-stream-handler.test.ts",
+            "purpose": "Tests pre-header HTTP mapping, post-header failure events, SSE escaping, cancellation, and single telemetry capture."
+          },
+          {
+            "path": "src/adapters/inbound/jobs/generate-assistant-job.test.ts",
+            "purpose": "Tests retry/dead-letter decisions and single unexpected-failure report."
+          }
+        ],
+        "flows": [
+          "HTTP startup: AssistantClient POSTs JSON → route.ts → assistant-stream-handler validates and authenticates → generateAssistantResponse calls GenerationProvider.openStream with a linked AbortSignal. Opening is awaited before constructing Response, so startup failures can still become safe non-2xx JSON responses.",
+          "Successful SSE: handler commits 200 headers (`text/event-stream`, UTF-8, `no-cache/no-store`) → provider chunks pass through the idle watchdog → handler emits `event: token` with JSON data → final completion emits `event: done` and closes. Heartbeats may keep intermediaries alive but must not reset the provider-chunk idle timer.",
+          "Cancellation: request.signal abort, client response cancellation, or server stream cancel aborts one linked controller → use case and provider adapter receive the same signal → provider fetch/SDK request and iterator stop → cleanup clears timers and releases the reader. User cancellation is not reported as an error.",
+          "Idle timeout: arm after the provider stream opens; reset after every actual provider chunk. On expiry, abort only that generation and raise IdleTimeout. There is no whole-request deadline, so an indefinitely long stream remains valid while chunks continue arriving.",
+          "Failure before headers: expected application failures map to stable sanitized statuses/codes; malformed prompts use 400, policy rejection 422, rate limiting 429 with bounded Retry-After, and provider unavailable/idle timeout use 503/504. Provider messages, bodies, credentials, and stacks are never returned. Unexpected failures are captured once and returned as generic 500.",
+          "Failure after headers: the ReadableStream pump catches the failure because HTTP status can no longer change. It invokes the per-execution report-once function only for unexpected failures, emits one terminal `event: failure` containing a stable public code and retryable flag, then closes. If the socket is already gone, emission is skipped but cleanup still runs.",
+          "Job flow: queue payload → generate-assistant-job validates job data and establishes its cancellation signal → same generateAssistantResponse use case → consume/persist tokens or final output through job-owned ports → acknowledge success. Rate-limited, unavailable, and idle-timeout outcomes retry with bounded exponential backoff and jitter until attempt limit; invalid, rejected, or provider-configuration errors dead-letter immediately; exhausted retryable and unexpected errors dead-letter. Unexpected errors are reported once per job attempt by the job boundary."
+        ],
+        "decisions": [
+          {
+            "topic": "Application boundary",
+            "choice": "One async-stream generation use case shared by HTTP and job adapters",
+            "rationale": "Generation rules remain identical while SSE encoding, HTTP statuses, queue acknowledgements, and retry policy stay outside the use case."
+          },
+          {
+            "topic": "Provider seam",
+            "choice": "Provider-neutral port returning an abortable AsyncIterable",
+            "rationale": "No provider SDK, HTTP shape, or Next.js type crosses into application code."
+          },
+          {
+            "topic": "Idle policy",
+            "choice": "Sliding per-chunk timeout, not an absolute request timeout",
+            "rationale": "Detects stalled providers without terminating a healthy long response."
+          },
+          {
+            "topic": "Error ownership",
+            "choice": "Normalize expected failures in the outbound adapter; map and report at the active inbound boundary",
+            "rationale": "Public behavior stays stable, and each execution has exactly one telemetry capture owner."
+          },
+          {
+            "topic": "Committed headers",
+            "choice": "Await provider stream establishment before creating Response, then use terminal SSE failure events",
+            "rationale": "Startup errors retain meaningful HTTP statuses while later failures remain representable in-band."
+          },
+          {
+            "topic": "Caching and state",
+            "choice": "No RSC or TanStack Query cache; streamed state remains local to the client interaction",
+            "rationale": "Generation is request-specific, transient, and cancellation-sensitive."
+          },
+          {
+            "topic": "Authentication",
+            "choice": "Authenticate and authorize in each inbound adapter before invoking the use case",
+            "rationale": "Browser and job callers have different identities, while provider credentials remain server-only."
+          }
+        ],
+        "risks": [
+          "Some providers acknowledge a stream before sending the first token; that initial token gap must still be covered by the idle timer.",
+          "SSE payloads must be JSON encoded rather than interpolated raw to prevent framing or newline injection.",
+          "Reverse proxies and deployment limits can still impose absolute connection durations; validate the target platform independently of the application idle policy.",
+          "Retrying jobs can duplicate persisted partial output; persistence needs an idempotency key such as generationId plus chunk sequence, or must discard partial attempts transactionally.",
+          "Telemetry deduplication should be scoped to one request or job attempt, not implemented as process-global state."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-3",
+      "response": {
+        "summary": "Place framework adapters at the edges and keep generation policy in a shared application service. The application layer owns cancellation, idle timeout, safe error classification, and once-only unexpected-error reporting; the provider adapter owns remote SDK translation. HTTP and job adapters consume the same generation session but make transport-specific failure decisions.",
+        "tree": [
+          {
+            "path": "app/api/assistant/route.ts",
+            "purpose": "Next.js App Router POST endpoint. Validates the request, creates the request-scoped abort signal, invokes the application service, and converts its events to SSE."
+          },
+          {
+            "path": "src/assistant/application/generate.ts",
+            "purpose": "Primary application boundary. Starts a generation session and returns a transport-neutral async event stream plus its terminal outcome."
+          },
+          {
+            "path": "src/assistant/application/generation-policy.ts",
+            "purpose": "Shared policy for idle timeout, cancellation precedence, provider error classification, safe public messages, retryability, and dead-letter rules."
+          },
+          {
+            "path": "src/assistant/application/errors.ts",
+            "purpose": "Closed error taxonomy such as Cancelled, IdleTimeout, ProviderRejected, ProviderUnavailable, RateLimited, and Unexpected."
+          },
+          {
+            "path": "src/assistant/application/report-once.ts",
+            "purpose": "Request/job-scoped guard ensuring an unexpected failure is reported exactly once even if it crosses multiple layers."
+          },
+          {
+            "path": "src/assistant/domain/events.ts",
+            "purpose": "Transport-neutral events such as token, completed, and failed; contains no SSE or provider SDK types."
+          },
+          {
+            "path": "src/assistant/ports/model-provider.ts",
+            "purpose": "Provider seam defining startGeneration(prompt, signal) and an async token stream. No Next.js or job-runner dependencies."
+          },
+          {
+            "path": "src/assistant/ports/failure-reporter.ts",
+            "purpose": "Interface for structured unexpected-failure reporting with correlation metadata and sanitized context."
+          },
+          {
+            "path": "src/assistant/infrastructure/providers/remote-model-provider.ts",
+            "purpose": "Remote provider adapter. Passes AbortSignal to the SDK/fetch call and translates provider-specific failures into the application taxonomy."
+          },
+          {
+            "path": "src/assistant/infrastructure/observability/failure-reporter.ts",
+            "purpose": "Concrete logging/error-monitoring adapter used through report-once."
+          },
+          {
+            "path": "src/assistant/transport/http/sse.ts",
+            "purpose": "Encodes domain events as SSE frames, sets streaming headers, and supplies the final in-band failure frame when the response is already committed."
+          },
+          {
+            "path": "src/assistant/jobs/generate-assistant-response.ts",
+            "purpose": "Background-job adapter. Invokes the same generation service, persists tokens/result as appropriate, and maps terminal outcomes to acknowledge, retry, or dead-letter."
+          },
+          {
+            "path": "src/assistant/jobs/retry-policy.ts",
+            "purpose": "Job-runner-specific attempt limits and backoff; consumes the shared error classification without redefining generation semantics."
+          },
+          {
+            "path": "src/assistant/composition.ts",
+            "purpose": "Composition root wiring provider, policy, reporter, application service, HTTP route, and job handler dependencies."
+          }
+        ],
+        "flows": [
+          "HTTP success: browser POSTs prompt → app/api/assistant/route.ts validates before streaming → generate.ts calls ModelProvider.startGeneration(prompt, combinedSignal) → provider tokens cross the seam as domain token events → sse.ts emits `event: token` frames → completion emits `event: done` and closes the stream.",
+          "Cancellation: route observes request.signal → combines it with the generation controller → the combined signal is passed unchanged to provider fetch/SDK → application classifies the resulting abort as Cancelled → SSE closes quietly or emits a cancelled terminal event only if the client connection remains writable. Cancellation is never reported as unexpected.",
+          "Idle timeout: generate.ts arms a timer while waiting for the provider’s next token and resets it after every token → expiry aborts the provider request and produces IdleTimeout → there is deliberately no whole-stream deadline, so an active long response can finish successfully.",
+          "Failure before headers: validation, provider startup, or early iteration fails before the first SSE frame → route maps the classified error to a safe HTTP status/body, such as 429 for rate limiting, 503 for transient unavailability, 504 for idle timeout, and 500 for unexpected failure. Provider bodies, stack traces, credentials, and internal identifiers are never returned.",
+          "Failure after headers: once the first SSE frame has committed the response, HTTP status cannot change → sse.ts emits exactly one terminal `event: error` frame with a stable public code, safe message, retryable flag, and correlation ID → it then closes the stream. No further token or done event is allowed.",
+          "Unexpected reporting: the application catch boundary classifies unknown failures as Unexpected and calls report-once with the original cause → route/job layers may call the same guard defensively, but the scoped guard suppresses duplicates → the client receives only sanitized error data.",
+          "Background job: worker payload → generate-assistant-response.ts validates → generate.ts runs the identical provider and idle/cancellation policy → tokens are accumulated or persisted transactionally → success acknowledges the job → Cancelled caused by shutdown is re-queued without error reporting → RateLimited, ProviderUnavailable, and IdleTimeout retry with bounded backoff → ProviderRejected or invalid input dead-letter immediately → Unexpected is reported once and retried until the attempt limit, then dead-lettered with sanitized metadata."
+        ],
+        "decisions": [
+          {
+            "topic": "Application boundary",
+            "choice": "A transport-neutral generation session in src/assistant/application/generate.ts",
+            "rationale": "HTTP streaming and background work share behavior without importing Next.js, SSE, or queue APIs into core policy."
+          },
+          {
+            "topic": "Provider seam",
+            "choice": "Expose an AbortSignal-aware async token stream through src/assistant/ports/model-provider.ts",
+            "rationale": "It supports incremental delivery and prompt cancellation while isolating provider SDK details."
+          },
+          {
+            "topic": "Timeout semantics",
+            "choice": "Use a resettable next-token idle timer",
+            "rationale": "It detects stalled providers without imposing a maximum duration on a healthy stream."
+          },
+          {
+            "topic": "Error ownership",
+            "choice": "Classify and sanitize errors in the application layer; adapt them at transports",
+            "rationale": "Both entry points receive consistent semantics while retaining HTTP- and job-specific outcomes."
+          },
+          {
+            "topic": "Committed-response failures",
+            "choice": "Represent terminal failure as an SSE event",
+            "rationale": "After headers are committed, an in-band event is the only reliable structured failure channel."
+          },
+          {
+            "topic": "Reporting",
+            "choice": "Attach one report-once guard to each generation invocation",
+            "rationale": "An unexpected cause can traverse provider, application, and transport boundaries without generating duplicate alerts."
+          },
+          {
+            "topic": "Job retries",
+            "choice": "Separate retry scheduling from shared generation classification",
+            "rationale": "Retry counts and backoff belong to the job system, while retryability remains consistent across all callers."
+          }
+        ],
+        "risks": [
+          "Some provider SDKs wrap aborts as generic errors; the adapter must check the signal and original cause before classifying them as unexpected.",
+          "A proxy may buffer SSE unless buffering and cache headers are configured appropriately; deployment-level streaming behavior must be verified.",
+          "If persistence occurs per token, retries can duplicate partial output; use an idempotency key and generation-attempt identifier or commit only the final result.",
+          "The in-band error event must be emitted at most once, and stream state must prohibit any event after a terminal done/error event.",
+          "Idle timeout values and retry limits should be configuration injected at composition, with bounded validation and no secrets exposed to the browser."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-4",
+      "response": {
+        "summary": "Use one `assistant-generation` capability. A framework-neutral application operation owns the shared generation policy and a capability-shaped model port. The Route Handler owns SSE lifecycle semantics; the job adapter owns retry/dead-letter decisions. Provider details, raw errors, HTTP concerns, timers, and reporting never enter the application operation.",
+        "tree": [
+          {
+            "path": "src/app/api/assistant/stream/route.ts",
+            "purpose": "Browser HTTP boundary: authenticate, validate prompt, create request/idle cancellation, pre-read the stream, choose HTTP versus SSE failure, encode events, and report an unexpected failure once."
+          },
+          {
+            "path": "src/modules/assistant-generation/application/generate.ts",
+            "purpose": "Shared generation operation and policy used by both HTTP and jobs; consumes a model port and returns provider-neutral generation events."
+          },
+          {
+            "path": "src/modules/assistant-generation/application/model-port.ts",
+            "purpose": "Capability-shaped port such as `generate(command, signal): AsyncIterable<GenerationEvent>`."
+          },
+          {
+            "path": "src/modules/assistant-generation/application/failures.ts",
+            "purpose": "Closed provider-neutral failure taxonomy carrying only safe code and retry classification."
+          },
+          {
+            "path": "src/modules/assistant-generation/domain/generation.ts",
+            "purpose": "Pure command and event types only if the generation policy has real invariants; otherwise keep these beside the application operation."
+          },
+          {
+            "path": "src/modules/assistant-generation/server/remote-model-provider.ts",
+            "purpose": "Implements the model port, validates remote events, maps SDK/network/provider failures, and propagates the supplied abort signal."
+          },
+          {
+            "path": "src/modules/assistant-generation/server/wiring.ts",
+            "purpose": "Server-only composition of the application operation and remote provider adapter."
+          },
+          {
+            "path": "src/modules/assistant-generation/stream.ts",
+            "purpose": "Browser-safe SSE event contract: token, completion, and safe failure events; contains no provider or server implementation."
+          },
+          {
+            "path": "src/modules/assistant-generation/job.ts",
+            "purpose": "Narrow worker-facing surface that runs the same operation and returns a job-native success, retry, or dead-letter decision."
+          },
+          {
+            "path": "src/jobs/assistant-generation/handler.ts",
+            "purpose": "Queue/runtime adapter: validates the job payload, supplies cancellation/deadline, invokes `job.ts`, acknowledges or schedules retry/dead-letter, and reports an unexpected failure once."
+          },
+          {
+            "path": "src/modules/assistant-generation/application/generate.test.ts",
+            "purpose": "Tests shared policy and provider-neutral outcomes."
+          },
+          {
+            "path": "src/app/api/assistant/stream/route.test.ts",
+            "purpose": "Tests pre-commit HTTP failures, post-commit in-band failures, idle cancellation, disconnect cancellation, and report-once behavior."
+          },
+          {
+            "path": "src/jobs/assistant-generation/handler.test.ts",
+            "purpose": "Tests retry/dead-letter classification and job-level report-once behavior."
+          }
+        ],
+        "flows": [
+          "Browser flow: browser `POST` → `route.ts` authenticates and validates → creates an abort signal combining `request.signal` with an idle-timeout controller → calls `generate` through server wiring → the operation applies shared policy and calls the model port → the remote adapter starts the provider stream with that signal.",
+          "Commit flow: `route.ts` reads the first provider-neutral event before returning the `Response`. A known failure before that point becomes a safe non-2xx JSON response. An unexpected pre-commit exception is reported once and becomes a generic 500. The first successful event is buffered, then the handler returns `text/event-stream` and emits it followed by later events.",
+          "Streaming flow: each valid provider event resets the idle timer; the timer measures silence between events and never caps total successful duration. Browser disconnect, stream cancellation, or idle expiry aborts the provider request and cancels/releases its reader. Completion clears timers and closes the SSE stream.",
+          "Post-commit failure flow: after the SSE response has begun, HTTP status cannot change. A mapped failure is encoded once as an SSE `failure` event containing only the public code, then the stream closes. An unexpected exception is reported once by the Route Handler, encoded as a generic in-band failure, and closed; application and provider layers never report it.",
+          "Job flow: queue handler → `job.ts` → the same `generate` operation → model port → remote provider. The job consumes the event stream or writes its intended result, while its own cancellation/deadline signal propagates to the provider. Success acknowledges; typed retryable failures request retry; typed permanent failures dead-letter. Unexpected exceptions are reported once at the job boundary and follow the queue’s explicit unexpected-failure policy."
+        ],
+        "decisions": [
+          {
+            "topic": "Application boundary",
+            "choice": "Keep shared generation policy in `application/generate.ts`; keep transport and execution policy outside it.",
+            "rationale": "Deleting the operation would duplicate meaningful generation policy between HTTP and the worker, while SSE framing, idle timeout, reporting, retry, and dead-letter choices differ by channel."
+          },
+          {
+            "topic": "Provider seam",
+            "choice": "Expose provider-neutral commands/events and accept an `AbortSignal`; translate remote SDK errors inside the adapter.",
+            "rationale": "Neither application code nor public contracts should depend on provider event shapes, SDK exceptions, status text, request IDs, or response bodies."
+          },
+          {
+            "topic": "Failure model",
+            "choice": "Use a closed safe taxonomy with retry classification, while treating unknown exceptions as unexpected.",
+            "rationale": "HTTP, SSE, and jobs can share meaning without being forced into one result wrapper. Raw provider messages are never returned to browsers or job payloads."
+          },
+          {
+            "topic": "Idle timeout",
+            "choice": "Implement a resettable inactivity timer in the streaming Route Handler, not a fixed-duration timeout in the application operation.",
+            "rationale": "A healthy long response remains unlimited while a silent provider is cancelled promptly."
+          },
+          {
+            "topic": "Header commitment",
+            "choice": "Pre-read one event before constructing the streaming response.",
+            "rationale": "Failures during provider startup can still receive an appropriate HTTP status; failures after response creation must be represented in-band."
+          },
+          {
+            "topic": "Report once",
+            "choice": "Only the outer Route Handler or queue handler reports unexpected exceptions.",
+            "rationale": "The application operation and provider adapter map or propagate failures but never report, preventing duplicate telemetry."
+          },
+          {
+            "topic": "Public surfaces",
+            "choice": "Expose only `stream.ts` for the browser contract and `job.ts` for the worker contract; keep server wiring private to server consumers.",
+            "rationale": "Each external consumer receives a narrow runtime-appropriate API without importing module internals."
+          }
+        ],
+        "risks": [
+          "If authentication or quota policy already belongs to another capability, access it through that capability’s narrow server surface; do not import its internals.",
+          "The SSE failure encoder must itself be effectively infallible and use a fixed generic fallback, otherwise a secondary encoding error could prevent the required in-band terminal event.",
+          "Retry classification must be bounded and explicit: cancellation caused by worker shutdown may retry, while invalid input or permanent provider rejection should dead-letter; browser disconnect and idle timeout are HTTP-stream outcomes, not job retry policy.",
+          "Backpressure must be honored when bridging provider events into the SSE stream; avoid an unbounded token buffer."
+        ]
+      }
+    }
+  ]
+}
