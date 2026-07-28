@@ -26,7 +26,8 @@ persistence, alternate providers, reuse, or coordination to justify an abstracti
 A table, page, endpoint, provider, CRUD surface, or separate role check does not create a capability.
 Group concepts that serve one product goal and change under one policy/lifecycle. Split a capability
 only when actor goals, business policy, lifecycle, change authority, or a stable public contract
-diverge. File count is not a boundary criterion.
+diverge. File count is not a boundary criterion. This gate is review-only: path rules can protect a
+chosen boundary, but they cannot infer the product boundary.
 
 Preserve an existing project's stack unless migration is requested. Fetch current framework docs
 for API details.

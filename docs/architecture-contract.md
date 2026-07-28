@@ -73,6 +73,10 @@ A table, CRUD screen, route, provider, dedicated role check, file count, or size
 boundary by itself. Related lookup entities should remain in their owning taxonomy or workflow
 capability until the product supplies an independent goal, policy, lifecycle, or contract.
 
+This is a review-only decision. Reviewers name the actor goal, outcome, policy, lifecycle, change
+authority, and public contract that justify keeping or splitting the concepts. Path rules enforce
+the resulting ownership boundary; they cannot discover that boundary.
+
 ## Optional Internal Segments
 
 A capability may use these reserved segments:
