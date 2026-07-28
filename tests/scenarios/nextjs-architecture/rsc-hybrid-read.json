@@ -8,7 +8,7 @@
   "expected_behavior": [
     "The campaigns capability exposes an RSC read surface that reads private server code directly and renders first paint",
     "The read seeds the client island as initialData with an explicit freshness decision (initialDataUpdatedAt from the server timestamp, or 0 to refetch immediately)",
-    "The optimistic create updates the capability's client cache and invalidates the matching server cache after success",
+    "The optimistic create reconciles the capability's browser cache after success and invalidates a server cache only when the server read actually populated one",
     "Names that the seeding is the rare hybrid case, not the default"
   ],
   "anti_expectation": [

@@ -16,6 +16,8 @@ Rules:
 
 - derive actor, role, tenant, and price/ownership data on the server;
 - treat each Server Action as a public HTTP entrypoint;
+- pass established identity and scope into trusted `server.ts` and private store functions; those
+  functions do not rediscover the current user through an auth provider;
 - keep secrets and service-role clients in server-only modules;
 - return stable public values, not provider rows;
 - accept post-login redirects only as validated same-origin paths;
