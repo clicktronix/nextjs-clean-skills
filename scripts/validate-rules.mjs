@@ -191,6 +191,9 @@ export const load = () => import(name)
   'src/modules/work-items/server/index.tsx': `
 export const shadowed = true
 `,
+  'src/modules/work-items/ui/WorkItemsView/index.tsx': `
+export const NestedWorkItemsView = () => null
+`,
   'src/app/unresolved/page.ts': `
 import { missing } from '@/modules/missing/server'
 export default missing
@@ -255,6 +258,7 @@ const clean = new Set([
   'src/modules/work-items/server.ts',
   'src/modules/work-items/rsc.ts',
   'src/modules/work-items/actions.ts',
+  'src/modules/work-items/ui/WorkItemsView/index.tsx',
   'src/modules/work-items/client/query.ts',
   'src/modules/work-items/client.ts',
   'src/modules/work-items/ui/view.ts',

@@ -324,6 +324,7 @@ const capabilityRule = {
 
         if (
           sourceModule?.segment &&
+          sourceModule.tail.length === 2 &&
           /^index\.[cm]?[jt]sx?$/.test(path.basename(filename)) &&
           PUBLIC_SURFACES.has(sourceModule.segment)
         ) {
