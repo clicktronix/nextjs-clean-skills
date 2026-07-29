@@ -21,6 +21,10 @@ libraries and names unless a migration is explicitly requested.
 Folders do not produce these properties automatically. A rule is useful only when its failure mode
 and verification are named.
 
+Two rules are verified by review rather than by machine: the capability boundary and public API
+admission. Machine checks enforce a boundary once chosen; they cannot discover the right capability
+or public contract.
+
 ## Physical Model
 
 Product behavior lives under one capability root:
@@ -120,14 +124,22 @@ This is a vocabulary, not a required tree. Create only surfaces with real consum
 
 A public surface is valid only when it does at least one of these:
 
-1. publishes an explicit stable subset of private exports;
+1. publishes an explicit stable API for named consumers;
 2. strengthens or translates a contract;
 3. establishes a runtime boundary.
 
-Named re-exports are valid for an explicit module API; `export *` is not. A one-to-one rename or
-re-export does not justify a new facade, operation, or wrapper. A one-to-one channel wrapper is
-valid only when it establishes real runtime behavior such as authentication, validation, failure
-translation, or telemetry ownership.
+A root public surface may use named re-exports when its exported contracts are already stable, safe
+for that surface's own runtime, and free of provider shapes. `export *` is not a public contract.
+When private exports carry provider shapes, values bound to a runtime other than the surface's own,
+implicit identity requirements, or unstable implementation details, the surface defines and
+translates to a public contract rather than re-exporting them.
+
+Public API admission is review-only. Reviewers name the consumers and explain why each exported
+concept or contract group belongs to the public contract.
+
+A one-to-one rename or re-export does not justify a new facade, operation, or wrapper. A one-to-one
+channel wrapper is valid only when it establishes real runtime behavior such as authentication,
+validation, failure translation, or telemetry ownership.
 
 `actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
 must be an async function declared in that file. Import the private implementation and call it from

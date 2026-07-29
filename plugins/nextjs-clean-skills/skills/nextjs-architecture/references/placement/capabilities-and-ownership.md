@@ -16,11 +16,17 @@ Rules:
 - one capability is discoverable under one root;
 - route-private framework and UI glue stays under `app/**`;
 - cross-capability consumers use narrow root public surfaces;
-- a public surface publishes an explicit stable subset, strengthens a contract, or establishes a
+- a public surface publishes an explicit stable API, strengthens a contract, or establishes a
   runtime boundary;
-- a named re-export may define that API, but does not justify another forwarding abstraction;
+- a named re-export may publish contracts already safe for that surface's runtime and free of
+  provider shapes;
+- provider shapes, values bound to a runtime other than the surface's own, implicit identity
+  requirements, and unstable internals require translation to a public contract;
 - `export *` is not a public contract;
 - broad `lib`, `utils`, and `services` directories are migration buckets, not destinations.
+
+Public API admission is review-only. Name the consumers and justify each exported concept or
+contract group; path rules protect the resulting API but cannot discover it.
 
 When behavior uses several capabilities, apply the deletion test. If removing the coordinating code
 moves filtering, grouping, authorization consequences, projection, transaction intent, or

@@ -67,9 +67,14 @@ stream.ts   streaming contract
 job.ts      worker contract
 ```
 
-Only create surfaces that have real consumers. A surface must narrow internals, strengthen a
-contract, or establish a runtime boundary. Explicit named re-exports may define a stable module API,
-but do not justify a forwarding operation or wrapper. Never use `export *`.
+Only create surfaces that have real consumers. A surface must publish an explicit stable API,
+strengthen or translate a contract, or establish a runtime boundary. Named re-exports may publish
+that API when its contracts are safe for the surface's runtime and free of provider shapes. Private
+provider shapes, values bound to a runtime other than the surface's own, implicit identity
+requirements, or unstable internals require a translated public contract. Never use `export *`.
+
+Public API admission is review-only: name the consumers and explain why each exported concept or
+contract group is public. A re-export does not justify a forwarding operation or wrapper.
 
 `actions.ts` is different: with top-level `'use server'`, value exports must be locally declared
 async functions. It may import private implementations, but must not value-re-export them.
