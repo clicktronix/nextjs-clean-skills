@@ -45,7 +45,8 @@ no skill | v1.3.2 | layer-first checkpoint | capability-first candidate
 The accepted candidate v3 scored `239/240`, had no negative or fatal cells, and led every scenario
 across 24 candidate cells. See
 [`../architecture-evals/RELEASE_V3_RESULTS.md`](../architecture-evals/RELEASE_V3_RESULTS.md).
-That matrix validates the architecture instruction as a whole.
+That matrix provides comparative evidence for three load-bearing workflows; it does not validate
+every reference rule.
 
 Reference scenarios answer a narrower question: whether one paragraph changes one recurring agent
 decision. Historical results remain useful only for the behavior they actually tested:
