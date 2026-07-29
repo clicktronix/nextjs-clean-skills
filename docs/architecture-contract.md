@@ -129,10 +129,11 @@ A public surface is valid only when it does at least one of these:
 3. establishes a runtime boundary.
 
 A root public surface may use named re-exports when its exported contracts are already stable, safe
-for that surface's own runtime, and free of provider shapes. `export *` is not a public contract.
-When private exports carry provider shapes, values bound to a runtime other than the surface's own,
-implicit identity requirements, or unstable implementation details, the surface defines and
-translates to a public contract rather than re-exporting them.
+for that surface's own runtime, free of provider shapes, and explicit about their identity
+requirements. `export *` is not a public contract. When private exports carry provider shapes,
+values bound to a runtime other than the surface's own, implicit identity requirements, or unstable
+implementation details, the surface defines and translates to a public contract rather than
+re-exporting them.
 
 Public API admission is review-only. Reviewers name the consumers and explain why each exported
 concept or contract group belongs to the public contract.

@@ -18,8 +18,8 @@ Rules:
 - cross-capability consumers use narrow root public surfaces;
 - a public surface publishes an explicit stable API, strengthens a contract, or establishes a
   runtime boundary;
-- a named re-export may publish contracts already safe for that surface's runtime and free of
-  provider shapes;
+- a named re-export may publish contracts already safe for that surface's runtime, free of provider
+  shapes, and explicit about their identity requirements;
 - provider shapes, values bound to a runtime other than the surface's own, implicit identity
   requirements, and unstable internals require translation to a public contract;
 - `export *` is not a public contract;
