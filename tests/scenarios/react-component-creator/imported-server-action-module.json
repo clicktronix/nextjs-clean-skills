@@ -5,11 +5,12 @@
   "baseline_failure": "Agent omits the module-level 'use server' directive or places only an inline directive inside the exported function, leaving the action module invalid as a Client Component import boundary.",
   "expected_behavior": [
     "Places 'use server' at the top of actions.ts before imports or other statements",
-    "Exports updateProfile as an async mutation and validates, authenticates, and applies capability authorization again on the server",
+    "Declares updateProfile locally as an async mutation and validates, authenticates, and applies capability authorization again on the server",
     "Keeps browser-owned reads out of the Server Action module"
   ],
   "anti_expectation": [
     "Does NOT treat client validation or hidden fields as authorization",
-    "Does NOT add 'use server' to the Client Component"
+    "Does NOT add 'use server' to the Client Component",
+    "Does NOT value-re-export updateProfile from another module"
   ]
 }

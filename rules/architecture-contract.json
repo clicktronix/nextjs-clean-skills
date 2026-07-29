@@ -44,6 +44,9 @@
     "client",
     "ui"
   ],
+  "purePackages": [
+    "valibot"
+  ],
   "runtimePackages": [
     "next",
     "react",
@@ -60,5 +63,6 @@
     "mongodb",
     "redis",
     "ioredis"
-  ]
+  ],
+  "databaseResources": []
 }

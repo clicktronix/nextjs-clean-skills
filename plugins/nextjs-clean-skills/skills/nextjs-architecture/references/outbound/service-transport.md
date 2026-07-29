@@ -18,6 +18,9 @@ The transport owns:
 | errors | provider envelope maps to semantic application failures |
 | correlation | request/trace id propagates |
 
+Validate successful remote payloads at this trust boundary before mapping them to presentation or
+application contracts. Static service types do not validate network data.
+
 Under delegated identity, never share one unkeyed refresh promise between users. Remove a refresh
 entry after it settles; do not evict an in-flight entry merely to cap a map.
 
@@ -25,5 +28,10 @@ Environment and credentials come from validated server-only configuration. Missi
 fail startup or the first intentional runtime access, not an unrelated browser import.
 
 A second transport for the same service is drift unless a separate runtime contract justifies it.
+
+When the remote service is authoritative, keep its business invariants and orchestration there.
+The frontend server may own presentation contracts, aggregation, cache, browser lifecycle, and BFF
+policy. Do not mirror the service domain or create forwarding operations to complete a local folder
+model; optional domain and application segments may be absent.
 
 Reference: one private transport per service with explicit lifecycle and identity semantics.

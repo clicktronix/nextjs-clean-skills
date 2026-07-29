@@ -1,0 +1,43 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/supabase-rls.md#supabase-and-row-level-security",
+  "query": "Reuse one Supabase data service from an authenticated RSC and a nightly job. The RSC uses request cookies; the job uses a service-role key.",
+  "baseline_failure": "RED hypothesis: the agent injects either client into one context type with a userId argument, making it unclear whether RLS or explicit predicates enforce scope.",
+  "expected_behavior": [
+    "Uses separate user-scoped and privileged server-only factories",
+    "Derives the user-scoped client and verified actor from the same request session",
+    "Requires explicit actor, scope, and reason for privileged work and keeps ownership predicates in its queries",
+    "States that service-role access can bypass RLS and never places that key in a cookie SSR client"
+  ],
+  "anti_expectation": [
+    "Does NOT trust getSession embedded user data for server authorization",
+    "Does NOT assume a trusted job may omit product scope predicates"
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "query_commit": "fdd7ff8f11b5fc44bd809249535af2cc9b9a21b3",
+    "method": "fresh Codex CLI sessions in empty temporary directories; gpt-5.6-luna; user config and repository rules disabled; no target architecture guidance for RED, then only the referenced guidance for GREEN; the same frozen query in every run. One disputed RED repeat consulted general Context7 instructions and current platform docs but had no access to the tested architecture reference.",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-reuse",
+        "red": true,
+        "note": "Used one generic SupabaseClient service for both modes and gave the service-role path no explicit actor, product scope, reason, or query predicate; it did not add the predicted userId argument."
+      },
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-reuse",
+        "red": true,
+        "note": "Repeated the generic service and added getUserSummary(userId) beside a privileged RPC, reproducing the predicted mixed-mode context more literally."
+      }
+    ],
+    "verdict": "RED reproduced 2/2: both no-skill responses hid cookie-scoped and service-role clients behind one generic data service, while privileged work omitted explicit product scope. The second run also mixed a userId-scoped method with the privileged path.",
+    "green_check": {
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial-reuse",
+      "skill_loaded": true,
+      "passed": true,
+      "note": "The targeted reference produced separate factories, derived the user client and verified actor together with getUser(), and required explicit actor, scope, reason, and predicates for the service-role job."
+    }
+  }
+}

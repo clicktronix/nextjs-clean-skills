@@ -21,6 +21,10 @@ libraries and names unless a migration is explicitly requested.
 Folders do not produce these properties automatically. A rule is useful only when its failure mode
 and verification are named.
 
+Two rules are verified by review rather than by machine: the capability boundary and public API
+admission. Machine checks enforce a boundary once chosen; they cannot discover the right capability
+or public contract.
+
 ## Physical Model
 
 Product behavior lives under one capability root:
@@ -120,13 +124,27 @@ This is a vocabulary, not a required tree. Create only surfaces with real consum
 
 A public surface is valid only when it does at least one of these:
 
-1. narrows the internal surface;
+1. publishes an explicit stable API for named consumers;
 2. strengthens or translates a contract;
 3. establishes a runtime boundary.
 
-A facade must expose fewer concepts than it hides. A one-to-one rename or re-export is not a
-facade. A one-to-one channel wrapper is valid only when it establishes real runtime behavior such
-as authentication, validation, failure translation, or telemetry ownership.
+A root public surface may use named re-exports when its exported contracts are already stable, safe
+for that surface's own runtime, free of provider shapes, and explicit about their identity
+requirements. `export *` is not a public contract. When private exports carry provider shapes,
+values bound to a runtime other than the surface's own, implicit identity requirements, or unstable
+implementation details, the surface defines and translates to a public contract rather than
+re-exporting them.
+
+Public API admission is review-only. Reviewers name the consumers and explain why each exported
+concept or contract group belongs to the public contract.
+
+A one-to-one rename or re-export does not justify a new facade, operation, or wrapper. A one-to-one
+channel wrapper is valid only when it establishes real runtime behavior such as authentication,
+validation, failure translation, or telemetry ownership.
+
+`actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
+must be an async function declared in that file. Import the private implementation and call it from
+the local action; do not value-re-export it. Type-only re-exports remain allowed.
 
 `query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
 only when the same serializable TanStack Query key identity has both a server prefetch/hydration
@@ -169,7 +187,8 @@ Normative rules:
 1. `app/**` imports module root surfaces, not module internals.
 2. A capability imports another capability only through its root public surface.
 3. Module dependencies are acyclic.
-4. `domain/**` is pure and imports only its own domain or admitted `shared/kernel`.
+4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, or dependencies
+   explicitly classified by the product as pure.
 5. `application/**` imports its domain, pure helpers, and capability-owned port types. It imports
    no Next.js, React, database SDK, provider SDK, or concrete adapter.
 6. `server/**` implements server-side driving and driven adapters for its capability.
@@ -182,6 +201,10 @@ Normative rules:
    invalid with consumers on only one side.
 10. `server-only` and `client-only` protect runtime modules in addition to path rules.
 11. A production build must fail when a Client Component imports a server surface.
+12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
+    fail closed until the product updates its contract.
+13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
+    `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
 
 Within one capability, channel roots such as `rsc.ts` and `actions.ts` may call its trusted
 `server.ts` surface or the same private composition. This is inward reuse, not a license for
@@ -190,6 +213,14 @@ their own types; private server adapters map other capabilities' public contract
 
 The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
 import arbitrary server modules.
+
+The dependency classifier is exhaustive for direct `package.json` dependencies. The runtime list is
+still project-owned because static analysis cannot infer whether a package is pure. This turns a new
+provider package into a required decision instead of silently allowing it into domain/application.
+
+The database resource check sees literal Supabase `.from()` and `.rpc()` calls. It does not parse raw
+SQL, ORM queries, views reached indirectly, migrations, or dynamic provider abstractions. RLS,
+explicit grants, migration review, and integration tests remain separate guarantees.
 
 ## Application Operations
 

@@ -45,7 +45,8 @@ no skill | v1.3.2 | layer-first checkpoint | capability-first candidate
 The accepted candidate v3 scored `239/240`, had no negative or fatal cells, and led every scenario
 across 24 candidate cells. See
 [`../architecture-evals/RELEASE_V3_RESULTS.md`](../architecture-evals/RELEASE_V3_RESULTS.md).
-That matrix validates the architecture instruction as a whole.
+That matrix provides comparative evidence for three load-bearing workflows; it does not validate
+every reference rule.
 
 Reference scenarios answer a narrower question: whether one paragraph changes one recurring agent
 decision. Historical results remain useful only for the behavior they actually tested:
@@ -78,6 +79,9 @@ All other files below are authored regression hypotheses until they contain an o
 | quality/observability-and-sentry | sentry-instrumentation-first | hypothesis |
 | placement/modules-and-imports | portable-rules-on-existing-stack | hypothesis |
 | placement/capability-granularity | capability-granularity-reference-data | hypothesis |
+| outbound/database-resource-ownership | database-resource-ownership | RED -> GREEN after reference correction |
+| outbound/service-transport | external-backend-authority | RED -> GREEN after reference correction |
+| outbound/supabase-rls | supabase-identity-modes | RED 2/2 -> GREEN |
 | react/component-structure | compound-provider-split | old behavior proven; direct-Hook rerun required |
 | react/component-structure | static-hook-calls | hypothesis |
 | react/forms-and-actions | imported-server-action-module | hypothesis |

@@ -17,7 +17,9 @@ Server Actions parse input, derive identity and tenant on the server, call the c
 service or application operation, and return public-safe results.
 
 An importable action module starts with top-level `'use server'`. Server Actions are UI command
-boundaries, not transports for browser reads.
+boundaries, not transports for browser reads. Next.js requires value exports from that module to be
+locally declared async functions. Import private behavior and call it from the action; do not
+value-re-export it.
 
 **Incorrect (hydration-only submit):**
 
@@ -40,7 +42,8 @@ Domain schemas stay pure because application policy, private adapters, and clien
 them. They do not import the client `intl` instance. Translation happens at the form boundary in a
 small adapter from a Standard Schema-compatible validator to a Mantine form validator.
 
-The adapter accepts an optional `intl` and a `messages` map keyed by `<path>` or `<path>:<issue-message>`, looks up the descriptor for each issue, and falls back to the raw issue message when no descriptor exists.
+The adapter accepts optional `intl` and a `messages` map keyed by `<path>` or
+`<path>:<issue-message>`, then falls back to the raw issue when no descriptor exists.
 
 ```ts
 createMantineValidator(CreateBlogSchema, {
@@ -53,6 +56,7 @@ createMantineValidator(CreateBlogSchema, {
 })
 ```
 
-The schema stays shared between server and client. The component imports the schema, the messages, and the bridge. Server validation still parses with the same schema and surfaces raw issue keys; the client maps those keys to the same descriptor table for consistent error copy.
+The schema stays shared. Server validation returns issue keys; the client maps them through the same
+descriptor table.
 
 Reference: React progressive forms mapped to project Server Action boundaries.

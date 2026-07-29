@@ -24,8 +24,8 @@
 
 **Direction is not depth.** Correct imports do not justify a forwarding operation.
 
-**A public surface is not automatically an abstraction.** It must narrow, translate, or establish a
-runtime boundary.
+**A public surface is not automatically an abstraction.** It may publish an explicit stable API.
+Unsafe private shapes require translation; a re-export alone does not justify another abstraction.
 
 **A seam is not a folder.** A port exists because application policy needs a capability, not because
 a directory is named `ports`.

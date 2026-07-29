@@ -25,6 +25,11 @@ Rules:
 - accept post-login redirects only as validated same-origin paths;
 - cap user arrays, batch sizes, and free-form strings at the channel schema.
 
+For cookie-scoped providers, create the client and verified actor together from one request
+session. Do not pair that client with a caller-supplied or independently resolved actor. A
+privileged provider client is a different effect: construct it in a separate server-only factory
+and require explicit actor/scope/reason data because provider-side row policy may be bypassed.
+
 Client validation and bound/hidden form fields are not authority. TypeScript argument types are not a
 runtime barrier.
 

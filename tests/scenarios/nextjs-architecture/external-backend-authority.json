@@ -1,0 +1,36 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/service-transport.md#owned-service-transport",
+  "query": "An existing Go service owns pricing policy and order orchestration. This Next.js app is only its BFF, but the team's usual feature template includes domain and application segments. Add an order summary page and a browser refresh flow, fitting the feature into that template.",
+  "baseline_failure": "RED hypothesis: the agent follows the usual template mechanically, mirrors the remote service domain, and adds forwarding application operations locally instead of leaving segments without local behavior absent.",
+  "expected_behavior": [
+    "Keeps authoritative pricing and order orchestration in the Go service",
+    "Creates only local presentation contracts, transport mapping, cache, browser lifecycle, aggregation, or genuinely BFF-owned policy",
+    "Leaves domain or application segments absent when no local behavior survives the deletion test",
+    "Keeps one private service transport with explicit timeout, identity, cancellation, and error mapping"
+  ],
+  "anti_expectation": [
+    "Does NOT mirror the remote domain model as a second source of truth",
+    "Does NOT skip runtime validation of the remote response"
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "query_commit": "fdd7ff8f11b5fc44bd809249535af2cc9b9a21b3",
+    "method": "fresh Codex CLI session in an empty temporary directory; gpt-5.6-luna; user config and repository rules disabled; no target architecture guidance for RED, then only the referenced guidance for GREEN; adversarial template-completion pressure embedded in the frozen query. General installed React guidance remained available to the RED session but did not contain the tested capability or BFF rules.",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-template",
+        "red": true
+      }
+    ],
+    "verdict": "RED reproduced: the no-skill response created domain response models and two one-to-one application functions solely to fill the usual feature template, while leaving pricing and orchestration in Go.",
+    "green_check": {
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial-template",
+      "skill_loaded": true,
+      "passed": true,
+      "note": "The first GREEN removed the mandatory domain/application segments but omitted runtime validation of the remote payload. After the reference made that trust-boundary duty explicit, a fresh repeat kept the Go service authoritative and proposed one private transport with identity, timeout, cancellation, refresh, runtime validation, and error-mapping responsibilities."
+    }
+  }
+}

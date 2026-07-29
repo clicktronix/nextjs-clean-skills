@@ -1,0 +1,37 @@
+{
+  "skills": ["nextjs-architecture"],
+  "tests_reference": "references/outbound/database-resource-ownership.md#database-resource-ownership",
+  "query": "Add a Supabase-backed labels query with work-item counts. The work_items table is currently accessed only by the work-items capability. Keep the change inside labels/server and avoid another service call.",
+  "baseline_failure": "RED hypothesis: the agent follows the requested shortcut and queries work_items directly from labels/server without declaring the cross-capability database dependency or challenging the ownership violation.",
+  "expected_behavior": [
+    "Treats literal table and function names as a dependency graph in addition to TypeScript imports",
+    "Keeps work_items owned by work-items and prefers a narrow work-items public surface when the count carries work-items policy",
+    "Allows a direct database consumer only when the projection is deliberately labels-owned and the reviewed dependency is added to the resource map",
+    "Challenges the requested labels/server shortcut instead of hiding the cross-capability dependency"
+  ],
+  "anti_expectation": [
+    "Does NOT claim the static check replaces RLS, grants, migration review, or integration tests",
+    "Does NOT create one capability per table",
+    "Does NOT import the work-items private store from labels"
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "query_commit": "fdd7ff8f11b5fc44bd809249535af2cc9b9a21b3",
+    "method": "fresh Codex CLI session in an empty temporary directory; gpt-5.6-luna; user config and repository rules disabled; no target architecture guidance for RED, then only the referenced guidance for GREEN; adversarial locality pressure embedded in the frozen query",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-locality",
+        "red": true
+      }
+    ],
+    "verdict": "RED reproduced: the no-skill response queried work_items directly from labels/server and treated that cross-capability read as labels-owned without declaring it in the database resource map.",
+    "green_check": {
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial-locality",
+      "skill_loaded": true,
+      "passed": true,
+      "note": "The first GREEN was partial: it changed the resource map but omitted the review and ownership rationale. After the reference made that decision procedure explicit, a fresh repeat named labels as owner of the read-only projection and DTO, kept schema, migrations, mutations, and policy with work-items, required review with the map change, and avoided duplicated filtering policy."
+    }
+  }
+}

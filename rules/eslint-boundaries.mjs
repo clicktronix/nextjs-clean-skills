@@ -172,6 +172,8 @@ const capabilityRule = {
         '{{path}} is shadowed by the {{surface}} root surface. Import the explicit root surface or a named private file.',
       broadSurface:
         'A public capability surface must be narrow. export * exposes module internals.',
+      actionReexport:
+        'actions.ts must declare async Server Actions locally. Next.js rejects value re-exports from a top-level use server module.',
       hiddenDynamicImport:
         'A computed import hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
     },
@@ -382,11 +384,24 @@ const capabilityRule = {
       },
 
       ExportNamedDeclaration(node) {
-        if (node.source) reportImport(node.source, node.source.value)
+        if (node.source) {
+          if (
+            sourceModule?.surface === 'actions' &&
+            node.exportKind !== 'type' &&
+            node.specifiers.some((specifier) => specifier.exportKind !== 'type')
+          ) {
+            context.report({ node, messageId: 'actionReexport' })
+          }
+          reportImport(node.source, node.source.value)
+        }
       },
 
       ExportAllDeclaration(node) {
-        if (sourceModule?.surface) context.report({ node, messageId: 'broadSurface' })
+        if (sourceModule?.surface === 'actions' && node.exportKind !== 'type') {
+          context.report({ node, messageId: 'actionReexport' })
+        } else if (sourceModule?.surface) {
+          context.report({ node, messageId: 'broadSurface' })
+        }
         reportImport(node.source, node.source.value)
       },
 
