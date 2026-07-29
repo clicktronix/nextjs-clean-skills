@@ -30,6 +30,7 @@
       "framing": "adversarial-template",
       "skill_loaded": true,
       "passed": true,
+      "input_sha256": "a8f3a2bdf778ebc5d0f35202a55c4b3c2e36897030c061f150d9f862b25f545b",
       "note": "The first GREEN removed the mandatory domain/application segments but omitted runtime validation of the remote payload. After the reference made that trust-boundary duty explicit, a fresh repeat kept the Go service authoritative and proposed one private transport with identity, timeout, cancellation, refresh, runtime validation, and error-mapping responsibilities."
     }
   }

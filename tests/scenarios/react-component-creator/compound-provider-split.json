@@ -1,29 +1,18 @@
 {
   "skills": ["react-component-creator"],
-  "tests_reference": "references/component-structure.md#compound-provider-split",
-  "query": "Refactor BlogEditor: its View now takes 34 props across a stats block, a header with save/edit actions, and a form with per-keystroke fields. Editing a form field re-renders the stats block.",
+  "tests_reference": "references/component-structure.md#state-ownership-before-provider-splitting",
+  "query": "Refactor BlogEditor: its View now takes 34 props across a server-provided stats block, a header with save/edit actions, and a form with per-keystroke fields. The stats do not depend on the draft, but editing a field re-renders the stats block. A teammate suggests putting shared state in one Context to keep the change small.",
   "baseline_failure": "Agent keeps growing one controller/View prop list, or introduces one big Context whose value is rebuilt every render so every sub-section re-renders on each keystroke.",
   "expected_behavior": [
-    "Splits the View into sub-components and passes state through colocated context providers split by re-render frequency (Data, Mutations, FormState, FormActions)",
-    "Each context value has its own useMemo with per-slice deps so unrelated slices do not invalidate together",
-    "A Stats block reading only Data does not re-render on form input; a Header reading Mutations does not re-render on data refetch",
-    "Justifies the split by the trigger (3+ sub-sections, measurable re-render cost, prop list off-screen)"
+    "Moves per-keystroke form state into the form subtree or a focused colocated provider",
+    "Uses props while they remain clear and splits Context only by distinct consumer sets or update frequencies",
+    "A Stats block does not subscribe to form state and does not re-render on form input",
+    "Explains the ownership or measured-render reason for any provider or memoization boundary"
   ],
   "anti_expectation": [
     "Does NOT apply the compound-provider split to a small component that is clear with a direct named Hook call",
-    "Does NOT bundle unrelated slices into one memo, which would defeat the point"
+    "Does NOT bundle fetched data, mutation state, and form values into one Context",
+    "Does NOT create a fixed Data/Mutations/FormState/FormActions provider set just to match a template"
   ],
-  "baseline_observed": {
-    "date": "2026-05-28",
-    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('just wrap shared state in a context, keep it simple')",
-    "runs": [
-      { "model": "sonnet", "framing": "neutral", "red": false },
-      { "model": "haiku", "framing": "neutral", "red": false },
-      { "model": "haiku", "framing": "adversarial", "red": true },
-      { "model": "haiku", "framing": "adversarial", "red": true },
-      { "model": "haiku", "framing": "adversarial", "red": true }
-    ],
-    "verdict": "sonnet+neutral and haiku+neutral both split into per-concern providers (Stats/Header/Form) so typing re-renders only the form — haiku got it cleanly once the prompt named the re-render problem. haiku+adversarial ('just wrap shared state in a context, keep it simple') reproduced RED 3/3 (very consistent): every run produced a single context rebuilt on every keystroke, mentioning the split only as a footnote. Failure is lazy framing, not model weakness. Reference value narrow but failure mode stable.",
-    "green_check": { "model": "haiku", "framing": "adversarial", "skill_loaded": true, "passed": true, "note": "RED->GREEN confirmed: with the reference injected, the same haiku that produced one context under 'just wrap it, keep it simple' instead built the Data/Mutations/FormState/FormActions split with per-slice useMemo." }
-  }
+  "evaluation_note": "The old four-provider recipe had RED-to-GREEN evidence, but that query and expected implementation were retired. A 2026-07-29 rerun did not reproduce the corrected ownership failure on gpt-5.6-luna, so this scenario is a hypothesis rather than current evidence."
 }

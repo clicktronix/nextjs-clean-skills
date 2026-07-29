@@ -31,6 +31,7 @@
       "framing": "adversarial-locality",
       "skill_loaded": true,
       "passed": true,
+      "input_sha256": "8c6b85a943215e0dd6f9a0ae46a00c9ebdd93a625d6000026f735e4308814c4b",
       "note": "The first GREEN was partial: it changed the resource map but omitted the review and ownership rationale. After the reference made that decision procedure explicit, a fresh repeat named labels as owner of the read-only projection and DTO, kept schema, migrations, mutations, and policy with work-items, required review with the map change, and avoided duplicated filtering policy."
     }
   }

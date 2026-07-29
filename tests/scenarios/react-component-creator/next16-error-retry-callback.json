@@ -1,0 +1,36 @@
+{
+  "skills": ["react-component-creator"],
+  "tests_reference": "references/loading-and-errors.md#loading-and-errors",
+  "query": "Write app/dashboard/error.tsx for a Next.js 16.2 App Router segment whose Server Component failed while fetching dashboard data. It should report the unexpected error once and offer a retry that refetches the RSC data.",
+  "baseline_failure": "Agent copies an older App Router example and uses reset, which rerenders the boundary without refreshing the failed RSC data.",
+  "expected_behavior": [
+    "Declares error.tsx as a Client Component",
+    "Accepts error and unstable_retry with the installed Next.js 16.2 ErrorInfo signature",
+    "Reports the unexpected error once and calls unstable_retry from the retry button"
+  ],
+  "anti_expectation": [
+    "Does NOT use reset alone for a retry that must refetch failed RSC data",
+    "Does NOT report the same error in both the boundary and another RSC capture owner"
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "method": "Fresh Codex CLI sessions in an empty directory with fresh HOME/CODEX_HOME; gpt-5.6-luna; no installed skills for RED, then only current SKILL.md and loading-and-errors.md for GREEN.",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "neutral",
+        "red": true
+      }
+    ],
+    "verdict": "RED reproduced: the no-skill response used reset even though recovery had to refetch failed RSC data.",
+    "green_check": {
+      "date": "2026-07-29",
+      "model": "gpt-5.6-luna",
+      "framing": "neutral",
+      "skill_loaded": true,
+      "passed": true,
+      "input_sha256": "5d78d32c86425255bacfeb6f51afaf7590da1ae4539c5d36622e11c1caa58279",
+      "note": "With no ambient skills, the referenced guidance changed the same response to unstable_retry while retaining one boundary-owned report and a retry button."
+    }
+  }
+}

@@ -5,7 +5,7 @@
   "baseline_failure": "Agent builds one component taking `mode: 'view' | 'edit' | 'create'` plus optional `blogId?`/`personId?`, with `if (mode === ...)` branches inside the View and `// only when mode = edit` prop comments and non-null assertions.",
   "expected_behavior": [
     "Decomposes into one component per mode (BlogSidebarView/Edit/Create) plus a thin dispatcher that narrows on route state",
-    "Each variant owns its bindings hook (useBlogViewBindings/useBlogEditForm/useBlogCreateForm) so type narrowing is automatic",
+    "Each variant owns its mode-specific data and interaction; Client variants use a bindings Hook only when needed",
     "Shared chrome moves into a SidebarFrame shell; heavy variants can be lazily loaded by the dispatcher",
     "The 'only valid when mode = X' prop comments and non-null assertions disappear"
   ],
@@ -14,15 +14,24 @@
     "Does NOT duplicate shared chrome across the three variants instead of a shared frame"
   ],
   "baseline_observed": {
-    "date": "2026-05-28",
-    "method": "fresh subagent, no skill loaded; 2-cell bracket: sonnet+neutral (best case) and haiku+adversarial ('one reusable component, keep it DRY')",
+    "date": "2026-07-29",
+    "method": "Historical 2026-05-28 subagent bracket plus a current Codex CLI pair in an empty directory with fresh HOME/CODEX_HOME, no installed skills for RED, then only current SKILL.md and state-placement.md for GREEN.",
     "runs": [
       { "model": "sonnet", "framing": "neutral", "red": false },
       { "model": "haiku", "framing": "neutral", "red": false, "note": "borderline: discriminated-union context + explicit variant components (good), but kept a mode-branching shell with `if (ctx.mode !== ...) return null` guards (not a clean dispatcher)" },
       { "model": "haiku", "framing": "adversarial", "red": true },
-      { "model": "haiku", "framing": "adversarial", "red": true, "note": "optional `blog?` + 'required for view/edit, undefined for create' guard comments - a harder RED than run 1 (no discriminated union)" }
+      { "model": "haiku", "framing": "adversarial", "red": true, "note": "optional `blog?` + 'required for view/edit, undefined for create' guard comments - a harder RED than run 1 (no discriminated union)" },
+      { "model": "gpt-5.6-luna", "framing": "adversarial", "red": true, "note": "Clean current baseline built one mode-discriminated BlogSidebar with conditional branches." }
     ],
-    "verdict": "sonnet+neutral produced three explicit per-mode components arguing against a mode discriminator. haiku+neutral landed in between (discriminated union + variant parts, but a mode-branching shell). haiku+adversarial ('one reusable component, DRY') reproduced RED 2/2 valid (a 3rd rerun was discarded - the subagent asked a clarifying question despite the instruction, likely distracted by the working directory). Both valid REDs produced a single mode component. Reference value narrow but failure mode stable under lazy framing.",
-    "green_check": { "model": "haiku", "framing": "adversarial", "skill_loaded": true, "passed": true, "note": "RED->GREEN confirmed: with the reference injected, the same haiku that produced a mono-component under 'one component DRY' instead built three variants + a dispatcher + SidebarFrame, guards only in the dispatcher." }
+    "verdict": "Historical adversarial RED reproduced 2/2. The clean current Luna baseline also built one mode-discriminated component; current guidance changed the same task to explicit variants, a thin dispatcher, and shared frame.",
+    "green_check": {
+      "date": "2026-07-29",
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial",
+      "skill_loaded": true,
+      "passed": true,
+      "input_sha256": "aca31f589468050f8f4a1c75ae78c510d3f0d9b2ae2064544f82c93045b13a7a",
+      "note": "The first current GREEN kept data and rendering in the dispatcher and was rejected. After narrowing the reference, a clean rerun produced explicit variants, a thin dispatcher, and shared frame."
+    }
   }
 }

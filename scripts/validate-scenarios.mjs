@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fail, listFiles, readJson, root } from './_lib.mjs'
@@ -34,6 +35,28 @@ function headingSlugs(absFile) {
     if (match) slugs.add(slugify(match[1].trim()))
   }
   return slugs
+}
+
+function readUtf8(absFile) {
+  return fs.readFileSync(absFile, 'utf8')
+}
+
+function greenInputSha256(data, refAbs) {
+  const skills = data.skills.map((skill) => ({
+    name: skill,
+    skill: readUtf8(path.join(root, skillsRoot, skill, 'SKILL.md')),
+  }))
+  const input = {
+    skills,
+    tests_reference: data.tests_reference,
+    reference: readUtf8(refAbs),
+    query: data.query,
+    baseline_failure: data.baseline_failure,
+    expected_behavior: data.expected_behavior,
+    anti_expectation: data.anti_expectation,
+  }
+
+  return createHash('sha256').update(JSON.stringify(input)).digest('hex')
 }
 
 const REQUIRED_STRINGS = ['tests_reference', 'query', 'baseline_failure']
@@ -84,6 +107,16 @@ for (const file of files) {
       errors.push(`${file}: tests_reference file not found: ${refRel}`)
     } else if (anchor && !headingSlugs(refAbs).has(anchor)) {
       errors.push(`${file}: tests_reference anchor "#${anchor}" not found in ${refPath}`)
+    } else if (
+      data.baseline_observed?.green_check?.passed === true &&
+      data.skills.every((skill) => knownSkills.has(skill))
+    ) {
+      const recordedHash = data.baseline_observed.green_check.input_sha256
+      if (!/^[a-f0-9]{64}$/.test(recordedHash ?? '')) {
+        errors.push(`${file}: successful green_check must record its input SHA-256`)
+      } else if (recordedHash !== greenInputSha256(data, refAbs)) {
+        errors.push(`${file}: green_check inputs changed; rerun it`)
+      }
     }
   }
 }

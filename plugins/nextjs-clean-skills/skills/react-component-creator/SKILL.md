@@ -18,7 +18,6 @@ Fetch current React and Next.js docs for exact APIs.
 - Call Hooks directly from named components or named custom Hooks.
 - Keep route-private UI under `app/<route>/_components`.
 - Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
-- Give a UI file a kebab-case name matching its primary PascalCase component.
 - Promote capability-neutral UI to `shared/ui` only after the shared-admission gate passes.
 - Pass React-serializable props from RSC to Client Components.
 - Use a dedicated top-level `'use server'` module for UI commands.
@@ -78,8 +77,9 @@ rerender requirement.
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component offering retry for its segment; `global-error.tsx` is the
-  root-only last resort.
+- `error.tsx` is a Client Component. Use its installed `ErrorInfo`: `reset` retries a temporary
+  render failure; in Next.js 16.2+, prefer `unstable_retry` when recovery must refetch RSC data.
+- `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.
 - Match a placeholder to the final layout's main geometry when that shape is known.

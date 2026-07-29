@@ -17,7 +17,8 @@ add a store dependency to a project that intentionally has none.
 ## Explicit Variants Over Mode Discriminators
 
 Split a `mode: 'view' | 'edit' | 'create'` component when mode-specific props or branches make its
-contract conditional. Use one component per mode and a thin dispatcher.
+contract conditional. Use one component per mode. The dispatcher only narrows route state and
+selects a variant; data loading, Hooks, and interaction stay inside that variant.
 
 ```tsx
 function DetailPanelSlot() {
@@ -32,10 +33,10 @@ function DetailPanelSlot() {
 }
 ```
 
-Each variant owns its bindings Hook, so mode-specific props stay explicit. Prefer a discriminated
-route-state type when the project has one. Move shared chrome into a
-`<PanelFrame title body footer />` shell. Load heavy variants on demand only when measurements
-justify it.
+Each variant owns its mode-specific data and interaction. A Client variant may use a bindings Hook;
+a Server variant need not. Prefer a discriminated route-state type when the project has one. Move
+shared chrome into a `<PanelFrame title body footer />` shell. Load heavy variants on demand only
+when measurements justify it.
 
 Split when at least two apply: prop guard comments, mode branches in the View, required non-null
 assertions, or one mode that is materially heavier.

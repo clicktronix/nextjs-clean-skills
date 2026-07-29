@@ -37,7 +37,8 @@
       "framing": "adversarial-reuse",
       "skill_loaded": true,
       "passed": true,
-      "note": "The targeted reference produced separate factories, derived the user client and verified actor together with getUser(), and required explicit actor, scope, reason, and predicates for the service-role job."
+      "input_sha256": "64293abd46864b047d99c104a35178909d69e592ac873f017972dd1e2b969df1",
+      "note": "Fresh rerun after the wording edit: the targeted reference still produced separate request-scoped and privileged factories, verified the cookie-scoped actor with getUser(), and required explicit actor, tenant scope, reason, and query predicates for service-role work."
     }
   }
 }

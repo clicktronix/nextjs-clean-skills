@@ -57,12 +57,12 @@
       }
     ],
     "verdict": "haiku+adversarial reproduced RED 3/3 (consistent): every run dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models and haiku+neutral add it unprompted. Reference kept; value is narrow but the failure mode is real and stable - a guardrail against lazy 'RLS handles it' prompting on weak models.",
-    "green_check": {
+    "historical_green_check": {
       "model": "haiku",
       "framing": "adversarial",
       "skill_loaded": true,
       "passed": true,
-      "note": "RED->GREEN confirmed: with the reference injected, the same haiku+adversarial setup added .eq('created_by', userId) and cited defense-in-depth. The reference flips the exact behavior it failed without it."
+      "note": "Historical GREEN only: the 1.3.x reference flipped the ownership predicate, but the capability-first placement wording has not been rerun."
     }
   },
   "_status_note": "The recorded GREEN belongs to the 1.3.x layer-first wording. The capability-first query and trust-boundary expectation above have not been re-run; the historical result proves only the defense-in-depth predicate."

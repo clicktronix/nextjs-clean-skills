@@ -14,6 +14,10 @@ All notable changes to this project are documented in this file.
   the migration status of the downstream template.
 - Named `server/` contents as persistence modules while keeping `store.ts` available as a concise
   private implementation filename.
+- Made component-skill frontmatter parse-safe, removed stack-specific UI-library examples from
+  portable guidance, and distinguished render retry from Next.js 16.2 RSC/data recovery.
+- Invalidated recorded GREEN evidence when its skill, reference, or frozen scenario contract
+  changes, replacing stale self-reported status with a content hash checked in CI.
 
 ### Added
 
@@ -26,6 +30,18 @@ All notable changes to this project are documented in this file.
   undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
 - Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
   from RLS, and added the external-authority profile for Next.js BFF modules.
+- Added focused loading/error ownership and component-testing references, including accessible
+  pending states, expected failure rendering, component-level test selection, and direct Hook calls.
+- Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
+  Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
+
+### Changed
+
+- Replaced the prescribed four-provider component recipe with state ownership first: keep
+  per-keystroke state in its smallest subtree and split Context only by real consumer sets or update
+  frequencies.
+- Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
+  keeping framework-specific rules out of portable references.
 
 ## [2.0.0] - 2026-07-28
 

@@ -22,12 +22,14 @@ and GitHub-style anchors.
 
 An authored `baseline_failure` is a hypothesis. It becomes evidence only after a
 `baseline_observed` record captures the model, framing, isolation method, runs, and verdict.
+A successful `green_check` records one SHA-256 over the skill, `tests_reference`, query, failure,
+expectations, and anti-expectations. Editing any GREEN input invalidates it until a rerun.
 
 ## Running One Scenario
 
-1. Run the query in a fresh isolated session without the skill.
+1. Run the query with fresh `HOME` and `CODEX_HOME` directories and no installed skills.
 2. Confirm the exact predicted failure. If it does not reproduce, narrow or remove the guidance.
-3. Run the same query with the referenced guidance loaded.
+3. Run the same query with only the target `SKILL.md` and `tests_reference` available.
 4. Confirm every expected behavior and no anti-expectation.
 5. Repeat disputed cells; do not rewrite a response after seeing the result.
 
@@ -53,13 +55,15 @@ decision. Historical results remain useful only for the behavior they actually t
 
 - `defense-in-depth-ownership`: RED 3/3 and GREEN under the v1.3.x wording. The ownership predicate
   is proven; the capability-first placement wording needs a new run.
-- `explicit-variants-over-mode`: RED 2/2 to GREEN.
-- `compound-provider-split`: RED 3/3 to GREEN. Its current direct-Hook wording needs a targeted
-  regression because the old run mentioned `composeHooks`.
+- `explicit-variants-over-mode`: historical RED 2/2 and current Luna RED to GREEN.
+- `static-hook-calls`: current Luna RED to GREEN against the direct-Hook wording.
+- `next16-error-retry-callback`: current Luna RED to GREEN for `unstable_retry`.
+- `compound-provider-split`: the old four-provider evidence was retired. The corrected
+  state-ownership RED did not reproduce and remains a hypothesis.
 - `rsc-hybrid-read`: inconsistent baseline. Retained guidance is deliberately narrow:
   `initialData`, explicit freshness, and one cache owner.
 
-All other files below are authored regression hypotheses until they contain an observed run.
+Rows marked `hypothesis` below have no accepted observed run.
 
 ## Coverage
 
@@ -82,12 +86,13 @@ All other files below are authored regression hypotheses until they contain an o
 | outbound/database-resource-ownership | database-resource-ownership | RED -> GREEN after reference correction |
 | outbound/service-transport | external-backend-authority | RED -> GREEN after reference correction |
 | outbound/supabase-rls | supabase-identity-modes | RED 2/2 -> GREEN |
-| react/component-structure | compound-provider-split | old behavior proven; direct-Hook rerun required |
-| react/component-structure | static-hook-calls | hypothesis |
+| react/component-structure | compound-provider-split | corrected ownership RED not reproduced; hypothesis |
+| react/component-structure | static-hook-calls | RED -> GREEN |
 | react/forms-and-actions | imported-server-action-module | hypothesis |
 | react/state-placement | explicit-variants-over-mode | eval-proven |
 | react/notifications-and-feedback | global-mutation-error-notifier | hypothesis |
-| react/loading-and-errors | segment-pending-and-error-surfaces | hypothesis |
+| react/loading-and-errors | segment-pending-and-error-surfaces | RED not reproduced; hypothesis |
+| react/loading-and-errors | next16-error-retry-callback | RED -> GREEN |
 
 The release matrix already covers the three load-bearing architecture cases: simple CRUD,
 remote streaming plus job reuse, and cross-capability orchestration. The focused scenarios are not
