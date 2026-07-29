@@ -2,36 +2,43 @@
 
 **Impact: HIGH** · **Scope: stack (React)**
 
-Put state where its owner lives. Do not pick a store by preference. The canonical
-state-kind table lives in the skill body ([SKILL.md](../SKILL.md), "State Placement") —
-this file holds the escalation nuance and the decomposition pattern the table can't.
+Put state where its owner lives. Do not pick a store by preference. The canonical state-kind table
+lives in [SKILL.md](../SKILL.md). This file covers escalation and decomposition.
 
-Do not put server data in Context, Zustand, or `useState`. Browser-owned server data belongs to the
-capability's `client/` lifecycle. Do not use TanStack Query for local UI state. Do not use an
-external store merely because stores feel cleaner; selectors, persistence, or measured update
-pressure must justify it. Derived values are computed, never synchronized into state with effects.
+Do not copy server data into Context, a store, or `useState` unless creating an explicit draft.
+Browser-owned server data belongs to the capability's `client/` lifecycle. Do not use a server-state
+library for local UI state. Selectors, persistence, or measured update pressure must justify an
+external store. Compute derived values; do not synchronize them into state with an Effect.
 
-If multiple unrelated Client islands share UI state, start with a colocated Context provider. Move to an external store when profiling shows Context churn or when persistence/devtools/selectors are real requirements. Do not add Zustand to a template that intentionally has no Zustand dependency.
+When Client islands share UI state, start with a colocated Context provider. Move to a store when
+profiling shows Context churn or persistence, devtools, or selectors are real requirements. Do not
+add a store dependency to a project that intentionally has none.
 
 ## Explicit Variants Over Mode Discriminators
 
-When a component takes `mode: 'view' | 'edit' | 'create'` with prop subsets that are only valid in some modes (commented as such, or guarded by `if (mode === ...)` inside the View), decompose it into one component per mode plus a thin dispatcher.
+Split a `mode: 'view' | 'edit' | 'create'` component when mode-specific props or branches make its
+contract conditional. Use one component per mode. The dispatcher only narrows route state and
+selects a variant; data loading, Hooks, and interaction stay inside that variant.
 
 ```tsx
-function SidebarSlot() {
-  const { mode, blogId, personId } = useRouteState()
+function DetailPanelSlot() {
+  const { mode, workItemId, boardId } = useRouteState()
   if (mode === 'create') {
-    if (!personId) return null
-    return <BlogSidebarCreate personId={personId} />
+    if (!boardId) return null
+    return <WorkItemPanelCreate boardId={boardId} />
   }
-  if (!blogId) return null
-  if (mode === 'edit') return <BlogSidebarEdit blogId={blogId} />
-  return <BlogSidebarView blogId={blogId} />
+  if (!workItemId) return null
+  if (mode === 'edit') return <WorkItemPanelEdit workItemId={workItemId} />
+  return <WorkItemPanelView workItemId={workItemId} />
 }
 ```
 
-Each variant owns its bindings hook (`useBlogViewBindings`, `useBlogEditForm`, `useBlogCreateForm`), so type narrowing is automatic and "only valid when mode = X" prop comments disappear. Prefer a discriminated route-state type when the target repo has one. Shared chrome moves into a `<SidebarFrame title body footer />` shell. Heavy variants can be lazily loaded by the dispatcher; the view variant stays light.
+Each variant owns its mode-specific data and interaction. A Client variant may use a bindings Hook;
+a Server variant need not. Prefer a discriminated route-state type when the project has one. Move
+shared chrome into a `<PanelFrame title body footer />` shell. Load heavy variants on demand only
+when measurements justify it.
 
-Use this when at least two of: the prop list has guard comments, the View has `if (mode === ...)` branches, non-null assertions would otherwise be needed, or one mode is significantly heavier than the others.
+Split when at least two apply: prop guard comments, mode branches in the View, required non-null
+assertions, or one mode that is materially heavier.
 
-Reference: project state ownership model.
+Reference: [State Placement](../SKILL.md#state-placement).

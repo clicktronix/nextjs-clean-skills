@@ -17,8 +17,8 @@ For server authorization:
 - `getSession()` reads raw session tokens from storage; do not trust its embedded user for
   authorization;
 - `getClaims()` verifies the JWT and is suitable for proxy-level identity decisions;
-- `getUser()` verifies with the Auth server and is appropriate when that network-confirmed user is
-  required.
+- `getUser()` verifies with the Auth server; use it when authorization requires a network-confirmed
+  user.
 
 Follow the current SSR guide for refresh. In Proxy, copy every cookie and cache header returned by
 `setAll`; dropping cache headers can let a CDN cache refreshed auth cookies.

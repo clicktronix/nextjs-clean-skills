@@ -12,8 +12,8 @@
 | Deletion test | Remove a module; keep it only when meaningful complexity moves into callers. |
 | Public surface | Runtime-specific root file that narrows or translates module internals. |
 | Port | Application-owned capability contract independent of its technology. |
-| Adapter | Private implementation translating a runtime, store, or provider to a capability contract. |
-| Composition root | Outer runtime channel or helper that establishes identity and supplies concrete effects. |
+| Adapter | Private translation from a runtime, store, or provider to a capability contract. |
+| Composition root | Outer channel or helper that establishes identity and supplies effects. |
 | Request identity | Actor, roles, tenant/ownership scope, request id, and trace id. |
 | Effect | Database, provider, reporter, clock, cache, or other runtime dependency. |
 | Channel | RSC, Server Action, HTTP, stream, job, or browser lifecycle. |

@@ -538,7 +538,12 @@ function addSource(fixture, relativeFile, source) {
   }
 }
 
+let mutationCaseCount = 0
+const mutationCoveredInvariantCodes = new Set()
+
 function requireMutation(label, fixture, expectedCode) {
+  mutationCaseCount += 1
+  mutationCoveredInvariantCodes.add(expectedCode)
   const errors = analyzeFixture(fixture)
   if (!errors.some((error) => error.code === expectedCode)) {
     return `${label}: expected ${expectedCode}, received ${errors.map((error) => error.code).join(', ')}`
@@ -801,4 +806,6 @@ fail([
   ...errors.map((error) => `${error.code} ${error.file}: ${error.message}`),
   ...mutations,
 ])
-console.log('capability pilots ok (11 invariants, 21 failing mutations)')
+console.log(
+  `capability pilots ok (${mutationCoveredInvariantCodes.size} mutation-covered invariants, ${mutationCaseCount} failing mutations)`
+)

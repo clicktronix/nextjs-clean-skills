@@ -1,57 +1,56 @@
 # Forms And Actions
 
-**Impact: HIGH** · **Scope: stack (Next.js + Mantine)**
+**Impact: HIGH** · **Scope: stack (Next.js)**
 
-Forms are UI boundaries around Server Actions. They are not business logic containers.
+Mutation forms are UI boundaries around server commands, not business logic containers.
 
-Default choices:
-
-- simple login/signup/settings/create forms: native `<form action>` with `useActionState` or project safe-action state wrapper.
-- rich client editing: use the project's form library in a named component or Hook, with
-  authoritative validation on the server.
+- local or URL-search forms: browser behavior or `onSubmit`; no Server Action.
+- simple server mutations: native `<form action>`; add `useActionState` when rendering returned state.
+- rich client editing: the project form library, with authoritative server validation.
 - server result messages: return typed error keys/categories; localize in the client.
 - expected failures: auth, authz, validation, conflict, not found, rate limit.
 
 Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority.
-Server Actions parse input, derive identity and tenant on the server, call the capability's server
-service or application operation, and return public-safe results.
+Each Server Action validates its payload, derives applicable identity and tenant from trusted server
+state, authorizes the command, calls capability behavior, and returns a public-safe result.
 
-An importable action module starts with top-level `'use server'`. Server Actions are UI command
-boundaries, not transports for browser reads. Next.js requires value exports from that module to be
-locally declared async functions. Import private behavior and call it from the action; do not
-value-re-export it.
+An importable action module starts with top-level `'use server'`. It defines UI commands, not browser
+reads. Every value export must be a locally declared async function; call private behavior instead
+of re-exporting it.
 
-**Incorrect (hydration-only submit):**
+**Hydration-dependent mutation submit:**
 
 ```tsx
 <form onSubmit={form.onSubmit(onSubmit)} />
 ```
 
-**Correct (progressive boundary):**
+**Progressively enhanced Server Action submit:**
 
 ```tsx
 const [state, formAction, isPending] = useActionState(saveAction, initial)
 return <form action={formAction}><button disabled={isPending}>Save</button></form>
 ```
 
-Fetch current React/next-safe-action/Mantine docs for exact API syntax. This rule decides the boundary and authority model.
+When a form library manually calls a `useActionState` dispatcher, wrap that call in
+`startTransition`. Passing it to `<form action>` or `<button formAction>` starts the transition
+automatically.
+
+Fetch current React and form-library docs for syntax. The project rule defines the boundary and
+authority.
 
 ## Localized Validator Bridge
 
-Domain schemas stay pure because application policy, private adapters, and client forms may all use
-them. They do not import the client `intl` instance. Translation happens at the form boundary in a
-small adapter from a Standard Schema-compatible validator to a Mantine form validator.
+Keep shared schemas free of client translation. Translate at the form boundary through an adapter
+from a Standard Schema-compatible validator to the project form validator.
 
-The adapter accepts optional `intl` and a `messages` map keyed by `<path>` or
-`<path>:<issue-message>`, then falls back to the raw issue when no descriptor exists.
+The adapter accepts a translator and messages keyed by `<path>` or `<path>:<issue-message>`.
 
 ```ts
-createMantineValidator(CreateBlogSchema, {
+createFormValidator(CreateWorkItemSchema, {
   intl,
   messages: {
-    'username': msg.usernameRequired,
-    'username:invalid_url': msg.usernameInvalidUrl,
-    'platform': msg.platformRequired,
+    'title': msg.titleRequired,
+    'title:too_long': msg.titleTooLong,
   },
 })
 ```
@@ -59,4 +58,6 @@ createMantineValidator(CreateBlogSchema, {
 The schema stays shared. Server validation returns issue keys; the client maps them through the same
 descriptor table.
 
-Reference: React progressive forms mapped to project Server Action boundaries.
+Reference: [React form actions](https://react.dev/reference/react-dom/components/form),
+[useActionState](https://react.dev/reference/react/useActionState),
+[Next.js forms](https://nextjs.org/docs/app/guides/forms).

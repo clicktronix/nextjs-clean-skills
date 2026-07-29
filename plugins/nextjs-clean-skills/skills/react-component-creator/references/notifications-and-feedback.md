@@ -1,33 +1,39 @@
 # Notifications And Feedback
 
-**Impact: MEDIUM** · **Scope: stack (Mantine + TanStack)**
+**Impact: MEDIUM** · **Scope: stack (TanStack Query)**
 
-Stack convention (Mantine + TanStack Query + i18n), not portable architecture — adapt names.
-Prerequisite: the runtime channel maps semantic application failures to public codes/results that
-`presentError` can format — see
+The runtime channel maps semantic application failures to public results that the presenter can
+format. See
 [Error Taxonomy](../../nextjs-architecture/references/errors/error-taxonomy.md).
 
-Scattered notification calls drift in copy, color, icon, and error mapping. Centralize feedback behind small helpers and a single confirm boundary.
+Scattered calls drift in copy, severity, and error mapping. Centralize notifications behind small
+helpers and use one confirmation boundary.
 
 ## Semantic Notify Helpers
 
-Expose feature-agnostic `notifyError`, `notifySuccess`, `notifyInfo`, and `notifyWarning` helpers. They accept i18n copy/values and apply semantic color, icon, and duration defaults.
+Expose feature-agnostic `notifyError`, `notifySuccess`, `notifyInfo`, and `notifyWarning` helpers.
+They accept localized copy and apply semantic icon, color, and duration defaults.
 
-Colors are semantic theme tokens (`success`, `warning`, `info`, `danger`) registered in the Mantine theme, never hex literals.
+Use theme tokens such as `success`, `warning`, `info`, and `danger`, not color literals.
 
 ```ts
 notifyError({ intl, title: msg.saveFailed, error })
 notifySuccess({ intl, title: msg.saved })
 ```
 
-With an `error` but no `message`, `notifyError` formats through `presentError(error)` so copy stays
-consistent with the channel's public error taxonomy.
+With an `error` but no `message`, `notifyError` formats through the shared error presenter so copy
+stays consistent with the channel's public error taxonomy.
+
+A notification is not an error boundary. Route-level render failures belong to
+[Loading And Errors](./loading-and-errors.md); notifications report the outcome of an action the
+user just took.
 
 ## Global Mutation Error Notifier
 
-Prefer one app-level notifier with an opt-out for mutations that own their UX. Local `onError` handlers remain for rollback or inline state.
+Use an app-level notifier for mutations whose default failure UX is global. Mutations with inline or
+rollback UX opt out through typed metadata; local handlers still own that work.
 
-Configure public `MutationCache.onError`; do not depend on cache subscription events.
+Configure the public mutation-error callback; do not infer failures from cache subscription events:
 
 ```ts
 const mutationCache = new MutationCache({
@@ -38,11 +44,13 @@ const mutationCache = new MutationCache({
 })
 ```
 
-Install the cache in `QueryClient`. The global callback still runs with local handlers; use `meta.silent` when a mutation owns all feedback.
+Install the cache in the query client. Its callback runs in addition to local handlers; mark a
+mutation silent when it owns all feedback.
 
 ## Unified Confirm Hook
 
-Replace ad-hoc confirm helpers with one `useConfirm` hook using a `kind: 'action' | 'delete' | 'destructive'` discriminator for color and default copy.
+Replace ad hoc confirm helpers with one `useConfirm` Hook. A
+`kind: 'action' | 'delete' | 'destructive'` discriminator selects semantics and default copy.
 
 Callers stay short:
 
@@ -50,4 +58,8 @@ Callers stay short:
 confirm({ kind: 'delete', title: msg.deleteTitle, message: msg.deleteMessage, onConfirm })
 ```
 
-Reference: project notification and confirm conventions.
+The dialog moves focus inside on open. On close, return focus to the trigger or the next logical
+control if the trigger no longer exists.
+
+Reference: [MutationCache](https://tanstack.com/query/v5/docs/reference/MutationCache),
+[modal dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/).

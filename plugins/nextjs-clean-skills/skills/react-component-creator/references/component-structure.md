@@ -5,11 +5,8 @@
 Call Hooks directly from named Client Components or named custom Hooks. Do not pass Hooks through a
 generic higher-order helper.
 
-The controller owns direct Hook calls and event composition. The View renders props. A named custom
-Hook owns a coherent browser lifecycle or reusable interaction. Keep types colocated until another
-file owns them.
-
-**Correct shape:**
+Controllers own Hook calls and events; Views render props. A named custom Hook owns one browser
+lifecycle. Keep types colocated until reused.
 
 ```tsx
 'use client'
@@ -21,38 +18,36 @@ export function WorkItems(props: WorkItemsProps) {
 export const WorkItemsView = (props: WorkItemsViewProps) => <Table {...props} />
 ```
 
-React's rule is explicit: Hooks are called from components or Hooks and are not passed as regular
-values. A generic `composeHooks(View)(useProps)` helper hides the call behind a variable, weakens
-local reasoning, and inhibits automatic optimization.
+Call Hooks from components or custom Hooks, not through values. A factory such as
+`withHooks(View)(useProps)` hides the call behind a variable, can evade Hooks linting, and prevents
+automatic optimization. Inline the behavior in a named Hook.
 
-Keep both components in one file while readable. Split the View into a file without `'use client'`
-when it needs independent tests or server rendering. Do not create a third file merely to complete a
-template.
+When a View is split for server reuse, keep its file free of `'use client'`, client Hooks, and
+browser-only imports. Do not add a third file to complete a template.
 
-## Compound Provider Split
+## State Ownership Before Provider Splitting
 
-When independently updated subtrees consume different state slices, split the View and use
-colocated providers only when prop composition no longer preserves local reasoning. Split by update
-frequency and consumer set:
+Move frequently updated state into the smallest subtree that owns it. Keep fetched data, mutation
+state, and per-keystroke form state separate when their consumers or update frequencies differ.
+Use props while the contract remains clear; add colocated Context only when sibling consumers need
+the same state and prop composition no longer preserves local reasoning.
 
-- A `Data` context for fetched entity + derived/label maps (stable until refetch).
-- A `Mutations` context for stable action callbacks and their small status set.
-- A `FormState` context for per-keystroke values and errors.
-- A `FormActions` context for `onChange`/`onSubmit` (stable).
+If Context is needed, split it by consumer set and update frequency. Server-only stats should not
+subscribe to draft values; live counts and previews may. A form should not subscribe to unrelated
+mutation or refetch state. Splitting Context isolates its consumers, but parent renders may still
+rerender children.
 
-Sub-components subscribe only to what they render. `Stats` reading `Data` does not rerender on form
-input; `Header` reading `Mutations` does not rerender on data refetch.
-
-Build each context value independently when stable identity is required. Bundling unrelated slices
-invalidates them together.
+Stabilize each provider value only when identity changes cause measured work. One object containing
+unrelated slices invalidates all its consumers when any slice changes.
 
 ```tsx
-const dataValue = useMemo(() => ({ blog, labels }), [blog, labels])
+const dataValue = useMemo(() => ({ workItem, labels }), [workItem, labels])
 const formStateValue = useMemo(() => ({ values, errors }), [values, errors])
 ```
 
-Use provider splitting only when the cost is justified: independent sub-sections, measured rerender
-cost, or a prop contract that no longer supports local reasoning. A small View stays a plain
-component.
+Do not create a fixed set of providers to complete a pattern. Use provider splitting only when the
+cost is justified by independent consumers, measured rerender work, or a prop contract that no
+longer supports local reasoning. A small View stays a plain component.
 
-Reference: React rules for direct Component and Hook calls; project deletion-test convention.
+Reference: [React calls Components and Hooks](https://react.dev/reference/rules/react-calls-components-and-hooks),
+[useContext](https://react.dev/reference/react/useContext); project deletion-test convention.
