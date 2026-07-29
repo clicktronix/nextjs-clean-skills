@@ -1,6 +1,8 @@
 ---
 name: nextjs-architecture
-description: Use when placing or reviewing full-stack product behavior in a Next.js 16 App Router application, including module ownership, Server Components, Server Actions, Route Handlers, streaming, persistence, providers, caching, auth, and cross-capability workflows.
+description: >-
+  Use when placing or reviewing Next.js 16 App Router behavior: module ownership, Server Components,
+  Server Actions, Route Handlers, streams, persistence, providers, caching, auth, or workflows.
 ---
 
 # Next.js Capability Architecture
@@ -21,7 +23,7 @@ For the requested change, identify:
 7. where authentication, business authorization, and store authorization run;
 8. whether Next.js or an external backend owns authoritative business behavior.
 
-Classify only behavior the task or existing product actually requires. Do not invent future policy,
+Classify only behavior the task or existing product requires. Do not invent future policy,
 persistence, alternate providers, reuse, or coordination to justify an abstraction.
 
 A table, page, endpoint, provider, CRUD surface, or separate role check does not create a capability.
@@ -169,7 +171,7 @@ use a named provider-liveness policy.
 Expected application outcomes are typed values. Unexpected defects or outages are exceptions.
 Framework control flow such as redirect/not-found stays outside generic catches.
 
-## Identity, Effects, Validation, And Cache
+## Identity, Effects, And Validation
 
 Request identity contains actor, roles, tenant/ownership scope, request ID, and trace ID. Database
 clients, provider clients, reporter, clock, and other effects are explicit dependencies.
@@ -182,13 +184,15 @@ clients, provider clients, reporter, clock, and other effects are explicit depen
 - Validate serialized output at an external contract.
 - Do not re-parse a typed internal value because it crossed a directory.
 
-Keep provider rows distinct from domain/public values when names or semantics differ. Map them in
-the private adapter.
-
 For Supabase, do not mix user-scoped cookie clients and privileged clients behind one ambiguous
 factory. A user-scoped context derives the verified actor and client from the same session. A
 privileged context uses a separate server-only factory and carries explicit actor, scope, and
 reason; every query still applies the intended ownership predicates.
+
+## Data Ownership And Backend Authority
+
+Keep provider rows distinct from domain/public values when names or semantics differ. Map them in
+the private adapter.
 
 Treat database object names as an ownership boundary when the provider API encodes them as strings.
 Declare table/function ownership in the product contract and reject undeclared, dynamic, or

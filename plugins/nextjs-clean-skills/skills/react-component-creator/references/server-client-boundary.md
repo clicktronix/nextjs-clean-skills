@@ -2,28 +2,27 @@
 
 **Impact: HIGH** · **Scope: stack (Next.js + React)**
 
-Start UI as a Server Component. Add `'use client'` only for event handlers, stateful hooks, refs, browser APIs, Mantine form hooks, client i18n hooks, or opt-in TanStack Query.
+Start with a Server Component. Add `'use client'` only when the boundary owns event handlers,
+client-only Hooks, refs, browser APIs, or browser async lifecycle.
 
 Server Components own:
 
 - read-heavy data fetching through the owning capability's `rsc.ts` or trusted server surface.
 - static/request-time rendering.
-- passing serializable props to smaller Client children.
+- passing React-serializable props to smaller Client children.
 
 Client Components own:
 
 - interaction state.
 - form state and submit UX.
 - browser-only APIs.
-- capability-local client async lifecycle when TanStack is explicitly justified.
+- capability-local client async lifecycle when a browser query cache is explicitly justified.
 
-Do not move a whole page to the client because one child needs a Hook. Create a small Client island.
-Do not pass class instances, functions other than supported Server Actions, secrets, raw rows, or
-authority fields from Server to Client.
+Do not move a whole page to the client because one child is interactive. Create a small Client
+island. Pass only public-safe values: no class instances, unsupported functions, secrets, or raw
+provider rows. Client-visible identity or permission hints are never authority.
 
 Client code never imports capability `server.ts`, `rsc.ts`, or `server/**`. Mark trusted code with
 `server-only` and verify the boundary with a production build.
 
-For exact RSC serialization or hook restrictions, fetch current React/Next docs. The project rule is: keep the client tree as small as the interactive surface.
-
-Reference: Next.js App Router Server/Client Component boundary.
+Reference: [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).

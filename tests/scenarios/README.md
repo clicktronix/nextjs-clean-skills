@@ -87,6 +87,7 @@ All other files below are authored regression hypotheses until they contain an o
 | react/forms-and-actions | imported-server-action-module | hypothesis |
 | react/state-placement | explicit-variants-over-mode | eval-proven |
 | react/notifications-and-feedback | global-mutation-error-notifier | hypothesis |
+| react/loading-and-errors | segment-pending-and-error-surfaces | hypothesis |
 
 The release matrix already covers the three load-bearing architecture cases: simple CRUD,
 remote streaming plus job reuse, and cross-capability orchestration. The focused scenarios are not

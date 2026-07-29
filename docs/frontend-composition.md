@@ -24,7 +24,7 @@ flowchart TB
   accDescr: A route reads through a capability RSC surface, renders plain values, and introduces focused client islands only where browser behavior exists.
   Route["app route<br/>Server Component"]
   Rsc["module/rsc.ts"]
-  Values["Serializable capability values"]
+  Values["React-serializable<br/>capability values"]
   View["Route-private or<br/>capability view"]
   Island["Focused Client Component"]
   Client["module/client.ts"]
@@ -39,7 +39,7 @@ flowchart TB
 ```
 
 Do not add `'use client'` to hide an import error. Move server work to a server surface and pass the
-smallest serializable value the client needs.
+smallest React-serializable value the client needs.
 
 ## Page Composition
 
@@ -85,14 +85,14 @@ application behavior.
 ```mermaid
 flowchart TB
   accTitle: Form and Server Action flow
-  accDescr: The client form provides early feedback, while a top-level Server Action revalidates input and authority before invoking capability behavior.
+  accDescr: The client form provides early feedback, while a top-level Server Action validates input and applicable authority before invoking capability behavior.
   Form["Client form"]
   Early["Client validation<br/>for early feedback"]
   Action["module/actions.ts<br/>top-level use server"]
-  Auth["Validate, authenticate,<br/>establish entry scope"]
+  Auth["Validate and authorize<br/>trusted server scope"]
   Behavior["Server service or<br/>application operation"]
   Result["Serializable action state"]
-  Update["Refresh read owner<br/>or navigate"]
+  Update["Update read owner<br/>or navigate"]
 
   Form --> Early
   Early --> Action
@@ -106,10 +106,11 @@ flowchart TB
 Rules:
 
 - server validation remains authoritative;
-- the action derives actor and tenant on the server, then capability policy authorizes the command;
+- the action derives applicable actor and tenant from trusted server state, then authorizes the
+  command;
 - expected validation or conflict outcomes remain serializable data;
 - unexpected failures are reported once at the action boundary;
-- successful writes refresh the existing read owner;
+- successful writes update or invalidate affected read owners;
 - a pending state comes from the action lifecycle, not a duplicate boolean;
 - destructive actions use the product's shared confirmation surface;
 - notifications use semantic intent, never provider text.
@@ -138,7 +139,7 @@ export function WorkItemsView(props: WorkItemsViewProps) {
 
 This preserves local reasoning and lets `eslint-plugin-react-hooks` see the call site. React's
 official rule is explicit: Hooks are called inside components or Hooks and are not passed as regular
-values. A generic `composeHooks(View)(useProps)` helper fails that rule and the deletion test.
+values. A generic `withHooks(View)(useProps)` factory fails that rule and the deletion test.
 
 The split is optional:
 
@@ -148,7 +149,7 @@ The split is optional:
 - extract a custom Hook only when browser behavior has a coherent reusable or testable contract;
 - add `memo` only for a measured rerender problem.
 
-A hook-free view is a convention established by review and tests, not a guarantee created by its
+A Hook-free view is a convention established by review and tests, not a guarantee created by its
 filename.
 
 ## Component Ownership
@@ -191,8 +192,8 @@ provider credentials.
 1. Server and client boundaries compile without server code in browser bundles.
 2. Loading, empty, success, expected failure, and unexpected failure states render.
 3. Forms retain values and associate errors with controls.
-4. Successful writes update the single read owner.
-5. Hooks are called directly and unconditionally from components or custom Hooks.
+4. Successful writes update or invalidate affected read owners.
+5. Hooks are called directly from components or custom Hooks and pass `rules-of-hooks`.
 6. Keyboard navigation, focus restoration, and responsive layout work.
 7. No duplicate notification or exception report appears.
 
@@ -202,4 +203,7 @@ Implementation references:
 - [State Placement](../plugins/nextjs-clean-skills/skills/react-component-creator/references/state-placement.md)
 - [Forms And Actions](../plugins/nextjs-clean-skills/skills/react-component-creator/references/forms-and-actions.md)
 - [Component Structure](../plugins/nextjs-clean-skills/skills/react-component-creator/references/component-structure.md)
+- [Loading And Errors](../plugins/nextjs-clean-skills/skills/react-component-creator/references/loading-and-errors.md)
+- [Styling, Text, And Accessibility](../plugins/nextjs-clean-skills/skills/react-component-creator/references/styling-and-i18n.md)
 - [Notifications And Feedback](../plugins/nextjs-clean-skills/skills/react-component-creator/references/notifications-and-feedback.md)
+- [Component Testing](../plugins/nextjs-clean-skills/skills/react-component-creator/references/component-testing.md)

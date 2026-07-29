@@ -1,0 +1,17 @@
+{
+  "skills": ["react-component-creator"],
+  "tests_reference": "references/loading-and-errors.md#loading-and-errors",
+  "query": "This dashboard route renders a title and account summary that are already known, plus a report table whose query takes a few seconds. Add the pending and failure UI, including the case where the report returns no rows and the case where the user may not read it.",
+  "baseline_failure": "RED hypothesis: the agent adds a single route-level loading file so the already-known header waits for the slow table, and routes the empty-result and forbidden cases through the error boundary instead of rendering them as states.",
+  "expected_behavior": [
+    "Streams the slow region behind its own boundary while the already-known content renders immediately",
+    "Renders empty results and denied permission as component states, not thrown failures",
+    "Scopes the error surface to the segment and offers retry rather than replacing the document",
+    "Gives the placeholder the shape of the resolved content so the layout does not shift"
+  ],
+  "anti_expectation": [
+    "Does NOT wrap the whole page in one pending boundary",
+    "Does NOT report the failure again inside the error boundary",
+    "Does NOT swallow framework navigation such as notFound in a generic catch"
+  ]
+}
