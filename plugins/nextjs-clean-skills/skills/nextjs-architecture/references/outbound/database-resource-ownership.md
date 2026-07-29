@@ -25,6 +25,12 @@ The owner controls schema meaning, migrations, row mapping, and public contract.
 consumer only when the dependency is deliberate and reviewed. Prefer calling the owning
 capability's public surface when that preserves policy and vocabulary.
 
+Before adding a consumer, name who owns the resulting projection and policy. Screen placement or a
+request to keep the query local does not decide ownership. A direct database consumer is reasonable
+only for a deliberately consumer-owned projection that does not duplicate the owner's policy;
+otherwise call the owner's narrow public surface. Record that decision in review with the resource
+map change.
+
 `check-database-resources.mjs` rejects:
 
 - literal `.from()` or `.rpc()` access absent from the map;

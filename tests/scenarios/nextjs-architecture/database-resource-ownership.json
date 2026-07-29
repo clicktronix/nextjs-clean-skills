@@ -13,5 +13,25 @@
     "Does NOT claim the static check replaces RLS, grants, migration review, or integration tests",
     "Does NOT create one capability per table",
     "Does NOT import the work-items private store from labels"
-  ]
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "query_commit": "fdd7ff8f11b5fc44bd809249535af2cc9b9a21b3",
+    "method": "fresh Codex CLI session in an empty temporary directory; gpt-5.6-luna; user config and repository rules disabled; no target architecture guidance for RED, then only the referenced guidance for GREEN; adversarial locality pressure embedded in the frozen query",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-locality",
+        "red": true
+      }
+    ],
+    "verdict": "RED reproduced: the no-skill response queried work_items directly from labels/server and treated that cross-capability read as labels-owned without declaring it in the database resource map.",
+    "green_check": {
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial-locality",
+      "skill_loaded": true,
+      "passed": true,
+      "note": "The first GREEN was partial: it changed the resource map but omitted the review and ownership rationale. After the reference made that decision procedure explicit, a fresh repeat named labels as owner of the read-only projection and DTO, kept schema, migrations, mutations, and policy with work-items, required review with the map change, and avoided duplicated filtering policy."
+    }
+  }
 }

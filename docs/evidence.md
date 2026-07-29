@@ -114,8 +114,8 @@ Full details are in
 
 The focused inventory contains 17 `nextjs-architecture` scenarios:
 
-- 2 contain recorded baseline observations;
-- 15 remain RED hypotheses;
+- 5 contain recorded baseline observations;
+- 12 remain RED hypotheses;
 
 Those counts describe the reference-level inventory, not the comparative release matrix below.
 

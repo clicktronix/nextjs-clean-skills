@@ -18,6 +18,9 @@ The transport owns:
 | errors | provider envelope maps to semantic application failures |
 | correlation | request/trace id propagates |
 
+Validate successful remote payloads at this trust boundary before mapping them to presentation or
+application contracts. Static service types do not validate network data.
+
 Under delegated identity, never share one unkeyed refresh promise between users. Remove a refresh
 entry after it settles; do not evict an in-flight entry merely to cap a map.
 
