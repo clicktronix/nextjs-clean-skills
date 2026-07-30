@@ -6,7 +6,7 @@ description: >-
   product behavior in capability-owned modules that publish runtime-specific surfaces.
 ---
 
-# Next.js Capability Architecture
+# Designing Next.js Capabilities
 
 Design around product capabilities. Keep framework routes in `app/**`, colocate behavior under one
 capability root, and add internal segments only when the behavior needs them.

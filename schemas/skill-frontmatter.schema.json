@@ -2,18 +2,60 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/clicktronix/nextjs-clean-skills/schemas/skill-frontmatter.schema.json",
   "title": "Skill SKILL.md frontmatter",
-  "description": "Schema for the YAML frontmatter at the top of every plugins/nextjs-clean-skills/skills/<skill>/SKILL.md file. Claude Code truncates frontmatter past 1,536 characters; the description must remain rich enough for reliable routing.",
+  "description": "Schema for the YAML frontmatter at the top of every plugins/nextjs-clean-skills/skills/<skill>/SKILL.md file. Claude Code truncates the combined description and when_to_use text past 1,536 characters, so the description must stay rich enough for reliable routing. Properties cover the documented Claude Code fields plus the Agent Skills metadata block, so adopting a field is no longer a schema change. additionalProperties stays false to catch typos, which is the only thing it should catch.",
   "type": "object",
   "required": ["name", "description"],
   "properties": {
     "name": {
       "type": "string",
-      "enum": ["designing-nextjs-capabilities", "creating-react-components"]
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Agent Skills spec: 1-64 chars, lowercase alphanumerics and hyphens, no leading, trailing or consecutive hyphen \u2014 the pattern enforces all three. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here: an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done. There is deliberately no reserved-word guard: Anthropic's authoring guidance forbids anthropic and claude in a name, but the open Agent Skills spec does not, the guidance never states where the rule is enforced, and Claude Code demonstrably loads such a name from a marketplace. A guard that cannot fire here, misfires on any repo copying this template, and rests on an unverified enforcement point is the same trade that turned additionalProperties into a ban on upgrades. If these skills are ever uploaded through the Skills API, the check belongs at that publish step."
     },
     "description": {
       "type": "string",
-      "minLength": 80
-    }
+      "minLength": 80,
+      "maxLength": 1024,
+      "description": "Agent Skills spec caps this at 1024. validate-skill-frontmatter.mjs applies a stricter 500-char repo convention on top, and checks description + when_to_use against Claude Code's 1,536-char listing cap."
+    },
+    "when_to_use": { "type": "string" },
+    "license": { "type": "string" },
+    "compatibility": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "argument-hint": { "type": "string" },
+    "arguments": { "$ref": "#/$defs/stringOrList" },
+    "disable-model-invocation": { "$ref": "#/$defs/looseBoolean" },
+    "user-invocable": { "$ref": "#/$defs/looseBoolean" },
+    "allowed-tools": { "$ref": "#/$defs/stringOrList" },
+    "disallowed-tools": { "$ref": "#/$defs/stringOrList" },
+    "model": { "type": "string" },
+    "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] },
+    "context": { "const": "fork" },
+    "agent": { "type": "string" },
+    "background": { "$ref": "#/$defs/looseBoolean" },
+    "hooks": { "type": "object" },
+    "paths": { "$ref": "#/$defs/stringOrList" },
+    "shell": { "enum": ["bash", "powershell"] },
+    "metadata": { "type": "object" }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "stringOrList": {
+      "description": "Space- or comma-separated string, or a YAML list.",
+      "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "looseBoolean": {
+      "description": "Claude Code 2.1.218+ accepts yes/no/on/off/1/0 in any letter case alongside true/false. The integer branch is load-bearing: YAML parses an unquoted 1 or 0 as a number, so a string-only branch rejected the very values this field documents.",
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "integer", "enum": [0, 1] },
+        {
+          "type": "string",
+          "pattern": "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Yy][Ee][Ss]|[Nn][Oo]|[Oo][Nn]|[Oo][Ff][Ff]|[01])$"
+        }
+      ]
+    }
+  }
 }

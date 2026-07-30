@@ -71,6 +71,32 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     errors.push(`${skillName}/SKILL.md frontmatter.name must equal directory name (${skillName})`)
   }
 
+  // A rename that misses the human-facing titles ships a skill that is called one thing in the
+  // listing and another in every UI: PR #16 renamed directories, frontmatter, scenarios and docs
+  // but left `# React Component Creator` and `display_name: "Next.js Architecture"` behind, and
+  // nothing here noticed. Both titles must slug back to the skill name, which ties them to renames.
+  const heading = /^#\s+(.+)$/m.exec(text)
+  if (!heading) {
+    errors.push(`${skillName}/SKILL.md has no H1 title`)
+  } else if (slugify(heading[1].trim()) !== skillName) {
+    errors.push(
+      `${skillName}/SKILL.md H1 "${heading[1].trim()}" does not match the skill name; expected a title that slugs to ${skillName}`,
+    )
+  }
+
+  const openaiInterface = path.join(skillDir, 'agents', 'openai.yaml')
+  if (fs.existsSync(openaiInterface)) {
+    const yaml = fs.readFileSync(openaiInterface, 'utf8')
+    const displayName = /^\s*display_name:\s*"?([^"\n]+?)"?\s*$/m.exec(yaml)
+    if (!displayName) {
+      errors.push(`${skillName}/agents/openai.yaml has no interface.display_name`)
+    } else if (slugify(displayName[1]) !== skillName) {
+      errors.push(
+        `${skillName}/agents/openai.yaml display_name "${displayName[1]}" does not match the skill name; expected a title that slugs to ${skillName}`,
+      )
+    }
+  }
+
   if (!frontmatter.description.startsWith('Use when ')) {
     errors.push(`${skillName}/SKILL.md frontmatter.description must start with "Use when "`)
   }
@@ -79,11 +105,15 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     errors.push(`${skillName}/SKILL.md frontmatter.description is ${frontmatter.description.length} chars; keep it <= 500`)
   }
 
-  // Claude Code truncates skill frontmatter after 1,536 characters. Keep the combined
-  // routing metadata below that limit even though Codex has different context budgeting.
-  const frontmatterLength = `name: ${frontmatter.name}\ndescription: ${frontmatter.description}`.length
-  if (frontmatterLength > 1536) {
-    errors.push(`${skillName}/SKILL.md frontmatter is ${frontmatterLength} chars; keep it <= 1536`)
+  // Claude Code truncates the combined description and when_to_use text at 1,536 characters in the
+  // skill listing. when_to_use counts toward that cap, so it has to be measured here: the schema now
+  // permits the field, and a check that ignored it would let the first adopter silently blow the very
+  // limit it exists to guard.
+  const routingText = [frontmatter.description, frontmatter.when_to_use].filter(Boolean).join(' ')
+  if (routingText.length > 1536) {
+    errors.push(
+      `${skillName}/SKILL.md description + when_to_use is ${routingText.length} chars; keep it <= 1536`,
+    )
   }
 
   const linkedReferences = new Set()
