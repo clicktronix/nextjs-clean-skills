@@ -105,11 +105,15 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     errors.push(`${skillName}/SKILL.md frontmatter.description is ${frontmatter.description.length} chars; keep it <= 500`)
   }
 
-  // Claude Code truncates skill frontmatter after 1,536 characters. Keep the combined
-  // routing metadata below that limit even though Codex has different context budgeting.
-  const frontmatterLength = `name: ${frontmatter.name}\ndescription: ${frontmatter.description}`.length
-  if (frontmatterLength > 1536) {
-    errors.push(`${skillName}/SKILL.md frontmatter is ${frontmatterLength} chars; keep it <= 1536`)
+  // Claude Code truncates the combined description and when_to_use text at 1,536 characters in the
+  // skill listing. when_to_use counts toward that cap, so it has to be measured here: the schema now
+  // permits the field, and a check that ignored it would let the first adopter silently blow the very
+  // limit it exists to guard.
+  const routingText = [frontmatter.description, frontmatter.when_to_use].filter(Boolean).join(' ')
+  if (routingText.length > 1536) {
+    errors.push(
+      `${skillName}/SKILL.md description + when_to_use is ${routingText.length} chars; keep it <= 1536`,
+    )
   }
 
   const linkedReferences = new Set()

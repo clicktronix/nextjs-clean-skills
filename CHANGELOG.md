@@ -31,6 +31,19 @@ All notable changes to this project are documented in this file.
 - Added a validator check that a skill's H1 and its `interface.display_name` both slug back to the
   skill name. Nothing in the previous 15 checks compared either against the skill, which is why the
   half-done rename passed CI. Mutation-verified in both directions.
+- Accepted the values `disable-model-invocation`, `user-invocable` and `background` document: YAML
+  parses an unquoted `1` or `0` as a number, and the first pass shipped a string-only branch that
+  rejected exactly the values its own description promised.
+- Added the Agent Skills spec fields the schema was missing — `license` and `compatibility` (≤500
+  chars) — plus the spec's 1,024-character cap on `description` and a guard against the reserved
+  words Anthropic's Skills API rejects in `name`.
+- Counted `when_to_use` toward Claude Code's 1,536-character listing cap. The check measured
+  `name` + `description` only, so the first skill to adopt the newly permitted field would have blown
+  the limit the check exists to guard, silently.
+- Covered `schemas/skill-frontmatter.schema.json` with accept and reject fixtures in
+  `validate-json-schemas.mjs`, which previously had no negative cases at all. Ten rejected mutations
+  now pin the schema: unknown fields, four illegal `name` shapes, both spec length caps, two enum
+  violations, and an out-of-range loose boolean.
 
 ### Added
 

@@ -10,13 +10,21 @@
       "type": "string",
       "maxLength": 64,
       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-      "description": "Agent Skills spec: lowercase letters, digits and hyphens, max 64 characters. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here — an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done."
+      "not": { "pattern": "anthropic|claude" },
+      "description": "Agent Skills spec: 1-64 chars, lowercase alphanumerics and hyphens, no leading, trailing or consecutive hyphen — the pattern enforces all three. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here: an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done. The reserved-word guard is Anthropic's Skills API rule rather than the open spec; it costs nothing here and stops a future skill from being rejected at upload time."
     },
     "description": {
       "type": "string",
-      "minLength": 80
+      "minLength": 80,
+      "maxLength": 1024,
+      "description": "Agent Skills spec caps this at 1024. validate-skill-frontmatter.mjs applies a stricter 500-char repo convention on top, and checks description + when_to_use against Claude Code's 1,536-char listing cap."
     },
     "when_to_use": { "type": "string" },
+    "license": { "type": "string" },
+    "compatibility": {
+      "type": "string",
+      "maxLength": 500
+    },
     "argument-hint": { "type": "string" },
     "arguments": { "$ref": "#/$defs/stringOrList" },
     "disable-model-invocation": { "$ref": "#/$defs/looseBoolean" },
@@ -40,9 +48,10 @@
       "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
     },
     "looseBoolean": {
-      "description": "Claude Code 2.1.218+ accepts yes/no/on/off/1/0 in any letter case alongside true/false.",
+      "description": "Claude Code 2.1.218+ accepts yes/no/on/off/1/0 in any letter case alongside true/false. The integer branch is load-bearing: YAML parses an unquoted 1 or 0 as a number, so a string-only branch rejected the very values this field documents.",
       "oneOf": [
         { "type": "boolean" },
+        { "type": "integer", "enum": [0, 1] },
         {
           "type": "string",
           "pattern": "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Yy][Ee][Ss]|[Nn][Oo]|[Oo][Nn]|[Oo][Ff][Ff]|[01])$"
