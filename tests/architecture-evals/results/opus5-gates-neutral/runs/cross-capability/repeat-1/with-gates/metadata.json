@@ -1,0 +1,12 @@
+{
+  "scenario": "cross-capability",
+  "arm": "with-gates",
+  "repeat": 1,
+  "model": "claude-opus-5",
+  "effort": "high",
+  "framing": "neutral",
+  "taskHash": "9da8f333a39ddc74be49d4f9db26b5cb605c2999f15cf13c4a915c2ea9bce6d3",
+  "skillHash": "1bc53500ea531a9df3103c03541688c955f03cb05597f19fb847c5c3c007b9dc",
+  "armDirHash": "5aabb65329f77c2b439d464c48ab915024d87e7c136fcd9cc76797fd59520f51",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

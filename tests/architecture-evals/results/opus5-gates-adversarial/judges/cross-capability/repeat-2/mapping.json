@@ -1,0 +1,12 @@
+[
+  {
+    "arm": "no-gates",
+    "key": "49504bf17ba4",
+    "candidate": "candidate-1"
+  },
+  {
+    "arm": "with-gates",
+    "key": "fcfce099d82e",
+    "candidate": "candidate-2"
+  }
+]

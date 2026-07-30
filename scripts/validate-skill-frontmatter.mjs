@@ -37,7 +37,7 @@ const checkLink = (fromLabel, baseDir, linkPath, anchor, errors) => {
 }
 
 const skillsRoot = path.join(root, 'plugins/nextjs-clean-skills/skills')
-const expected = new Set(['nextjs-architecture', 'react-component-creator'])
+const expected = new Set(['designing-nextjs-capabilities', 'creating-react-components'])
 const errors = []
 const warnings = []
 
@@ -127,7 +127,10 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
 
   // Recommended structure, not enforced: these gates shape agent behavior and should be
   // validated by eval/pressure-tests before becoming a hard requirement. Warn, do not fail.
-  for (const requiredHeading of ['## Decision Gate', '## Common Failure Modes', '## Verification Gate']) {
+  // A closing verification gate is deliberately not recommended: it restated the rule sections
+  // almost item for item, and current models self-verify, so the third copy bought over-verification
+  // rather than coverage.
+  for (const requiredHeading of ['## Decision Gate', '## Common Failure Modes']) {
     if (!text.includes(requiredHeading)) {
       warnings.push(`${skillName}/SKILL.md is missing recommended ${requiredHeading}`)
     }

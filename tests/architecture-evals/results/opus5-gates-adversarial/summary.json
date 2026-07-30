@@ -1,0 +1,412 @@
+{
+  "aggregate": [
+    {
+      "arm": "with-gates",
+      "cells": 6,
+      "total": 60,
+      "mean": 10,
+      "fatalCount": 0,
+      "outputTokens": 96397,
+      "meanOutputTokens": 16066,
+      "numTurns": 91,
+      "costUsd": 4.6843
+    },
+    {
+      "arm": "no-gates",
+      "cells": 6,
+      "total": 58,
+      "mean": 9.667,
+      "fatalCount": 0,
+      "outputTokens": 79981,
+      "meanOutputTokens": 13330,
+      "numTurns": 93,
+      "costUsd": 4.0199
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear channel separation, direct local-store CRUD, server-derived auth with layered authorization, and private row mapping. The proposed shared/server infrastructure is a generic shared bucket, triggering the fourth negative item.",
+      "usage": {
+        "outputTokens": 17116,
+        "inputTokens": 16,
+        "cacheReadInputTokens": 241379,
+        "cacheCreationInputTokens": 29473,
+        "numTurns": 18,
+        "durationMs": 236351,
+        "costUsd": 0.8440895
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Coherent labels capability with route-private UI glue, no speculative provider abstraction, correct RSC/GET/Server Action channel split, layered security, private row mapping, and no registered negative violations.",
+      "usage": {
+        "outputTokens": 19515,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 205946,
+        "cacheCreationInputTokens": 39096,
+        "numTurns": 18,
+        "durationMs": 257414,
+        "costUsd": 0.9825680000000001
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly colocates labels behavior while keeping route-specific UI in app, avoids speculative application/repository layers, uses the required RSC/GET/Server Action channel split, derives and enforces auth server-side at multiple boundaries, and privately maps provider rows. No negative rubric violations.",
+      "usage": {
+        "outputTokens": 25217,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 206313,
+        "cacheCreationInputTokens": 40370,
+        "numTurns": 18,
+        "durationMs": 337540,
+        "costUsd": 1.1380365
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly provides a cohesive labels capability with route-private glue, no forwarding operation or repository port, the required direct RSC read/GET browser read/top-level Server Action write flows, layered server-derived security, and private row-to-product mapping. No negative rubric violations.",
+      "usage": {
+        "outputTokens": 14495,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 165218,
+        "cacheCreationInputTokens": 28282,
+        "numTurns": 17,
+        "durationMs": 214054,
+        "costUsd": 0.728539
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear capability colocation; framework-neutral shared operation and capability-shaped provider port; dedicated SSE Route Handler with abort propagation, sliding idle timeout, and pre-/post-commit failure handling; channel-native HTTP/stream/job contracts with shared failure semantics; no provider text or SDK types leak. Arithmetic: 2+2+2+2+2-(0+0+0+0)=10.",
+      "usage": {
+        "outputTokens": 13681,
+        "inputTokens": 10,
+        "cacheReadInputTokens": 133885,
+        "cacheCreationInputTokens": 26550,
+        "numTurns": 14,
+        "durationMs": 187726,
+        "costUsd": 0.6751974999999999
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear single capability root; provider-neutral application policy and narrow generation port; dedicated SSE Route Handler with cancellation, gap-based idle timeout, commit-aware errors, and no committed-stream retry; native job/HTTP/stream outcomes share semantic primitives; provider details remain private. Arithmetic: 2+2+2+2+2-(0+0+0+0)=10.",
+      "usage": {
+        "outputTokens": 13181,
+        "inputTokens": 16,
+        "cacheReadInputTokens": 241282,
+        "cacheCreationInputTokens": 34191,
+        "numTurns": 16,
+        "durationMs": 185284,
+        "costUsd": 0.792836
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear capability colocation, framework-neutral shared operation, capability-shaped provider port, dedicated SSE Route Handler, propagated cancellation, sliding idle timeout, commit-aware failures, channel-native contracts, report-once ownership, and no SDK/public-contract leakage.",
+      "usage": {
+        "outputTokens": 13808,
+        "inputTokens": 10,
+        "cacheReadInputTokens": 138222,
+        "cacheCreationInputTokens": 18144,
+        "numTurns": 12,
+        "durationMs": 186728,
+        "costUsd": 0.596476
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        1,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Strong overall architecture with the required Route Handler, abort propagation, commit-aware failure handling, native channel contracts, and provider isolation. Streaming lifecycle receives partial credit because the provider transport specifies a per-request timeout, which conflicts with the stated requirement that a successful stream not be capped by a total deadline, despite the separate sliding idle timer.",
+      "usage": {
+        "outputTokens": 13140,
+        "inputTokens": 10,
+        "cacheReadInputTokens": 139633,
+        "cacheCreationInputTokens": 19831,
+        "numTurns": 14,
+        "durationMs": 173631,
+        "costUsd": 0.5973714999999999
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear board-owned orchestration and policy, board-language dependency roles, private adapters over narrow public server surfaces, an acyclic capability graph, a route consuming only board/rsc.ts, layered authorization, and exactly-once unexpected-failure reporting. No negative criterion is violated.",
+      "usage": {
+        "outputTokens": 11516,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 202635,
+        "cacheCreationInputTokens": 20773,
+        "numTurns": 15,
+        "durationMs": 158596,
+        "costUsd": 0.5977125000000001
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly assigns cross-capability policy to board, uses board-owned ports and private adapters calling work-items/server.ts and labels/server.ts, preserves capability independence and acyclicity, exposes board/rsc.ts to the RSC route, and specifies layered authorization with one reporting owner. Minor wording inconsistencies about whether authentication/reporting sit in page.tsx or rsc.ts do not undermine the required behavior or create duplicated board orchestration.",
+      "usage": {
+        "outputTokens": 11318,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 168656,
+        "cacheCreationInputTokens": 19907,
+        "numTurns": 14,
+        "durationMs": 155340,
+        "costUsd": 0.567083
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns orchestration and policy through board-language ports and translating adapters over narrow public server surfaces. Dependencies remain acyclic, the RSC route uses board/rsc.ts, authorization is layered correctly, and unexpected failures have one reporting owner. No negative criterion is violated.",
+      "usage": {
+        "outputTokens": 10033,
+        "inputTokens": 16,
+        "cacheReadInputTokens": 239817,
+        "cacheCreationInputTokens": 20553,
+        "numTurns": 15,
+        "durationMs": 147769,
+        "costUsd": 0.5770235
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns the cross-capability workflow, with board-shaped ports and private adapters calling public work-items and labels surfaces. It explicitly prevents peer-capability imports and internal imports, routes RSC access through board/rsc.ts, and defines layered authorization plus single-owner failure reporting. The adapters perform translation and enforce boundaries, so they are not policy-free forwarding wrappers.",
+      "usage": {
+        "outputTokens": 13358,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 168199,
+        "cacheCreationInputTokens": 18849,
+        "numTurns": 13,
+        "durationMs": 235606,
+        "costUsd": 0.6072845
+      }
+    }
+  ]
+}

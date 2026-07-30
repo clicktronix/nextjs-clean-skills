@@ -1,0 +1,141 @@
+{
+  "summary": "Place the capability at src/modules/labels with only the segments the task needs: domain/label.ts (camelCase Label + name invariant), server/labels-store.ts (the single Supabase-touching file: row schema, derived select, snake_case→camelCase mapping, Postgres-error mapping), server.ts (silent request-scoped read taking explicit identity), actions.ts (createLabel/renameLabel), and client/ + client.ts (browser refresh lifecycle). Routes stay in app/**: an authenticated RSC page, a route-private client island, route-private forms, and app/api/labels/route.ts. The stakeholder shortcuts are accepted except one: the browser read cannot be a Server Action, because Server Actions are POST and non-cacheable while the requirement demands cacheable HTTP GET — so the GET Route Handler is a runtime requirement. Middleware+RLS alone are also insufficient: all four channels authenticate, store queries keep ownership predicates, and RLS remains the last line. No application/ segment, no repository port, no rsc.ts, no query-cache.ts, no ui/.",
+  "tree": [
+    {
+      "path": "src/modules/labels/domain/label.ts",
+      "purpose": "Pure, browser-safe Label product type (camelCase) plus the label-name invariant and normalizer used by actions and the store. Needed as a separate segment because client/ cannot import server/."
+    },
+    {
+      "path": "src/modules/labels/server/labels-store.ts",
+      "purpose": "'server-only' private adapter: LabelRowSchema, LABEL_SELECT derived from row keys, toLabel mapping, select/insert/update against the labels table with workspace predicates, and Postgres error (23505, empty-update) mapping to typed failures. Only file importing supabase-js."
+    },
+    {
+      "path": "src/modules/labels/server.ts",
+      "purpose": "'server-only' public read surface: listLabels(session, query). Silent (reports nothing), accepts explicit identity, consumed by both the RSC page and the GET Route Handler."
+    },
+    {
+      "path": "src/modules/labels/actions.ts",
+      "purpose": "Top-level 'use server' mutation boundary with locally declared async createLabel/renameLabel: authenticate, validate FormData, call the store, map name conflicts, revalidatePath, return serializable action state."
+    },
+    {
+      "path": "src/modules/labels/client/labels-query.ts",
+      "purpose": "'client-only' browser read lifecycle: query key, fetcher against GET /api/labels, freshness settings, and post-mutation invalidation of its own key."
+    },
+    {
+      "path": "src/modules/labels/client.ts",
+      "purpose": "Browser-safe public surface publishing useLabels and a named re-export of the Label type for the route-private island."
+    },
+    {
+      "path": "app/(app)/labels/page.tsx",
+      "purpose": "RSC page: authenticates, calls listLabels, renders the island with initialLabels and fetchedAt for cache seeding."
+    },
+    {
+      "path": "app/(app)/labels/_components/labels-panel.tsx",
+      "purpose": "Route-private Client Component: refresh via refetch, filter derived with useMemo (no navigation), inline rename through actions.ts."
+    },
+    {
+      "path": "app/(app)/labels/_components/create-label-form.tsx",
+      "purpose": "Route-private form bound to createLabel via useActionState."
+    },
+    {
+      "path": "app/api/labels/route.ts",
+      "purpose": "GET HTTP boundary: route-local search-param schema with caps, authentication, call to server.ts, and ownership of status, ETag, Cache-Control: private/no-cache, Vary: Cookie, and the safe public body."
+    },
+    {
+      "path": "shared/server/supabase/request-session.ts",
+      "purpose": "Existing admitted server infrastructure: getRequestSession() derives the getUser()-verified actor and the cookie-scoped client from one session. No privileged client behind the same factory."
+    },
+    {
+      "path": "rules/architecture-contract.json",
+      "purpose": "Declare the labels table with owner labels and consumers [labels] so stray cross-capability .from('labels') calls fail the static check."
+    }
+  ],
+  "flows": [
+    "RSC list: app/(app)/labels/page.tsx -> getRequestSession() (redirect('/login') outside any catch if unauthenticated) -> listLabels(session,{limit:200}) in src/modules/labels/server.ts -> selectLabels in server/labels-store.ts: from('labels').select(LABEL_SELECT).eq('workspace_id', session.workspaceId).order('name') -> parse LabelRowSchema -> toLabel -> render <LabelsPanel initialLabels fetchedAt />",
+    "Browser refresh: labels-panel.tsx -> useLabels({initialLabels, fetchedAt}) from client.ts -> useQuery({queryKey:['labels'], initialData, initialDataUpdatedAt: fetchedAt}) -> fetch('/api/labels?limit=200') -> app/api/labels/route.ts GET: route-local param schema (limit capped) -> getRequestSession() (401 if absent) -> listLabels(session, query) -> 200 {labels, fetchedAt} with Cache-Control: private, no-cache + weak ETag + Vary: Cookie, 304 on revalidation. Refresh is refetch(); the filter is derived client-side with useMemo, so it issues no request and no navigation.",
+    "Create: <form action={createLabel}> + useActionState -> actions.ts#createLabel: getRequestSession() -> parse FormData with the domain name schema -> insertLabel: .insert({workspace_id, name}).select(LABEL_SELECT).single() -> 23505 mapped to {status:'invalid', code:'name_taken'} -> on success revalidatePath('/labels') and return {status:'ok', label}; the island then invalidateQueries({queryKey:['labels']}).",
+    "Rename: actions.ts#renameLabel -> getRequestSession() -> validate {id, name} -> .update({name}).eq('id', id).eq('workspace_id', session.workspaceId).select(LABEL_SELECT).maybeSingle() -> null collapses to a single not_found code so RLS cannot leak existence, 23505 -> name_taken -> revalidatePath('/labels') + browser query invalidation.",
+    "Failure path: server/labels-store.ts maps provider errors to typed semantic failures without reporting; server.ts stays silent; each outer channel translates and reports once — RSC through its error boundary, route.ts as a safe body plus one capture, actions as serializable state. redirect/notFound are invoked after the typed result, never inside the catch that maps failures."
+  ],
+  "decisions": [
+    {
+      "topic": "Capability boundary",
+      "choice": "One module src/modules/labels owning the page read, both mutations, and the browser read",
+      "rationale": "Labels are one product vocabulary with one policy and lifecycle. A page, a table, or a CRUD surface would not create a capability, and splitting per channel would scatter one lifecycle."
+    },
+    {
+      "topic": "application/ segment",
+      "choice": "Omitted; channel -> server.ts -> private store adapter",
+      "rationale": "Deleting a listLabels/createLabel operation would move nothing into callers. Input validation, authentication, row mapping, cache invalidation, and an ordinary uniqueness conflict do not by themselves justify an application operation."
+    },
+    {
+      "topic": "Repository port / provider abstraction",
+      "choice": "None; Supabase called directly in server/labels-store.ts",
+      "rationale": "Supabase/Postgres is the existing store with no planned alternative. A mirrored port would be a folder-template artifact, and test mocks are evidence, not a gate."
+    },
+    {
+      "topic": "Browser read transport",
+      "choice": "GET Route Handler at app/api/labels/route.ts, rejecting the reuse-the-Server-Action shortcut",
+      "rationale": "Server Actions are POST, serialized, and produce no cacheable HTTP response, so they cannot satisfy the stated requirement that browser reads be cacheable HTTP GETs. Browser-owned reads use GET handlers or streams."
+    },
+    {
+      "topic": "Read surface naming",
+      "choice": "server.ts only; no rsc.ts",
+      "rationale": "The RSC page and the Route Handler consume the same request-scoped read contract. A second surface forwarding the same call would be a one-to-one facade, and only surfaces with real consumers and a distinct contract are admitted."
+    },
+    {
+      "topic": "query-cache.ts",
+      "choice": "Not created; the query key stays private in client/labels-query.ts",
+      "rationale": "It is admitted only when the same serializable key identity is shared by a server prefetch/hydration path and a browser path. Here the RSC seeds the island through props as initialData, so key identity is browser-only."
+    },
+    {
+      "topic": "Filter and refresh ownership",
+      "choice": "Refresh is a browser refetch; the filter is derived in the island with useMemo, not a URL param, extra key dimension, or new request",
+      "rationale": "A derived value gets no cache tier — compute it. The requirement is explicitly to filter without navigating, and labels are a bounded list; the endpoint still caps limit for correctness."
+    },
+    {
+      "topic": "Server cache tier for the RSC read",
+      "choice": "None; the page renders dynamically and mutations call revalidatePath('/labels')",
+      "rationale": "A shared server cache needs a nameable key, tenant scope, invalidator, and stale-data cost. For per-user label lists none of those are answerable, so the tier would be premature."
+    },
+    {
+      "topic": "Authentication placement",
+      "choice": "getRequestSession() at all four channels (page, GET route, both actions), rejecting middleware+RLS as sufficient",
+      "rationale": "Proxy, middleware, and hidden UI do not authorize data, and each Server Action is a public HTTP entrypoint. RLS and store predicates are defense in depth, not the only check."
+    },
+    {
+      "topic": "Supabase client identity mode",
+      "choice": "One cookie-scoped factory deriving the getUser()-verified actor and client from the same session; no privileged client in this capability",
+      "rationale": "Mixing user-scoped and service-role clients behind one ambiguous factory hides two security models. getSession()'s embedded user is not trustworthy for authorization."
+    },
+    {
+      "topic": "Row vs product types",
+      "choice": "LabelRowSchema, LABEL_SELECT derived from row keys, and toLabel mapping inside the private store adapter",
+      "rationale": "Stored rows are snake_case and product types camelCase, and the two change for different reasons. Explicit selection also stops a migration from silently widening the payload."
+    },
+    {
+      "topic": "HTTP cache headers",
+      "choice": "Cache-Control: private, no-cache with a weak ETag and Vary: Cookie; never public or CDN-cacheable",
+      "rationale": "The Route Handler owns the HTTP contract, and the response is user- and tenant-scoped, so conditional revalidation gives cacheability without cross-user exposure."
+    },
+    {
+      "topic": "ui/ segment",
+      "choice": "Omitted; the island and forms stay route-private under app/(app)/labels/_components/",
+      "rationale": "UI is promoted into a module only when reused or part of the capability's public contract. Cache access still lives in client/, not in the presentation components."
+    },
+    {
+      "topic": "Database resource ownership",
+      "choice": "Declare the labels table in rules/architecture-contract.json with owner and consumer labels",
+      "rationale": "Supabase table names are a second dependency graph carried in string literals; declaring ownership makes a cross-capability .from('labels') a static failure rather than an invisible coupling."
+    }
+  ],
+  "risks": [
+    "Cache-Control: private, no-cache plus ETag makes the GET conditionally cacheable (304s) rather than served from cache without a request. If a few seconds of staleness is acceptable, private, max-age=15 is stronger — that is a product call, not an architecture one.",
+    "The name_taken outcome depends on a unique index on (workspace_id, lower(name)). Without that migration, 23505 never fires and duplicate labels are accepted silently.",
+    "If the app has no QueryClientProvider, adopting TanStack Query for one island is real cost. Fallback behind the same client.ts surface: a useState+fetch hook that still records an explicit fetchedAt freshness value. Copying RSC data into plain component state is not seeding.",
+    "Both invalidations are required after every mutation — revalidatePath('/labels') for the RSC-owned copy and query invalidation for the browser-owned copy. Dropping either leaves one stale copy of a read with two owners.",
+    "Assumes a workspace_id-scoped labels table and an existing getRequestSession(). If labels are global, drop the predicate but keep RLS; if the session helper does not exist, one shared/server file must be added and it must not also vend a service-role client.",
+    "Rename collapses missing and forbidden into one not_found code to avoid leaking existence. If product policy later requires rejecting a forbidden reference distinctly, that decision needs an explicit non-enumerating resolution rather than silent omission.",
+    "The RSC page must stay dynamic. If it is ever prerendered or its data fetched through the app's own /api/labels route, the read gains an HTTP round trip and can fail at build time with no server listening."
+  ]
+}

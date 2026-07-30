@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "designing-nextjs-capabilities"
+  ],
+  "tests_reference": "references/inbound/route-handlers.md",
+  "query": "A work-item detail page must render the not-found page when the record is missing, and the create Server Action must redirect to the new item on success. Both paths call the work-items capability.",
+  "baseline_failure": "RED hypothesis: the agent calls notFound() or redirect() inside a generic catch that also normalises application failures. Next.js control-flow signals are converted into ordinary failures, so the page renders an error state and the redirect never happens.",
+  "expected_behavior": [
+    "Keeps navigation in the Next.js runtime surface: the capability returns not_found or a value, then rsc.ts or actions.ts calls notFound() or redirect()",
+    "Keeps application operations free of Next.js control-flow exceptions",
+    "Avoids a mixed catch; treats unstable_rethrow only as a limited migration workaround that the docs mark unstable and not recommended for production",
+    "Adds tests asserting that redirect and not-found rendering survive the capability call"
+  ],
+  "anti_expectation": [
+    "Does NOT disable failure normalisation to make navigation work",
+    "Does NOT import Next.js navigation into domain/ or application/",
+    "Does NOT move the business decision into app/** to avoid the capability"
+  ]
+}

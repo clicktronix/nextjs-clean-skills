@@ -112,7 +112,7 @@ Full details are in
 
 ## Agent Evaluation
 
-The focused inventory contains 17 `nextjs-architecture` scenarios:
+The focused inventory contains 17 `designing-nextjs-capabilities` scenarios:
 
 - 5 contain recorded baseline observations;
 - 12 remain RED hypotheses;

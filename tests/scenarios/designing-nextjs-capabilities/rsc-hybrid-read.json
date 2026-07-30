@@ -1,0 +1,75 @@
+{
+  "skills": [
+    "designing-nextjs-capabilities"
+  ],
+  "tests_reference": "references/caching/client-cache.md",
+  "query": "A /campaigns page currently renders the list fully client-side ('use client' + TanStack Query) with an optimistic create. First paint is empty until the client fetch resolves. Server-render the list for first paint without losing the optimistic create: show the page and how the server-fetched list reaches the client island and stays in sync. (Narrow refactor framing - the original open-ended 'build a page' wording was not cleanly eval-able; see baseline_observed.)",
+  "baseline_failure": "Agent makes the whole page 'use client' and fetches the list with TanStack Query (loses RSC first paint), OR keeps it RSC and calls router.refresh() after the mutation (full re-render, no optimism). Either way one owner is dropped.",
+  "expected_behavior": [
+    "The campaigns capability exposes an RSC read surface that reads private server code directly and renders first paint",
+    "The read seeds the client island as initialData with an explicit freshness decision (initialDataUpdatedAt from the server timestamp, or 0 to refetch immediately)",
+    "The optimistic create reconciles the capability's browser cache after success and invalidates a server cache only when the server read actually populated one",
+    "Names that the seeding is the rare hybrid case, not the default"
+  ],
+  "anti_expectation": [
+    "Does NOT apply the hybrid seed to a pure search/filter list (that is client lifecycle only)",
+    "Does NOT apply it to a static page with no writes (that is RSC props only)",
+    "Does NOT hand-pass initialData to multiple islands instead of a hydration strategy"
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "two attempts. (1) original open-ended 'build a /campaigns page' wording: confounded - haiku read the CWD (one false pass off template patterns) or asked clarifying questions despite instructions. (2) reshaped to the narrow refactor query above, run isolated ('do not read files, produce code now') - clean, comparable outputs.",
+    "runs_original_open_ended": [
+      {
+        "model": "sonnet",
+        "framing": "neutral",
+        "red": false
+      },
+      {
+        "model": "haiku",
+        "framing": "neutral",
+        "red": false
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": true,
+        "note": "server list in useState, broken optimistic sync"
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": null,
+        "note": "CONFOUNDED: read CWD, found template patterns -> false pass"
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": null,
+        "note": "CONFOUNDED / no-code hedge; discard"
+      }
+    ],
+    "runs_reshaped_isolated": [
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": true,
+        "note": "borderline: RSC first paint + optimism, but put server data in useState instead of seeding initialData (the data-ownership anti-pattern)"
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": false,
+        "note": "produced the correct initialData-seed + optimistic-cache + invalidate hybrid WITHOUT the reference"
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": false,
+        "skill_loaded": true,
+        "note": "GREEN: correct hybrid AND picked up the reference-specific initialDataUpdatedAt freshness decision"
+      }
+    ],
+    "verdict": "Historical result: the baseline is inconsistent. Haiku reached the initialData hybrid about half the time without the reference and only borderline-failed otherwise. The retained guidance is narrow: seed initialData instead of duplicating it in useState, and make freshness explicit. The capability-first path wording above has not been re-run."
+  }
+}

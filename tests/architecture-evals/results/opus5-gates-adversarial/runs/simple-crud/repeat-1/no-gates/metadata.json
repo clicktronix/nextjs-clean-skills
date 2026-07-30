@@ -1,0 +1,12 @@
+{
+  "scenario": "simple-crud",
+  "arm": "no-gates",
+  "repeat": 1,
+  "model": "claude-opus-5",
+  "effort": "high",
+  "framing": "adversarial",
+  "taskHash": "adcdb7275cddd9c92759ebeb429c670ddb91e0cb2b4683d3399a55cface7d74e",
+  "skillHash": "ef84d139bb40b831c86d10b0c13b848e5c0e3dc4b0e14f38aeeebea5b542a991",
+  "armDirHash": "4a2bc690246ebe4a4a8ae1f2ac25936c1f2daa5546ac800f9805563641d28fd7",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

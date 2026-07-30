@@ -8,7 +8,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "enum": ["nextjs-architecture", "react-component-creator"]
+      "enum": ["designing-nextjs-capabilities", "creating-react-components"]
     },
     "description": {
       "type": "string",

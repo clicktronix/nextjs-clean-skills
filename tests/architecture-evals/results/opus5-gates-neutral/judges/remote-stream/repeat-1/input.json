@@ -1,0 +1,377 @@
+{
+  "task": "Design the file placement and call flows for an assistant capability in a Next.js 16 App Router application. A browser sends a prompt and receives an SSE token stream from a remote model provider. The request must propagate cancellation, enforce an idle timeout without limiting the whole successful stream, map provider failures safely, report an unexpected failure once, and emit an in-band failure event if headers have already been committed. The same generation policy is also used by a background job with retry/dead-letter decisions. Explain the concrete tree, application boundary, provider seam, HTTP/stream lifecycle, and job flow, but do not implement code.",
+  "rubric": {
+    "positive": [
+      "Assistant behavior is colocated under one capability root with only justified segments and runtime surfaces.",
+      "The generation policy is a framework-neutral application operation and the remote provider is behind a capability-shaped port.",
+      "Streaming uses a Route Handler/SSE surface, propagates abort, distinguishes idle timeout from total deadline, and changes failure representation after commit.",
+      "HTTP stream and job keep native contracts while sharing semantic failure/redaction/reporting primitives.",
+      "Provider text and SDK types do not leak into public/domain contracts."
+    ],
+    "negative": [
+      "Streaming through a Server Action.",
+      "Retrying a partially committed stream as if it were an ordinary request.",
+      "One universal boundary/result wrapper for HTTP, stream, and job.",
+      "Provider SDK imports in domain/application code."
+    ]
+  },
+  "scoring": "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. Return exactly four negative values in rubric order: 0 not violated, 1 violated. total = sum(positive) - sum(negative). fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
+  "candidates": [
+    {
+      "candidate": "candidate-1",
+      "response": {
+        "summary": "One capability, src/modules/assistant-reply, owns the generation policy; the interactive SSE stream and the background job are two runtime channels over it. app/api/assistant-reply/route.ts owns HTTP status/headers and the pre-commit mapping; the module's private stream runtime owns the single AbortController, sliding idle timeout, commit state, in-band post-commit failures, and the one unexpected-failure report. application/generate-reply.ts is provider-neutral and silent, talking to a capability-shaped ReplyModel port whose streamReply resolves on upstream acquisition so startup failures stay pre-commit. The job reuses the same operation but with a total deadline and its own retry/dead-letter mapping, never inheriting stream idle semantics.",
+        "tree": [
+          {
+            "path": "src/instrumentation.ts",
+            "purpose": "Sentry/runtime init; keeps telemetry SDK out of domain and application"
+          },
+          {
+            "path": "src/app/(chat)/assistant/page.tsx",
+            "purpose": "Route-private composition; imports only modules/assistant-reply/client.ts"
+          },
+          {
+            "path": "src/app/(chat)/assistant/_components/reply-view.tsx",
+            "purpose": "Route-private presentation, unreused so not promoted into a ui/ segment"
+          },
+          {
+            "path": "src/app/api/assistant-reply/route.ts",
+            "purpose": "POST stream channel: decode/validate, authenticate, pre-commit status mapping, SSE headers, commit"
+          },
+          {
+            "path": "src/app/api/jobs/assistant-reply/route.ts",
+            "purpose": "Queue callback: verify signature before trusting payload, durable idempotency, call job.ts"
+          },
+          {
+            "path": "src/modules/assistant-reply/domain/reply.ts",
+            "purpose": "Pure prompt/reply invariants and delta-to-reply accumulation"
+          },
+          {
+            "path": "src/modules/assistant-reply/domain/failure.ts",
+            "purpose": "Closed semantic failure code set shared by all channels"
+          },
+          {
+            "path": "src/modules/assistant-reply/application/generate-reply.ts",
+            "purpose": "Generation policy operation: request shaping, delta normalization, completed vs contract decision; silent and framework-neutral"
+          },
+          {
+            "path": "src/modules/assistant-reply/application/ports/reply-model.ts",
+            "purpose": "Capability-shaped port; streamReply resolves on upstream acquisition to keep startup failures pre-commit"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/identity.ts",
+            "purpose": "Server-only actor/tenant/requestId/traceId derivation; promoted to shared/server only when a second capability needs it"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/config.ts",
+            "purpose": "Validated server-only environment and provider credentials"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/provider/reply-model-transport.ts",
+            "purpose": "The one transport for the remote provider: SDK types, credentials, correlation ids, pre-commit retry, provider-error to semantic code mapping"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/provider/reply-delta-schema.ts",
+            "purpose": "Validates provider payloads at the trust boundary before they enter trusted code"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/stream/open-reply-stream.ts",
+            "purpose": "Stream channel runtime: single AbortController, sliding idle timeout, commit state, in-band failure events, one report, cleanup"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/stream/sse.ts",
+            "purpose": "Private encoder from the published event union to SSE frames"
+          },
+          {
+            "path": "src/modules/assistant-reply/server/job/run-reply-job.ts",
+            "purpose": "Job channel runtime: total deadline, drain to full reply, retry/drop/dead-letter mapping, its own single report"
+          },
+          {
+            "path": "src/modules/assistant-reply/client/use-reply-stream.ts",
+            "purpose": "Browser lifecycle: fetch stream reader, partial text, user abort, terminal in-band error handling"
+          },
+          {
+            "path": "src/modules/assistant-reply/stream.ts",
+            "purpose": "Streaming contract: validated event union plus openAssistantReplyStream; consumer is the stream route handler"
+          },
+          {
+            "path": "src/modules/assistant-reply/job.ts",
+            "purpose": "Worker contract: runAssistantReplyJob plus job outcome; consumer is the queue callback route"
+          },
+          {
+            "path": "src/modules/assistant-reply/client.ts",
+            "purpose": "Browser-safe API publishing useReplyStream; consumer is the assistant route segment"
+          }
+        ],
+        "flows": [
+          "Stream request: POST /api/assistant-reply -> route decodes body with a route-local schema (400 validation) -> server/identity.ts authenticates (401/403) -> stream.ts openAssistantReplyStream({command, actor, requestSignal}) -> open-reply-stream.ts creates the single AbortController and links request.signal -> await generateReply(command, {model, policy, clock}, controller.signal) -> transport acquires the upstream stream and validates the response envelope.",
+          "Pre-commit outcome: typed failure returns {kind:'refused', code}, listener removed and controller aborted -> route maps code to 400/401/403/429/503/500 with a safe JSON body; no Response exists yet, so nothing is committed.",
+          "Commit: {kind:'open', body} -> route returns new Response(body, {status:200, headers: text/event-stream, no-store no-transform, x-accel-buffering:no}); commit happens only in the route.",
+          "Post-commit pump: each ReplyDelta -> chunk frame and the idle timer is cleared and re-armed, so a long healthy stream never trips it and there is no total cap; normal end -> done frame and close.",
+          "Idle timeout: timer fires -> controller.abort(IdleTimeout) -> provider observes the abort -> pump catch emits in-band {type:'error', code:'unavailable'} and closes the stream at status 200.",
+          "Cancellation: browser abort or downstream cancel -> ReadableStream cancel(reason) -> controller.abort(reason) -> upstream fetch/SDK aborts, idle timer cleared, abort listener removed, provider reader released, and no report is emitted because a disconnect is not a defect.",
+          "Post-commit failure reporting: expected semantic failure -> in-band error event with its code; unexpected exception -> reporter.capture once with requestId/traceId/actorId plus an already-reported marker so onRequestError does not double-capture -> in-band {type:'error', code:'unknown'} -> close. The stream is never error()-ed with raw provider text.",
+          "Browser: client/use-reply-stream.ts POSTs with its own AbortController, reads frames, appends chunk text, ends on done, renders error.code as terminal state, and aborts on stop/unmount which reaches the server as cancel().",
+          "Job: queue delivery -> app/api/jobs/assistant-reply/route.ts verifies the signature before parsing content, applies durable idempotency -> job.ts runAssistantReplyJob -> own controller with a total deadline -> same generateReply -> drain to a complete reply -> persist.",
+          "Job outcome mapping: validation/contract/forbidden -> dead-letter without retry; rate_limited/unavailable -> bounded exponential retry to the attempt cap then dead-letter; unexpected exception -> reported once here since the job is the outer channel, then retry then dead-letter; otherwise complete."
+        ],
+        "decisions": [
+          {
+            "topic": "Capability boundary",
+            "choice": "One module, src/modules/assistant-reply, covering both the stream and the job",
+            "rationale": "Both channels serve one product goal, vocabulary, generation policy, and change authority. A second channel is not a second capability, and a transport- or provider-named module (sse, llm-provider) is a listed failure mode."
+          },
+          {
+            "topic": "Application operation",
+            "choice": "Keep application/generate-reply.ts",
+            "rationale": "It survives the deletion test: request shaping, delta normalization, and the completed-vs-contract decision would otherwise be duplicated into both the stream runtime and the job runner. It is silent, framework-neutral, and receives the smallest deps object."
+          },
+          {
+            "topic": "Provider seam",
+            "choice": "One port, ReplyModel.streamReply(request, {signal}) -> Promise<AsyncIterable<ReplyDelta>>, with one private transport",
+            "rationale": "The core must name a streaming model in application language for two production consumers. The awaited acquisition is load-bearing: it makes startup failures pre-commit HTTP outcomes. SDK types, credentials, and provider-error mapping stay in server/provider. The port is not justified by mocks or a hypothetical second provider."
+          },
+          {
+            "topic": "Ownership of commit vs lifecycle",
+            "choice": "Route owns status, headers, and the pre-commit mapping; the module's private stream runtime owns the AbortController, idle timer, and in-band failures",
+            "rationale": "Route Handlers own HTTP and not product behavior, while the stream channel owns commit state and cancellation. Keeping the controller and timer in a module file makes disconnect and idle behavior testable without an HTTP server."
+          },
+          {
+            "topic": "Cancellation mechanics",
+            "choice": "Exactly one channel-owned AbortController, linked from request.signal and from ReadableStream cancel(reason), with its signal passed to the provider",
+            "rationale": "Setting a flag or breaking a local loop is not cancellation; the upstream producer must observe the abort, and the test only passes when it does."
+          },
+          {
+            "topic": "Idle timeout shape",
+            "choice": "Sliding timer cleared and re-armed per delta, with no total duration cap",
+            "rationale": "The requirement is provider liveness, not a limit on successful generation length; only the gap between deltas is bounded."
+          },
+          {
+            "topic": "Report-once ownership",
+            "choice": "The outer channel reports (stream runtime for HTTP, job runner for queue) and sets an already-reported marker",
+            "rationale": "Trusted surfaces, the application operation, and the transport propagate without reporting. The marker prevents framework instrumentation from double-capturing a rethrown failure."
+          },
+          {
+            "topic": "Failure carriers",
+            "choice": "Closed semantic code set in domain/failure.ts, mapped per channel: HTTP status pre-commit, in-band error event post-commit, retry/dead-letter for the job",
+            "rationale": "Share failure semantics and provider mapping, not one universal result wrapper; the transport changes while the meaning does not."
+          },
+          {
+            "topic": "Job vs stream liveness",
+            "choice": "Job uses a total deadline and never the stream's sliding idle timer",
+            "rationale": "Reusing one operation must not make the job inherit stream semantics; a shared rule would have to be an explicitly named liveness policy both channels opt into."
+          },
+          {
+            "topic": "Root surfaces",
+            "choice": "Only stream.ts, job.ts, and client.ts",
+            "rationale": "Each has a named consumer and establishes a runtime boundary. No RSC read, mutation, or shared query key exists, so rsc.ts, actions.ts, server.ts, and query-cache.ts would be empty ceremony."
+          },
+          {
+            "topic": "Omitted segments and shared roots",
+            "choice": "No ui/ segment and no shared/**",
+            "rationale": "Presentation is route-private and unreused, and with a single capability nothing meets the two-owner promotion gate; identity is demoted to shared/server only when a second capability needs the same meaning."
+          },
+          {
+            "topic": "Transport for the browser stream",
+            "choice": "POST with a fetch body reader rather than EventSource",
+            "rationale": "The prompt is a request body, and EventSource cannot POST. It is still a browser-owned read over a Route Handler, not a Server Action."
+          }
+        ],
+        "risks": [
+          "Pre-commit correctness depends entirely on the port awaiting real upstream acquisition; if the provider client resolves before the connection is established, first-token failures silently become in-band errors at status 200 instead of a 5xx. Pin with a test against the real client.",
+          "SSE framing sits in a module-private encoder while status and headers sit in the route; the split is deliberate but means the wire shape is described in two files. The published event union keeps a second transport possible.",
+          "Resume is not designed in. Event ids are published so a future Last-Event-ID resume is possible, but a committed stream must never be replayed as an ordinary retry.",
+          "Cleanup must be centralized in one finally on every exit path including refusal; a missed path leaks an idle timer and an abort listener per request.",
+          "Provider SDK specifics are intentionally absent: the provider-reference skill failed to load in this session, so no streaming or abort API details are asserted. Verify stream-acquisition and AbortSignal semantics against current provider docs when implementing the transport.",
+          "Runtime must be pinned (runtime = 'nodejs', dynamic = 'force-dynamic') if the provider client is not edge-compatible, otherwise the stream can be buffered or the route prerendered.",
+          "Double reporting is the easiest regression to introduce here; the report-once assertion must cover the channel and framework instrumentation together, not just the channel.",
+          "shared/** is empty by design; the first cross-capability need should demote server/identity.ts deliberately rather than by drift into a utils bucket."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-2",
+      "response": {
+        "summary": "One capability, src/modules/assistant/, owns the assistant reply-generation product goal. A POST Route Handler at app/api/assistant/reply/route.ts is the HTTP boundary; stream.ts publishes openReplyStream, which owns a single channel AbortController, awaits upstream acquisition before the Response is constructed (so startup failures are genuinely pre-commit HTTP), then emits SSE deltas with a sliding provider-liveness idle timeout, and emits an in-band {type:'error',code} event when failure lands after commit. application/generate-reply.ts holds provider-neutral generation policy shared by the stream and the job through one capability-shaped port; the provider SDK, credentials, payload validation, and provider-to-semantic error mapping stay in the private server/provider transport. job.ts gives the background path its own whole-run deadline and retry/dead-letter classification, so it never inherits stream idle-timeout semantics. Unexpected failures are reported exactly once: by the route before commit, by the stream body after commit, by the job channel for jobs; surfaces, the operation, and adapters stay silent. No persistence, no RSC surface, no actions.ts, no shared/kernel promotion is invented.",
+        "tree": [
+          {
+            "path": "src/modules/assistant/domain/reply-request.ts",
+            "purpose": "Pure prompt and output-limit invariants; no provider or framework dependency."
+          },
+          {
+            "path": "src/modules/assistant/domain/reply-event.ts",
+            "purpose": "Provider-neutral ReplyDelta plus the StreamEvent union (chunk | error | done) and terminal reasons."
+          },
+          {
+            "path": "src/modules/assistant/domain/failure.ts",
+            "purpose": "Closed semantic failure code set (validation, contract, unauthorized, forbidden, rate_limited, unavailable, unknown) kept capability-local until a second capability shares it."
+          },
+          {
+            "path": "src/modules/assistant/application/generate-reply.ts",
+            "purpose": "Framework-neutral, silent generation policy: entitlement/quota, model and system-instruction selection, delta sequencing, complete-vs-truncated terminal decision; shared by stream and job."
+          },
+          {
+            "path": "src/modules/assistant/application/ports/reply-generation.ts",
+            "purpose": "One-role port: streamReply(request, { signal }): Promise<AsyncIterable<ReplyDelta>> — promise-of-iterable so acquisition can fail before any bytes exist."
+          },
+          {
+            "path": "src/modules/assistant/server/config.ts",
+            "purpose": "server-only validated provider environment and credentials; fails on first intentional access, not on a browser import."
+          },
+          {
+            "path": "src/modules/assistant/server/provider/reply-transport.ts",
+            "purpose": "The single transport for the remote model service: credentials, acquisition timeout, trace-id correlation, caller signal reaching fetch, provider payload validation, provider envelope to semantic failure mapping."
+          },
+          {
+            "path": "src/modules/assistant/server/provider/reply-generation-adapter.ts",
+            "purpose": "Implements the port; keeps provider shapes out of application and public contracts; reports nothing."
+          },
+          {
+            "path": "src/modules/assistant/server/stream/open-reply-stream.ts",
+            "purpose": "Stream channel assembly: channel-owned AbortController, request-signal and cancel linking, pre-commit upstream acquisition, body construction, cleanup."
+          },
+          {
+            "path": "src/modules/assistant/server/stream/sse-response.ts",
+            "purpose": "SSE framing, commit-state machine, done event, and in-band failure event emission after commit."
+          },
+          {
+            "path": "src/modules/assistant/server/stream/idle-abort.ts",
+            "purpose": "Sliding idle timeout bound to the channel AbortController; reset only by provider deltas, never by keep-alive frames."
+          },
+          {
+            "path": "src/modules/assistant/server/job/run-reply-generation.ts",
+            "purpose": "Job-native policy: own whole-run deadline, attempt budget with bounded backoff, retry/drop/dead-letter classification per semantic code."
+          },
+          {
+            "path": "src/modules/assistant/server/composition.ts",
+            "purpose": "Wires provider client, reporter, and clock into the smallest dependency object each caller needs."
+          },
+          {
+            "path": "src/modules/assistant/client/reply-stream-client.ts",
+            "purpose": "client-only browser fetch + SSE reader; own AbortController for cancel propagation; validates each event against the published union."
+          },
+          {
+            "path": "src/modules/assistant/client/use-reply-stream.ts",
+            "purpose": "React async lifecycle: accumulated text plus terminal state (done | error(code) | aborted)."
+          },
+          {
+            "path": "src/modules/assistant/stream.ts",
+            "purpose": "Streaming contract: openReplyStream, classifyReplyStreamFailure (the public classifier HTTP needs), StreamEvent."
+          },
+          {
+            "path": "src/modules/assistant/job.ts",
+            "purpose": "Worker contract: runReplyGeneration and ReplyJobOutcome (complete | retry(afterMs) | dead_letter(code))."
+          },
+          {
+            "path": "src/modules/assistant/client.ts",
+            "purpose": "Browser-safe surface: useReplyStream and the StreamEvent contract."
+          },
+          {
+            "path": "app/api/assistant/reply/route.ts",
+            "purpose": "POST stream channel: route-local body schema, authentication and identity, calls stream.ts, maps pre-commit failures to status/headers, reports the unexpected case once, returns the committed Response."
+          },
+          {
+            "path": "app/api/jobs/assistant-reply/route.ts",
+            "purpose": "Queue callback: signature verification before trusting payload, durable idempotency by job id, explicit privileged identity, calls job.ts and maps the outcome to the queue's retry contract."
+          },
+          {
+            "path": "app/(app)/assistant/page.tsx",
+            "purpose": "Route-private composition of the assistant screen."
+          },
+          {
+            "path": "app/(app)/assistant/_components/reply-panel.tsx",
+            "purpose": "Route-private UI consuming client.ts only; not promoted to a module ui/ segment because it is not reused."
+          },
+          {
+            "path": "instrumentation.ts",
+            "purpose": "Reporter/SDK initialization per runtime; domain and application import no telemetry SDK."
+          }
+        ],
+        "flows": [
+          "Happy stream: reply-panel.tsx -> client.ts useReplyStream -> POST /api/assistant/reply (browser AbortController signal) -> route validates body with its local schema and authenticates, building identity (actor, roles, tenant, requestId, traceId) -> stream.ts openReplyStream -> server/stream/open-reply-stream.ts creates channel ctl, links request.signal and the stream cancel(reason) callback -> application/generate-reply.ts -> port streamReply -> reply-generation-adapter -> reply-transport fetch(ctl.signal); acquisition is awaited BEFORE the Response exists -> route returns new Response(handle.body, {status:200, content-type text/event-stream, cache-control no-cache no-transform, x-accel-buffering no}) = commit -> sse-response pumps data:{type:chunk,id,data} per delta, resetting the sliding idle timer on each provider delta only -> data:{type:done} -> close -> finally clears timer, removes the signal listener, releases the provider reader.",
+          "Pre-commit failure: reply-transport maps provider 429 to rate_limited, provider 5xx/network/timeout to unavailable, provider 401/403 to unavailable (our misconfiguration, never surfaced as caller unauthorized), malformed payload to contract; the failure rejects openReplyStream before any Response -> route maps via classifyReplyStreamFailure: validation 400, forbidden 403, rate_limited 429, unavailable 503, acquisition timeout 504, contract/unknown 500 -> route reports the unexpected case exactly once with request/trace context and never echoes provider text.",
+          "Post-commit failure: adapter maps the provider error to a semantic code and throws -> sse-response emits data:{type:error,code:<same semantic code>} in band and closes with no trailing done -> the stream body is the single capture owner for an unexpected defect here and preserves an already-reported marker so framework instrumentation does not capture it twice; the route cannot report because it already returned.",
+          "Cancellation: browser abort() or component unmount -> request.signal aborts, and/or the platform calls the response body's cancel(reason) -> either path calls ctl.abort(reason) -> the same signal is the one handed to the provider fetch, so the upstream connection actually terminates (a boolean flag or breaking the local loop would not qualify) -> cleanup runs in finally; an AbortError caused by our own ctl produces no error event and no report.",
+          "Idle timeout: idle-abort.ts arms a timer from deps.clock and resets it on every provider delta, so a long healthy stream is never truncated by a total budget; keep-alive comment frames deliberately do NOT reset it. Firing during acquisition yields HTTP 504; firing after commit yields ctl.abort(IDLE), an in-band {type:error,code:unavailable}, and a structured product event rather than exception telemetry.",
+          "Job: queue POST /api/jobs/assistant-reply -> verify signature before trusting the parsed body -> durable idempotency check on job id -> build explicit privileged identity (actor, scope, reason), separate from any cookie-scoped context -> job.ts runReplyGeneration -> server/job/run-reply-generation.ts creates its OWN AbortController with a whole-run deadline (never the stream's sliding idle timeout) -> drains the same generate-reply operation to a complete reply -> returns complete, retry(afterMs) for rate_limited/unavailable within the attempt budget with bounded exponential backoff, or dead_letter(code) for validation/forbidden/contract and for exhausted attempts; unknown is reported once by the job channel then retried within budget and dead-lettered after -> route maps the outcome to the queue's retry contract."
+        ],
+        "decisions": [
+          {
+            "topic": "Capability boundary",
+            "choice": "One module src/modules/assistant/ owning prompt, reply, delta, done, and generation policy",
+            "rationale": "One product goal under one policy and lifecycle. Naming it sse, openai, or chat-api would create a transport- or provider-named module, an explicit failure mode; a second endpoint and a job do not by themselves split a capability."
+          },
+          {
+            "topic": "Stream transport",
+            "choice": "POST Route Handler plus a stream.ts surface, not a Server Action",
+            "rationale": "A long-lived response is its own channel that owns headers, commit state, cancellation, and in-band failures; Server Actions are mutation boundaries and cannot express any of that."
+          },
+          {
+            "topic": "Application operation",
+            "choice": "Keep generate-reply.ts because it owns entitlement/quota policy, model and instruction selection, delta sequencing, and the complete-vs-truncated decision, and is shared by two runtime channels",
+            "rationale": "Passes the deletion test on two listed criteria. Stated explicitly in the proposal: if in practice it reduces to forwarding the port call, delete it and let both channels call the server adapter — a forwarding operation is worse than none."
+          },
+          {
+            "topic": "Port grain",
+            "choice": "A single role method streamReply(request, { signal }): Promise<AsyncIterable<ReplyDelta>>",
+            "rationale": "Capability conversation rather than an SDK or endpoint mirror. Returning a promise of the iterable makes upstream acquisition awaitable, which is what keeps startup failure pre-commit; a one-method function type is valid when one operation needs one capability."
+          },
+          {
+            "topic": "Commit-state discipline",
+            "choice": "Await upstream acquisition before constructing or returning the Response",
+            "rationale": "Creating a ReadableStream and doing the work in an async start() does not make an asynchronous startup failure pre-commit; once the Response is returned, failure belongs to the body channel and can only be reported in band."
+          },
+          {
+            "topic": "Cancellation",
+            "choice": "One channel-owned AbortController; request.signal, the body cancel(reason) callback, and the idle timer all abort it, and only its signal is passed inward to the transport fetch",
+            "rationale": "Cancellation counts only when the upstream producer observes the abort. Listener removal and timer clearing happen in a finally so no handle leaks."
+          },
+          {
+            "topic": "Idle timeout",
+            "choice": "Sliding timer reset only by provider deltas, owned by the stream channel and expressed inward solely as the signal",
+            "rationale": "Bounds provider silence without capping a healthy long stream. Keeping it out of the operation and the port is what prevents the job from inheriting stream liveness semantics; the two channels intentionally use different policies, so no shared named liveness policy is created."
+          },
+          {
+            "topic": "Provider error mapping",
+            "choice": "Map provider envelopes to the closed semantic code set inside server/provider/reply-transport.ts; no raw provider text or SDK error as cause on a semantic failure that leaves the adapter",
+            "rationale": "Providers do not define failure kinds and adapters do not report. Provider 401/403 maps to unavailable rather than caller unauthorized, since it is our configuration problem, not the caller's identity."
+          },
+          {
+            "topic": "Report-once ownership",
+            "choice": "Route reports pre-commit, stream body reports post-commit with an already-reported marker, job channel reports for jobs; stream.ts, the operation, and adapters stay silent",
+            "rationale": "Each outer channel that can name the request and outcome owns exactly one capture. The marker prevents automatic instrumentation from double-capturing a rethrown exception."
+          },
+          {
+            "topic": "Public surfaces created",
+            "choice": "Only stream.ts, job.ts, client.ts — no server.ts, rsc.ts, actions.ts, ui.ts, or query-cache.ts",
+            "rationale": "Each surface must have a real consumer and establish a runtime boundary. There is no trusted cross-capability consumer, no RSC read, no mutation, no reused UI, and no TanStack key shared between a server prefetch and a browser query."
+          },
+          {
+            "topic": "Persistence and shared roots",
+            "choice": "No store adapter, no repository port, no shared/kernel promotion of the failure codes",
+            "rationale": "The task requires none; inventing persistence or promoting a code set with only one owning capability would be speculative abstraction. Codes move to shared/kernel only when a second capability shares identical meaning and change cadence."
+          },
+          {
+            "topic": "HTTP input schema placement",
+            "choice": "Request schema stays route-local in app/api/assistant/reply/route.ts; the failure classifier is published from stream.ts",
+            "rationale": "Routes own decoding and must not reach into module-private schemas or private application errors; a public classifier belongs on the root contract."
+          },
+          {
+            "topic": "Job entry point",
+            "choice": "Queue callback Route Handler with signature verification and durable idempotency, delegating outcome policy to job.ts",
+            "rationale": "Service/queue callbacks are a Route Handler use; retries enter there, so idempotency belongs at that boundary while retry/dead-letter classification stays in the capability."
+          }
+        ],
+        "risks": [
+          "Keep-alive comment frames must not reset the idle timer, or the timeout is silently disabled — assert in tests that only provider deltas reset it.",
+          "Deploy-target behavior (edge/serverless max duration, proxy or CDN buffering) can break streaming independently of this design; pin the route runtime and verify end to end.",
+          "If generate-reply.ts holds no real policy it degrades into a forwarding operation; delete it and let both channels call the server adapter instead.",
+          "Promoting domain/failure.ts into shared/kernel with only one owning capability would be premature; wait for a second capability with identical meaning and change cadence.",
+          "Double capture if the route reports and rethrows while instrumentation also observes the same exception; choose one owner explicitly or preserve the already-reported marker.",
+          "Resume is out of scope: a dropped committed stream ends in an in-band error and the client restarts. Event ids are emitted now so a Last-Event-ID resume can be added without reshaping the contract, and a committed stream is never replayed as an ordinary retry.",
+          "Reusing the shared operation from a third channel later could reintroduce timeout-semantics coupling; keep liveness policy expressed only as the injected signal."
+        ]
+      }
+    }
+  ]
+}

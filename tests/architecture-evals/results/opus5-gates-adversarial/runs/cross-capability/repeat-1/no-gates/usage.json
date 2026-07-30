@@ -1,0 +1,9 @@
+{
+  "outputTokens": 11516,
+  "inputTokens": 14,
+  "cacheReadInputTokens": 202635,
+  "cacheCreationInputTokens": 20773,
+  "numTurns": 15,
+  "durationMs": 158596,
+  "costUsd": 0.5977125000000001
+}
