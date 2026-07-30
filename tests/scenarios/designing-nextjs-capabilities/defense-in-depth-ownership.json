@@ -1,0 +1,69 @@
+{
+  "skills": [
+    "designing-nextjs-capabilities"
+  ],
+  "tests_reference": "references/security/dal-and-auth.md",
+  "query": "RLS is enabled on the campaigns table with a created_by policy. The store runs locally from checked-in migrations, so it has no port in front of it. The update enters through a Server Action. Show actions.ts and the private campaigns server function that updates a campaign's name by id.",
+  "baseline_failure": "Agent writes `client.from('campaigns').update(patch).eq('id', id)` and relies on RLS alone, reasoning that the policy already scopes by created_by, so an explicit predicate is redundant; or the private store rediscovers request identity instead of receiving established scope.",
+  "expected_behavior": [
+    "Adds an explicit ownership predicate on top of RLS: `.eq('id', id).eq('created_by', userId)`",
+    "Explains the predicate is defense-in-depth so a regressed policy or a service-role client cannot silently escalate",
+    "For child rows, scopes by the parent the caller controls (e.g. .eq('campaign_id', scope.campaignId))",
+    "Keeps input decoding and authentication at the action surface; the private query receives typed input plus the authenticated scope and does not call the auth provider",
+    "Keeps shared failure types inward; private server code does not import actions.ts or another public channel surface"
+  ],
+  "anti_expectation": [
+    "Does NOT drop RLS in favor of the application-side filter (both layers stay)",
+    "Does NOT move the ownership predicate into UI or app/** instead of the private server query"
+  ],
+  "baseline_observed": {
+    "date": "2026-05-28",
+    "method": "fresh subagent, no skill loaded; neutral vs adversarial ('RLS already covers it, do not over-engineer') framing x model",
+    "runs": [
+      {
+        "model": "sonnet",
+        "framing": "neutral",
+        "red": false
+      },
+      {
+        "model": "sonnet",
+        "framing": "neutral",
+        "red": false
+      },
+      {
+        "model": "sonnet",
+        "framing": "adversarial",
+        "red": false
+      },
+      {
+        "model": "haiku",
+        "framing": "neutral",
+        "red": false
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": true
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": true
+      },
+      {
+        "model": "haiku",
+        "framing": "adversarial",
+        "red": true
+      }
+    ],
+    "verdict": "haiku+adversarial reproduced RED 3/3 (consistent): every run dropped the ownership predicate and relied on RLS alone ('no redundant authorization code needed'). Strong models and haiku+neutral add it unprompted. Reference kept; value is narrow but the failure mode is real and stable - a guardrail against lazy 'RLS handles it' prompting on weak models.",
+    "historical_green_check": {
+      "model": "haiku",
+      "framing": "adversarial",
+      "skill_loaded": true,
+      "passed": true,
+      "note": "Historical GREEN only: the 1.3.x reference flipped the ownership predicate, but the capability-first placement wording has not been rerun."
+    }
+  },
+  "_status_note": "The recorded GREEN belongs to the 1.3.x layer-first wording. The capability-first query and trust-boundary expectation above have not been re-run; the historical result proves only the defense-in-depth predicate."
+}

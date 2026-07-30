@@ -1,0 +1,41 @@
+{
+  "skills": [
+    "creating-react-components"
+  ],
+  "tests_reference": "references/component-structure.md#component-structure",
+  "query": "Refactor this Client Component without changing behavior: `export const WorkItems = withHooks(WorkItemsView)(useWorkItemsProps)`. `useWorkItemsProps` owns state mapping and callbacks; `WorkItemsView` is simple and independently testable.",
+  "baseline_failure": "Agent passes useWorkItemsProps into composeHooks, a render prop, or another generic higher-order helper instead of calling the Hook directly.",
+  "expected_behavior": [
+    "Calls useWorkItemsProps by name inside the WorkItems controller component",
+    "Passes the returned plain props to a declarative WorkItemsView",
+    "Keeps controller and View together unless independent tests or a server-renderable View justify a separate file"
+  ],
+  "anti_expectation": [
+    "Does NOT add a Provider, generic Hook composer, or third component file without a concrete need",
+    "Does NOT add memo without measured need"
+  ],
+  "baseline_observed": {
+    "date": "2026-07-29",
+    "method": "Fresh Codex CLI sessions in an empty directory with fresh HOME/CODEX_HOME; gpt-5.6-luna; no installed skills for RED, then only current SKILL.md and component-structure.md for GREEN.",
+    "runs": [
+      {
+        "model": "gpt-5.6-luna",
+        "framing": "adversarial-helper-preservation",
+        "red": true
+      }
+    ],
+    "verdict": "RED reproduced: the no-skill response kept withHooks(WorkItemsView)(useWorkItemsProps) and explicitly justified preserving the helper.",
+    "green_check_invalidated": {
+      "date": "2026-07-29",
+      "model": "gpt-5.6-luna",
+      "framing": "adversarial-helper-preservation",
+      "skill_loaded": true,
+      "passed": true,
+      "input_sha256": "58fd2da552dc3c47ce33695e7429e54503704aff0c5024b991e80b1c34bb7134",
+      "note": "With no ambient skills, the referenced guidance replaced the helper with a named Client controller that calls useWorkItemsProps directly and passes plain props to the independently testable View.",
+      "invalidated_on": "2026-07-30",
+      "invalidated_by": "Skill renamed and the closing verification gate removed, so the recorded input SHA-256 no longer covers the shipped skill.",
+      "requires": "Rerun RED and GREEN per tests/scenarios/README.md before reporting this cell as GREEN again."
+    }
+  }
+}

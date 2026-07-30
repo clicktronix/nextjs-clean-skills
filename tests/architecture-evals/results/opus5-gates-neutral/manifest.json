@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "experiment": "verification-gate-removal",
+  "repositoryHead": "7548571bc1ac1dfec2c755ee405ddccd1bc0dd07",
+  "generator": "claude",
+  "generationModel": "claude-opus-5",
+  "effort": "high",
+  "judgeModel": "gpt-5.6-sol",
+  "judgeRunner": "codex",
+  "claudeVersion": "2.1.220 (Claude Code)",
+  "codexVersion": "codex-cli 0.146.0",
+  "framing": "neutral",
+  "arms": [
+    "with-gates",
+    "no-gates"
+  ],
+  "armHashes": {
+    "with-gates": {
+      "dirHash": "5aabb65329f77c2b439d464c48ab915024d87e7c136fcd9cc76797fd59520f51",
+      "skillHash": "1bc53500ea531a9df3103c03541688c955f03cb05597f19fb847c5c3c007b9dc"
+    },
+    "no-gates": {
+      "dirHash": "4a2bc690246ebe4a4a8ae1f2ac25936c1f2daa5546ac800f9805563641d28fd7",
+      "skillHash": "ef84d139bb40b831c86d10b0c13b848e5c0e3dc4b0e14f38aeeebea5b542a991"
+    }
+  },
+  "scenarios": [
+    "simple-crud",
+    "remote-stream",
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "generationRuns": 12,
+  "blindJudgeRuns": 6
+}

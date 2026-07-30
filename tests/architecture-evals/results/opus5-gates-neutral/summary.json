@@ -1,0 +1,412 @@
+{
+  "aggregate": [
+    {
+      "arm": "with-gates",
+      "cells": 6,
+      "total": 58,
+      "mean": 9.667,
+      "fatalCount": 0,
+      "outputTokens": 93487,
+      "meanOutputTokens": 15581,
+      "numTurns": 98,
+      "costUsd": 4.8127
+    },
+    {
+      "arm": "no-gates",
+      "cells": 6,
+      "total": 58,
+      "mean": 9.667,
+      "fatalCount": 0,
+      "outputTokens": 95013,
+      "meanOutputTokens": 15836,
+      "numTurns": 95,
+      "costUsd": 4.759
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly colocates labels behavior while keeping route glue in app; avoids forwarding application operations and repository ports; correctly separates RSC, GET Route Handler, and Server Action channels; derives authentication server-side with tenant predicates and RLS; and privately maps provider rows behind browser-safe exports. No negative rubric violations.",
+      "usage": {
+        "outputTokens": 19938,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 152339,
+        "cacheCreationInputTokens": 39979,
+        "numTurns": 17,
+        "durationMs": 270591,
+        "costUsd": 0.9751495000000001
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly satisfies all five positive criteria, including direct server-only RSC access, cacheable GET browser reads, top-level Server Actions, layered authorization, and private row mapping. It violates the final negative criterion by relying on a generic src/shared/server bucket for request-session infrastructure.",
+      "usage": {
+        "outputTokens": 17197,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 154559,
+        "cacheCreationInputTokens": 40952,
+        "numTurns": 18,
+        "durationMs": 243146,
+        "costUsd": 0.9174795
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly colocates label behavior, avoids application-operation and repository abstractions, uses direct RSC/server reads plus GET and Server Actions, enforces server-derived identity with scoped queries and RLS, and privately maps provider rows. The generic src/shared bucket violates the fourth negative criterion.",
+      "usage": {
+        "outputTokens": 20069,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 189188,
+        "cacheCreationInputTokens": 41289,
+        "numTurns": 18,
+        "durationMs": 276186,
+        "costUsd": 1.0099740000000001
+      }
+    },
+    {
+      "scenario": "simple-crud",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly defines a cohesive labels capability without speculative operation or repository layers; its RSC, GET, and Server Action flows are coherent, authorization is layered, and storage mapping remains private. The generic src/shared bucket violates the fourth negative criterion.",
+      "usage": {
+        "outputTokens": 17768,
+        "inputTokens": 16,
+        "cacheReadInputTokens": 233731,
+        "cacheCreationInputTokens": 51667,
+        "numTurns": 20,
+        "durationMs": 249158,
+        "costUsd": 1.0784954999999998
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear, coherent capability colocation; framework-neutral generation operation; capability-shaped provider port; Route Handler SSE lifecycle with upstream abort propagation, sliding idle timeout, and pre-/post-commit failure handling; channel-native HTTP, stream, and job outcomes sharing semantic failure/reporting primitives; no provider text or SDK types leak into public/domain contracts. None of the negative patterns is present.",
+      "usage": {
+        "outputTokens": 22188,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 181411,
+        "cacheCreationInputTokens": 35358,
+        "numTurns": 16,
+        "durationMs": 275422,
+        "costUsd": 0.9997255
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear, coherent single-capability architecture with justified runtime surfaces; provider-neutral application policy and capability-shaped port; correct Route Handler/SSE commit discipline, cancellation propagation, sliding idle timeout, and in-band post-commit errors; native HTTP, stream, and job contracts share semantic classification, redaction, and report-once behavior; provider details remain private to the adapter. None of the negative patterns is present.",
+      "usage": {
+        "outputTokens": 17611,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 205743,
+        "cacheCreationInputTokens": 21545,
+        "numTurns": 15,
+        "durationMs": 234833,
+        "costUsd": 0.7593464999999999
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear capability colocation, framework-neutral generation operation, capability-shaped provider port, correct Route Handler/SSE lifecycle, upstream cancellation, sliding idle timeout, commit-aware failure transport, and channel-native HTTP/job outcomes. Provider details are contained, redaction is explicit, and unexpected failures have a coherent single-owner/marker strategy.",
+      "usage": {
+        "outputTokens": 14918,
+        "inputTokens": 14,
+        "cacheReadInputTokens": 218294,
+        "cacheCreationInputTokens": 25656,
+        "numTurns": 19,
+        "durationMs": 216630,
+        "costUsd": 0.7394019999999999
+      }
+    },
+    {
+      "scenario": "remote-stream",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Strong capability boundary, neutral application operation and port, Route Handler streaming, abort propagation, sliding idle timeout, commit-aware in-band errors, native job outcomes, and provider isolation. Partial credit on shared reporting semantics because the proposal identifies possible duplicate capture by framework instrumentation but leaves the already-reported-marker versus instrumentation-owner choice unresolved.",
+      "usage": {
+        "outputTokens": 13147,
+        "inputTokens": 10,
+        "cacheReadInputTokens": 139431,
+        "cacheCreationInputTokens": 21119,
+        "numTurns": 16,
+        "durationMs": 181487,
+        "costUsd": 0.6103155
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns orchestration and policy. Its board-language ports use private adapters over narrow work-items/server.ts and labels/server.ts surfaces; source capabilities remain independent and the graph is acyclic. The route delegates to board/rsc.ts. Authentication, source authorization, board-level forbidden-label rejection, and exactly-once unexpected-failure reporting are coherently assigned, with no rubric-listed negative pattern.",
+      "usage": {
+        "outputTokens": 11283,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 168176,
+        "cacheCreationInputTokens": 18969,
+        "numTurns": 13,
+        "durationMs": 155899,
+        "costUsd": 0.5565929999999999
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 1,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns the cross-capability operation and policies. Board-specific ports and adapters depend only on the capabilities’ trusted public server surfaces, while work-items and labels neither import each other nor expose internals cross-capability. The RSC page calls board/rsc.ts and only maps outcomes. Authorization is layered across the board channel, owning capabilities, stores, and board rejection policy; unexpected failures have one report owner. No rubric-listed negative pattern is present.",
+      "usage": {
+        "outputTokens": 11378,
+        "inputTokens": 10,
+        "cacheReadInputTokens": 135565,
+        "cacheCreationInputTokens": 20018,
+        "numTurns": 14,
+        "durationMs": 147160,
+        "costUsd": 0.5531425
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "no-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns orchestration and policy. Board-language ports are implemented by private adapters over narrow public server surfaces. Dependencies remain acyclic, the RSC route uses board/rsc.ts, authorization is layered, and unexpected failures have one reporting owner. No prohibited dependency, internal import, duplicated orchestration, or policy-free forwarding wrapper is present.",
+      "usage": {
+        "outputTokens": 10689,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 167322,
+        "cacheCreationInputTokens": 18708,
+        "numTurns": 13,
+        "durationMs": 154202,
+        "costUsd": 0.5387010000000001
+      }
+    },
+    {
+      "scenario": "cross-capability",
+      "repeat": 2,
+      "arm": "with-gates",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 10,
+      "reportedTotal": 10,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Board clearly owns the cross-capability workflow and projection. Its board-language ports use translating adapters over work-items and labels public server APIs without coupling the source capabilities. The page imports the board RSC surface, authorization is enforced at board and capability levels, and unexpected errors are reported once. None of the negative conditions is violated.",
+      "usage": {
+        "outputTokens": 12314,
+        "inputTokens": 12,
+        "cacheReadInputTokens": 151400,
+        "cacheCreationInputTokens": 44910,
+        "numTurns": 14,
+        "durationMs": 172071,
+        "costUsd": 0.8333900000000001
+      }
+    }
+  ]
+}

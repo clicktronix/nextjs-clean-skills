@@ -1,7 +1,7 @@
 # Architecture Contract
 
-This is the human-readable architecture behind `nextjs-architecture` and
-`react-component-creator`. It defines ownership, placement, dependency direction, and public
+This is the human-readable architecture behind `designing-nextjs-capabilities` and
+`creating-react-components`. It defines ownership, placement, dependency direction, and public
 surfaces. Runtime behavior is specified in [Runtime Boundaries](./runtime-boundaries.md).
 
 The default profile is Next.js App Router with TypeScript. Existing projects keep equivalent

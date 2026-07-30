@@ -199,11 +199,11 @@ provider credentials.
 
 Implementation references:
 
-- [Server/Client Boundary](../plugins/nextjs-clean-skills/skills/react-component-creator/references/server-client-boundary.md)
-- [State Placement](../plugins/nextjs-clean-skills/skills/react-component-creator/references/state-placement.md)
-- [Forms And Actions](../plugins/nextjs-clean-skills/skills/react-component-creator/references/forms-and-actions.md)
-- [Component Structure](../plugins/nextjs-clean-skills/skills/react-component-creator/references/component-structure.md)
-- [Loading And Errors](../plugins/nextjs-clean-skills/skills/react-component-creator/references/loading-and-errors.md)
-- [Styling, Text, And Accessibility](../plugins/nextjs-clean-skills/skills/react-component-creator/references/styling-and-i18n.md)
-- [Notifications And Feedback](../plugins/nextjs-clean-skills/skills/react-component-creator/references/notifications-and-feedback.md)
-- [Component Testing](../plugins/nextjs-clean-skills/skills/react-component-creator/references/component-testing.md)
+- [Server/Client Boundary](../plugins/nextjs-clean-skills/skills/creating-react-components/references/server-client-boundary.md)
+- [State Placement](../plugins/nextjs-clean-skills/skills/creating-react-components/references/state-placement.md)
+- [Forms And Actions](../plugins/nextjs-clean-skills/skills/creating-react-components/references/forms-and-actions.md)
+- [Component Structure](../plugins/nextjs-clean-skills/skills/creating-react-components/references/component-structure.md)
+- [Loading And Errors](../plugins/nextjs-clean-skills/skills/creating-react-components/references/loading-and-errors.md)
+- [Styling, Text, And Accessibility](../plugins/nextjs-clean-skills/skills/creating-react-components/references/styling-and-i18n.md)
+- [Notifications And Feedback](../plugins/nextjs-clean-skills/skills/creating-react-components/references/notifications-and-feedback.md)
+- [Component Testing](../plugins/nextjs-clean-skills/skills/creating-react-components/references/component-testing.md)

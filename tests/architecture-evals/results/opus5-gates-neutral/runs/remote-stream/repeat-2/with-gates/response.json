@@ -1,0 +1,152 @@
+{
+  "summary": "One capability, `src/modules/assistant/`, owns the assistant generation policy for both runtime channels. `app/api/assistant/stream/route.ts` is a thin HTTP boundary (decode, authenticate, map status); the capability's `stream.ts` is the stream channel and owns the single channel-owned AbortController, the sliding idle watchdog, commit state, SSE serialization, and the one unexpected-failure report. `application/generate-reply.ts` is a framework-neutral, silent async-iterable operation over a narrow `TextGenerator` port; the provider SDK, its error envelope, and validated env live only in `server/provider/**`. Upstream acquisition (provider response headers + first delta) is awaited before the `Response` is constructed, so startup failures still get an HTTP status and everything after that is in-band. `job.ts` reuses the same operation and port but owns idempotency, its own deadline, retry/backoff, and dead-letter mapping — it never inherits the stream's idle-timeout semantics. No `server.ts`, `rsc.ts`, `actions.ts`, `ui.ts`, or `query-cache.ts`: no consumer needs them, and no persistence is in scope, so no store or `domain` invariants beyond the prompt/event contracts.",
+  "tree": [
+    {
+      "path": "src/app/(chat)/assistant/page.tsx",
+      "purpose": "Route-private RSC shell. Composes the panel; no capability policy, no data fetch (nothing is persisted in this task)."
+    },
+    {
+      "path": "src/app/(chat)/assistant/_components/assistant-panel.tsx",
+      "purpose": "Route-private client presentation. Imports only `modules/assistant/client.ts`. Stays under app/** because it is not reused and is not part of the capability's public contract."
+    },
+    {
+      "path": "src/app/api/assistant/stream/route.ts",
+      "purpose": "HTTP/stream boundary. POST (prompt in body). Route-local zod schema for the wire payload, session auth -> RequestIdentity, calls `stream.ts`, maps a returned semantic code to status/body, or returns the ready body as a committed SSE Response. Reports nothing. `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`."
+    },
+    {
+      "path": "src/app/api/jobs/assistant-replies/route.ts",
+      "purpose": "Queue callback boundary. Verifies queue signature before trusting content, applies durable idempotency on the job id, calls `job.ts`, and translates the returned job outcome to the queue's ack/retry/dead-letter response."
+    },
+    {
+      "path": "src/modules/assistant/domain/generation-request.ts",
+      "purpose": "Pure: GenerationRequest / turn shape, prompt assembly from turns, size and turn-count invariants, output cap. Framework- and provider-independent."
+    },
+    {
+      "path": "src/modules/assistant/domain/stream-event.ts",
+      "purpose": "Pure: the closed `StreamEvent` union (`chunk` with id | `error` with code | `done`) plus its serialized-shape validator. The published external event contract, independent of SSE framing."
+    },
+    {
+      "path": "src/modules/assistant/application/generate-reply.ts",
+      "purpose": "The generation policy operation: assembles the request via domain, enforces entitlement/quota policy and output caps, calls the port with the caller's signal, yields `ReplyDelta` values. Silent, no timers, no HTTP, no reporter."
+    },
+    {
+      "path": "src/modules/assistant/application/ports/text-generator.ts",
+      "purpose": "Capability-shaped port: `streamReply(request: GenerationRequest, ctx: { signal: AbortSignal }): AsyncIterable<ReplyDelta>`. One role method in application language; owns application-facing types only."
+    },
+    {
+      "path": "src/modules/assistant/server/provider/model-generator.ts",
+      "purpose": "Private adapter implementing TextGenerator. Owns the single transport for this remote service: SDK/fetch call, credentials, correlation ids, caller signal wired to the outgoing request, and validation of provider payloads at the trust boundary before mapping to ReplyDelta. SDK types never leave this file."
+    },
+    {
+      "path": "src/modules/assistant/server/provider/error-mapping.ts",
+      "purpose": "Maps the provider envelope/status to the closed semantic set (validation | contract | unauthorized | rate_limited | unavailable | unknown). Records approved diagnostics locally; never attaches raw provider text or SDK errors as cause; reports nothing."
+    },
+    {
+      "path": "src/modules/assistant/server/config.ts",
+      "purpose": "`server-only` validated configuration: API key, base URL, model id, provider request timeout. Fails on first intentional server access, never on a browser import."
+    },
+    {
+      "path": "src/modules/assistant/server/factory.ts",
+      "purpose": "Typed factory building the dependency object each channel needs ({ generator, reporter, clock }). The only place that knows the concrete adapter; application code never imports it."
+    },
+    {
+      "path": "src/modules/assistant/stream.ts",
+      "purpose": "`server-only` streaming contract. Creates the one AbortController, links `request.signal`, aborts from the response stream's `cancel(reason)`, runs the sliding idle/first-token watchdog, acquires upstream before returning, pumps ReplyDelta -> StreamEvent -> SSE frames, emits in-band `error`/`done` after commit, and is the single capture owner for unexpected failures on this channel."
+    },
+    {
+      "path": "src/modules/assistant/job.ts",
+      "purpose": "`server-only` worker contract. `runAssistantReplyJob(payload, { identity, deps, attempt })`: job-owned deadline signal, drains the same operation to a full reply, maps outcome to complete | retry(backoffMs) | dead_letter, reports an unexpected failure once. No idle timer."
+    },
+    {
+      "path": "src/modules/assistant/client.ts",
+      "purpose": "`client-only` browser API: the `useAssistantStream` hook plus the browser-safe event/failure-code types. The only assistant import allowed in app/** client components."
+    },
+    {
+      "path": "src/modules/assistant/client/use-assistant-stream.ts",
+      "purpose": "Browser async lifecycle: POST + ReadableStream reader, incremental SSE parse validated against the published event contract, user-stop and unmount abort, terminal state from in-band `error`/`done`."
+    },
+    {
+      "path": "src/shared/kernel/failure.ts",
+      "purpose": "Runtime-neutral closed failure-code set and the already-reported marker. Admitted to shared/kernel only because the stream channel, the job channel, and the client contract all name the same codes with the same meaning."
+    },
+    {
+      "path": "src/shared/server/reporter.ts",
+      "purpose": "Server reporter contract plus redaction/allowlist rules, injected as an explicit dependency. Sentry SDK wiring stays in `instrumentation.ts`, not in capability code."
+    }
+  ],
+  "flows": [
+    "Start (browser -> HTTP): `_components/assistant-panel.tsx` -> `modules/assistant/client.ts::useAssistantStream()` -> `fetch('/api/assistant/stream', { method: 'POST', body: prompt, signal: hookSignal })`. Reads use the stream channel, never a Server Action.",
+    "Pre-commit: `app/api/assistant/stream/route.ts` parses the body with its route-local schema -> authenticates and builds `RequestIdentity { actorId, roles, tenantId, requestId, traceId }` -> `createAssistantDeps()` from `server/factory.ts` -> `stream.ts::openAssistantReplyStream(command, { identity, requestSignal: request.signal, deps })`. `stream.ts` constructs the one AbortController, attaches the `requestSignal` abort listener (aborting immediately if already aborted), arms the first-token watchdog, calls `application/generate-reply.ts::generateReply(request, { generator, signal: controller.signal })`, and awaits provider response headers plus the first delta. On failure it returns `{ status: 'failed', code }` — the route maps that to 400/401/403/429/503/504/500 with a safe JSON body and does not report. No `Response` is constructed before acquisition succeeds, so an async start() failure can never be mislabelled as pre-commit.",
+    "Commit + post-commit: on `{ status: 'ready', body, headers }` the route returns `new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', 'x-accel-buffering': 'no' } })`. Inside `stream.ts` the pump maps each `ReplyDelta` to a `domain/stream-event.ts` `chunk` (with monotonic id), validates the serialized shape, enqueues the SSE frame, and resets the idle timer. Clean end -> `{ type: 'done' }` then close. Any failure after commit -> semantic code -> `{ type: 'error', code }` in-band, then close; status and headers are never touched, and an unexpected one is reported exactly once here with the already-reported marker set.",
+    "Cancellation: browser abort / tab close reaches Next as `request.signal` abort, and a downstream consumer drop reaches the response stream's `cancel(reason)`. Both call `controller.abort(reason)` on the same channel-owned controller, whose signal was handed to `server/provider/model-generator.ts`, so the provider fetch is actually aborted rather than just locally ignored. Cleanup removes the abort listener, clears the idle timer, and releases the provider reader. Cancellation emits no `error` event and is not reported.",
+    "Idle timeout: one sliding timer inside `stream.ts`, reset on every delta enqueued — it measures gaps only, so a long healthy generation is never truncated. Expiry -> `controller.abort('idle-timeout')`; before commit that surfaces as `unavailable` -> 504 from the route, after commit as in-band `{ type: 'error', code: 'unavailable' }` then close. The job path never sees this timer.",
+    "Job: queue POST -> `app/api/jobs/assistant-replies/route.ts` (signature verified, idempotency key checked) -> `modules/assistant/job.ts::runAssistantReplyJob(payload, { identity, deps, attempt })` -> the same `generateReply` with a job-owned deadline signal -> deltas drained into a full reply. `job.ts` maps outcomes: complete; `unavailable`/`rate_limited` -> retry with bounded backoff until max attempts, then dead_letter; `validation`/`forbidden`/`contract` -> dead_letter immediately; unexpected exception -> reported once by the job channel, then retry-or-dead-letter by attempt count. Provider-error mapping and the port are shared with the stream; idle-timeout, retry, and deadline semantics are not."
+  ],
+  "decisions": [
+    {
+      "topic": "Capability boundary",
+      "choice": "One `src/modules/assistant/` capability; no `sse`, `streaming`, or provider-named module, and no split between the interactive and background paths.",
+      "rationale": "Both channels serve one actor goal (get generated text for a prompt) under one generation policy and one change owner. A transport or provider name would be a transport-shaped module; splitting stream from job would duplicate the policy the task explicitly says is shared. Channel differences are lifecycle, not policy — they are expressed as two root surfaces, not two capabilities."
+    },
+    {
+      "topic": "Public surfaces",
+      "choice": "Create only `stream.ts`, `job.ts`, `client.ts`.",
+      "rationale": "Each has a named consumer and establishes a runtime boundary: the stream route, the queue route, and the browser panel respectively. Nothing does RSC reads, mutations, or reusable UI, and no TanStack key identity is shared across runtimes, so `server.ts`, `rsc.ts`, `actions.ts`, `ui.ts`, and `query-cache.ts` would be empty ceremony."
+    },
+    {
+      "topic": "Application operation",
+      "choice": "Keep `application/generate-reply.ts` as a real operation returning an AsyncIterable of ReplyDelta.",
+      "rationale": "It survives the deletion test on two counts: it owns policy the store/provider does not (prompt assembly from turns, entitlement/quota check, output caps), and it is the behavior genuinely shared by the stream and job channels. Deleting it would copy that policy into both channels."
+    },
+    {
+      "topic": "Provider seam",
+      "choice": "Port `TextGenerator.streamReply(request, { signal })` in `application/ports/`, single private adapter in `server/provider/`.",
+      "rationale": "A third-party remote provider is the default port case: application policy must name generation in its own language and the caller's cancellation signal must be part of that contract. One narrow role method — not a mirror of SDK endpoints — and one adapter, justified by isolation of SDK types and credentials rather than by a hypothetical second provider or a test mock."
+    },
+    {
+      "topic": "AbortController ownership",
+      "choice": "Exactly one controller, created inside `stream.ts`; the route only passes `request.signal`.",
+      "rationale": "Both abort sources (request abort and response-stream `cancel`) and the consumer of the derived signal (the provider call) are visible only from inside the pump. Creating it in the route would need a second linkage hop and invites a second controller, the classic case where the producer never observes the abort."
+    },
+    {
+      "topic": "Commit boundary",
+      "choice": "`openAssistantReplyStream` awaits provider headers and the first delta before any `Response` exists; only then does the route commit.",
+      "rationale": "Startup failures must map to HTTP status. Constructing a ReadableStream and treating an async `start()` as pre-commit is exactly the mislabelling the streaming rules reject — once the Response is returned, failure belongs to the body channel."
+    },
+    {
+      "topic": "Report-once owner",
+      "choice": "`stream.ts` is the sole capture owner for the stream channel; the route maps status only, and the adapter and operation report nothing. `job.ts` is the sole owner on the job channel.",
+      "rationale": "Post-commit failures are unobservable from the route, so splitting pre/post owners guarantees either a gap or a double report. The already-reported marker keeps framework instrumentation from capturing the same exception a second time."
+    },
+    {
+      "topic": "Idle timeout scope",
+      "choice": "The sliding idle timer lives only in `stream.ts`; no shared liveness policy module. The job uses its own deadline plus the adapter's ordinary per-request timeout.",
+      "rationale": "The task assigns idle semantics to the stream and deadline/retry/dead-letter to the job. Extracting a shared named liveness policy would only be right if both channels intentionally wanted identical semantics — inventing it now would make the job inherit stream timing through a reused operation."
+    },
+    {
+      "topic": "Failure representation",
+      "choice": "Closed semantic code set in `shared/kernel/failure.ts`; provider envelopes translated in `server/provider/error-mapping.ts`; each channel maps codes natively (HTTP status, in-band event, job outcome).",
+      "rationale": "Shares the semantics without one universal result wrapper. Raw provider messages and SDK errors never leave the adapter and are never attached as `cause`, so nothing provider-shaped can reach the public SSE contract."
+    },
+    {
+      "topic": "Validation ownership",
+      "choice": "Wire payload at the route (route-local schema), provider payloads in the adapter, serialized events at the stream surface. No re-parsing of typed values across directories.",
+      "rationale": "Three distinct trust transitions, each validated once. The `AssistantPrompt` command type is published from `stream.ts`/`job.ts` so the routes never reach into a private schema file."
+    },
+    {
+      "topic": "Resume",
+      "choice": "Emit event ids but implement no resume/replay; a disconnect ends the generation.",
+      "rationale": "The provider protocol offers no resume cursor, and replaying a committed stream as an ordinary retry is prohibited. Ids are cheap ordering/dedup information for the client, not a resume promise; durable work belongs on the job path."
+    }
+  ],
+  "risks": [
+    "Double reporting if a later change adds a try/catch with reporter calls in the route handler or the provider adapter. Test assertion: exactly one capture per failed request, pre- and post-commit.",
+    "A second AbortController appearing (e.g. a route-level one, or `AbortSignal.timeout` passed straight to the provider) silently breaks the single-abort invariant. Cancellation tests must assert the provider request observed the abort, not that iteration stopped.",
+    "The idle timer degrading into a total-duration cap if it is armed once instead of reset per delta — this truncates long healthy generations and is invisible in short tests. Needs a test with a slow-but-alive stream longer than the idle window.",
+    "Proxy or CDN buffering in front of the route can delay frames past the idle window and mask disconnects; the SSE headers and deployment path need verification in the real environment, not just locally.",
+    "Boundary drift: adding transcript persistence later introduces a store and store-level ownership predicates, and could tempt a page- or table-named module. It belongs inside `assistant/server/**` under the same capability unless a genuinely separate actor goal and lifecycle appear.",
+    "If entitlement/quota policy turns out to live entirely in the remote provider, `generate-reply.ts` shrinks toward a forwarding operation. At that point the honest move is to delete it and let each channel surface call the port directly, keeping only domain prompt assembly.",
+    "The job's retry classification depends on the provider mapping being right; a provider outage misclassified as `contract` would dead-letter work that should retry. Mapping tests should be driven by recorded provider envelopes.",
+    "Server/client separation must be enforced mechanically, not just by convention: `server-only` in `stream.ts`, `job.ts`, `server/**`, `client-only` in `client.ts`/`client/**`, plus a build that fails when a Client Component imports a server surface."
+  ]
+}

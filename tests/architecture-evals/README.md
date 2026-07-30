@@ -45,3 +45,24 @@ The frozen two-tier, two-framing release protocol and acceptance thresholds are 
 [`RELEASE_RESULTS.md`](RELEASE_RESULTS.md). Candidate v3 uses the frozen replay protocol in
 [`RELEASE_GATE_V3.md`](RELEASE_GATE_V3.md), with results in
 [`RELEASE_V3_RESULTS.md`](RELEASE_V3_RESULTS.md).
+
+A separate two-arm Claude Opus 5 experiment on the closing verification gate is in
+[`OPUS5_GATE_RESULTS.md`](OPUS5_GATE_RESULTS.md), run by `scripts/run-opus5-gate-eval.mjs`. It does
+not use this matrix's arms and does not clear the release gate.
+
+## Known limitations
+
+Carry these into the next gate rather than patching them mid-protocol — editing a scenario, rubric,
+candidate, or runner invalidates the result sets that recorded their hashes.
+
+1. `candidate/SKILL.md` is a frozen artifact of the candidate-v3 gate, not a pointer at the shipped
+   skill. It predates `query-cache.ts`, the failure-mode list, and the reference map, and it ships
+   without a `references/` directory, so the `capability-first` arm answers from SKILL.md alone while
+   the `v1.3.2` and `layer-first` arms get complete `git archive` copies. Any new candidate gate
+   should re-snapshot it and state whether references are included.
+2. Negative rubric item 4 ("A generic shared/lib bucket or a universal result wrapper") fires on
+   `shared/server`, which the skill explicitly admits as a runtime-scoped root. Observed on both arms
+   across cells in the Opus 5 experiment. The item should name unowned catch-alls (`utils`, `lib`,
+   `services`) rather than any path under `shared/`.
+3. The frozen matrix generates with Codex models only. Skill authoring guidance is to test with every
+   model the skill targets, so a Claude arm belongs in the next gate rather than in a side experiment.

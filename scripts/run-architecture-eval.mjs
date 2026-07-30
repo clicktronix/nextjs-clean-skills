@@ -193,6 +193,10 @@ async function prepareCodexHome(base) {
   return codexHome;
 }
 
+// The control arms archive `skills/nextjs-architecture` from a tag and a commit that both predate
+// the rename to `designing-nextjs-capabilities`. These paths are historical and must not be renamed
+// with the working tree, or `git archive` finds nothing and the control arms silently ship an empty
+// skill directory. A new arm cut from HEAD needs the current name instead.
 async function prepareArm(arm, workspace) {
   if (arm === "no-skill") return { instruction: "", hash: null };
 

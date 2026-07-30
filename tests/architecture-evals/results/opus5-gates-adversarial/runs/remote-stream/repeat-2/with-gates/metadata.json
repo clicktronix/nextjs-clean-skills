@@ -1,0 +1,12 @@
+{
+  "scenario": "remote-stream",
+  "arm": "with-gates",
+  "repeat": 2,
+  "model": "claude-opus-5",
+  "effort": "high",
+  "framing": "adversarial",
+  "taskHash": "f72197dcb1d871482dfc6c916d70c0347562868b8df2e8da580164445e912e3c",
+  "skillHash": "1bc53500ea531a9df3103c03541688c955f03cb05597f19fb847c5c3c007b9dc",
+  "armDirHash": "5aabb65329f77c2b439d464c48ab915024d87e7c136fcd9cc76797fd59520f51",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

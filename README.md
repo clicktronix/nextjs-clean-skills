@@ -7,7 +7,7 @@ architecture and React Server/Client Component rules.
 
 | Plugin | Skills | Purpose |
 | --- | --- | --- |
-| `nextjs-clean-skills` | `nextjs-architecture`, `react-component-creator` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
+| `nextjs-clean-skills` | `designing-nextjs-capabilities`, `creating-react-components` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
 
 Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
@@ -38,8 +38,8 @@ Interactive install:
 After install, run `/reload-plugins`. Invoke directly with:
 
 ```shell
-/nextjs-clean-skills:nextjs-architecture
-/nextjs-clean-skills:react-component-creator
+/nextjs-clean-skills:designing-nextjs-capabilities
+/nextjs-clean-skills:creating-react-components
 ```
 
 ## Codex Install
@@ -84,8 +84,8 @@ Put that file at `$REPO_ROOT/.agents/plugins/marketplace.json`. Codex installs p
 Installed skills:
 
 ```text
-$nextjs-architecture
-$react-component-creator
+$designing-nextjs-capabilities
+$creating-react-components
 ```
 
 ## Default Profile
@@ -135,7 +135,7 @@ These skills assume the target app uses the current Next.js 16 App Router model:
 | Next.js 16 + React 19 | Primary | Assumes `cacheComponents: true`, `proxy.ts`, async request APIs, Server Components by default, and RSC-first reads. |
 | Next.js 15 | Migration only | Use the architecture guidance selectively; Cache Components and proxy naming may need migration work first. |
 | Next.js 14 or older | Not a default target | Treat these skills as conceptual guidance, not copy-ready implementation rules. |
-| Non-Next React | Component-only | `react-component-creator` state/styling guidance can apply, but RSC, Server Actions, proxy, and cache rules do not. |
+| Non-Next React | Component-only | `creating-react-components` state/styling guidance can apply, but RSC, Server Actions, proxy, and cache rules do not. |
 
 Minimum package versions for copy-ready rules:
 

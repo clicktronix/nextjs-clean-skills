@@ -1,0 +1,18 @@
+{
+  "skills": ["creating-react-components"],
+  "tests_reference": "references/loading-and-errors.md#loading-and-errors",
+  "query": "This dashboard route renders a title and account summary that are already known, plus a report table whose query takes a few seconds. Keep the title and summary visible while the report is pending or fails. Add empty and forbidden results too. A teammate asks to keep it simple with one route-level loading.tsx and error.tsx.",
+  "baseline_failure": "Agent accepts the route-level error boundary despite the stated survival requirement, so a report failure replaces the useful title and account summary.",
+  "expected_behavior": [
+    "Streams the slow region behind its own boundary while the already-known content renders immediately",
+    "Renders empty results and denied permission as component states, not thrown failures",
+    "Scopes the error surface to the segment and offers retry rather than replacing the document",
+    "Gives the placeholder the shape of the resolved content so the layout does not shift"
+  ],
+  "anti_expectation": [
+    "Does NOT wrap the whole page in one pending boundary",
+    "Does NOT report the failure again inside the error boundary",
+    "Does NOT swallow framework navigation such as notFound in a generic catch"
+  ],
+  "evaluation_note": "A 2026-07-29 gpt-5.6-luna baseline kept stable content in a parent layout, so the predicted ownership failure did not reproduce. The guidance remains a documentation-backed hypothesis."
+}

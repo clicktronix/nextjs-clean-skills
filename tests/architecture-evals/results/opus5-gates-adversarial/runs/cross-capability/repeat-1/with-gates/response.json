@@ -1,0 +1,151 @@
+{
+  "decisions": [
+    {
+      "topic": "Board module vs. stakeholder preference",
+      "choice": "Create src/modules/board/ as an orchestrating capability; reject both composing stores in the page and work-items calling labels",
+      "rationale": "Deleting the coordinating code moves archived filtering, status grouping, ID-dependent sequencing, and the forbidden-label authorization consequence into app/**, which fails the deletion test and the app/** import rule. Work-items calling labels would embed label visibility policy and its rejection consequence in work-items, coupling two capabilities the task requires to stay independently changeable."
+    },
+    {
+      "topic": "Board persistence",
+      "choice": "Board owns no tables, no store, no server persistence module — only private adapters over work-items/server.ts and labels/server.ts",
+      "rationale": "Board has no data of its own; it is a projection. Declaring no table ownership makes any board-side .from()/.rpc() statically rejectable."
+    },
+    {
+      "topic": "labels public contract",
+      "choice": "labels/server.ts exposes resolveLabels(identity, ids) returning a complete { visible, missing, forbidden } resolution rather than a pre-filtered visible list",
+      "rationale": "Authorization-sensitive joins require a complete non-enumerating resolution. A pre-filtered list would make the forbidden case indistinguishable from absent, so board could not reject; forbidden/missing echo only caller-supplied IDs to avoid enumeration."
+    },
+    {
+      "topic": "Forbidden label handling",
+      "choice": "Any forbidden reference fails the whole board load closed as a typed { outcome: 'forbidden' } value",
+      "rationale": "Policy requires rejection, and silent omission is explicitly disallowed. Stated as an assumption; the alternative is an explicit per-card restricted-label domain marker, never a silent drop."
+    },
+    {
+      "topic": "Application operation existence",
+      "choice": "Keep application/load-board.ts with BoardWorkItems and BoardLabels role ports in board vocabulary",
+      "rationale": "It owns real policy, cross-capability orchestration, a combining projection, and ID-dependent sequencing — not a forwarding call. Ports use board types; adapters map the source capabilities' public contracts."
+    },
+    {
+      "topic": "Runtime channels and segments",
+      "choice": "Only board/rsc.ts plus the route; no actions.ts, client/, ui/, query-cache.ts, stream.ts, or job.ts",
+      "rationale": "The task has one server-rendered read and no mutation or browser query path; empty or speculative segments and surfaces are not created."
+    },
+    {
+      "topic": "Failure reporting",
+      "choice": "page.tsx is the single capture owner: typed outcomes render, unexpected exceptions are reported once then rethrown to error.tsx",
+      "rationale": "Trusted server.ts surfaces, loadBoard, and adapters stay silent so one unexpected failure is not reported twice; redirect/notFound stay outside generic catches."
+    },
+    {
+      "topic": "Auth placement",
+      "choice": "Authenticate in page.tsx; board read permission and label rejection in board application policy; label visibility in labels domain; tenant/ownership predicates in each source store under RLS",
+      "rationale": "Three-layer defense in depth; trusted server.ts surfaces accept explicit identity and never rediscover the current user."
+    }
+  ],
+  "flows": [
+    "RSC read: app/(app)/boards/[boardId]/page.tsx validates { boardId } locally -> shared/server/request-identity.ts derives verified actor/roles/tenant/requestId/traceId from the cookie session -> board/rsc.ts getBoardView(identity, { boardId })",
+    "Orchestration: board/rsc.ts -> board/server/load-board-service.ts createBoardDeps(identity) -> board/application/load-board.ts loadBoard({ boardId }, deps)",
+    "Step 1-2: deps.workItems.listForBoard(boardId) -> board/domain/group-by-status.ts dropArchived + board/domain/label-refs.ts collectLabelRefs -> label ID set",
+    "Step 3-5 (sequenced on derived IDs): deps.labels.resolve(ids) -> { visible, missing, forbidden }; forbidden.length > 0 returns { outcome: 'forbidden' }; otherwise groupByStatus(items, visible) returns { outcome: 'ok', view }",
+    "Adapter edge: board/server/work-items-adapter.ts -> work-items/server.ts listBoardWorkItems(identity, { boardId }) -> work-items/server/work-items-store.ts (RLS + tenant predicates), rows mapped to WorkItem then to board BoardItem",
+    "Adapter edge: board/server/labels-adapter.ts -> labels/server.ts resolveLabels(identity, ids) -> labels/domain/visibility.ts + labels/server/labels-store.ts, mapped to the board's own resolution type",
+    "Failure path: adapter maps provider error to unavailable/contract without reporting -> loadBoard and server.ts surfaces propagate silently -> page.tsx reports once and rethrows -> app/(app)/boards/[boardId]/error.tsx renders",
+    "Render path: page.tsx maps the typed outcome to app/(app)/boards/[boardId]/_components/ (columns, card, denied state) using only the public BoardView contract"
+  ],
+  "risks": [
+    "The forbidden-label policy is an assumption: whole-board rejection vs. an explicit per-card restricted marker changes the BoardView contract and the RSC render branch. Confirm with product before implementing.",
+    "If labels/server.ts is implemented as a filtered visible-only list (the easier shape), board silently drops forbidden references and the security requirement is unenforceable — this contract must be reviewed and tested directly at labels/server.ts.",
+    "Board sequences two reads (work-items then labels), so latency is additive by design; the labels call cannot be parallelized because it depends on IDs from the first result. Cap the label ID batch at the labels/server.ts contract to bound the second query.",
+    "Cache invalidation stays private in each source capability's server/**; board owns no tags, so a stale board view is diagnosed in work-items or labels, not in board. Do not let board grow its own tag wiring.",
+    "board/application/ports.ts must not drift into importing types from work-items/server.ts or labels/server.ts; without a lint rule the adapters' mapping layer tends to be short-circuited over time.",
+    "If a future board mutation (drag to change status) arrives, it belongs in a board actions.ts delegating to a work-items mutation surface — not in the RSC path, and not by giving work-items knowledge of labels.",
+    "Board reads no tables today; a shortcut Supabase query inside board/server/** would bypass the source capabilities' policy. Enforce the declared table-ownership canary alongside RLS.",
+    "server-only markers plus a production build are the only runtime guard against a Client Component importing board/rsc.ts; a missing build gate silently permits server-surface leakage."
+  ],
+  "summary": "Create src/modules/board/ as an orchestrating capability rather than composing work-items and labels stores in the page or letting work-items call labels — the stakeholder preference conflicts with ownership, security, and change isolation. Board owns no persistence: board/application/load-board.ts holds the policy (drop archived, group by status, attach visible labels, reject forbidden label references) behind board-language ports, and private adapters in board/server/** call work-items/server.ts and labels/server.ts. labels/server.ts must return a complete non-enumerating { visible, missing, forbidden } resolution so board can reject rather than silently omit. The single channel is app/(app)/boards/[boardId]/page.tsx via a server-only board/rsc.ts: it authenticates, maps typed outcomes to renderable state, and is the one owner of unexpected-failure reporting while inner surfaces stay silent. work-items and labels never import board or each other, keeping the module graph acyclic.",
+  "tree": [
+    {
+      "path": "src/app/(app)/boards/[boardId]/page.tsx",
+      "purpose": "RSC channel and composition root: validates boardId locally, establishes request identity, calls board/rsc.ts, maps typed outcomes to renderable state, reports an unexpected failure exactly once"
+    },
+    {
+      "path": "src/app/(app)/boards/[boardId]/error.tsx",
+      "purpose": "Framework boundary that renders after the channel rethrows an unexpected defect"
+    },
+    {
+      "path": "src/app/(app)/boards/[boardId]/_components/",
+      "purpose": "Route-private presentation (columns, cards, access-denied state) driven only by the public BoardView contract"
+    },
+    {
+      "path": "src/modules/board/domain/board-view.ts",
+      "purpose": "Pure BoardView/BoardColumn/BoardCard/BoardLabel types and status column ordering"
+    },
+    {
+      "path": "src/modules/board/domain/group-by-status.ts",
+      "purpose": "Pure archived filtering, grouping by status, and attachment of visible label details"
+    },
+    {
+      "path": "src/modules/board/domain/label-refs.ts",
+      "purpose": "Pure collection of label references from items and the fold over a visible/missing/forbidden resolution"
+    },
+    {
+      "path": "src/modules/board/application/ports.ts",
+      "purpose": "BoardWorkItems and BoardLabels role ports expressed in board vocabulary and board types; imports no other capability's root surface types"
+    },
+    {
+      "path": "src/modules/board/application/load-board.ts",
+      "purpose": "The orchestrating operation: sequences the work-items read, derives label IDs, resolves labels, rejects forbidden references, returns a typed board outcome; framework-neutral and silent"
+    },
+    {
+      "path": "src/modules/board/server/work-items-adapter.ts",
+      "purpose": "Private adapter implementing BoardWorkItems over work-items/server.ts, mapping WorkItem into board types and provider errors into semantic failures"
+    },
+    {
+      "path": "src/modules/board/server/labels-adapter.ts",
+      "purpose": "Private adapter implementing BoardLabels over labels/server.ts, mapping the label resolution into the board's own type and mapping identity separately for this source"
+    },
+    {
+      "path": "src/modules/board/server/load-board-service.ts",
+      "purpose": "Capability-local typed factory that wires identity and concrete adapters into the dependency object loadBoard needs"
+    },
+    {
+      "path": "src/modules/board/rsc.ts",
+      "purpose": "server-only current-request read surface getBoardView(identity, { boardId }) returning ok | forbidden | not_found; the board route's sole entry point"
+    },
+    {
+      "path": "src/modules/work-items/domain/work-item.ts",
+      "purpose": "Work-item invariants including status and archived semantics"
+    },
+    {
+      "path": "src/modules/work-items/server/work-items-store.ts",
+      "purpose": "Private Supabase store owning the work_items table with tenant/ownership predicates under RLS and row-to-domain mapping"
+    },
+    {
+      "path": "src/modules/work-items/server.ts",
+      "purpose": "Trusted silent surface listBoardWorkItems(identity, { boardId }) returning domain work items with labelIds; consumed only by board's work-items adapter"
+    },
+    {
+      "path": "src/modules/labels/domain/label.ts",
+      "purpose": "Label domain value distinct from provider rows"
+    },
+    {
+      "path": "src/modules/labels/domain/visibility.ts",
+      "purpose": "Label visibility policy owned by labels, evaluated against the explicit actor"
+    },
+    {
+      "path": "src/modules/labels/server/labels-store.ts",
+      "purpose": "Private store owning the labels table with tenant/ownership predicates under RLS"
+    },
+    {
+      "path": "src/modules/labels/server.ts",
+      "purpose": "Trusted silent surface resolveLabels(identity, ids) returning a complete non-enumerating { visible, missing, forbidden } resolution so board can reject rather than silently omit"
+    },
+    {
+      "path": "src/shared/server/request-identity.ts",
+      "purpose": "Derives the verified actor, roles, tenant scope, requestId, and traceId together with the cookie-scoped client from one session"
+    },
+    {
+      "path": "src/shared/server/reporter.ts",
+      "purpose": "Reporter, redaction, and the closed set of semantic failure codes shared across channels"
+    }
+  ]
+}

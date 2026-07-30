@@ -34,6 +34,17 @@ All notable changes to this project are documented in this file.
   pending states, expected failure rendering, component-level test selection, and direct Hook calls.
 - Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
   Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
+- Added a two-arm Claude Opus 5 A/B runner (`scripts/run-opus5-gate-eval.mjs`) that reuses the
+  frozen scenarios, rubric, response schema, blind-shuffle algorithm, and Codex judge. The frozen
+  four-arm runner and its result sets are untouched and still replay byte-for-byte.
+
+### Removed
+
+- Removed the closing `## Verification Gate` from both skills. Its items restated the rule sections
+  almost one for one — seven of eight in `designing-nextjs-capabilities`, all seven in
+  `creating-react-components` — so the third copy of each rule spent always-on context and pushed
+  models that already self-verify into re-checking. The two items with content of their own moved to
+  the sections that own them. `validate-skill-frontmatter.mjs` no longer recommends the heading.
 
 ### Changed
 
@@ -42,6 +53,32 @@ All notable changes to this project are documented in this file.
   frequencies.
 - Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
   keeping framework-specific rules out of portable references.
+- **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
+  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
+  `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
+  links, the frontmatter schema enum, and the validators moved with them. Frozen eval artifacts keep
+  the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
+  that predate the rename, and `tests/architecture-evals/candidate/` plus `opus5-gates/` are hashed
+  snapshots.
+- Scoped the `creating-react-components` decision gate to non-trivial changes so a one-line UI edit
+  does not require the full seven-field classification.
+- Linked failure ownership and error taxonomy directly from `creating-react-components`, which reached
+  them only through `loading-and-errors.md` and `notifications-and-feedback.md`. A reference behind a
+  reference gets previewed rather than read whole, so the routing path now stays one level deep.
+- Added what each skill does to its `description`, after the existing "Use when" trigger clause that
+  this repository requires, so routing metadata carries capability and trigger rather than trigger
+  alone.
+- Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
+  candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
+  `shared/server` root the contract admits, and generation runs on Codex models only.
+- Told `designing-nextjs-capabilities` to read its references directly rather than delegating a handful of
+  file reads to subagents, and to size a written proposal to the decision it serves.
+- Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
+  `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
+  `database-resource-ownership`, `external-backend-authority`, and `supabase-identity-modes`. The
+  original observations are retained under `green_check_invalidated` with the reason; the coverage
+  table now reports them as rerun-pending rather than GREEN. This is the content-hash guard working
+  as designed — the cells need a RED/GREEN rerun before release, not a hash refresh.
 
 ## [2.0.0] - 2026-07-28
 

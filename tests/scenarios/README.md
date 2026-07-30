@@ -7,7 +7,7 @@ comparative architecture release gate in [`../architecture-evals/`](../architect
 
 ```json
 {
-  "skills": ["nextjs-architecture"],
+  "skills": ["designing-nextjs-capabilities"],
   "tests_reference": "references/<file>.md#<anchor>",
   "query": "the task given to the agent",
   "baseline_failure": "the predicted failure without the reference",
@@ -55,9 +55,12 @@ decision. Historical results remain useful only for the behavior they actually t
 
 - `defense-in-depth-ownership`: RED 3/3 and GREEN under the v1.3.x wording. The ownership predicate
   is proven; the capability-first placement wording needs a new run.
-- `explicit-variants-over-mode`: historical RED 2/2 and current Luna RED to GREEN.
-- `static-hook-calls`: current Luna RED to GREEN against the direct-Hook wording.
-- `next16-error-retry-callback`: current Luna RED to GREEN for `unstable_retry`.
+- `explicit-variants-over-mode`: historical RED 2/2 and Luna RED to GREEN, invalidated 2026-07-30 by the
+  skill rename and verification-gate removal; rerun pending.
+- `static-hook-calls`: Luna RED to GREEN against the direct-Hook wording, invalidated 2026-07-30 by the
+  skill rename and verification-gate removal; rerun pending.
+- `next16-error-retry-callback`: Luna RED to GREEN for `unstable_retry`, invalidated 2026-07-30 by the
+  skill rename and verification-gate removal; rerun pending.
 - `compound-provider-split`: the old four-provider evidence was retired. The corrected
   state-ownership RED did not reproduce and remains a hypothesis.
 - `rsc-hybrid-read`: inconsistent baseline. Retained guidance is deliberately narrow:
@@ -83,16 +86,16 @@ Rows marked `hypothesis` below have no accepted observed run.
 | quality/observability-and-sentry | sentry-instrumentation-first | hypothesis |
 | placement/modules-and-imports | portable-rules-on-existing-stack | hypothesis |
 | placement/capability-granularity | capability-granularity-reference-data | hypothesis |
-| outbound/database-resource-ownership | database-resource-ownership | RED -> GREEN after reference correction |
-| outbound/service-transport | external-backend-authority | RED -> GREEN after reference correction |
-| outbound/supabase-rls | supabase-identity-modes | RED 2/2 -> GREEN |
+| outbound/database-resource-ownership | database-resource-ownership | GREEN invalidated 2026-07-30; rerun pending |
+| outbound/service-transport | external-backend-authority | GREEN invalidated 2026-07-30; rerun pending |
+| outbound/supabase-rls | supabase-identity-modes | GREEN invalidated 2026-07-30; rerun pending |
 | react/component-structure | compound-provider-split | corrected ownership RED not reproduced; hypothesis |
-| react/component-structure | static-hook-calls | RED -> GREEN |
+| react/component-structure | static-hook-calls | GREEN invalidated 2026-07-30; rerun pending |
 | react/forms-and-actions | imported-server-action-module | hypothesis |
-| react/state-placement | explicit-variants-over-mode | eval-proven |
+| react/state-placement | explicit-variants-over-mode | GREEN invalidated 2026-07-30; rerun pending |
 | react/notifications-and-feedback | global-mutation-error-notifier | hypothesis |
 | react/loading-and-errors | segment-pending-and-error-surfaces | RED not reproduced; hypothesis |
-| react/loading-and-errors | next16-error-retry-callback | RED -> GREEN |
+| react/loading-and-errors | next16-error-retry-callback | GREEN invalidated 2026-07-30; rerun pending |
 
 The release matrix already covers the three load-bearing architecture cases: simple CRUD,
 remote streaming plus job reuse, and cross-capability orchestration. The focused scenarios are not
