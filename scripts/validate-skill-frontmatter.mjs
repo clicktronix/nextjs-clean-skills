@@ -71,6 +71,32 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     errors.push(`${skillName}/SKILL.md frontmatter.name must equal directory name (${skillName})`)
   }
 
+  // A rename that misses the human-facing titles ships a skill that is called one thing in the
+  // listing and another in every UI: PR #16 renamed directories, frontmatter, scenarios and docs
+  // but left `# React Component Creator` and `display_name: "Next.js Architecture"` behind, and
+  // nothing here noticed. Both titles must slug back to the skill name, which ties them to renames.
+  const heading = /^#\s+(.+)$/m.exec(text)
+  if (!heading) {
+    errors.push(`${skillName}/SKILL.md has no H1 title`)
+  } else if (slugify(heading[1].trim()) !== skillName) {
+    errors.push(
+      `${skillName}/SKILL.md H1 "${heading[1].trim()}" does not match the skill name; expected a title that slugs to ${skillName}`,
+    )
+  }
+
+  const openaiInterface = path.join(skillDir, 'agents', 'openai.yaml')
+  if (fs.existsSync(openaiInterface)) {
+    const yaml = fs.readFileSync(openaiInterface, 'utf8')
+    const displayName = /^\s*display_name:\s*"?([^"\n]+?)"?\s*$/m.exec(yaml)
+    if (!displayName) {
+      errors.push(`${skillName}/agents/openai.yaml has no interface.display_name`)
+    } else if (slugify(displayName[1]) !== skillName) {
+      errors.push(
+        `${skillName}/agents/openai.yaml display_name "${displayName[1]}" does not match the skill name; expected a title that slugs to ${skillName}`,
+      )
+    }
+  }
+
   if (!frontmatter.description.startsWith('Use when ')) {
     errors.push(`${skillName}/SKILL.md frontmatter.description must start with "Use when "`)
   }

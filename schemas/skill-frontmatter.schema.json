@@ -2,18 +2,52 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/clicktronix/nextjs-clean-skills/schemas/skill-frontmatter.schema.json",
   "title": "Skill SKILL.md frontmatter",
-  "description": "Schema for the YAML frontmatter at the top of every plugins/nextjs-clean-skills/skills/<skill>/SKILL.md file. Claude Code truncates frontmatter past 1,536 characters; the description must remain rich enough for reliable routing.",
+  "description": "Schema for the YAML frontmatter at the top of every plugins/nextjs-clean-skills/skills/<skill>/SKILL.md file. Claude Code truncates the combined description and when_to_use text past 1,536 characters, so the description must stay rich enough for reliable routing. Properties cover the documented Claude Code fields plus the Agent Skills metadata block, so adopting a field is no longer a schema change. additionalProperties stays false to catch typos, which is the only thing it should catch.",
   "type": "object",
   "required": ["name", "description"],
   "properties": {
     "name": {
       "type": "string",
-      "enum": ["designing-nextjs-capabilities", "creating-react-components"]
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Agent Skills spec: lowercase letters, digits and hyphens, max 64 characters. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here — an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done."
     },
     "description": {
       "type": "string",
       "minLength": 80
-    }
+    },
+    "when_to_use": { "type": "string" },
+    "argument-hint": { "type": "string" },
+    "arguments": { "$ref": "#/$defs/stringOrList" },
+    "disable-model-invocation": { "$ref": "#/$defs/looseBoolean" },
+    "user-invocable": { "$ref": "#/$defs/looseBoolean" },
+    "allowed-tools": { "$ref": "#/$defs/stringOrList" },
+    "disallowed-tools": { "$ref": "#/$defs/stringOrList" },
+    "model": { "type": "string" },
+    "effort": { "enum": ["low", "medium", "high", "xhigh", "max"] },
+    "context": { "const": "fork" },
+    "agent": { "type": "string" },
+    "background": { "$ref": "#/$defs/looseBoolean" },
+    "hooks": { "type": "object" },
+    "paths": { "$ref": "#/$defs/stringOrList" },
+    "shell": { "enum": ["bash", "powershell"] },
+    "metadata": { "type": "object" }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "stringOrList": {
+      "description": "Space- or comma-separated string, or a YAML list.",
+      "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+    },
+    "looseBoolean": {
+      "description": "Claude Code 2.1.218+ accepts yes/no/on/off/1/0 in any letter case alongside true/false.",
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "string",
+          "pattern": "^([Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Yy][Ee][Ss]|[Nn][Oo]|[Oo][Nn]|[Oo][Ff][Ff]|[01])$"
+        }
+      ]
+    }
+  }
 }

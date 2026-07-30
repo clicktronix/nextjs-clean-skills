@@ -6,7 +6,7 @@ description: >-
   Server/Client split, state owner, mutation channel, and pending/failure surfaces.
 ---
 
-# React Component Creator
+# Creating React Components
 
 Use this skill for UI structure. Keep the project's existing UI stack unless migration is requested.
 Fetch current React and Next.js docs for exact APIs.

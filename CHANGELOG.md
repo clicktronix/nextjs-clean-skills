@@ -18,6 +18,19 @@ All notable changes to this project are documented in this file.
   portable guidance, and distinguished render retry from Next.js 16.2 RSC/data recovery.
 - Invalidated recorded GREEN evidence when its skill, reference, or frozen scenario contract
   changes, replacing stale self-reported status with a content hash checked in CI.
+- Opened `schemas/skill-frontmatter.schema.json` to the documented Claude Code frontmatter fields —
+  `when_to_use`, `paths`, `allowed-tools`, `disallowed-tools`, `argument-hint`, `arguments`,
+  `disable-model-invocation`, `user-invocable`, `model`, `effort`, `context`, `agent`, `background`,
+  `hooks`, `shell` — plus the Agent Skills `metadata` block. `additionalProperties: false` stays, so
+  typos still fail, but adopting a field is no longer a schema change. The `name` enum is replaced by
+  the spec's charset and length rule: the enum made every rename a schema edit, and that edit is how
+  the PR #16 rename shipped half-done.
+- Finished the PR #16 rename in the human-facing titles: the H1 of both skills and `display_name` in
+  both `agents/openai.yaml` still read `React Component Creator` and `Next.js Architecture`, so the
+  Codex UI and the skill listing disagreed with the invocation name.
+- Added a validator check that a skill's H1 and its `interface.display_name` both slug back to the
+  skill name. Nothing in the previous 15 checks compared either against the skill, which is why the
+  half-done rename passed CI. Mutation-verified in both directions.
 
 ### Added
 

@@ -1,4 +1,4 @@
 interface:
-  display_name: "React Component Creator"
+  display_name: "Creating React Components"
   short_description: "Choose Next.js UI boundaries"
   default_prompt: "Use $creating-react-components to structure this UI for the existing Next.js app."
