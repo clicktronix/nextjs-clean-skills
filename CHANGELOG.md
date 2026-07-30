@@ -40,7 +40,7 @@ All notable changes to this project are documented in this file.
   `name` + `description` only, so the first skill to adopt the newly permitted field would have blown
   the limit the check exists to guard, silently.
 - Covered `schemas/skill-frontmatter.schema.json` with accept and reject fixtures in
-  `validate-json-schemas.mjs`, which previously had no negative cases at all. Ten rejected mutations
+  `validate-json-schemas.mjs`, which previously had no negative cases at all. Nine rejected mutations
   now pin the schema: unknown fields, three illegal `name` shapes, both spec length caps, two enum
   violations, and an out-of-range loose boolean.
 - Left the reserved words `anthropic` and `claude` unguarded in `name`, deliberately. Anthropic's
