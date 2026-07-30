@@ -10,8 +10,7 @@
       "type": "string",
       "maxLength": 64,
       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-      "not": { "pattern": "anthropic|claude" },
-      "description": "Agent Skills spec: 1-64 chars, lowercase alphanumerics and hyphens, no leading, trailing or consecutive hyphen — the pattern enforces all three. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here: an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done. The reserved-word guard is Anthropic's Skills API rule rather than the open spec; it costs nothing here and stops a future skill from being rejected at upload time."
+      "description": "Agent Skills spec: 1-64 chars, lowercase alphanumerics and hyphens, no leading, trailing or consecutive hyphen \u2014 the pattern enforces all three. validate-skill-frontmatter.mjs separately asserts the value equals the skill directory name, so the set is deliberately not enumerated here: an enum made every rename a schema edit, and one such edit is how the rename in PR #16 shipped half-done. There is deliberately no reserved-word guard: Anthropic's authoring guidance forbids anthropic and claude in a name, but the open Agent Skills spec does not, the guidance never states where the rule is enforced, and Claude Code demonstrably loads such a name from a marketplace. A guard that cannot fire here, misfires on any repo copying this template, and rests on an unverified enforcement point is the same trade that turned additionalProperties into a ban on upgrades. If these skills are ever uploaded through the Skills API, the check belongs at that publish step."
     },
     "description": {
       "type": "string",

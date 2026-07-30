@@ -35,15 +35,20 @@ All notable changes to this project are documented in this file.
   parses an unquoted `1` or `0` as a number, and the first pass shipped a string-only branch that
   rejected exactly the values its own description promised.
 - Added the Agent Skills spec fields the schema was missing — `license` and `compatibility` (≤500
-  chars) — plus the spec's 1,024-character cap on `description` and a guard against the reserved
-  words Anthropic's Skills API rejects in `name`.
+  chars) — plus the spec's 1,024-character cap on `description`.
 - Counted `when_to_use` toward Claude Code's 1,536-character listing cap. The check measured
   `name` + `description` only, so the first skill to adopt the newly permitted field would have blown
   the limit the check exists to guard, silently.
 - Covered `schemas/skill-frontmatter.schema.json` with accept and reject fixtures in
   `validate-json-schemas.mjs`, which previously had no negative cases at all. Ten rejected mutations
-  now pin the schema: unknown fields, four illegal `name` shapes, both spec length caps, two enum
+  now pin the schema: unknown fields, three illegal `name` shapes, both spec length caps, two enum
   violations, and an out-of-range loose boolean.
+- Left the reserved words `anthropic` and `claude` unguarded in `name`, deliberately. Anthropic's
+  authoring guidance forbids them, but the open Agent Skills spec does not, the guidance never states
+  where the rule is enforced, and Claude Code loads `claude-md-writer` from a marketplace today. A
+  guard that cannot fire in this repo, misfires on any repo copying this validator, and rests on an
+  unverified enforcement point is the same trade that turned `additionalProperties` into a ban on
+  upgrades. If these skills are ever uploaded through the Skills API, the check belongs there.
 
 ### Added
 

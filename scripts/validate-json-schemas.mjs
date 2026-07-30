@@ -98,7 +98,6 @@ targets.push({
     { label: 'uppercase name', data: { ...SKILL_BASE, name: 'Creating-React-Components' } },
     { label: 'consecutive hyphens in name', data: { ...SKILL_BASE, name: 'creating--react-components' } },
     { label: 'trailing hyphen in name', data: { ...SKILL_BASE, name: 'creating-react-components-' } },
-    { label: 'reserved word in name', data: { ...SKILL_BASE, name: 'claude-helper' } },
     { label: 'description over spec cap', data: { ...SKILL_BASE, description: 'x'.repeat(1025) } },
     { label: 'compatibility over spec cap', data: { ...SKILL_BASE, compatibility: 'x'.repeat(501) } },
     { label: 'effort outside the enum', data: { ...SKILL_BASE, effort: 'maximum' } },
