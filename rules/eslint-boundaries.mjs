@@ -60,7 +60,7 @@ function moduleLocation(absolute) {
 
 function sharedLocation(absolute) {
   const parts = relativeParts(SHARED_ROOT, absolute)
-  if (!parts || parts.length < 2) return null
+  if (!parts || parts.length < 1) return null
   return { root: parts[0], tail: parts.slice(1) }
 }
 

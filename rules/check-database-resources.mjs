@@ -5,13 +5,33 @@ import ts from 'typescript'
 
 import { loadArchitecturePaths, relativeParts } from './contract-paths.mjs'
 
-function listSources(directory) {
+const IGNORED_SOURCE_DIRECTORIES = new Set([
+  '.git',
+  '.cache',
+  '.next',
+  '.turbo',
+  '.vercel',
+  '__tests__',
+  'coverage',
+  'dist',
+  'generated',
+  'node_modules',
+  'out',
+])
+const ROOT_TEST_DIRECTORIES = new Set(['test', 'tests'])
+
+function listSources(directory, sourceRoot = directory) {
   if (!fs.existsSync(directory)) return []
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name)
     if (entry.isDirectory()) {
-      if (['__tests__', 'generated'].includes(entry.name)) return []
-      return listSources(absolute)
+      if (
+        IGNORED_SOURCE_DIRECTORIES.has(entry.name) ||
+        (directory === sourceRoot && ROOT_TEST_DIRECTORIES.has(entry.name))
+      ) {
+        return []
+      }
+      return listSources(absolute, sourceRoot)
     }
     return /\.(?:[cm]?[jt]sx?)$/.test(entry.name) &&
       !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)

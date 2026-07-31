@@ -92,6 +92,33 @@ try {
     }
   }
 
+  fs.mkdirSync(path.join(sandbox, '.next', 'server'), { recursive: true })
+  fs.writeFileSync(
+    path.join(sandbox, '.next', 'server', 'generated.js'),
+    "export const leaked = (supabase) => supabase.from('build_cache')\n"
+  )
+  fs.mkdirSync(path.join(sandbox, 'tests', 'fixtures'), { recursive: true })
+  fs.writeFileSync(
+    path.join(sandbox, 'tests', 'fixtures', 'generated.ts'),
+    "export const leaked = (supabase) => supabase.rpc('test_fixture')\n"
+  )
+  contract.sourceRoot = '.'
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  const projectRootSource = run('check-database-resources.mjs')
+  if (projectRootSource.status !== 0) {
+    errors.push(
+      `project-root source fixture failed: ${`${projectRootSource.stdout}${projectRootSource.stderr}`.trim()}`
+    )
+  }
+  contract.sourceRoot = 'src'
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+
   const packageJson = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
   packageJson.dependencies.stripe = '1.0.0'
   fs.writeFileSync(
@@ -163,4 +190,4 @@ try {
 }
 
 fail(errors)
-console.log('contract tools ok (2 clean checks, 5 failing mutations)')
+console.log('contract tools ok (3 clean checks, 5 failing mutations)')

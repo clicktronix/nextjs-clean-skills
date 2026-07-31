@@ -355,8 +355,8 @@ same task text for its cell.
 ### 14. Migration is semver-major and explicit
 
 Released 1.x remains installable. The layer-first 2.0 implementation is withdrawn as a release
-candidate but retained as a research control. A validated capability-first contract may still use
-the `2.0.0` version number.
+candidate but retained as a research control. The capability-first `2.0.0` manifest remains
+historical; the breaking skill rename and configurable path contract move the plugin to `3.0.0`.
 
 Existing projects do not mix both topologies silently. Adoption is capability-by-capability with a
 documented boundary while migration is incomplete.

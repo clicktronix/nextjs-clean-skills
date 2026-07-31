@@ -189,6 +189,10 @@ export * from './server/internal.js'
   'src/shared/utils/date.ts': `
 export const now = Date.now
 `,
+  'src/shared/direct.ts': `
+import { getWorkItems } from '@/modules/work-items/server/store'
+export const direct = getWorkItems
+`,
   'src/shared/server/bad-module.ts': `
 import { listLabels } from '@/modules/labels/server'
 export default listLabels
@@ -273,6 +277,7 @@ const expectedBase = new Map([
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
+  ['src/shared/direct.ts', 'invalidSharedRoot'],
   ['src/shared/server/bad-module.ts', 'sharedImportsModule'],
   ['src/shared/kernel/bad-server.ts', 'sharedKernelDirection'],
   ['src/shared/client/bad-server.ts', 'browserServer'],

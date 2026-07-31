@@ -53,7 +53,9 @@ For Supabase projects, list the identifiers used for Supabase clients in
 `databaseClientIdentifiers`, declare literal `.from()` and `.rpc()` resources in
 `databaseResources`, and run `check-database-resources.mjs`. The checker ignores same-named methods
 on other receivers. It catches undeclared and cross-capability string-level coupling that TypeScript
-import rules cannot see; it does not trace aliases, parse SQL, or replace RLS/grant tests.
+import rules cannot see. Standard dependency, build-output, coverage, test, and generated directories
+are excluded when `sourceRoot` is the project root. The checker does not trace aliases, parse SQL, or
+replace RLS/grant tests.
 
 ## Enforced Invariants
 

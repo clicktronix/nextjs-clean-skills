@@ -16,17 +16,14 @@ An importable action module starts with top-level `'use server'`. It defines UI 
 reads. Every value export must be a locally declared async function; call private behavior instead
 of re-exporting it.
 
-Keep framework navigation outside generic catches. Catch and translate only the capability call,
-then invoke `redirect()`, `permanentRedirect()`, or `notFound()` after the catch:
+Handle expected typed outcomes explicitly, then invoke `redirect()`, `permanentRedirect()`, or
+`notFound()`. Do not catch unexpected exceptions into form state; let them reach the single outer
+capture owner:
 
 ```ts
-let item: WorkItem
-try {
-  item = await createWorkItem(command)
-} catch (error) {
-  return toActionFailure(error)
-}
-redirect(`/work-items/${item.id}`)
+const outcome = await createWorkItem(command)
+if (outcome.status !== 'created') return toActionState(outcome)
+redirect(`/work-items/${outcome.item.id}`)
 ```
 
 `<form onSubmit={form.onSubmit(onSubmit)}>` is hydration-dependent. For progressive enhancement,

@@ -11,13 +11,15 @@ All notable changes to this project are documented in this file.
   marketplace source of truth.
 - Derived source, module, app, shared, alias, ESLint-glob, cycle, and database-subject resolution
   from one executable contract. Added a nonstandard-root/alias canary so portability cannot regress
-  behind a passing default fixture.
+  behind a passing default fixture. Direct files under `sharedRoot` remain classified and standard
+  dependency or build trees are excluded when `sourceRoot` is the project root.
 - Scoped the Supabase resource checker to configured client identifiers. Unrelated `.from()` and
   `.rpc()` methods no longer create false ownership failures; dynamic or unauthorized Supabase
   resource names still fail closed.
 - Corrected the architecture-review and stream lifecycle diagrams, moved a Server Action navigation
-  example out of the Route Handler reference, fixed the deletion-test definition, and clarified
-  cache-tier and error-carrier semantics.
+  example out of the Route Handler reference without swallowing unexpected exceptions, fixed the
+  deletion-test definition and v3 migration record, and clarified cache-tier and error-carrier
+  semantics.
 - Unified the enforcement documentation around seven named properties while keeping historical
   pilot counts separate from current rule-code and mutation coverage.
 - Derived capability-pilot surfaces, runtime classifications, and provider package checks from
