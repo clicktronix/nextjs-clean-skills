@@ -1,25 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
-function findProjectRoot(start) {
-  let current = start
-  while (true) {
-    if (fs.existsSync(path.join(current, 'package.json'))) return current
-    const parent = path.dirname(current)
-    if (parent === current) throw new Error('Cannot find package.json above check-module-cycles.mjs')
-    current = parent
-  }
-}
+import { loadArchitecturePaths, relativeParts, resolveProjectImport } from './contract-paths.mjs'
 
-const root = findProjectRoot(path.dirname(fileURLToPath(import.meta.url)))
-const contract = JSON.parse(
-  fs.readFileSync(new URL('./architecture-contract.json', import.meta.url), 'utf8')
-)
-const modulesRoot = path.join(root, contract.moduleRoot)
+const paths = loadArchitecturePaths(import.meta.url)
+const { moduleRoot: modulesRoot } = paths
 
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
@@ -37,9 +25,7 @@ function listSources(directory) {
 }
 
 function capabilityOf(absolute) {
-  const relative = path.relative(modulesRoot, absolute)
-  if (relative === '..' || relative.startsWith(`..${path.sep}`)) return null
-  return relative.split(path.sep)[0] || null
+  return relativeParts(modulesRoot, absolute)?.[0] ?? null
 }
 
 function importsFrom(file) {
@@ -79,12 +65,6 @@ function importsFrom(file) {
   return specifiers
 }
 
-function resolveProjectImport(importer, specifier) {
-  if (specifier.startsWith('@/')) return path.join(root, 'src', specifier.slice(2))
-  if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier)
-  return null
-}
-
 const graph = new Map()
 const sources = listSources(modulesRoot)
 for (const file of sources) {
@@ -92,7 +72,7 @@ for (const file of sources) {
   if (!source) continue
   graph.set(source, graph.get(source) ?? new Set())
   for (const specifier of importsFrom(file)) {
-    const targetPath = resolveProjectImport(file, specifier)
+    const targetPath = resolveProjectImport(paths, file, specifier)
     const target = targetPath ? capabilityOf(targetPath) : null
     if (target && target !== source) graph.get(source).add(target)
   }

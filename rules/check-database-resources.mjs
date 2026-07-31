@@ -1,25 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
-function findProjectRoot(start) {
-  let current = start
-  while (true) {
-    if (
-      fs.existsSync(path.join(current, 'package.json')) &&
-      fs.existsSync(path.join(current, 'rules', 'architecture-contract.json'))
-    ) {
-      return current
-    }
-    const parent = path.dirname(current)
-    if (parent === current) {
-      throw new Error('Cannot find package.json and rules/architecture-contract.json')
-    }
-    current = parent
-  }
-}
+import { loadArchitecturePaths, relativeParts } from './contract-paths.mjs'
 
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
@@ -36,23 +20,27 @@ function listSources(directory) {
   })
 }
 
-function subjectFor(file, root) {
-  const parts = path.relative(path.join(root, 'src'), file).split(path.sep)
-  if (parts[0] === 'modules' && parts[1]) return parts[1]
-  if (parts[0] === 'shared' && parts[1]) return `shared/${parts[1]}`
-  if (parts[0] === 'app') return 'app'
+function subjectFor(file, paths) {
+  const moduleParts = relativeParts(paths.moduleRoot, file)
+  if (moduleParts?.[0]) return moduleParts[0]
+  const sharedParts = relativeParts(paths.sharedRoot, file)
+  if (sharedParts?.[0]) return `shared/${sharedParts[0]}`
+  if (relativeParts(paths.appRoot, file)) return 'app'
   return null
 }
 
-function rootIdentifier(node) {
-  if (ts.isIdentifier(node)) return node.text
-  if (ts.isPropertyAccessExpression(node) || ts.isCallExpression(node)) {
-    return rootIdentifier(node.expression)
+function receiverIdentifiers(node, names = new Set()) {
+  if (ts.isIdentifier(node)) names.add(node.text)
+  if (ts.isPropertyAccessExpression(node)) {
+    receiverIdentifiers(node.expression, names)
+    names.add(node.name.text)
+  } else if (ts.isCallExpression(node)) {
+    receiverIdentifiers(node.expression, names)
   }
-  return null
+  return names
 }
 
-function databaseCalls(file) {
+function databaseCalls(file, clientIdentifiers) {
   const parsed = ts.createSourceFile(
     file,
     fs.readFileSync(file, 'utf8'),
@@ -67,8 +55,8 @@ function databaseCalls(file) {
       ts.isPropertyAccessExpression(node.expression) &&
       ['from', 'rpc'].includes(node.expression.name.text)
     ) {
-      const root = rootIdentifier(node.expression.expression)
-      if (node.expression.name.text === 'from' && ['Array', 'Buffer', 'Readable'].includes(root)) {
+      const receiverNames = receiverIdentifiers(node.expression.expression)
+      if (![...receiverNames].some((name) => clientIdentifiers.has(name))) {
         ts.forEachChild(node, visit)
         return
       }
@@ -86,15 +74,34 @@ function databaseCalls(file) {
   return calls
 }
 
-const root = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : findProjectRoot(path.dirname(fileURLToPath(import.meta.url)))
-const contract = JSON.parse(
-  fs.readFileSync(path.join(root, 'rules', 'architecture-contract.json'), 'utf8')
-)
+const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
+const { contract, projectRoot: root, sourceRoot } = paths
 const resources = Array.isArray(contract.databaseResources) ? contract.databaseResources : []
+const clientIdentifiers = Array.isArray(contract.databaseClientIdentifiers)
+  ? new Set(contract.databaseClientIdentifiers)
+  : new Set()
 const resourceMap = new Map()
 const errors = []
+
+if (
+  !Array.isArray(contract.databaseClientIdentifiers) ||
+  contract.databaseClientIdentifiers.some(
+    (identifier) => typeof identifier !== 'string' || !/^[$A-Z_a-z][$\w]*$/.test(identifier)
+  )
+) {
+  errors.push('databaseClientIdentifiers must be an array of JavaScript identifiers')
+}
+
+if (resources.length > 0 && clientIdentifiers.size === 0) {
+  errors.push('databaseClientIdentifiers must not be empty when databaseResources are declared')
+}
+
+if (
+  Array.isArray(contract.databaseClientIdentifiers) &&
+  clientIdentifiers.size !== contract.databaseClientIdentifiers.length
+) {
+  errors.push('databaseClientIdentifiers contains duplicate values')
+}
 
 if (!Array.isArray(contract.databaseResources)) {
   errors.push('databaseResources must be an array')
@@ -129,10 +136,10 @@ for (const resource of resources) {
   })
 }
 
-for (const file of listSources(path.join(root, 'src'))) {
-  const subject = subjectFor(file, root)
+for (const file of listSources(sourceRoot)) {
+  const subject = subjectFor(file, paths)
   const relative = path.relative(root, file).split(path.sep).join('/')
-  for (const call of databaseCalls(file)) {
+  for (const call of databaseCalls(file, clientIdentifiers)) {
     if (!call.name) {
       errors.push(`${relative}:${call.line} uses a dynamic Supabase ${call.kind} name`)
       continue

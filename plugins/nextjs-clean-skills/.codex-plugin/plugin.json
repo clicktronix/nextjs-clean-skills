@@ -1,7 +1,7 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "2.0.0",
-  "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
+  "version": "3.0.0",
+  "description": "Next.js 16 skills for capability-first architecture and React Server/Client Component design.",
   "author": {
     "name": "Clicktronix",
     "url": "https://github.com/clicktronix"
@@ -16,21 +16,22 @@
     "react-server-components",
     "cache-components",
     "server-actions",
-    "next-safe-action",
-    "valibot",
-    "mantine",
     "supabase",
     "tanstack-query",
     "capability-modules",
-    "dal",
+    "runtime-boundaries",
+    "ports-and-adapters",
+    "server-client-boundaries",
+    "route-handlers",
+    "streaming",
     "rls",
     "agent-skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Next.js Clean Skills",
-    "shortDescription": "Next.js 16 architecture and component skills.",
-    "longDescription": "Codex skills for applying a Next.js 16 Hybrid Clean Architecture profile: server-only DAL reads, Server Actions, Cache Components, client cache boundaries, and React Server/Client Component rules.",
+    "shortDescription": "Capability-first Next.js and React skills.",
+    "longDescription": "Codex skills for capability-owned Next.js modules, runtime-specific public surfaces, channel-native RSC, Actions, HTTP, streams and jobs, and safe React Server/Client Component boundaries.",
     "developerName": "Clicktronix",
     "category": "Productivity",
     "capabilities": [
@@ -38,8 +39,8 @@
     ],
     "websiteURL": "https://github.com/clicktronix/nextjs-clean-skills",
     "defaultPrompt": [
-      "Design this Next.js feature with Hybrid Clean Architecture.",
-      "Create this React component with the correct Server/Client boundary."
+      "Design this Next.js feature around capability ownership and native runtime boundaries.",
+      "Create this React component with the correct Server/Client and state boundaries."
     ]
   }
 }

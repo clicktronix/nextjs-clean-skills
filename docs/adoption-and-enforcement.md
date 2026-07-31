@@ -19,16 +19,17 @@ A disagreement is a defect. Correct every affected surface rather than choosing 
 
 ## Enforcement Floor
 
-Portable tooling must protect seven invariants:
+Portable tooling must protect seven named properties:
 
-1. cross-capability imports use public root surfaces;
-2. module dependencies remain acyclic;
-3. domain and application code reject the framework/provider packages inventoried by the product
-   profile;
-4. browser code cannot import server surfaces;
-5. public module files use the admitted runtime surface vocabulary;
-6. admitted shared roots are runtime-specific and capability-neutral;
-7. unresolved imports and hidden dynamic targets fail instead of bypassing the checks.
+1. **Ownership:** cross-capability and route imports use public root surfaces.
+2. **Acyclic resolution:** imports resolve, hidden targets fail closed, and dependency graphs remain
+   acyclic.
+3. **Purity:** domain and application reject wrong-direction and runtime dependencies.
+4. **Runtime separation:** browser and server code cannot import across unsafe runtime boundaries.
+5. **Surface contracts:** public files use the admitted vocabulary and publish narrow contracts.
+6. **Shared neutrality:** admitted shared roots are runtime-specific and capability-neutral.
+7. **Declared effects:** direct packages and configured database resources have explicit
+   classifications, owners, and consumers.
 
 Each invariant needs one mutation that fails for the intended reason. Assertion count is not a
 quality metric.

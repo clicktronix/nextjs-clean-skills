@@ -178,7 +178,7 @@ flowchart TB
   Request["HTTP request"]
   Validate["Validate, authenticate,<br/>set cancellation"]
   Open["module/stream.ts"]
-  First{"Headers committed?"}
+  First{"Startup succeeds before<br/>response commit?"}
   Pre["HTTP status and body"]
   Events["Stream events"]
   Post["In-band failure<br/>or termination"]
@@ -186,8 +186,8 @@ flowchart TB
   Request --> Validate
   Validate --> Open
   Open --> First
-  First -->|No failure| Events
-  First -->|Failure before commit| Pre
+  First -->|Yes| Events
+  First -->|No| Pre
   Events -->|Failure after commit| Post
 ```
 

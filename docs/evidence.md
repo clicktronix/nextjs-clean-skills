@@ -90,9 +90,13 @@ The fixtures contain 33 TypeScript files. Runtime tests cover tenant scope, row 
 ownership, action and HTTP outcomes, stream commit/cancellation/deadline behavior, job retries,
 report-once behavior, and cross-capability policy.
 
-Six architecture invariants have ten failing mutations. A real Next.js 16.2.10 pilot at
-`fullstack-ai-template@0a3eeca` passes its production build and 990 tests. A deliberate Client
-Component import of `server.ts` fails that build through `server-only`.
+The original acceptance pilots encode six architecture properties as ten historical mutations.
+Current portable tooling expands the seven-property enforcement floor into 13 mutation-covered
+rule codes with 22 capability mutations, plus 24 boundary mutations and seven
+resolver/cycle/portability canaries. These are coverage counts, not competing architecture
+taxonomies. A real Next.js 16.2.10 pilot at `fullstack-ai-template@0a3eeca` passes its production
+build and 990 tests. A deliberate Client Component import of `server.ts` fails that build through
+`server-only`.
 
 Change comparison:
 

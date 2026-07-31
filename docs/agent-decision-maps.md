@@ -200,14 +200,20 @@ flowchart TB
   Block["Any No<br/>Request changes"]
 
   Start --> Owner
-  Owner --> Public
-  Public --> Depth
-  Depth --> Runtime
-  Runtime --> Auth
-  Auth --> Shared
-  Shared --> Tests
-  Tests --> Accept
-  Start -.-> Block
+  Owner -->|Yes| Public
+  Owner -->|No| Block
+  Public -->|Yes| Depth
+  Public -->|No| Block
+  Depth -->|Yes| Runtime
+  Depth -->|No| Block
+  Runtime -->|Yes| Auth
+  Runtime -->|No| Block
+  Auth -->|Yes| Shared
+  Auth -->|No| Block
+  Shared -->|Yes| Tests
+  Shared -->|No| Block
+  Tests -->|Yes| Accept
+  Tests -->|No| Block
 ```
 
 Do not copy these maps into `AGENTS.md`, `CLAUDE.md`, or a system prompt. Link the canonical

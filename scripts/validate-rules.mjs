@@ -9,6 +9,7 @@ import { fail, root } from './_lib.mjs'
 const BASE = 'rules/eslint-boundaries.mjs'
 const STRICT = 'rules/eslint-boundaries-resolved.mjs'
 const CONTRACT = 'rules/architecture-contract.json'
+const PATHS = 'rules/contract-paths.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
 const errors = []
 
@@ -320,7 +321,7 @@ if (ESLint) {
   try {
     fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
     fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
-    for (const source of [BASE, STRICT, CONTRACT, CYCLES]) {
+    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES]) {
       fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
     }
     fs.writeFileSync(
@@ -456,9 +457,108 @@ if (ESLint) {
       }
     }
 
+    const portable = path.join(sandbox, 'portable-layout')
+    fs.mkdirSync(path.join(portable, 'rules'), { recursive: true })
+    for (const source of [BASE, STRICT, PATHS, CYCLES]) {
+      fs.copyFileSync(path.join(root, source), path.join(portable, 'rules', path.basename(source)))
+    }
+    fs.writeFileSync(path.join(portable, 'package.json'), '{"private":true,"type":"module"}\n')
+    fs.writeFileSync(
+      path.join(portable, 'rules', 'architecture-contract.json'),
+      `${JSON.stringify(
+        {
+          ...JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8')),
+          sourceRoot: 'product',
+          moduleRoot: 'product/capabilities',
+          appRoot: 'product/routes',
+          sharedRoot: 'product/common',
+          importAliases: { '~/': 'product/' },
+        },
+        null,
+        2
+      )}\n`
+    )
+    fs.writeFileSync(
+      path.join(portable, 'tsconfig.json'),
+      `${JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: '.',
+            paths: { '~/*': ['./product/*'] },
+            module: 'esnext',
+            moduleResolution: 'bundler',
+            target: 'esnext',
+          },
+          include: ['product'],
+        },
+        null,
+        2
+      )}\n`
+    )
+    fs.writeFileSync(
+      path.join(portable, 'eslint.config.mjs'),
+      `import parser from '@typescript-eslint/parser'\nimport boundaries from './rules/eslint-boundaries.mjs'\nimport strict from './rules/eslint-boundaries-resolved.mjs'\nexport default [{ files: ['product/**/*.{ts,tsx}'], languageOptions: { parser } }, ...boundaries, ...strict]\n`
+    )
+
+    const portableFiles = {
+      'product/capabilities/labels/server/store.ts': 'export const listLabels = () => []',
+      'product/capabilities/labels/server.ts':
+        "export { listLabels } from './server/store.js'",
+      'product/routes/bad/page.ts':
+        "import { listLabels } from '~/capabilities/labels/server/store'\nexport default listLabels",
+      'product/capabilities/cycle-a/server.ts':
+        "import { b } from '~/capabilities/cycle-b/server'\nexport const a = b",
+      'product/capabilities/cycle-b/server.ts':
+        "import { a } from '~/capabilities/cycle-a/server'\nexport const b = a",
+    }
+    for (const [relative, source] of Object.entries(portableFiles)) {
+      const absolute = path.join(portable, relative)
+      fs.mkdirSync(path.dirname(absolute), { recursive: true })
+      fs.writeFileSync(absolute, `${source}\n`)
+    }
+
+    process.chdir(portable)
+    const portableEslint = new ESLint({
+      cwd: portable,
+      overrideConfigFile: path.join(portable, 'eslint.config.mjs'),
+    })
+    const portableResults = await portableEslint.lintFiles(['product'])
+    process.chdir(nestedCwd)
+    const portableBad = portableResults.find((result) =>
+      result.filePath.endsWith(path.join('product', 'routes', 'bad', 'page.ts'))
+    )
+    if (
+      !portableBad?.messages.some(
+        (message) =>
+          message.ruleId === 'clean-architecture/boundaries' && message.messageId === 'appInternal'
+      ) ||
+      portableBad.messages.some((message) => message.ruleId === 'import/no-unresolved')
+    ) {
+      errors.push(
+        `portable roots/alias canary failed: ${portableBad?.messages
+          .map((message) => `${message.ruleId}:${message.messageId ?? message.message}`)
+          .join(', ')}`
+      )
+    }
+
+    const portableGraph = spawnSync(
+      process.execPath,
+      [path.join(portable, 'rules', path.basename(CYCLES))],
+      { cwd: path.join(portable, 'product', 'routes'), encoding: 'utf8' }
+    )
+    const portableGraphOutput = `${portableGraph.stdout}${portableGraph.stderr}`
+    if (
+      portableGraph.status === 0 ||
+      !portableGraphOutput.includes('cycle-a -> cycle-b -> cycle-a')
+    ) {
+      errors.push(
+        `portable cycle alias canary failed: ${portableGraphOutput.trim() || `exit ${portableGraph.status}`}`
+      )
+    }
+
     if (errors.length === 0) {
       console.log(
-        `rules ok (${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 2} resolver/cycle canaries)`
+        `rules ok (${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 4} resolver/cycle/portability canaries)`
       )
     }
   } finally {

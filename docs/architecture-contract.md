@@ -35,6 +35,9 @@ src/modules/<capability>/
 
 Framework routes, metadata, layouts, and route-private presentation remain under `src/app/**`.
 Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
+These are default paths, not hidden assumptions in the tooling. A product records `sourceRoot`,
+`moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
+`rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`.
 
 ```mermaid
 flowchart TB
@@ -121,6 +124,12 @@ src/modules/work-items/
 ```
 
 This is a vocabulary, not a required tree. Create only surfaces with real consumers.
+
+Keep a root surface as a small explicit export manifest when implementation grows: split private
+implementation under its segment and publish named contracts from the root. Do not split a
+capability merely to reduce file size. If one runtime surface develops independently meaningful
+contract groups, record an architecture change before introducing public subpaths; deep imports are
+not an accidental scaling mechanism.
 
 A public surface is valid only when it does at least one of these:
 
@@ -218,9 +227,12 @@ The dependency classifier is exhaustive for direct `package.json` dependencies. 
 still project-owned because static analysis cannot infer whether a package is pure. This turns a new
 provider package into a required decision instead of silently allowing it into domain/application.
 
-The database resource check sees literal Supabase `.from()` and `.rpc()` calls. It does not parse raw
-SQL, ORM queries, views reached indirectly, migrations, or dynamic provider abstractions. RLS,
-explicit grants, migration review, and integration tests remain separate guarantees.
+The database resource check sees literal Supabase `.from()` and `.rpc()` calls only when the
+receiver contains an identifier listed in `databaseClientIdentifiers`. This avoids treating every
+same-named method as Supabase while keeping the canary explicit and reviewable. It does not trace
+renamed clients, parse raw SQL, ORM queries, views reached indirectly, migrations, or dynamic
+provider abstractions. RLS, explicit grants, migration review, and integration tests remain
+separate guarantees.
 
 ## Application Operations
 

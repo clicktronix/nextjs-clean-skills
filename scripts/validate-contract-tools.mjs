@@ -30,6 +30,7 @@ try {
   })
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
   for (const script of [
+    'contract-paths.mjs',
     'check-dependency-classification.mjs',
     'check-database-resources.mjs',
   ]) {
@@ -37,8 +38,14 @@ try {
   }
 
   const contract = {
+    sourceRoot: 'src',
+    moduleRoot: 'src/modules',
+    appRoot: 'src/app',
+    sharedRoot: 'src/shared',
+    importAliases: { '@/': 'src/' },
     purePackages: ['valibot'],
     runtimePackages: ['@supabase'],
+    databaseClientIdentifiers: ['supabase'],
     databaseResources: [
       { kind: 'table', name: 'work_items', owner: 'work-items' },
     ],
@@ -72,7 +79,7 @@ try {
   )
   fs.writeFileSync(
     store,
-    "export const read = (db) => db.from('work_items')\nexport const bytes = Buffer.from('ok')\n"
+    "export const read = (supabase) => supabase.from('work_items')\nexport const bytes = Buffer.from('ok')\nexport const events = (stream) => stream.from('event')\n"
   )
 
   for (const script of [
@@ -125,7 +132,7 @@ try {
   })
   fs.writeFileSync(
     path.join(sandbox, 'src', 'modules', 'labels', 'server', 'store.ts'),
-    "export const read = (db) => db.from('work_items')\n"
+    "export const read = (supabase) => supabase.from('work_items')\n"
   )
   expect(
     run('check-database-resources.mjs'),
@@ -140,9 +147,20 @@ try {
     'dynamic table access',
     'uses a dynamic Supabase table name'
   )
+
+  contract.appRoot = 'src/modules/app'
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-database-resources.mjs'),
+    'overlapping architecture roots',
+    'moduleRoot and appRoot must not overlap'
+  )
 } finally {
   fs.rmSync(sandbox, { recursive: true, force: true })
 }
 
 fail(errors)
-console.log('contract tools ok (2 clean checks, 4 failing mutations)')
+console.log('contract tools ok (2 clean checks, 5 failing mutations)')

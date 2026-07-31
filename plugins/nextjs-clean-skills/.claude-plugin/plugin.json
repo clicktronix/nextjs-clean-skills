@@ -1,8 +1,8 @@
 {
   "$schema": "../../../schemas/claude-plugin-manifest.schema.json",
   "name": "nextjs-clean-skills",
-  "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
-  "version": "2.0.0",
+  "description": "Next.js 16 skills for capability-first architecture and React Server/Client Component design.",
+  "version": "3.0.0",
   "author": {
     "name": "Clicktronix",
     "url": "https://github.com/clicktronix"

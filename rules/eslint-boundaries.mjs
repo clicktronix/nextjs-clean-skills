@@ -9,32 +9,23 @@
 import fs from 'node:fs'
 import { builtinModules } from 'node:module'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const contract = JSON.parse(
-  fs.readFileSync(new URL('./architecture-contract.json', import.meta.url), 'utf8')
-)
+import {
+  loadArchitecturePaths,
+  posix,
+  relativeParts,
+  resolveProjectImport,
+  sourceFilesPattern,
+} from './contract-paths.mjs'
 
-function findProjectRoot(start) {
-  let current = start
-  while (true) {
-    if (
-      fs.existsSync(path.join(current, 'package.json')) &&
-      fs.existsSync(path.join(current, 'src'))
-    ) {
-      return current
-    }
-    const parent = path.dirname(current)
-    if (parent === current) {
-      throw new Error(
-        'Cannot find a project root with package.json and src/ above eslint-boundaries.mjs'
-      )
-    }
-    current = parent
-  }
-}
-
-const PROJECT_ROOT = findProjectRoot(path.dirname(fileURLToPath(import.meta.url)))
+const paths = loadArchitecturePaths(import.meta.url)
+const {
+  contract,
+  projectRoot: PROJECT_ROOT,
+  moduleRoot: MODULE_ROOT,
+  appRoot: APP_ROOT,
+  sharedRoot: SHARED_ROOT,
+} = paths
 const SEGMENTS = new Set(contract.segments)
 const PUBLIC_SURFACES = new Set(contract.publicSurfaces)
 const SERVER_SURFACES = new Set(contract.serverSurfaces)
@@ -46,20 +37,13 @@ const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
 
-const posix = (value) => value.split(path.sep).join('/')
 const stem = (value) => path.basename(value).replace(SOURCE_EXT, '')
 
-function projectParts(absolute) {
-  const relative = posix(path.relative(PROJECT_ROOT, absolute))
-  if (relative === '..' || relative.startsWith('../')) return null
-  return relative.split('/')
-}
-
 function moduleLocation(absolute) {
-  const parts = projectParts(absolute)
-  if (!parts || parts[0] !== 'src' || parts[1] !== 'modules' || parts.length < 4) return null
+  const parts = relativeParts(MODULE_ROOT, absolute)
+  if (!parts || parts.length < 2) return null
 
-  const tail = parts.slice(3)
+  const tail = parts.slice(1)
   const rootName = tail.length === 1 ? stem(tail[0]) : null
   const rootIsSegmentDirectory =
     tail.length === 1 &&
@@ -67,7 +51,7 @@ function moduleLocation(absolute) {
     !SOURCE_EXT.test(tail[0]) &&
     !['.js', '.jsx', '.ts', '.tsx'].some((extension) => fs.existsSync(`${absolute}${extension}`))
   return {
-    capability: parts[2],
+    capability: parts[0],
     tail,
     segment: tail.length > 1 ? tail[0] : rootIsSegmentDirectory ? rootName : null,
     surface: tail.length === 1 && !rootIsSegmentDirectory ? rootName : null,
@@ -75,24 +59,13 @@ function moduleLocation(absolute) {
 }
 
 function sharedLocation(absolute) {
-  const parts = projectParts(absolute)
-  if (!parts || parts[0] !== 'src' || parts[1] !== 'shared' || parts.length < 3) return null
-  return { root: parts[2], tail: parts.slice(3) }
+  const parts = relativeParts(SHARED_ROOT, absolute)
+  if (!parts || parts.length < 2) return null
+  return { root: parts[0], tail: parts.slice(1) }
 }
 
 function isAppFile(absolute) {
-  const parts = projectParts(absolute)
-  return parts?.[0] === 'src' && parts[1] === 'app'
-}
-
-function resolveProjectImport(importer, specifier) {
-  if (specifier.startsWith('@/')) {
-    return path.join(PROJECT_ROOT, 'src', specifier.slice(2))
-  }
-  if (specifier.startsWith('.')) {
-    return path.resolve(path.dirname(importer), specifier)
-  }
-  return null
+  return relativeParts(APP_ROOT, absolute) !== null
 }
 
 function packageRoot(specifier) {
@@ -163,7 +136,7 @@ const capabilityRule = {
       sharedImportsModule:
         'shared/** must remain capability-neutral and cannot import {{capability}}.',
       invalidSharedRoot:
-        'src/shared/{{root}} is not admitted. Use shared/kernel, shared/server, shared/client, or shared/ui.',
+        '{{sharedRoot}}/{{root}} is not admitted. Use an admitted runtime-specific shared root.',
       sharedKernelDirection:
         'shared/kernel must remain pure and capability-neutral.',
       unknownSurface:
@@ -193,7 +166,7 @@ const capabilityRule = {
         return
       }
 
-      const targetPath = resolveProjectImport(filename, specifier)
+      const targetPath = resolveProjectImport(paths, filename, specifier)
       if (!targetPath) {
         if (sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
           context.report({ node, messageId: 'neutralDirection' })
@@ -374,7 +347,10 @@ const capabilityRule = {
           context.report({
             node,
             messageId: 'invalidSharedRoot',
-            data: { root: sourceShared.root },
+            data: {
+              root: sourceShared.root,
+              sharedRoot: posix(path.relative(PROJECT_ROOT, SHARED_ROOT)),
+            },
           })
         }
       },
@@ -427,13 +403,13 @@ const capabilityRule = {
 }
 
 const plugin = {
-  meta: { name: 'nextjs-clean-architecture', version: '2.0.0' },
+  meta: { name: 'nextjs-clean-architecture', version: contract.contractVersion },
   rules: { boundaries: capabilityRule },
 }
 
 export default [
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    files: [sourceFilesPattern(paths)],
     plugins: { 'clean-architecture': plugin },
     rules: {
       'clean-architecture/boundaries': 'error',

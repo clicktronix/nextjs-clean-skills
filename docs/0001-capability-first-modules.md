@@ -318,14 +318,10 @@ Capability colocation is not allowed to weaken server/client isolation.
 
 ### 12. The enforcement floor is invariant-based
 
-Final tooling must preserve:
-
-1. module isolation;
-2. domain/application purity;
-3. server/client runtime separation;
-4. narrow public entrypoints;
-5. port direction;
-6. acyclic module ownership.
+Final tooling preserves the seven portable properties named in
+[`adoption-and-enforcement.md`](./adoption-and-enforcement.md#enforcement-floor): ownership,
+acyclic resolution, purity, runtime separation, surface contracts, shared neutrality, and declared
+effects. Port quality and semantic depth remain review-only because path rules cannot prove them.
 
 Each invariant needs one mutation that fails for the intended reason. Assertion count is not a
 quality metric.

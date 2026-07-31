@@ -5,17 +5,17 @@
 Use a small closed set of semantic failure codes. Channels translate them; providers do not define
 them.
 
-| Kind | Meaning |
-| --- | --- |
-| `validation` | untrusted input is invalid |
-| `contract` | trusted provider/output violated its contract |
-| `unauthorized` | no valid caller identity |
-| `forbidden` | identity lacks required policy permission |
-| `not_found` | required public resource is absent |
-| `conflict` | uniqueness or version conflict |
-| `rate_limited` | quota refusal |
-| `unavailable` | provider, network, or timeout failure |
-| `unknown` | unclassified defect |
+| Kind | Meaning | Internal carrier |
+| --- | --- | --- |
+| `validation` | untrusted input is invalid | typed expected value |
+| `unauthorized` | no valid caller identity | typed expected value |
+| `forbidden` | identity lacks required policy permission | typed expected value |
+| `not_found` | required public resource is absent | typed expected value |
+| `conflict` | uniqueness or version conflict | typed expected value |
+| `rate_limited` | quota refusal | typed expected value |
+| `contract` | trusted provider/output violated its contract | exception |
+| `unavailable` | provider, network, or timeout failure | exception |
+| `unknown` | unclassified defect | exception |
 
 HTTP status, form state, render outcome, stream event, and job retry are channel mappings, not
 failure kinds.
@@ -26,9 +26,11 @@ Do not attach a raw provider error as `cause` to an expected semantic failure th
 adapter. Record only approved diagnostic context inside the adapter, then return or throw a clean
 semantic failure. An unrecognized unexpected exception may propagate to the one outer capture owner.
 
-Expected product outcomes are typed values. Unexpected defects and infrastructure outages use the
-exception path and are reported once by the outer channel. The channel may still expose a stable
-`unavailable` or `unknown` code; semantic code and internal carrier are separate decisions.
+Expected product outcomes are typed values. Unexpected contract violations, defects, and
+infrastructure outages use the exception path and are reported once by the outer channel. That
+channel maps the exception to a stable public `contract`, `unavailable`, or `unknown` code. Inner
+operations do not return infrastructure outages as ordinary expected values merely because the
+public response uses a semantic code.
 
 A stream may carry the same semantic code in-band after commit. The transport changes; the meaning
 does not.

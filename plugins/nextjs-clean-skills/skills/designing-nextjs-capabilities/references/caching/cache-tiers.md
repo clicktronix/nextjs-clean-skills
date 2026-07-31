@@ -2,7 +2,7 @@
 
 **Impact: HIGH** · **Scope: stack (Next.js App Router)**
 
-Every read path has one owner:
+Every cache tier in a read path has one owner:
 
 | Lifecycle | Owner |
 | --- | --- |
@@ -13,8 +13,9 @@ Every read path has one owner:
 | shareable filters and paging | URL |
 | derived value | no cache; compute it |
 
-A cache stores a copy; it is not a source of truth. Two owners for one read create stale copies and
-ambiguous invalidation.
+A cache stores a copy; it is not a source of truth. One read may intentionally cross server, HTTP,
+and browser tiers, but each tier has one lifecycle owner and an explicit handoff. Two owners inside
+the same tier create stale copies and ambiguous invalidation.
 
 The owner defines:
 
@@ -26,10 +27,11 @@ The owner defines:
 Application operations may return affected ownership metadata. Runtime surfaces call current
 framework invalidation APIs. Portable policy does not import Next.js cache functions.
 
-A browser cache may be seeded from an RSC value with an explicit freshness decision. Copying the
-same value into ordinary component state is not seeding.
+A browser cache may be seeded from an RSC value with an explicit freshness decision, either through
+`initialData` plus its source timestamp or through TanStack Query dehydration and
+`HydrationBoundary`. Copying the same value into ordinary component state is not seeding.
 
 Before adding a shared server cache, name its key, tenant/user scope, invalidator, and stale-data
 cost. Missing answers mean the tier is premature.
 
-Reference: one authoritative owner per read lifecycle.
+Reference: one owner per cache tier and explicit ownership at every handoff.

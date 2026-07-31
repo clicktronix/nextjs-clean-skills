@@ -1,6 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contractVersion": "3.0.0",
+  "sourceRoot": "src",
   "moduleRoot": "src/modules",
+  "appRoot": "src/app",
+  "sharedRoot": "src/shared",
+  "importAliases": {
+    "@/": "src/"
+  },
   "segments": [
     "domain",
     "application",
@@ -64,5 +71,6 @@
     "redis",
     "ioredis"
   ],
+  "databaseClientIdentifiers": [],
   "databaseResources": []
 }
