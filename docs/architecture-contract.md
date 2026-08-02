@@ -37,7 +37,9 @@ Framework routes, metadata, layouts, and route-private presentation remain under
 Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
 These are default paths, not hidden assumptions in the tooling. A product records `sourceRoot`,
 `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
-`rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`.
+`rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`. Alias
+prefixes must end with `/` — `"@"` would claim every package name starting with `@`, and the tools
+refuse that shape instead of resolving it.
 
 ```mermaid
 flowchart TB

@@ -185,9 +185,24 @@ try {
     'overlapping architecture roots',
     'moduleRoot and appRoot must not overlap'
   )
+  contract.appRoot = 'src/app'
+
+  // A separatorless prefix does not fail loudly on its own: `@` claims `@supabase/...` as a
+  // project path and turns the remainder of `@/modules/x` into an absolute `/modules/x`, so
+  // cross-capability and cycle checks stop matching and report clean. Refuse the shape.
+  contract.importAliases = { '@': 'src/' }
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-database-resources.mjs'),
+    'separatorless import alias',
+    "importAliases.@ must end with '/'"
+  )
 } finally {
   fs.rmSync(sandbox, { recursive: true, force: true })
 }
 
 fail(errors)
-console.log('contract tools ok (3 clean checks, 5 failing mutations)')
+console.log('contract tools ok (3 clean checks, 6 failing mutations)')

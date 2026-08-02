@@ -35,6 +35,9 @@ one root.
 
 Configure `sourceRoot`, `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
 `architecture-contract.json`. Alias targets are project-relative and must match `tsconfig.json`.
+Alias prefixes must end with `/` (`"@/"`, not `"@"`): a separatorless prefix claims every package
+whose name starts with the same characters, so the tools refuse it rather than resolve `@supabase/…`
+to a project path.
 All ESLint globs, ownership checks, cycle checks, and database subjects derive from these fields.
 `contractVersion` records the originating rules release and is maintained by `sync-version.mjs`.
 

@@ -110,6 +110,11 @@ if (
       contractErrors.push('architecture-contract.json importAliases entries must be non-empty')
       continue
     }
+    if (!prefix.endsWith('/')) {
+      contractErrors.push(
+        `architecture-contract.json importAliases.${prefix} must end with '/'`
+      )
+    }
     const normalized = path.normalize(target)
     if (
       path.isAbsolute(target) ||

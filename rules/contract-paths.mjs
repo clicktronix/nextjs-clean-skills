@@ -38,6 +38,14 @@ function aliases(projectRoot, value) {
       if (!prefix || typeof target !== 'string' || target.length === 0) {
         throw new Error('importAliases entries require a non-empty prefix and path')
       }
+      // A prefix without its separator swallows every specifier that merely starts with
+      // the same characters: `@` claims `@supabase/supabase-js` as a project path, and the
+      // remainder of `@/modules/x` becomes `/modules/x`, which path.resolve treats as
+      // absolute and resolves outside the project. Both silence the boundary and cycle
+      // rules rather than failing them, so the shape is a contract error, not a warning.
+      if (!prefix.endsWith('/')) {
+        throw new Error(`importAliases.${prefix} must end with '/' (for example '@/')`)
+      }
       return [prefix, projectPath(projectRoot, `importAliases.${prefix}`, target)]
     })
     .sort(([left], [right]) => right.length - left.length)
@@ -111,6 +119,8 @@ export function resolveProjectImport(paths, importer, specifier) {
   if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier)
   const alias = paths.importAliases.find(([prefix]) => specifier.startsWith(prefix))
   if (!alias) return null
+  // The remainder cannot begin with a separator, and so cannot make path.resolve discard
+  // the alias target: prefixes are required to end with one (see aliases()).
   return path.resolve(alias[1], specifier.slice(alias[0].length))
 }
 

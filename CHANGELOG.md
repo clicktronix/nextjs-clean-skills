@@ -13,6 +13,11 @@ All notable changes to this project are documented in this file.
   from one executable contract. Added a nonstandard-root/alias canary so portability cannot regress
   behind a passing default fixture. Direct files under `sharedRoot` remain classified and standard
   dependency or build trees are excluded when `sourceRoot` is the project root.
+- Required import-alias prefixes to end with `/`. A separatorless `"@"` claimed every package name
+  starting with the same characters and turned the remainder of `@/modules/x` into an absolute
+  `/modules/x`, so cross-capability imports and capability cycles resolved to nothing and both
+  tools reported clean instead of failing. Root and target paths were already validated; the
+  prefix was not.
 - Scoped the Supabase resource checker to configured client identifiers. Unrelated `.from()` and
   `.rpc()` methods no longer create false ownership failures; dynamic or unauthorized Supabase
   resource names still fail closed.
