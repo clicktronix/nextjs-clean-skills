@@ -8,9 +8,13 @@
 
 import importPlugin from 'eslint-plugin-import'
 
+import { loadArchitecturePaths, sourceFilesPattern } from './contract-paths.mjs'
+
+const paths = loadArchitecturePaths(import.meta.url)
+
 export default [
   {
-    files: ['src/**/*.{js,jsx,ts,tsx}'],
+    files: [sourceFilesPattern(paths)],
     plugins: { import: importPlugin },
     settings: {
       'import/extensions': ['.js', '.jsx', '.ts', '.tsx'],

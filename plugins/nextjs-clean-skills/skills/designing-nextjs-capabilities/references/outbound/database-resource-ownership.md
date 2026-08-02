@@ -10,16 +10,17 @@ Declare every directly accessed Supabase table and function in
 
 ```json
 {
+  "databaseClientIdentifiers": ["supabase"],
   "databaseResources": [
-    {
-      "kind": "table",
-      "name": "work_items",
-      "owner": "work-items",
-      "consumers": ["work-items"]
-    }
+    { "kind": "table", "name": "work_items", "owner": "work-items", "consumers": ["work-items"] }
   ]
 }
 ```
+
+List the variable or property identifiers used for Supabase clients. The lexical checker scans
+`.from()` and `.rpc()` only when the receiver contains one of those identifiers, so an unrelated
+`stream.from()` is not classified as database access. Keep the list narrow; renamed or wrapped
+clients require an explicit product-profile update.
 
 The owner controls schema meaning, migrations, row mapping, and public contract. Add another
 consumer only when the dependency is deliberate and reviewed. Prefer calling the owning
@@ -37,9 +38,9 @@ map change.
 - a caller outside the resource's consumer list;
 - dynamic resource names that static analysis cannot attribute.
 
-The check is a narrow Supabase canary. It does not prove ownership for raw SQL, an ORM, views,
-migrations, or provider wrappers, and it does not replace explicit grants, RLS, or integration
-tests. Migration files remain globally ordered; name the capability owner in the migration comment
-when a migration changes more than one resource.
+The check is a narrow lexical Supabase canary. It does not trace client aliases or prove ownership
+for raw SQL, an ORM, views, migrations, or provider wrappers, and it does not replace explicit
+grants, RLS, or integration tests. Migration files remain globally ordered; name the capability
+owner in the migration comment when a migration changes more than one resource.
 
 Reference: database names are a second dependency graph and require explicit product ownership.

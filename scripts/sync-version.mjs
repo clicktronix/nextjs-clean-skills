@@ -5,6 +5,10 @@ const check = process.argv.includes('--check')
 const source = readJson('version.json')
 const pluginName = 'nextjs-clean-skills'
 const pluginPath = `./plugins/${pluginName}`
+const description =
+  'Next.js 16 skills for capability-first architecture and React Server/Client Component design.'
+const claudeMarketplaceDescription =
+  'Portable Claude Code skills for capability-first Next.js 16 architecture and React Server/Client Component design.'
 const keywords = [
   'clean-architecture',
   'nextjs',
@@ -12,13 +16,14 @@ const keywords = [
   'react-server-components',
   'cache-components',
   'server-actions',
-  'next-safe-action',
-  'valibot',
-  'mantine',
   'supabase',
   'tanstack-query',
   'capability-modules',
-  'dal',
+  'runtime-boundaries',
+  'ports-and-adapters',
+  'server-client-boundaries',
+  'route-handlers',
+  'streaming',
   'rls',
   'agent-skills',
 ]
@@ -29,6 +34,7 @@ const targets = [
     apply(json) {
       json.name = pluginName
       json.version = source.version
+      json.description = description
       json.keywords = keywords
     },
   },
@@ -37,6 +43,7 @@ const targets = [
     apply(json) {
       json.name = pluginName
       json.version = source.version
+      delete json.description
       if (json.packages?.['']) {
         json.packages[''].name = pluginName
         json.packages[''].version = source.version
@@ -48,6 +55,7 @@ const targets = [
     apply(json) {
       json.name = pluginName
       json.version = source.version
+      json.description = description
     },
   },
   {
@@ -55,7 +63,15 @@ const targets = [
     apply(json) {
       json.name = pluginName
       json.version = source.version
+      json.description = description
       json.keywords = keywords
+      json.interface.shortDescription = 'Capability-first Next.js and React skills.'
+      json.interface.longDescription =
+        'Codex skills for capability-owned Next.js modules, runtime-specific public surfaces, channel-native RSC, Actions, HTTP, streams and jobs, and safe React Server/Client Component boundaries.'
+      json.interface.defaultPrompt = [
+        'Design this Next.js feature around capability ownership and native runtime boundaries.',
+        'Create this React component with the correct Server/Client and state boundaries.',
+      ]
     },
   },
   {
@@ -63,9 +79,11 @@ const targets = [
     apply(json) {
       json.name = pluginName
       json.metadata.version = source.version
+      json.metadata.description = claudeMarketplaceDescription
       json.plugins[0].name = pluginName
       json.plugins[0].version = source.version
       json.plugins[0].source = pluginPath
+      json.plugins[0].description = description
       json.plugins[0].keywords = keywords
     },
   },
@@ -76,6 +94,12 @@ const targets = [
       json.interface.displayName = 'Next.js Clean Skills'
       json.plugins[0].name = pluginName
       json.plugins[0].source.path = pluginPath
+    },
+  },
+  {
+    file: 'rules/architecture-contract.json',
+    apply(json) {
+      json.contractVersion = source.version
     },
   },
 ]

@@ -12,7 +12,8 @@ Candidate v3 also passed the comparative agent gate; see
 - Runtime checks cover tenant scoping, provider-row mapping, cache invalidation, expected action
   outcomes, HTTP mapping, stream commit state, cancellation, deadlines, job retries, reporting
   once, and cross-capability orchestration.
-- Six architecture invariants are executable. Ten mutations prove their critical branches fail.
+- The original acceptance suite encodes six architecture properties in ten historical mutations.
+  Current rule-code and portability counts are reported separately in `docs/evidence.md`.
 - Every candidate change is anchored to its own commit and checked against
   `candidate-plan.json`.
 - The provider replay has a separate composition control at `37b9f97`; the corrected swap is

@@ -38,7 +38,8 @@ a Server variant need not. Prefer a discriminated route-state type when the proj
 shared chrome into a `<PanelFrame title body footer />` shell. Load heavy variants on demand only
 when measurements justify it.
 
-Split when at least two apply: prop guard comments, mode branches in the View, required non-null
-assertions, or one mode that is materially heavier.
+Split when the shared contract admits invalid prop combinations or mode branches spread through
+data loading, Hooks, or presentation. Prop guard comments, repeated non-null assertions, and a
+materially heavier variant are evidence, not a numeric threshold.
 
 Reference: [State Placement](../SKILL.md#state-placement).

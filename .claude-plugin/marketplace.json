@@ -6,15 +6,15 @@
     "url": "https://github.com/clicktronix"
   },
   "metadata": {
-    "description": "Portable Claude Code skills for Next.js 16 Hybrid Clean Architecture and React Server/Client Component design.",
-    "version": "2.0.0"
+    "description": "Portable Claude Code skills for capability-first Next.js 16 architecture and React Server/Client Component design.",
+    "version": "3.0.0"
   },
   "plugins": [
     {
       "name": "nextjs-clean-skills",
       "source": "./plugins/nextjs-clean-skills",
-      "description": "Next.js 16 skills for Hybrid Clean Architecture and React Server/Client Component design.",
-      "version": "2.0.0",
+      "description": "Next.js 16 skills for capability-first architecture and React Server/Client Component design.",
+      "version": "3.0.0",
       "keywords": [
         "clean-architecture",
         "nextjs",
@@ -22,13 +22,14 @@
         "react-server-components",
         "cache-components",
         "server-actions",
-        "next-safe-action",
-        "valibot",
-        "mantine",
         "supabase",
         "tanstack-query",
         "capability-modules",
-        "dal",
+        "runtime-boundaries",
+        "ports-and-adapters",
+        "server-client-boundaries",
+        "route-handlers",
+        "streaming",
         "rls",
         "agent-skills"
       ]

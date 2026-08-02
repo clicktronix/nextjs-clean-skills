@@ -9,7 +9,7 @@
 | Segment | Optional internal role: domain, application, server, client, or UI. |
 | Domain | Pure invariants, calculations, and product values. |
 | Application operation | Framework-neutral policy or orchestration that passes the deletion test. |
-| Deletion test | Remove a module; keep it only when meaningful complexity moves into callers. |
+| Deletion test | Remove the candidate operation or abstraction; keep it only when meaningful complexity moves into callers. |
 | Public surface | Runtime-specific root file that narrows or translates module internals. |
 | Port | Application-owned capability contract independent of its technology. |
 | Adapter | Private translation from a runtime, store, or provider to a capability contract. |

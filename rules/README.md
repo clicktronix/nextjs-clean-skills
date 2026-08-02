@@ -6,6 +6,7 @@ try to infer business meaning from path names.
 | File | Purpose |
 | --- | --- |
 | `architecture-contract.json` | reserved surfaces, dependency classes, and database ownership |
+| `contract-paths.mjs` | validated source roots, aliases, and import resolution shared by every check |
 | `eslint-boundaries.mjs` | capability ownership, purity, and server/client direction |
 | `eslint-boundaries-resolved.mjs` | unresolved-import and file-cycle canaries |
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
@@ -14,7 +15,7 @@ try to infer business meaning from path names.
 
 ## Install
 
-Copy all four files into the consuming repository, then spread both configs after the base flat
+Copy the seven non-README files into the consuming repository, then spread both configs after the base flat
 ESLint configs:
 
 ```js
@@ -29,7 +30,16 @@ export default [
 ```
 
 The resolved tier requires `eslint-plugin-import` and `eslint-import-resolver-typescript`. Run
-ESLint from the project root so `@/* -> src/*` and relative paths share one root.
+ESLint from the project root so the contract aliases, TypeScript paths, and relative imports share
+one root.
+
+Configure `sourceRoot`, `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
+`architecture-contract.json`. Alias targets are project-relative and must match `tsconfig.json`.
+Alias prefixes must end with `/` (`"@/"`, not `"@"`): a separatorless prefix claims every package
+whose name starts with the same characters, so the tools refuse it rather than resolve `@supabase/…`
+to a project path.
+All ESLint globs, ownership checks, cycle checks, and database subjects derive from these fields.
+`contractVersion` records the originating rules release and is maintained by `sync-version.mjs`.
 
 Add the capability graph check to the same CI command:
 
@@ -42,33 +52,33 @@ Before enabling the rules, classify every direct runtime dependency in
 `check-dependency-classification.mjs`; a newly installed package fails closed until the product
 decides which side it belongs to. Static analysis cannot infer package semantics from an npm name.
 
-For Supabase projects, declare literal `.from()` and `.rpc()` resources in `databaseResources` and
-run `check-database-resources.mjs`. This catches undeclared and cross-capability string-level
-coupling that TypeScript import rules cannot see. It does not parse SQL or replace RLS/grant tests.
+For Supabase projects, list the identifiers used for Supabase clients in
+`databaseClientIdentifiers`, declare literal `.from()` and `.rpc()` resources in
+`databaseResources`, and run `check-database-resources.mjs`. The checker ignores same-named methods
+on other receivers. It catches undeclared and cross-capability string-level coupling that TypeScript
+import rules cannot see. Standard dependency, build-output, coverage, test, and generated directories
+are excluded when `sourceRoot` is the project root. The checker does not trace aliases, parse SQL, or
+replace RLS/grant tests.
 
 ## Enforced Invariants
 
-1. `app/**` and other capabilities import a capability only through its root public surfaces.
-2. `domain/**` imports only its own domain, admitted `shared/kernel`, and classified pure packages.
-3. `domain/**` and `application/**` reject the framework/provider packages declared by the product
-   profile.
-4. browser-safe code cannot import server surfaces; server capability code cannot import browser
-   surfaces. `actions.ts` remains the explicit browser-to-server mutation boundary.
-5. module-root files use the admitted runtime vocabulary:
-   `server`, `rsc`, `actions`, `client`, `ui`, `query-cache`, `stream`, or `job`.
-   Named re-exports are allowed, `export *` is not, and `actions.ts` declares value exports locally.
-6. shared code uses `shared/kernel`, `shared/server`, `shared/client`, or `shared/ui` and cannot
-   depend on product capabilities.
-7. the strict tier rejects unresolved imports and computed dynamic loads; the graph checker rejects
-   capability cycles even when the underlying files do not form a direct cycle.
-8. a private segment cannot define `index.ts(x)` when a same-named root surface exists; the root
-   file wins module resolution and would silently shadow the segment index.
-9. `query-cache.ts` imports only its own domain or `shared/kernel`; a whole-fixture check requires
-   at least one server prefetch/hydration consumer and one browser query consumer.
-10. private `server/**` cannot import its own root public surfaces; channel dependencies point
-    inward.
-11. every direct runtime dependency is classified, and literal Supabase resources have declared
-    consumers.
+The portable floor has seven named properties:
+
+1. **Ownership.** `app/**` and other capabilities use root public surfaces; private server code
+   points inward, and a private segment cannot shadow a same-named root surface.
+2. **Acyclic resolution.** Literal imports resolve, computed targets fail closed, and both file and
+   capability graphs remain acyclic.
+3. **Purity.** `domain/**` and `application/**` reject runtime packages and wrong-direction imports;
+   domain admits only its own domain, `shared/kernel`, and classified pure packages.
+4. **Runtime separation.** Browser-safe code cannot import server surfaces, server code cannot
+   import browser surfaces, and `actions.ts` is the explicit browser-to-server mutation boundary.
+5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
+   are allowed, `export *` is not, action values are local async functions, and `query-cache.ts`
+   remains runtime-neutral with consumers on both sides.
+6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a
+   product capability.
+7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
+   calls use resources with declared owners and consumers.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.
@@ -91,6 +101,7 @@ prove one of these would create a false guarantee.
 
 ## Verification
 
-`node scripts/validate-rules.mjs` builds a temporary TypeScript project and checks at least one
-clean edge and one failing mutation for every invariant above. Resolver, file-cycle, and
-capability-cycle checks have separate canaries.
+`node scripts/validate-rules.mjs` builds temporary TypeScript projects and checks the default
+profile plus a nonstandard source root and alias. The seven properties expand into multiple rule
+codes and mutations; exact current counts belong in validator output and `docs/evidence.md`, not in
+the architecture taxonomy.

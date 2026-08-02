@@ -318,14 +318,10 @@ Capability colocation is not allowed to weaken server/client isolation.
 
 ### 12. The enforcement floor is invariant-based
 
-Final tooling must preserve:
-
-1. module isolation;
-2. domain/application purity;
-3. server/client runtime separation;
-4. narrow public entrypoints;
-5. port direction;
-6. acyclic module ownership.
+Final tooling preserves the seven portable properties named in
+[`adoption-and-enforcement.md`](./adoption-and-enforcement.md#enforcement-floor): ownership,
+acyclic resolution, purity, runtime separation, surface contracts, shared neutrality, and declared
+effects. Port quality and semantic depth remain review-only because path rules cannot prove them.
 
 Each invariant needs one mutation that fails for the intended reason. Assertion count is not a
 quality metric.
@@ -359,8 +355,8 @@ same task text for its cell.
 ### 14. Migration is semver-major and explicit
 
 Released 1.x remains installable. The layer-first 2.0 implementation is withdrawn as a release
-candidate but retained as a research control. A validated capability-first contract may still use
-the `2.0.0` version number.
+candidate but retained as a research control. The capability-first `2.0.0` manifest remains
+historical; the breaking skill rename and configurable path contract move the plugin to `3.0.0`.
 
 Existing projects do not mix both topologies silently. Adoption is capability-by-capability with a
 documented boundary while migration is incomplete.

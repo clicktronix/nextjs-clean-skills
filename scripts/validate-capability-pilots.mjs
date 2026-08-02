@@ -22,6 +22,26 @@ function stringArray(name) {
   return value
 }
 
+function relativePath(name) {
+  const value = contract[name]
+  if (typeof value !== 'string' || value.length === 0 || path.isAbsolute(value)) {
+    contractErrors.push(`architecture-contract.json ${name} must be a project-relative path`)
+    return ''
+  }
+  const normalized = path.normalize(value)
+  if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) {
+    contractErrors.push(`architecture-contract.json ${name} must stay inside the project root`)
+  }
+  return normalized
+}
+
+function requireInside(name, value, parentName, parentValue) {
+  const relative = path.relative(parentValue, value)
+  if (relative === '..' || relative.startsWith(`..${path.sep}`)) {
+    contractErrors.push(`architecture-contract.json ${name} must stay inside ${parentName}`)
+  }
+}
+
 function requireSubset(name, values, parentName, parentValues) {
   const parent = new Set(parentValues)
   for (const value of values) {
@@ -42,6 +62,86 @@ function requireDisjoint(leftName, leftValues, rightName, rightValues) {
       )
     }
   }
+}
+
+const sourceRoot = relativePath('sourceRoot')
+const moduleRoot = relativePath('moduleRoot')
+const appRoot = relativePath('appRoot')
+const sharedRoot = relativePath('sharedRoot')
+for (const [name, value] of [
+  ['moduleRoot', moduleRoot],
+  ['appRoot', appRoot],
+  ['sharedRoot', sharedRoot],
+]) {
+  if (sourceRoot && value) requireInside(name, value, 'sourceRoot', sourceRoot)
+}
+const ownedRoots = [
+  ['moduleRoot', moduleRoot],
+  ['appRoot', appRoot],
+  ['sharedRoot', sharedRoot],
+]
+for (let leftIndex = 0; leftIndex < ownedRoots.length; leftIndex += 1) {
+  for (let rightIndex = leftIndex + 1; rightIndex < ownedRoots.length; rightIndex += 1) {
+    const [leftName, leftRoot] = ownedRoots[leftIndex]
+    const [rightName, rightRoot] = ownedRoots[rightIndex]
+    if (!leftRoot || !rightRoot) continue
+    const leftToRight = path.relative(leftRoot, rightRoot)
+    const rightToLeft = path.relative(rightRoot, leftRoot)
+    const overlaps = [leftToRight, rightToLeft].some(
+      (relative) => relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`))
+    )
+    if (overlaps) {
+      contractErrors.push(
+        `architecture-contract.json ${leftName} and ${rightName} must not overlap`
+      )
+    }
+  }
+}
+
+if (
+  !contract.importAliases ||
+  typeof contract.importAliases !== 'object' ||
+  Array.isArray(contract.importAliases)
+) {
+  contractErrors.push('architecture-contract.json importAliases must be an object')
+} else {
+  for (const [prefix, target] of Object.entries(contract.importAliases)) {
+    if (!prefix || typeof target !== 'string' || !target) {
+      contractErrors.push('architecture-contract.json importAliases entries must be non-empty')
+      continue
+    }
+    if (!prefix.endsWith('/')) {
+      contractErrors.push(
+        `architecture-contract.json importAliases.${prefix} must end with '/'`
+      )
+    }
+    const normalized = path.normalize(target)
+    if (
+      path.isAbsolute(target) ||
+      normalized === '..' ||
+      normalized.startsWith(`..${path.sep}`)
+    ) {
+      contractErrors.push(
+        `architecture-contract.json importAliases.${prefix} must stay inside the project root`
+      )
+    }
+  }
+}
+
+const databaseClientIdentifiers = stringArray('databaseClientIdentifiers')
+if (databaseClientIdentifiers.some((identifier) => !/^[$A-Z_a-z][$\w]*$/.test(identifier))) {
+  contractErrors.push(
+    'architecture-contract.json databaseClientIdentifiers must contain JavaScript identifiers'
+  )
+}
+if (
+  Array.isArray(contract.databaseResources) &&
+  contract.databaseResources.length > 0 &&
+  databaseClientIdentifiers.length === 0
+) {
+  contractErrors.push(
+    'architecture-contract.json databaseClientIdentifiers must not be empty when databaseResources are declared'
+  )
 }
 
 const segments = stringArray('segments')

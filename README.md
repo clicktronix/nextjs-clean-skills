@@ -88,7 +88,7 @@ $designing-nextjs-capabilities
 $creating-react-components
 ```
 
-## Default Profile
+## Optional Greenfield Profile
 
 This is a fallback for greenfield or explicitly opted-in repositories. Existing projects keep
 their local equivalents unless the task requests a migration.
@@ -99,12 +99,14 @@ their local equivalents unless the task requests a migration.
 - **Architecture**: Product capabilities under `src/modules/<capability>`, optional
   domain/application/server/client/UI segments, narrow runtime-specific public surfaces, and
   route-private framework composition under `app/**`.
-- **Validation**: Valibot and Standard Schema-compatible action/form validation.
+- **Validation**: The project's existing schema and form libraries; validate at each trust entry.
 - **Reads**: Server Components call capability RSC/server surfaces directly. Browser-owned reads use
   `GET` or streams, never Server Actions.
-- **Client cache**: TanStack Query only for client interactivity, realtime, polling, optimistic updates, infinite scroll, or a shared async cache lifecycle across client islands.
+- **Client cache**: TanStack Query when the browser owns realtime, polling, optimistic, infinite, or
+  shared async lifecycle; do not migrate an existing cache library implicitly.
 - **Cache**: Cache Components with `'use cache'`, `cacheLife`, `cacheTag`, `updateTag`, and `revalidateTag(tag, 'max')`.
-- **Actions**: Thin validated Server Actions, preferably `next-safe-action` v8 when available.
+- **Actions**: Thin validated Server Actions, using the project's existing action wrapper when it
+  has one.
 - **Components**: Server Components by default; Client Components call named Hooks directly.
 
 ## Human Architecture Docs
@@ -137,17 +139,15 @@ These skills assume the target app uses the current Next.js 16 App Router model:
 | Next.js 14 or older | Not a default target | Treat these skills as conceptual guidance, not copy-ready implementation rules. |
 | Non-Next React | Component-only | `creating-react-components` state/styling guidance can apply, but RSC, Server Actions, proxy, and cache rules do not. |
 
-Minimum package versions for copy-ready rules:
+Minimum framework versions for copy-ready guidance:
 
 | Package | Minimum |
 | --- | --- |
-| Next.js | 16.1 |
+| Next.js | 16.2 |
 | React | 19.2 |
-| Valibot | 1.0 |
-| Mantine | 8.0 |
-| TanStack Query | 5.90 |
-| next-safe-action | 8.0 |
-| Supabase SSR | 0.8 |
+
+The optional TanStack Query and Supabase references assume TanStack Query 5.90 and Supabase SSR
+0.8 or newer. Other schema, form, action, and UI libraries remain product-profile decisions.
 
 If the target repo has stricter local architecture docs, follow the target repo first.
 
