@@ -85,7 +85,7 @@ const ASSIGN_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'rationale', 'consumers', 'dependsOn', 'fileCount'],
+        required: ['name', 'rationale', 'consumers', 'dependsOn', 'fileCount', 'pilotScore'],
         properties: {
           name: { type: 'string', description: 'kebab-case product capability, named from domain vocabulary and not from a folder name' },
           rationale: { type: 'string' },
@@ -114,7 +114,22 @@ const ASSIGN_SCHEMA = {
         },
       },
     },
-    unassigned: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['file', 'why'], properties: { file: { type: 'string' }, why: { type: 'string' } } } },
+    unassigned: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['file', 'why'],
+        properties: {
+          file: { type: 'string' },
+          why: { type: 'string' },
+          // Which capability it would MOST LIKELY belong to, if you had to choose.
+          // Without this the pilot gate substring-matched the capability name against
+          // free prose and a camelCase path, which both under- and over-fired.
+          likelyCapability: { type: 'string', description: 'best guess, or omitted when there is genuinely none' },
+        },
+      },
+    },
     deps: {
       type: 'object',
       additionalProperties: false,
@@ -168,7 +183,7 @@ const LENSES = [
   { key: 'roots', text: 'Read tsconfig.json, next.config.*, and any eslint config. Report the current source root, app root, path aliases (exact prefixes), and any existing boundary tooling already in place.' },
 ]
 
-const lensOuts = (await parallel(LENSES.map(l => () =>
+const lensRaw = await parallel(LENSES.map(l => () =>
   agent(
     `You are a read-only inventory lens over the repository at ${REPO}.\n\n` +
     `## Your lens — ${l.key}\n${l.text}\n\n` +
@@ -179,17 +194,33 @@ const lensOuts = (await parallel(LENSES.map(l => () =>
     'Structured output only.',
     { label: 'lens:' + l.key, phase: 'Inventory', schema: LENS_SCHEMA }
   )
-))).filter(Boolean)
+))
+// Keyed POSITIONALLY, like the baseline probes below. `lensByKey[o.lens]` trusted a
+// free-string the schema never constrained and the prompt never demanded verbatim, so
+// a data lens answering "data access and outbound effects" made dataLens undefined —
+// and the Enable step then shipped empty databaseResources with floor property 7
+// unenforced. `.filter(Boolean)` before this would destroy the index alignment.
+const lensOuts = lensRaw
+  .map((r, i) => (r ? { ...r, key: LENSES[i].key } : null))
+  .filter(Boolean)
 
 log('Inventory: ' + lensOuts.length + '/' + LENSES.length + ' lenses returned')
 if (lensOuts.length === 0) return { error: 'every inventory lens failed — nothing to assign' }
 
 const lensByKey = Object.create(null)
-for (const o of lensOuts) lensByKey[o.lens] = o
+for (const o of lensOuts) lensByKey[o.key] = o
 const dataLens = lensByKey.data
 
 const LENS_BLOCK = lensOuts
-  .map(o => '### ' + o.lens + '\n' + (o.findings || []).map(f => '- ' + f).join('\n') + (o.notes ? '\n' + o.notes : ''))
+  .map(o =>
+    '### ' + o.key + '\n' +
+    (o.findings || []).map(f => '- ' + f).join('\n') +
+    (o.notes ? '\n' + o.notes : '') +
+    // Each lens is asked which files it is authoritative about; the Assign agent is
+    // the one consumer that benefits from knowing which lens claims which file.
+    // Previously six agents compiled this list and nothing ever read it.
+    ((o.files || []).length > 0 ? '\nfiles this lens is authoritative about: ' + o.files.join(', ') : '')
+  )
   .join('\n\n')
 
 // ─── Assign: the barrier is load-bearing ───
@@ -207,7 +238,7 @@ const assignment = await agent(
   '2. For EVERY source file, one assignment: placement (capability | shared | app | infrastructure | unclear), and when placement is `capability`, the target segment (domain | application | server | client | ui) or the public surface it becomes. Route-private UI stays under the app root — that is placement `app`, not a capability file.\n' +
   '3. runtime class per file: server-only, browser-safe, neutral, or unclear. This is the fact a per-capability agent cannot derive on its own, so be exact and cite evidence.\n' +
   '4. Direct dependency classification: pure / runtime / undecided. `undecided` is a real answer; the product decides those, not you.\n' +
-  '5. Anything you cannot place, in `unassigned`, with why.\n' +
+  '5. Anything you cannot place, in `unassigned`, with why — and `likelyCapability`, your best guess at which capability it would belong to. The pilot gate reads that field, so omitting it hides the file from the gate.\n' +
   '6. roots: the repo\'s real sourceRoot and appRoot, plus the moduleRoot and sharedRoot the capabilities WILL live under. Phase 2 computes every destination path from moduleRoot, so pick it deliberately and consistently with this repo\'s existing layout (do not default to src/modules if that is not where this repo would put them).\n\n' +
   '## Rules\n' +
   'Verify against the code before assigning — Read or Grep the file, do not infer ownership from its current directory.\n' +
@@ -268,30 +299,41 @@ const enabled = await agent(
 )
 log('Enable: ' + (enabled && enabled.ok ? 'rules installed, dependency check green' : 'FAILED — ' + ((enabled && enabled.detail) || 'no result')))
 
+// Stop here rather than spending six probe agents and a full production build
+// measuring an oracle that was not installed. The lint and census probes are both
+// told "the boundary configs were just installed"; with Enable red they measure
+// something absent, ship a wrong census, and only then reach the blocker below.
+if (!enabled || !enabled.ok) {
+  return {
+    error: 'the architectural oracle was not installed — stopping before the baseline',
+    detail: (enabled && enabled.detail) || 'the enable-rules agent returned no result',
+    blockers: ['rules are not enabled — install them, then re-run this phase'],
+    capabilities: caps.map(c => ({ name: c.name, files: (byCap[c.name] || []).length, pilotScore: c.pilotScore })),
+    deps: assignment.deps || {},
+  }
+}
+
 // ─── Baseline: the three oracles, recorded before anything moves ───
 phase('Baseline')
 
+// One ESLint pass, not two. The `lint` and `census` probes each ran a full pass over
+// the same tree with the same configs and produced two boundary totals that nothing
+// reconciled — and phase 2's burndown is measured against one of them with no
+// indication which is authoritative.
 const PROBES = [
-  { key: 'typecheck', text: 'Run the repo\'s TypeScript check (tsc --noEmit, or the package script that does it). Report pass/fail and the error count.' },
-  // Step 8 of the adoption procedure names lint alongside type, test and build.
-  // This probe runs AFTER the Enable phase amended the config, so the boundary rules
-  // are already active here and the lint will be red by design. Separate the two
-  // populations: pre-existing lint debt is the baseline, boundary violations are the
-  // burndown, and confusing them would make every later comparison meaningless.
-  {
-    key: 'lint',
-    text:
-      "Run the repo's own lint command. The capability-first boundary configs were just installed into it, so expect boundary violations — that is intended. " +
-      'In `counts`, report `preexisting` (errors from the rules this repo already had) and `boundary` (errors from the clean-architecture boundary rules) separately. ' +
-      'Set ok=true when `preexisting` is 0, regardless of `boundary`.',
-  },
-  { key: 'tests', text: 'Run the repo\'s test suite. Report pass/fail, the passed and failed counts, and the exact command.' },
+  { key: 'typecheck', text: "Run the repo's TypeScript check (tsc --noEmit, or the package script that does it). Report pass/fail and the error count." },
+  { key: 'tests', text: "Run the repo's test suite. Report pass/fail, the passed and failed counts, and the exact command." },
   { key: 'build', text: 'Run the production build. Report pass/fail and the exact command. A production build is what proves server/client separation, so do not substitute a dev server.' },
   {
     key: 'census',
     text:
-      'Census the CURRENT architecture violations, so later phases can prove they went down. Run ESLint with the newly installed boundary configs over the source root, plus `node rules/check-module-cycles.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`. ' +
-      'Return `counts` keyed by ESLint messageId (for example crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot) with the number of violations each, plus one key per non-ESLint tool with its violation count. A high count now is expected and is not a failure — report it faithfully.',
+      "Run the repo's own lint command ONCE and census the architecture violations from that same run, so later phases can prove they went down. " +
+      'The capability-first boundary configs were just installed into it, so expect boundary violations — that is intended and is not a failure. ' +
+      'Also run `node rules/check-module-cycles.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`.\n\n' +
+      'In `counts`, report one key per ESLint messageId (crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot, …) with its violation count, ' +
+      'one key per non-ESLint tool with its violation count, and `preexisting` for errors from rules this repo already had before the install. ' +
+      'Set ok=true when the tools RAN — a high violation count is the expected starting point. Set ok=false only if a tool could not run at all, ' +
+      'or if `preexisting` is non-zero: pre-existing lint debt is a red baseline, and step 8 of the adoption procedure names lint alongside type, test and build.',
   },
 ]
 // Scoped to the pilot candidate, which is known by now (the Assign phase ran).
@@ -315,8 +357,16 @@ PROBES.push({
 // a census returned as "ESLint boundary violations" was never found, the manifest
 // shipped an empty census, and phase 2 then read every non-zero count as a
 // regression and could only ever say `revise`.
-const baselineRaw = await parallel(PROBES.map(p => () =>
-  agent(
+// SEQUENTIAL, deliberately — not parallel and not pipeline, both of which would run
+// these concurrently. tsc, the production build, the test run and ESLint all write
+// into the same working tree (.next/, *.tsbuildinfo, coverage), so running them at
+// once makes the baseline a concurrency artifact: a contended build fails, the run
+// reports "baseline build is not green", and the operator is sent to fix a
+// repository that is fine. The baseline is the thing every later verdict is measured
+// against, so it is worth the wall-clock.
+const baseline = []
+for (const p of PROBES) {
+  const r = await agent(
     `Record one baseline fact about the repository at ${REPO}, before any migration.\n\n` +
     '## Your probe — ' + p.key + '\n' + p.text + '\n\n' +
     '## Rules\n' +
@@ -325,8 +375,8 @@ const baselineRaw = await parallel(PROBES.map(p => () =>
     'Structured output only.',
     { label: 'baseline:' + p.key, phase: 'Baseline', schema: BASELINE_SCHEMA }
   )
-))
-const baseline = baselineRaw.map((r, i) => (r ? { ...r, key: PROBES[i].key } : { key: PROBES[i].key, ok: false, detail: 'probe agent returned no result' }))
+  baseline.push(r ? { ...r, key: p.key } : { key: p.key, ok: false, detail: 'probe agent returned no result' })
+}
 
 const census = baseline.find(b => b.key === 'census')
 const violations = (census && census.counts) || {}
@@ -346,7 +396,7 @@ const manifest = {
   // findings after the Assign prompt threw away the expensive half of this phase and
   // left the profile unrecorded. Kept verbatim, as evidence rather than conclusions.
   profile: {
-    lenses: lensOuts.map(o => ({ lens: o.lens, findings: o.findings || [], notes: o.notes || null })),
+    lenses: lensOuts.map(o => ({ lens: o.key, findings: o.findings || [], notes: o.notes || null })),
     // Named explicitly so a gap is visible rather than merely absent. What the lenses
     // cannot answer is a product decision, and the document says the profile records it.
     pending: [
@@ -384,11 +434,20 @@ const manifest = {
   rulesInstalled: !!(enabled && enabled.ok),
 }
 
+// The agent is NOT asked to retype the manifest. Pasting the whole object into a
+// prompt for verbatim reproduction does not survive a real repository: on a
+// 2000-file target that is hundreds of KB, the agent truncates mid-array, and phase 2
+// then migrates part of a capability and passes every oracle. It writes the payload
+// it is given in one shot and reads it back to prove it parses; the payload is built
+// here, in code.
 const written = await agent(
-  `Write this migration manifest to ${MANIFEST} as formatted JSON, then read it back and confirm it parses.\n\n` +
-  'Write ONLY that file. Change nothing else. No git commands.\n\n' +
+  `Write the JSON below to ${MANIFEST} exactly as given, then read the file back and confirm it parses ` +
+  'and that its `assignments` array has ' + (assignment.assignments || []).length + ' entries.\n\n' +
+  'Write ONLY that file. Do not reformat, summarise, reorder or omit any part of it. Change nothing else. No git commands.\n' +
+  'If the content is too large to emit in one tool call, write it in successive appends and verify the parse at the end — ' +
+  'do NOT paraphrase or truncate to fit.\n\n' +
   '```json\n' + JSON.stringify(manifest, null, 2) + '\n```\n\n' +
-  'Structured output only: ok, plus detail naming the path and the byte size.',
+  'Structured output only: ok, plus detail naming the path, the byte size, and the assignments count you read back.',
   { label: 'write-manifest', phase: 'Manifest', schema: BASELINE_SCHEMA }
 )
 
@@ -401,9 +460,7 @@ if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not deci
 // gating the pilot on having placed every file in the target was our own addition.
 const pilotName = caps.length > 0 ? caps[0].name : null
 const unassigned = assignment.unassigned || []
-const unassignedInPilot = pilotName
-  ? unassigned.filter(u => (u.why || '').indexOf(pilotName) !== -1 || (u.file || '').indexOf(pilotName) !== -1)
-  : []
+const unassignedInPilot = pilotName ? unassigned.filter(u => u.likelyCapability === pilotName) : []
 if (unassignedInPilot.length > 0) {
   blockers.push(unassignedInPilot.length + ' file(s) in the pilot capability have no owner')
 }
@@ -411,8 +468,15 @@ const warnings = []
 if (unassigned.length > unassignedInPilot.length) {
   warnings.push((unassigned.length - unassignedInPilot.length) + ' file(s) outside the pilot have no owner — fine for now, they block their own capability later')
 }
-// The census is expected to be red; every other probe is a real baseline.
-for (const b of baseline) if (!b.ok && b.key !== 'census') blockers.push('baseline ' + b.key + ' is not green: ' + b.detail)
+// No exemption. A red census (many violations) is the expected starting point and is
+// reported as ok=true by the probe; ok=false means the tools could not RUN. Skipping
+// the census by key meant the one probe whose absence poisons phase 2 was the one
+// that could fail silently: an empty census makes every later count read as a
+// regression, so the pilot can only ever return `revise`.
+for (const b of baseline) if (!b.ok) blockers.push('baseline ' + b.key + ' did not complete: ' + b.detail)
+if (Object.keys(violations).length === 0) {
+  blockers.push('the violation census is empty — phase 2 measures its burndown against it and would read every count as a regression')
+}
 const radiusProbe = baseline.find(b => b.key === 'change-radius')
 if (radiusProbe && !radiusProbe.ok) blockers.push('the change-radius before-set was not established: ' + radiusProbe.detail)
 

@@ -69,7 +69,22 @@ const MANIFEST_SCHEMA = {
   required: ['found', 'assignments'],
   properties: {
     found: { type: 'boolean' },
-    roots: { type: 'object', additionalProperties: false, properties: { sourceRoot: { type: 'string' }, appRoot: { type: 'string' }, moduleRoot: { type: 'string' }, sharedRoot: { type: 'string' } } },
+    // Must admit every key phase 1 writes into manifest.roots, importAliases
+    // included. Closed against it, the Load agent could not return the manifest's
+    // roots verbatim, burned its retries on validation, and `agent()` came back
+    // null — so the pilot reported the manifest as missing when it was present.
+    // The same unsatisfiable-schema trap as `assignments` below, one field over.
+    roots: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        sourceRoot: { type: 'string' },
+        appRoot: { type: 'string' },
+        moduleRoot: { type: 'string' },
+        sharedRoot: { type: 'string' },
+        importAliases: { type: 'object', additionalProperties: { type: 'string' } },
+      },
+    },
     segments: { type: 'array', items: { type: 'string' } },
     publicSurfaces: { type: 'array', items: { type: 'string' } },
     ordinaryChange: { type: 'string' },
@@ -146,6 +161,21 @@ const STEP_SCHEMA = {
     command: { type: 'string' },
     counts: { type: 'object', additionalProperties: { type: 'integer' } },
     filesTouched: { type: 'array', items: { type: 'string' } },
+    // The scope guards permit an adapter at the migration edge "only when it is
+    // named, owned, and reported". Without a slot to report it the mover could
+    // only mention it in prose, and the review agent — still asked whether a
+    // compatibility bucket exists — flagged it must-fix, so a fix round was spent
+    // tearing out something the mover had been explicitly allowed to write.
+    adapters: {
+      type: 'array',
+      description: 'migration-edge adapters created, if any; each must name its owner and removal condition',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['file', 'owner', 'removeWhen'],
+        properties: { file: { type: 'string' }, owner: { type: 'string' }, removeWhen: { type: 'string' } },
+      },
+    },
     detail: { type: 'string' },
   },
 }
@@ -198,25 +228,39 @@ const roots = slice.roots || {}
 // whole capability into a path the target's contract does not name (src/features,
 // app/modules, a monorepo package). It must come from the contract, or we stop.
 const MODULE_ROOT = (args && args.moduleRoot) || roots.moduleRoot || ''
-if (!MODULE_ROOT) {
+// Validated, not merely non-empty. It arrives from an agent reading the TARGET's
+// contract — data this script treats as untrusted everywhere else — and every
+// destination hangs off it, so an unchecked value made "closed" closed only
+// relative to itself: `"moduleRoot": "../shared-modules"` wrote product files
+// outside the repository and `"/etc"` outside the project entirely, while the mover
+// was told "use these destinations EXACTLY" and deleted the originals.
+const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const projectRelative = p =>
+  typeof p === 'string' && p.length > 0 && p[0] !== '/' && !/(^|\/)\.\.(\/|$)/.test(p) &&
+  p.split('/').every(part => SAFE_SEGMENT.test(part))
+if (!projectRelative(MODULE_ROOT)) {
   return {
-    error: 'moduleRoot is unknown — refusing to compute destinations from a guess',
-    detail: 'Neither args.moduleRoot nor the manifest/contract supplied it. Pass args.moduleRoot, or fix ' +
-      REPO + '/rules/architecture-contract.json so the Load agent can read it.',
+    error: 'moduleRoot is missing or not a safe project-relative path — refusing to compute destinations from it',
+    detail: 'Every destination is built from moduleRoot, so it must be relative to the project root with no ' +
+      '".." segment and no leading "/". Pass args.moduleRoot, or fix ' + REPO + '/rules/architecture-contract.json.',
+    got: MODULE_ROOT || null,
   }
 }
 // No fallback to this repository's vocabulary. The target's own contract is the
 // authority (docs/adoption-and-enforcement.md § Sources Of Truth), and a silent
-// default here would let destination() admit a surface the target does not name —
-// the same "refuse to guess" rule that already applies to moduleRoot above.
+// default here would let destination() admit a surface the target does not name.
+// The entries are validated too: `badSurfaces` checks plan.surfaces AGAINST this
+// list, so an unchecked list is a hole one level up — a contract naming a surface
+// `../../evil` would have been admitted and interpolated straight into a path.
 const SEGMENTS = (slice.segments || []).filter(Boolean)
 const SURFACES = (slice.publicSurfaces || []).filter(Boolean)
-if (SEGMENTS.length === 0 || SURFACES.length === 0) {
+const unsafeVocabulary = SEGMENTS.concat(SURFACES).filter(v => !SAFE_SEGMENT.test(v))
+if (SEGMENTS.length === 0 || SURFACES.length === 0 || unsafeVocabulary.length > 0) {
   return {
-    error: 'the admitted vocabulary is unknown — refusing to compute destinations from a guess',
-    detail: 'The Load agent returned no segments and/or publicSurfaces. Both must come from ' +
+    error: 'the admitted vocabulary is unknown or unsafe — refusing to compute destinations from it',
+    detail: 'segments and publicSurfaces must both be non-empty and every entry a single path segment. Both come from ' +
       REPO + '/rules/architecture-contract.json, which phase 1 installs.',
-    got: { segments: SEGMENTS, publicSurfaces: SURFACES },
+    got: { segments: SEGMENTS, publicSurfaces: SURFACES, unsafe: unsafeVocabulary },
   }
 }
 const FILES = slice.assignments || []
@@ -251,7 +295,9 @@ function destination(move) {
   }
   if (SEGMENTS.indexOf(move.role) === -1) return null
   const name = move.basename || basenameOf(move.file)
-  if (!SAFE_BASENAME.test(name) || name.indexOf('..') !== -1) return null
+  // SAFE_BASENAME forbids '/', so a name cannot escape the directory; a separate
+  // `..` test only rejected legal filenames like `work-item..fixture.ts`.
+  if (!SAFE_BASENAME.test(name)) return null
   return MODULE_ROOT + '/' + CAP + '/' + move.role + '/' + name
 }
 
@@ -294,6 +340,10 @@ const plan = await agent(
 
 if (!plan) return { error: 'plan agent returned no result' }
 
+// ─── Plan screening and table derivation ───
+// Everything from here to the Move banner is pure: it decides what is written and
+// what the mover is told, without side effects, so scripts/validate-workflows.mjs
+// executes this whole region against synthetic plans rather than grepping it.
 const resolved = (plan.moves || []).map(mv => ({ ...mv, dest: destination(mv) }))
 const invalid = resolved.filter(r => r.role !== 'stay' && r.role !== 'delete' && !r.dest)
 const staying = resolved.filter(r => r.role === 'stay')
@@ -308,18 +358,35 @@ const usedSurfaceNames = usedSurfaces.map(s => s.surface)
 // gate entirely and arrived at the mover as a ready-made path.
 const badSurfaces = (plan.surfaces || []).filter(s => SURFACES.indexOf(s.surface) === -1)
 
+// Injectivity applies to plan.surfaces too. Two entries naming one surface produced
+// two contradictory contracts for a single path — different exports, different
+// consumers — and screening accepted them, because `collisions` is computed over
+// `moving` and a surface with no move never reaches it.
+const surfaceSeen = Object.create(null)
+const duplicateSurfaces = []
+for (const s of plan.surfaces || []) {
+  if (surfaceSeen[s.surface]) duplicateSurfaces.push(s.surface)
+  surfaceSeen[s.surface] = true
+}
+
 // Intention: a surface nobody imports is dropped BY THE SCRIPT. Filtering only
 // SURFACE_TABLE left the move itself in place, so the file was still created and
 // the reviewer was then asked to find it.
 const moving = resolved.filter(r => r.dest && (r.role !== 'surface' || usedSurfaceNames.indexOf(r.surface) !== -1))
 const droppedSurfaceMoves = resolved.filter(r => r.dest && r.role === 'surface' && usedSurfaceNames.indexOf(r.surface) === -1)
+// A dropped surface move must still be NAMED to the mover. Filtered out of `moving`
+// and absent from `deleting` and `staying`, its file appeared in no table at all —
+// so the mover migrated everything around it and deleted the old paths, leaving one
+// capability file stranded at an old path importing modules that had just moved.
+// That is both topologies at once, which the scope guards call a failure of this phase.
+for (const r of droppedSurfaceMoves) staying.push(r)
 
 const collisions = []
 const byDest = Object.create(null)
 for (const r of moving) (byDest[r.dest] ||= []).push(r.file)
 for (const d of Object.keys(byDest)) if (byDest[d].length > 1) collisions.push({ dest: d, sources: byDest[d] })
 
-if (invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0) {
+if (invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || duplicateSurfaces.length > 0) {
   return {
     error: 'plan rejected before any write',
     reasons: []
@@ -327,10 +394,12 @@ if (invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0) {
       .concat(badSurfaces.length > 0 ? ['surfaces outside the admitted vocabulary'] : [])
       // Accepting a collision means telling the mover to overwrite one product
       // file with another and delete the original in the same change.
-      .concat(collisions.length > 0 ? ['two or more sources resolve to one destination'] : []),
+      .concat(collisions.length > 0 ? ['two or more sources resolve to one destination'] : [])
+      .concat(duplicateSurfaces.length > 0 ? ['one surface declared more than once, with conflicting contracts'] : []),
     invalid: invalid.map(r => ({ file: r.file, role: r.role, surface: r.surface, basename: r.basename })),
     badSurfaces: badSurfaces.map(s => s.surface),
     collisions,
+    duplicateSurfaces,
     admitted: { segments: SEGMENTS, surfaces: SURFACES },
   }
 }
@@ -403,21 +472,27 @@ if (moveIncomplete(internals)) {
   }
 }
 
-const external = internals && internals.ok
-  ? await agent(
-      `Point every consumer of capability "${CAP}" in ${REPO} at its new public surfaces.\n\n` +
-      '## The surfaces that now exist\n' + (SURFACE_TABLE || '- (none — this capability has no external consumers)') + '\n\n' +
-      '## Consumers to update\n' + (CONSUMERS.length > 0 ? CONSUMERS.map(c => '- ' + c).join('\n') : '- (none recorded; verify with Grep before concluding there are none)') + '\n\n' +
-      '## Steps\n' +
-      `1. Grep the whole source root for imports of this capability's OLD paths. The recorded consumer list may be incomplete — the grep is authoritative.\n` +
-      '2. Rewrite each to import from the matching public surface. If a consumer needs something no surface publishes, either add it to the right surface\'s exports or report that the boundary is genuinely wrong — do NOT reach into internals.\n' +
-      '3. Publish only what a real consumer imports. Remove any export nothing uses.\n\n' +
-      SCOPE_GUARDS + '\n\n' +
-      'Report every file you touched.\n\nStructured output only.',
-      { label: 'move:consumers', phase: 'Move', schema: STEP_SCHEMA }
-    )
-  : null
+// No `internals && internals.ok ?` guard: moveIncomplete() returned above on
+// exactly that condition, so the false branch was unreachable and only made a
+// reader hunt for a case that cannot happen.
+const external = await agent(
+  `Point every consumer of capability "${CAP}" in ${REPO} at its new public surfaces.\n\n` +
+  '## The surfaces that now exist\n' + (SURFACE_TABLE || '- (none — this capability has no external consumers)') + '\n\n' +
+  '## Consumers to update\n' + (CONSUMERS.length > 0 ? CONSUMERS.map(c => '- ' + c).join('\n') : '- (none recorded; verify with Grep before concluding there are none)') + '\n\n' +
+  '## Steps\n' +
+  `1. Grep the whole source root for imports of this capability's OLD paths. The recorded consumer list may be incomplete — the grep is authoritative.\n` +
+  '2. Rewrite each to import from the matching public surface. If a consumer needs something no surface publishes, either add it to the right surface\'s exports or report that the boundary is genuinely wrong — do NOT reach into internals.\n' +
+  '3. Publish only what a real consumer imports. Remove any export nothing uses.\n\n' +
+  SCOPE_GUARDS + '\n\n' +
+  'Report every file you touched.\n\nStructured output only.',
+  { label: 'move:consumers', phase: 'Move', schema: STEP_SCHEMA }
+)
 if (external) log('Move consumers: ' + (external.ok ? (external.filesTouched || []).length + ' files touched' : 'FAILED — ' + external.detail))
+
+const declaredAdapters = []
+  .concat((internals && internals.adapters) || [])
+  .concat((external && external.adapters) || [])
+if (declaredAdapters.length > 0) log('Migration-edge adapters declared: ' + declaredAdapters.map(a => a.file).join(', '))
 
 // ─── Verify: three independent oracles ───
 const ARCH_PROBE =
@@ -454,12 +529,25 @@ function moveIncomplete(step) {
 // while the gate recomputed from `counts`, so an agent reporting ok=true with a
 // non-zero capability count exited the loop early and then got `revise` from the
 // gate with its fix rounds unspent.
+// "Could not be run" is NOT "found violations". ARCH_PROBE tells the agent to set
+// ok=false when a tool could not run at all, and the caller must not read that as
+// clean — but it must not read it as dirty either. Silence is its own state.
+function archUnmeasured(a) {
+  return !a || !a.ok || Object.keys(a.counts || {}).length === 0
+}
+
+// One predicate for a MEASURED architectural oracle, used by both the fix loop and
+// the gate. They previously disagreed: the loop trusted the agent's self-assessed
+// `ok` while the gate recomputed from `counts`, so an agent reporting ok=true with a
+// non-zero capability count exited the loop early and then got `revise` from the
+// gate with its fix rounds unspent. Returns the reason, so the report can name it
+// instead of re-deriving the same inputs and disagreeing again.
 function archRed(a, census) {
-  if (!a || !a.ok) return true                       // absent or not measured
-  const c = a.counts || {}
-  if (Object.keys(c).length === 0) return true       // reported nothing to compare
-  if (c.capability !== 0) return true
-  return Object.keys(c).some(k => k !== 'capability' && (c[k] || 0) > ((census || {})[k] || 0))
+  if (archUnmeasured(a)) return 'not measured'
+  const c = a.counts
+  if (c.capability !== 0) return 'the capability still has ' + c.capability + ' violation(s)'
+  const regressed = Object.keys(c).filter(k => k !== 'capability' && (c[k] || 0) > ((census || {})[k] || 0))
+  return regressed.length > 0 ? 'regressions above baseline: ' + regressed.join(', ') : ''
 }
 
 // An oracle that did not report is NOT an oracle that reported failure. Conflating
@@ -470,19 +558,26 @@ function archRed(a, census) {
 function recommendation(o, census) {
   const measured = {
     behaviour: !!o.behaviour,
-    architecture: !!(o.architecture && (o.architecture.counts || o.architecture.ok !== undefined)),
+    // An architecture agent that could not run its tools is unmeasured, not red.
+    architecture: !archUnmeasured(o.architecture),
     review: !!(o.review && o.review.verdict),
   }
   const unmeasured = Object.keys(measured).filter(k => !measured[k])
-  if (unmeasured.length > 0) return { gate: 'inconclusive', unmeasured }
+  if (unmeasured.length > 0) {
+    return { gate: 'inconclusive', unmeasured, reason: 'oracles that did not report: ' + unmeasured.join(', ') }
+  }
   const mustFix = (o.review.findings || []).filter(f => f.severity === 'must-fix')
-  const gate =
-    !o.behaviour.ok ? 'revise'
-    : archRed(o.architecture, census) ? 'revise'
-    : o.review.verdict === 'reject' ? 'reject'
-    : mustFix.length > 0 || o.review.verdict === 'revise' ? 'revise'
-    : 'accept'
-  return { gate, unmeasured }
+  const arch = archRed(o.architecture, census)
+  // `reject` FIRST. It sat after the behaviour and architecture branches, so the one
+  // verdict meaning "do not migrate the next capability with this ownership model"
+  // was downgraded to `revise` in exactly the states where it is most likely true —
+  // and the fix loop then spent rounds patching a design the reviewer said to drop.
+  if (o.review.verdict === 'reject') return { gate: 'reject', unmeasured, reason: 'the review oracle rejected the ownership model' }
+  if (!o.behaviour.ok) return { gate: 'revise', unmeasured, reason: 'behaviour oracle is red' }
+  if (arch) return { gate: 'revise', unmeasured, reason: 'architecture oracle: ' + arch }
+  if (mustFix.length > 0) return { gate: 'revise', unmeasured, reason: mustFix.length + ' must-fix review finding(s)' }
+  if (o.review.verdict === 'revise') return { gate: 'revise', unmeasured, reason: 'the review oracle asked for revision' }
+  return { gate: 'accept', unmeasured, reason: 'all three oracles agree' }
 }
 
 async function verifyAll() {
@@ -514,7 +609,12 @@ async function verifyAll() {
         '- do streams handle commit, cancellation and resume?\n\n' +
         '## Also check the migration rules themselves\n' +
         '- Does the capability carry BOTH topologies anywhere, or are obsolete old paths still present?\n' +
-        '- Is there a new compatibility `lib`/`services`/`utils` bucket?\n' +
+        '- Is there a new PERMANENT compatibility `lib`/`services`/`utils` bucket? A migration-edge adapter is ' +
+        'permitted by the document, so it is a finding only when it is undeclared, unowned, or has no removal ' +
+        'condition. Declared adapters from this run:\n' +
+        (declaredAdapters.length > 0
+          ? declaredAdapters.map(a => '    - ' + a.file + ' (owner: ' + a.owner + '; removed when: ' + a.removeWhen + ')').join('\n')
+          : '    (none declared)') + '\n' +
         '- Was an illegal dependency laundered through a re-export, barrel, or deep relative import?\n' +
         '- Does any surface exist that no consumer imports?\n' +
         '- Was any library, schema tool, or UI kit swapped as a side effect? That is out of scope and is a must-fix.\n\n' +
@@ -533,20 +633,29 @@ let oracles = await verifyAll()
 
 // ─── Fix: bounded rounds, only while the architectural oracle is red ───
 let fixRounds = 0
-let lastCounts = ''
+let lastState = ''
+const fixFiles = []
+// A snapshot of everything the loop is allowed to react to. Comparing only the
+// architectural counts aborted a behaviour-only or review-only repair after one
+// round with the operator's budget unspent — and logged a message blaming the
+// architecture, which had never been the blocker.
+const loopState = o => JSON.stringify({
+  arch: (o.architecture && o.architecture.counts) || {},
+  behaviour: !!(o.behaviour && o.behaviour.ok),
+  behaviourDetail: (o.behaviour && o.behaviour.detail) || '',
+  musts: ((o.review && o.review.findings) || []).filter(f => f.severity === 'must-fix').map(f => f.detail || f.property || ''),
+})
 while (
   fixRounds < MAX_FIX &&
   (archRed(oracles.architecture, CENSUS) || !(oracles.behaviour && oracles.behaviour.ok) ||
    ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
 ) {
-  // No-progress guard: if a round leaves the architectural counts byte-identical,
-  // another round costs three more verify agents for the same answer.
-  const nowCounts = JSON.stringify((oracles.architecture && oracles.architecture.counts) || {})
-  if (fixRounds > 0 && nowCounts === lastCounts) {
-    log('Fix loop stopped: round ' + fixRounds + ' changed no architectural counts')
+  const nowState = loopState(oracles)
+  if (fixRounds > 0 && nowState === lastState) {
+    log('Fix loop stopped: round ' + fixRounds + ' changed nothing any oracle can see')
     break
   }
-  lastCounts = nowCounts
+  lastState = nowState
   fixRounds += 1
   phase('Fix')
   const musts = ((oracles.review && oracles.review.findings) || []).filter(f => f.severity !== 'nit')
@@ -563,6 +672,10 @@ while (
     SCOPE_GUARDS + '\n\nStructured output only.',
     { label: 'fix:round-' + fixRounds, phase: 'Fix', schema: STEP_SCHEMA }
   )
+  // Accumulated, not just logged. The human gate was handed a filesTouched list
+  // covering the migration but omitting every fix-round edit — and fix-round edits
+  // are the ones most likely to have tunnelled around a boundary.
+  for (const f of (fixed && fixed.filesTouched) || []) if (fixFiles.indexOf(f) === -1) fixFiles.push(f)
   log('Fix round ' + fixRounds + ': ' + (fixed && fixed.ok ? (fixed.filesTouched || []).length + ' files touched' : 'no result'))
   phase('Verify')
   oracles = await verifyAll()
@@ -600,13 +713,15 @@ const decided = recommendation(oracles, CENSUS)
 const gate = decided.gate
 const unmeasured = decided.unmeasured
 
-log('Pilot ' + CAP + ': oracles → behaviour=' + (oracles.behaviour && oracles.behaviour.ok ? 'green' : 'RED') +
-    ' capabilityViolations=' + (capViolations === undefined ? '?' : capViolations) +
-    ' review=' + ((oracles.review && oracles.review.verdict) || '?') + ' → recommendation ' + gate)
+log('Pilot ' + CAP + ': ' + gate + ' — ' + decided.reason)
 
 return {
   capability: CAP,
   recommendation: gate,
+  // The reason comes from the same function that decided the gate. Re-deriving it
+  // from `counts` at the reporting site produced a `revise` verdict whose displayed
+  // numbers all looked healthy and named no cause.
+  reason: decided.reason,
   unmeasuredOracles: unmeasured,
   humanGate:
     'docs/adoption-and-enforcement.md requires a human decision here: accept, revise, or reject the ' +
@@ -625,6 +740,8 @@ return {
   },
   changeRadius: radius ? { ok: radius.ok, detail: radius.detail } : 'not measured — phase 1 recorded no ordinaryChange',
   fixRounds,
+  fixRoundFilesTouched: fixFiles,
+  adapters: declaredAdapters,
   filesTouched: []
     .concat((internals && internals.filesTouched) || [])
     .concat((external && external.filesTouched) || []),

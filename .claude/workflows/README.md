@@ -78,9 +78,12 @@ only in phase 2. The production build is not interchangeable with a dev server: 
 server/client separation.
 
 **An oracle that did not report is not an oracle that reported failure.** When any of the three
-returns nothing, the pilot's recommendation is `inconclusive` — not `accept` and not `reject`. Only
-measured results decide, and `reject` (meaning: reject the architecture) is reserved for the review
-oracle actually saying so.
+returns nothing — including an architecture agent whose tools could not run at all — the pilot's
+recommendation is `inconclusive`, not `accept` and not `reject`. `reject` means *reject the
+architecture*, so it belongs to the review oracle alone and **dominates the other two**: a rejected
+ownership model must reach the human even when behaviour and architecture are also red, which is
+exactly when it is most likely to be right. Every verdict carries the `reason` the decision function
+computed, rather than one re-derived at the reporting site.
 
 Neither phase runs the capability's **real user workflow**, which step 8 of the procedure requires.
 The pilot says so in its `humanGate` output; do it by hand before accepting.
@@ -103,7 +106,17 @@ cannot propose 40 layouts. Being computed is not enough on its own — the arith
   "use these paths exactly" plus "delete the old paths", which overwrites one product file with
   another and deletes the original in the same change.
 
-All three are checked over the whole plan **before the first write**.
+All three are checked over the whole plan **before the first write** — and over `plan.surfaces` as
+well as `plan.moves`, since two entries naming one surface produce two contradictory contracts for a
+single path. `moduleRoot` and the admitted vocabulary are validated too: they arrive from the
+target's own contract, so an unchecked `"moduleRoot": "../shared-modules"` made "closed" closed only
+relative to itself.
+
+`scripts/validate-workflows.mjs` checks this in two layers, because either alone is a blind spot:
+the extracted regions are **executed** against tables to prove the logic is correct, and the whole
+body is run against **stubbed hooks** to prove it is called. Table tests alone stayed green when a
+guard's `if` was replaced with `if (false)`; the source-text greps they replaced stayed green on a
+behaviour-preserving rename.
 
 **The global analysis happens once, outside the per-capability agents.** Ownership of every file, the
 cross-capability dependency graph, and the server-only/browser-safe classification are facts a
@@ -111,9 +124,11 @@ single-capability agent cannot derive correctly — they need the whole tree. Ph
 in a single Assign agent (not a fan-out: two agents assigning owners produce contested files and
 duplicate capabilities) and writes `migration-manifest.json`. Later phases read their own rows.
 
-There are three deliberate `parallel()` barriers — the inventory lenses, the baseline probes, and the
-pilot's verify phase — and each one earns it: the next step consumes the *aggregate* of all results,
-which is the documented condition for choosing a barrier over `pipeline()`.
+Two deliberate `parallel()` barriers remain — the inventory lenses and the pilot's verify phase — and
+each earns it: the next step consumes the *aggregate* of all results, which is the documented
+condition for choosing a barrier over `pipeline()`. The baseline probes used to be a third; they are
+now a plain sequential loop, because concurrency there was not a barrier decision at all but a
+contention bug.
 
 **Surfaces are derived from consumers, never proposed.** A surface with no named consumer is dropped
 from the plan by the script — both from the surface list and from the move that would have created
@@ -156,6 +171,9 @@ between surfaces is a defect — so these are open items, not settled choices:
 
 - No filesystem or shell from the script body. Reading `migration-manifest.json` into JavaScript
   therefore costs one schema'd probe agent; writing it costs one more.
+- Phase 1's build probes run **sequentially**, not in a barrier: `tsc`, the production build, the
+  test run and ESLint all write into the same working tree, and a contended baseline fails on a
+  repository that is fine. The baseline is what every later verdict is measured against.
 - `Date.now()`, `Math.random()` and argless `new Date()` throw — they would break resume.
 - Concurrency is capped at `min(16, cores − 2)`; phase 1's six lenses run in one batch on any
   machine with eight cores or more.
