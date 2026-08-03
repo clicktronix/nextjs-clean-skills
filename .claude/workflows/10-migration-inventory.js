@@ -1,9 +1,9 @@
 export const meta = {
   name: '10-migration-inventory',
   description:
-    'Read-only phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, capture the behavioural baseline and the violation census, and write migration-manifest.json. Writes nothing but the manifest.',
+    'Phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, then INSTALL rules/ and a drafted architecture-contract.json into the target and amend its ESLint config, capture the behavioural baseline and the violation census, and write migration-manifest.json. Moves no product code.',
   whenToUse:
-    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. args: { repo: "/abs/path", contractSource?: "/abs/path/to/nextjs-clean-skills", ordinaryChange?: "a one-line description of a typical follow-up change" }.',
+    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", contractSource: "/abs/path/to/nextjs-clean-skills", ordinaryChange: "a one-line description of a typical follow-up change" }.',
   phases: [
     { title: 'Inventory', detail: 'six read-only lenses over routes, capabilities, runtime boundaries, data access, deps, roots' },
     { title: 'Assign', detail: 'single owner + role + runtime class for every source file (barrier: assignment needs the whole set)' },
@@ -20,11 +20,15 @@ export const meta = {
 // (the analysis a single-capability agent cannot do correctly on its own).
 
 const REPO = (args && args.repo) || ''
-const SRC = (args && args.contractSource) || '/Users/clicktronix/Projects/ai/nextjs-clean-skills'
+// No home-directory fallback: hardcoding the author's checkout meant that on any
+// other machine every agent silently received paths to normative documents that do
+// not exist, and proceeded from memory instead of from the contract.
+const SRC = (args && args.contractSource) || ''
 const ORDINARY = (args && args.ordinaryChange) || ''
 const MANIFEST = REPO + '/migration-manifest.json'
 
 if (!REPO) return { error: 'args.repo is required (absolute path to the target repository)' }
+if (!SRC) return { error: 'args.contractSource is required (absolute path to a nextjs-clean-skills checkout — the agents read the normative docs and rules/ from it)' }
 
 // Every mutating agent in this program carries these. From
 // docs/adoption-and-enforcement.md: adoption is not a library migration, and a
@@ -109,10 +113,20 @@ const ASSIGN_SCHEMA = {
         undecided: { type: 'array', items: { type: 'string' }, description: 'packages whose side static analysis cannot infer — the product must decide' },
       },
     },
+    // moduleRoot and sharedRoot belong here: phase 2 computes every destination
+    // from moduleRoot, and with the schema closed against it the manifest could
+    // never carry it, leaving phase 2 to guess `<source>/modules`.
     roots: {
       type: 'object',
       additionalProperties: false,
-      properties: { sourceRoot: { type: 'string' }, appRoot: { type: 'string' }, importAliases: { type: 'object', additionalProperties: { type: 'string' } } },
+      required: ['sourceRoot', 'appRoot', 'moduleRoot', 'sharedRoot'],
+      properties: {
+        sourceRoot: { type: 'string' },
+        appRoot: { type: 'string' },
+        moduleRoot: { type: 'string', description: 'where capability modules will live, e.g. src/modules — the value phase 2 computes every destination from' },
+        sharedRoot: { type: 'string' },
+        importAliases: { type: 'object', additionalProperties: { type: 'string' } },
+      },
     },
   },
 }
@@ -177,7 +191,8 @@ const assignment = await agent(
   '2. For EVERY source file, one assignment: placement (capability | shared | app | infrastructure | unclear), and when placement is `capability`, the target segment (domain | application | server | client | ui) or the public surface it becomes. Route-private UI stays under the app root — that is placement `app`, not a capability file.\n' +
   '3. runtime class per file: server-only, browser-safe, neutral, or unclear. This is the fact a per-capability agent cannot derive on its own, so be exact and cite evidence.\n' +
   '4. Direct dependency classification: pure / runtime / undecided. `undecided` is a real answer; the product decides those, not you.\n' +
-  '5. Anything you cannot place, in `unassigned`, with why.\n\n' +
+  '5. Anything you cannot place, in `unassigned`, with why.\n' +
+  '6. roots: the repo\'s real sourceRoot and appRoot, plus the moduleRoot and sharedRoot the capabilities WILL live under. Phase 2 computes every destination path from moduleRoot, so pick it deliberately and consistently with this repo\'s existing layout (do not default to src/modules if that is not where this repo would put them).\n\n' +
   '## Rules\n' +
   'Verify against the code before assigning — Read or Grep the file, do not infer ownership from its current directory.\n' +
   'A file gets exactly ONE placement. Prefer `unclear` over a guess; an unclear file is a review item, a wrong assignment is a silent architecture defect.\n' +
@@ -228,6 +243,18 @@ phase('Baseline')
 
 const PROBES = [
   { key: 'typecheck', text: 'Run the repo\'s TypeScript check (tsc --noEmit, or the package script that does it). Report pass/fail and the error count.' },
+  // Step 8 of the adoption procedure names lint alongside type, test and build.
+  // This probe runs AFTER the Enable phase amended the config, so the boundary rules
+  // are already active here and the lint will be red by design. Separate the two
+  // populations: pre-existing lint debt is the baseline, boundary violations are the
+  // burndown, and confusing them would make every later comparison meaningless.
+  {
+    key: 'lint',
+    text:
+      "Run the repo's own lint command. The capability-first boundary configs were just installed into it, so expect boundary violations — that is intended. " +
+      'In `counts`, report `preexisting` (errors from the rules this repo already had) and `boundary` (errors from the clean-architecture boundary rules) separately. ' +
+      'Set ok=true when `preexisting` is 0, regardless of `boundary`.',
+  },
   { key: 'tests', text: 'Run the repo\'s test suite. Report pass/fail, the passed and failed counts, and the exact command.' },
   { key: 'build', text: 'Run the production build. Report pass/fail and the exact command. A production build is what proves server/client separation, so do not substitute a dev server.' },
   {
@@ -246,7 +273,12 @@ if (ORDINARY) {
   })
 }
 
-const baseline = (await parallel(PROBES.map(p => () =>
+// Keyed POSITIONALLY, not by the agent-authored `label`. parallel() guarantees the
+// order, so this cannot drift; matching on a label the prompt never specified meant
+// a census returned as "ESLint boundary violations" was never found, the manifest
+// shipped an empty census, and phase 2 then read every non-zero count as a
+// regression and could only ever say `revise`.
+const baselineRaw = await parallel(PROBES.map(p => () =>
   agent(
     `Record one baseline fact about the repository at ${REPO}, before any migration.\n\n` +
     '## Your probe — ' + p.key + '\n' + p.text + '\n\n' +
@@ -256,9 +288,10 @@ const baseline = (await parallel(PROBES.map(p => () =>
     'Structured output only.',
     { label: 'baseline:' + p.key, phase: 'Baseline', schema: BASELINE_SCHEMA }
   )
-))).filter(Boolean)
+))
+const baseline = baselineRaw.map((r, i) => (r ? { ...r, key: PROBES[i].key } : { key: PROBES[i].key, ok: false, detail: 'probe agent returned no result' }))
 
-const census = baseline.find(b => b.label === 'census' || b.label.indexOf('census') !== -1)
+const census = baseline.find(b => b.key === 'census')
 const violations = (census && census.counts) || {}
 const totalViolations = Object.keys(violations).reduce((n, k) => n + (violations[k] || 0), 0)
 log('Baseline: ' + baseline.filter(b => b.ok).length + '/' + baseline.length + ' probes ok, ' + totalViolations + ' violations censused')
@@ -293,7 +326,13 @@ const blockers = []
 if (!(enabled && enabled.ok)) blockers.push('rules are not enabled — the architectural oracle is unavailable')
 if (((assignment.deps || {}).undecided || []).length > 0) blockers.push('undecided dependencies need a product decision before the rules can pass')
 if ((assignment.unassigned || []).length > 0) blockers.push((assignment.unassigned || []).length + ' files have no owner')
-for (const b of baseline) if (!b.ok && b.label !== 'census') blockers.push('baseline ' + b.label + ' is not green: ' + b.detail)
+if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not decided — phase 2 computes every destination from it and will refuse to guess')
+// Steps 4 and 9 of the adoption procedure are the change-radius measurement. Without
+// an ordinary change there is no before-set, so the only oracle that measures whether
+// the architecture actually helped cannot run — that is a blocker, not a nicety.
+if (!ORDINARY) blockers.push('args.ordinaryChange was not supplied — steps 4 and 9 of the adoption procedure (change-radius before/after) cannot run')
+// The census is expected to be red; every other probe is a real baseline.
+for (const b of baseline) if (!b.ok && b.key !== 'census') blockers.push('baseline ' + b.key + ' is not green: ' + b.detail)
 
 log(blockers.length === 0 ? 'Inventory complete, no blockers — pilot can start' : 'Inventory complete with ' + blockers.length + ' blocker(s)')
 
@@ -303,7 +342,7 @@ return {
   pilotCandidate: manifest.pilotCandidate,
   violationCensus: violations,
   totalViolations,
-  baseline: baseline.map(b => ({ label: b.label, ok: b.ok, detail: b.detail })),
+  baseline: baseline.map(b => ({ key: b.key, ok: b.ok, detail: b.detail })),
   blockers,
   nextStep: blockers.length === 0
     ? 'Resolve nothing; run 20-migration-pilot with args { repo, capability: "' + manifest.pilotCandidate + '", manifestPath }'
