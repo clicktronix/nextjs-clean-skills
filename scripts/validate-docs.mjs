@@ -10,7 +10,9 @@ globalThis.document = dom.window.document
 const { default: mermaid } = await import('mermaid')
 
 const docs = listFiles('docs', (file) => file.endsWith('.md')).sort()
-const files = ['README.md', 'rules/README.md', ...docs]
+// .claude/workflows/README.md links into docs/ and rules/; unchecked, a renamed
+// section there would rot silently like any other doc in this repo.
+const files = ['README.md', 'rules/README.md', '.claude/workflows/README.md', ...docs]
 const errors = []
 let diagramCount = 0
 let linkCount = 0

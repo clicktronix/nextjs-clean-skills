@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Maintainer migration workflows under `.claude/workflows/`: `10-migration-baseline` inventories a
+  target repository, assigns every source file one owner and role, installs `rules/` with a drafted
+  contract, and records the behavioural baseline plus a per-messageId violation census;
+  `20-migration-pilot` migrates one capability against three oracles — the target's own
+  typecheck/lint/tests/production build, `rules/` as a burndown against that census, and an
+  adversarial review of the properties this document says static rules cannot prove — then stops at
+  the human accept/revise/reject gate. Deviations from the written procedure and the Product Profile
+  fields the phase could not settle are recorded in the manifest rather than left implicit.
+- `npm run validate` gained `validate-workflows`, which parses each workflow as the runtime does,
+  evaluates its `meta` in an empty scope, checks phase parity both ways, rejects the globals the
+  runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
+  against tables. `.claude/workflows/README.md` is now covered by the docs link check.
+
 ### Fixed
 
 - Set the planned plugin version to `3.0.0` so the breaking skill rename no longer shares the

@@ -159,6 +159,13 @@ Run the local checks:
 npm run validate
 ```
 
+## Migration Workflows
+
+[`.claude/workflows/`](.claude/workflows/README.md) holds maintainer tooling: multi-agent workflows
+that adopt this architecture in an existing Next.js repository, executing the procedure in
+[`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) rather than a second one. They
+are not part of the published plugin.
+
 ## Versioning
 
 `version.json` is the single source of truth for the release version. The plugin name and folder are intentionally fixed as `nextjs-clean-skills`. Run `npm run sync-version` after changing the release version.
