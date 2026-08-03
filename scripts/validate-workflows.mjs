@@ -18,7 +18,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { fail, root } from './_lib.mjs'
+import { fail, readJson, root } from './_lib.mjs'
+
+// Read from the contract, never a second copy. scripts/validate-capability-pilots.mjs
+// already sets this precedent, and CHANGELOG records the same fix once before:
+// "Derived capability-pilot surfaces … instead of maintaining a second silent copy."
+const CONTRACT = readJson('rules/architecture-contract.json')
+const SEGMENTS = CONTRACT.segments
+const SURFACES = CONTRACT.publicSurfaces
 
 const DIR = path.join(root, '.claude', 'workflows')
 const errors = []
@@ -36,9 +43,11 @@ check(files.length > 0, 'no workflow scripts found under .claude/workflows/')
 
 function metaOf(source, file) {
   const marker = 'export const meta = '
-  const start = source.indexOf(marker)
+  // startsWith, not indexOf: the contract says the script must BEGIN with meta, and
+  // an indexOf search accepted anything before it while the message claimed otherwise.
+  const start = source.startsWith(marker) ? 0 : -1
   if (start === -1) {
-    errors.push(`${file}: must begin with \`export const meta = {...}\``)
+    errors.push(`${file}: must begin with \`export const meta = {...}\` — nothing may precede it`)
     return null
   }
   const end = source.indexOf('\n}\n', start)
@@ -93,7 +102,9 @@ for (const file of files) {
     if (/\bDate\.now\(/.test(code)) errors.push(`${where}: Date.now() throws at runtime (it would break resume)`)
     if (/\bMath\.random\(/.test(code)) errors.push(`${where}: Math.random() throws at runtime (it would break resume)`)
     if (/\bnew Date\(\s*\)/.test(code)) errors.push(`${where}: argless new Date() throws at runtime (it would break resume)`)
-    if (/:\s*(string|number|boolean)\s*[),=]/.test(code)) errors.push(`${where}: looks like a TypeScript annotation — scripts are plain JavaScript`)
+    // No TypeScript-annotation regex: the parse check above already rejects TS (it
+    // does not parse as JS), so the regex added nothing and false-positived on legal
+    // JS such as `f(a ? b : number)`.
   })
 }
 
@@ -101,13 +112,14 @@ for (const file of files) {
 const PILOT = '20-migration-pilot.js'
 if (files.includes(PILOT)) {
   const source = fs.readFileSync(path.join(DIR, PILOT), 'utf8')
-  const from = source.indexOf('const base = f =>')
+  // Anchored on the section comments, not on incidental identifiers: renaming a
+  // helper once silently moved this window (the check failed loudly, which is the
+  // right failure mode, but a stable anchor is better than a loud one).
+  const from = source.indexOf('// ─── Destination paths are computed HERE ───')
   const to = source.indexOf('// ─── Plan ───')
   if (from === -1 || to === -1) {
     errors.push(`${PILOT}: could not extract destination() — the anchors this test relies on moved`)
   } else {
-    const SEGMENTS = ['domain', 'application', 'server', 'client', 'ui']
-    const SURFACES = ['server', 'rsc', 'actions', 'client', 'ui', 'query-cache', 'stream', 'job']
     const destination = new Function('MODULE_ROOT', 'CAP', 'SEGMENTS', 'SURFACES', `${source.slice(from, to)}; return destination`)(
       'src/modules', 'work-items', SEGMENTS, SURFACES
     )
@@ -139,13 +151,9 @@ if (files.includes(PILOT)) {
       check(destination(move) === null, `destination(${label}): must be refused, got ${destination(move)}`)
     }
 
-    // Closure, stated as a property rather than per-case.
-    for (const [label, move, expected] of accepted) {
-      check(
-        expected.startsWith('src/modules/work-items/') && !expected.includes('..'),
-        `destination(${label}): escaped the capability directory`
-      )
-    }
+    // No separate "closure as a property" loop: it asserted on this file's own
+    // `expected` literals, so it could not fail because of the script. Closure is
+    // really covered by the traversal cases in `refused` above.
 
     // Injectivity is enforced over the plan, not inside destination(). Grepping for
     // the rejection message was vacuous: deleting the loop that POPULATES the
@@ -204,15 +212,68 @@ if (files.includes(PILOT)) {
     }
   }
 
-  // The gate must never turn silence into a verdict.
-  check(
-    source.includes("'inconclusive'") && source.includes('unmeasured'),
-    `${PILOT}: the gate must report 'inconclusive' when an oracle did not report, not accept or reject`
-  )
-  check(
-    /if \(!internals \|\| !internals\.ok \|\| \(internals\.filesTouched \|\| \[\]\)\.length === 0\)/.test(source),
-    `${PILOT}: a failed or empty internals move must stop before Verify — otherwise an unchanged tree reads as 'accept'`
-  )
+  // ─── moveIncomplete() and recommendation(), EXECUTED ───
+  // These were grep proxies, and mutation proved them anti-correlated with the
+  // invariants: gutting a guard's body while leaving its `if` line verbatim passed,
+  // while a behaviour-preserving rename failed. The decision logic in the pilot is
+  // pure precisely so it can be run here instead.
+  const logicFrom = source.indexOf('// ─── Pure decision logic ───')
+  const logicTo = source.indexOf('async function verifyAll()')
+  if (logicFrom === -1 || logicTo === -1) {
+    errors.push(`${PILOT}: could not extract the pure decision logic — the anchors this test relies on moved`)
+  } else {
+    const logic = new Function(`${source.slice(logicFrom, logicTo)}; return { moveIncomplete, archRed, recommendation }`)()
+    const { moveIncomplete, archRed, recommendation } = logic
+
+    const incomplete = [
+      ['null step', null],
+      ['ok=false', { ok: false, filesTouched: ['a.ts'], detail: '' }],
+      ['no files touched', { ok: true, filesTouched: [], detail: '' }],
+      ['filesTouched absent', { ok: true, detail: '' }],
+    ]
+    for (const [label, step] of incomplete) {
+      check(moveIncomplete(step) === true, `moveIncomplete(${label}): must stop before Verify, got false`)
+    }
+    check(moveIncomplete({ ok: true, filesTouched: ['a.ts'], detail: '' }) === false, 'moveIncomplete(real move): must proceed')
+
+    const census = { crossCapabilityInternal: 4, domainDirection: 2 }
+    const archCases = [
+      ['absent', undefined, true],
+      ['not measured (ok=false)', { ok: false, counts: { capability: 0 } }, true],
+      ['empty counts', { ok: true, counts: {} }, true],
+      ['capability still dirty', { ok: true, counts: { capability: 3, crossCapabilityInternal: 1 } }, true],
+      ['capability undefined', { ok: true, counts: { crossCapabilityInternal: 1 } }, true],
+      ['regression elsewhere', { ok: true, counts: { capability: 0, domainDirection: 3 } }, true],
+      ['clean and improved', { ok: true, counts: { capability: 0, crossCapabilityInternal: 1 } }, false],
+      ['new messageId appears', { ok: true, counts: { capability: 0, serverClient: 1 } }, true],
+    ]
+    for (const [label, a, expected] of archCases) {
+      check(archRed(a, census) === expected, `archRed(${label}): expected ${expected}`)
+    }
+
+    const green = { ok: true, counts: { capability: 0 } }
+    const gateCases = [
+      ['behaviour agent died', { behaviour: null, architecture: green, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
+      ['review agent died', { behaviour: { ok: true }, architecture: green, review: null }, 'inconclusive'],
+      ['architecture agent died', { behaviour: { ok: true }, architecture: null, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
+      ['behaviour red', { behaviour: { ok: false }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'revise'],
+      ['architecture not measured', { behaviour: { ok: true }, architecture: { ok: false, counts: { capability: 0 } }, review: { verdict: 'sound', findings: [] } }, 'revise'],
+      ['review rejects', { behaviour: { ok: true }, architecture: green, review: { verdict: 'reject', findings: [] } }, 'reject'],
+      ['must-fix present', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'must-fix' }] } }, 'revise'],
+      ['nits only', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'nit' }] } }, 'accept'],
+      ['all green', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'accept'],
+    ]
+    for (const [label, o, expected] of gateCases) {
+      const got = recommendation(o, census).gate
+      check(got === expected, `recommendation(${label}): expected ${expected}, got ${got}`)
+    }
+    // The one verdict silence must never produce, stated separately because it is the
+    // consequential one: `reject` means reject the architecture.
+    for (const [label, o] of gateCases.filter(([l]) => l.endsWith('died'))) {
+      check(recommendation(o, census).gate !== 'reject', `recommendation(${label}): silence must never read as reject`)
+      check(recommendation(o, census).gate !== 'accept', `recommendation(${label}): silence must never read as accept`)
+    }
+  }
 }
 
 fail(errors)

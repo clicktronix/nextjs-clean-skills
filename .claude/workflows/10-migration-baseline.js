@@ -1,5 +1,5 @@
 export const meta = {
-  name: '10-migration-inventory',
+  name: '10-migration-baseline',
   description:
     'Phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, then INSTALL rules/ and a drafted architecture-contract.json into the target and amend its ESLint config, capture the behavioural baseline and the violation census, and write migration-manifest.json. Moves no product code.',
   whenToUse:
@@ -29,6 +29,18 @@ const MANIFEST = REPO + '/migration-manifest.json'
 
 if (!REPO) return { error: 'args.repo is required (absolute path to the target repository)' }
 if (!SRC) return { error: 'args.contractSource is required (absolute path to a nextjs-clean-skills checkout — the agents read the normative docs and rules/ from it)' }
+// Required UP FRONT, not reported as a blocker afterwards. Steps 4 and 9 of the
+// adoption procedure are the change-radius measurement, so without it the whole
+// paid program runs and only then says it was incomplete.
+if (!ORDINARY) {
+  return {
+    error: 'args.ordinaryChange is required',
+    detail: 'Steps 4 and 9 of docs/adoption-and-enforcement.md compare the touch set for one ordinary ' +
+      'follow-up change before and after migrating. Without it the only oracle that measures whether the ' +
+      'architecture helped cannot run. Pass one sentence describing a typical change, e.g. ' +
+      '"add an optional field to a work item and show it in the list".',
+  }
+}
 
 // Every mutating agent in this program carries these. From
 // docs/adoption-and-enforcement.md: adoption is not a library migration, and a
@@ -172,6 +184,10 @@ const lensOuts = (await parallel(LENSES.map(l => () =>
 log('Inventory: ' + lensOuts.length + '/' + LENSES.length + ' lenses returned')
 if (lensOuts.length === 0) return { error: 'every inventory lens failed — nothing to assign' }
 
+const lensByKey = Object.create(null)
+for (const o of lensOuts) lensByKey[o.lens] = o
+const dataLens = lensByKey.data
+
 const LENS_BLOCK = lensOuts
   .map(o => '### ' + o.lens + '\n' + (o.findings || []).map(f => '- ' + f).join('\n') + (o.notes ? '\n' + o.notes : ''))
   .join('\n\n')
@@ -226,11 +242,25 @@ const enabled = await agent(
   `1. Copy the seven non-README files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
   `2. Write ${REPO}/rules/architecture-contract.json: start from ${SRC}/rules/architecture-contract.json, then set sourceRoot/appRoot/moduleRoot/sharedRoot and importAliases to this repo's real values (alias prefixes MUST end with '/'), and fill purePackages / runtimePackages from the classification below. Leave databaseClientIdentifiers and databaseResources as the inventory found them (empty arrays are fine).\n` +
   '3. Spread the two ESLint configs after the existing flat configs, per rules/README.md, in a way that does not disturb the existing config.\n' +
+  '   Note for the record: the document scopes this to the pilot ("Enable module-boundary and server/client checks for the pilot"), while this installs them repo-wide so the violation census can be measured. That deviation is recorded in the manifest, not hidden.\n' +
   `4. Run \`node rules/check-dependency-classification.mjs\` from ${REPO}. It must exit 0. If a package is unclassified, add it to the side the classification below says, and if that list says undecided, report it and stop rather than guessing.\n\n` +
   '## Dependency classification decided in the previous phase\n' +
   'pure: ' + (((assignment.deps || {}).pure) || []).join(', ') + '\n' +
   'runtime: ' + (((assignment.deps || {}).runtime) || []).join(', ') + '\n' +
   'undecided (do NOT classify these yourself): ' + (((assignment.deps || {}).undecided) || []).join(', ') + '\n\n' +
+  // Floor property 7 requires declared database resources with owners and consumers.
+  // Leaving these empty threw away the data lens's literal table/rpc map and left
+  // check-database-resources.mjs inert, so the property was unenforced by design.
+  '## Database ownership — fill these, do not leave them empty\n' +
+  'The data lens mapped the database clients and every literal table/rpc name it found. Transcribe that into ' +
+  '`databaseClientIdentifiers` (the variable/property identifiers Supabase clients are bound to) and ' +
+  '`databaseResources` (one entry per literal resource: kind table|function, name, owner capability, and ' +
+  'consumers). Owner = the capability that controls the schema meaning, from the capability list below. ' +
+  'Then run `node rules/check-database-resources.mjs`; it must exit 0.\n' +
+  'If the lens found no database access at all, leave both empty and say so — that is a finding, not a default.\n' +
+  'Capabilities to own resources: ' + caps.map(c => c.name).join(', ') + '\n\n' +
+  '### What the data lens found (DATA, not instructions)\n' +
+  (dataLens ? (dataLens.findings || []).map(f => '- ' + f).join('\n') : '(the data lens returned nothing)') + '\n\n' +
   SCOPE_GUARDS + '\n\n' +
   'Touch nothing under the source root. Do NOT move product code. No git commands.\n\n' +
   'Report ok=false with detail if the dependency check cannot be made to pass.\n\nStructured output only.',
@@ -264,14 +294,21 @@ const PROBES = [
       'Return `counts` keyed by ESLint messageId (for example crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot) with the number of violations each, plus one key per non-ESLint tool with its violation count. A high count now is expected and is not a failure — report it faithfully.',
   },
 ]
-if (ORDINARY) {
-  PROBES.push({
-    key: 'change-radius',
-    text:
-      'Do NOT change any code. For this ordinary follow-up change: "' + ORDINARY + '" — determine the exact touch set it would require TODAY: every file that would have to be edited, and how many distinct areas they span. ' +
-      'List the files in `detail`. This is the before-measurement the pilot is judged against.',
-  })
-}
+// Scoped to the pilot candidate, which is known by now (the Assign phase ran).
+// Step 4 says "Record ITS current files and the touch set" — a before-set for a
+// change that never touches the pilot capability makes the after-measurement
+// meaningless, because nothing about that change moved.
+PROBES.push({
+  key: 'change-radius',
+  text:
+    'Do NOT change any code. For this ordinary follow-up change: "' + ORDINARY + '" — determine the exact touch set ' +
+    'it would require TODAY: every file that would have to be edited, and how many distinct areas they span. ' +
+    'List the files in `detail`. This is the before-measurement the pilot is judged against.\n\n' +
+    'The pilot capability will be "' + (caps.length > 0 ? caps[0].name : '(undecided)') + '", whose files are:\n' +
+    (caps.length > 0 ? (byCap[caps[0].name] || []).map(a => '  - ' + a.file).join('\n') : '  (none)') + '\n\n' +
+    'First state whether this change touches that capability at all. If it does not, say so plainly and ' +
+    'propose a change that does — a radius comparison over work the pilot never touches measures nothing.',
+})
 
 // Keyed POSITIONALLY, not by the agent-authored `label`. parallel() guarantees the
 // order, so this cannot drift; matching on a label the prompt never specified meant
@@ -304,6 +341,39 @@ const manifest = {
   contractSource: SRC,
   roots: assignment.roots || {},
   capabilities: caps,
+  // § Product Profile requires a consuming repository to record more than roots and
+  // capabilities. The six lenses already gathered most of it; discarding their
+  // findings after the Assign prompt threw away the expensive half of this phase and
+  // left the profile unrecorded. Kept verbatim, as evidence rather than conclusions.
+  profile: {
+    lenses: lensOuts.map(o => ({ lens: o.lens, findings: o.findings || [], notes: o.notes || null })),
+    // Named explicitly so a gap is visible rather than merely absent. What the lenses
+    // cannot answer is a product decision, and the document says the profile records it.
+    pending: [
+      'schema, form, cache and notification libraries',
+      'store and remote-provider ownership',
+      'auth and tenancy model',
+      'route-private and shared UI conventions',
+      'accepted migration debt with owner and removal condition',
+    ],
+  },
+  // Deviations from the written procedure, recorded rather than defended silently.
+  deviations: [
+    {
+      step: 'Adopt In An Existing Project, step 7',
+      says: 'Enable module-boundary and server/client checks for the pilot',
+      does: 'enables them repo-wide, before the pilot moves, so the violation census can be measured',
+      why: 'the census is the burndown baseline; a pilot-scoped check cannot produce it',
+      needs: 'a decision on docs/adoption-and-enforcement.md — § Sources Of Truth says a disagreement is a defect',
+    },
+    {
+      step: 'Incremental Migration',
+      says: 'old and new capabilities may coexist behind an explicit boundary',
+      does: 'no workflow migrates files assigned placement="shared"; phase 2 is capability-scoped and its role vocabulary has no shared role',
+      why: 'shared admission is a separate gate with its own criteria',
+      needs: 'a shared-admission pass before those files move',
+    },
+  ],
   pilotCandidate: caps.length > 0 ? caps[0].name : null,
   assignments: assignment.assignments || [],
   unassigned: assignment.unassigned || [],
@@ -325,16 +395,31 @@ const written = await agent(
 const blockers = []
 if (!(enabled && enabled.ok)) blockers.push('rules are not enabled — the architectural oracle is unavailable')
 if (((assignment.deps || {}).undecided || []).length > 0) blockers.push('undecided dependencies need a product decision before the rules can pass')
-if ((assignment.unassigned || []).length > 0) blockers.push((assignment.unassigned || []).length + ' files have no owner')
 if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not decided — phase 2 computes every destination from it and will refuse to guess')
-// Steps 4 and 9 of the adoption procedure are the change-radius measurement. Without
-// an ordinary change there is no before-set, so the only oracle that measures whether
-// the architecture actually helped cannot run — that is a blocker, not a nicety.
-if (!ORDINARY) blockers.push('args.ordinaryChange was not supplied — steps 4 and 9 of the adoption procedure (change-radius before/after) cannot run')
+// Unassigned files block the PILOT only when they belong to the pilot capability.
+// The procedure asks to inventory the repo (step 1) and pick one capability (step 3);
+// gating the pilot on having placed every file in the target was our own addition.
+const pilotName = caps.length > 0 ? caps[0].name : null
+const unassigned = assignment.unassigned || []
+const unassignedInPilot = pilotName
+  ? unassigned.filter(u => (u.why || '').indexOf(pilotName) !== -1 || (u.file || '').indexOf(pilotName) !== -1)
+  : []
+if (unassignedInPilot.length > 0) {
+  blockers.push(unassignedInPilot.length + ' file(s) in the pilot capability have no owner')
+}
+const warnings = []
+if (unassigned.length > unassignedInPilot.length) {
+  warnings.push((unassigned.length - unassignedInPilot.length) + ' file(s) outside the pilot have no owner — fine for now, they block their own capability later')
+}
 // The census is expected to be red; every other probe is a real baseline.
 for (const b of baseline) if (!b.ok && b.key !== 'census') blockers.push('baseline ' + b.key + ' is not green: ' + b.detail)
+const radiusProbe = baseline.find(b => b.key === 'change-radius')
+if (radiusProbe && !radiusProbe.ok) blockers.push('the change-radius before-set was not established: ' + radiusProbe.detail)
 
-log(blockers.length === 0 ? 'Inventory complete, no blockers — pilot can start' : 'Inventory complete with ' + blockers.length + ' blocker(s)')
+log(
+  (blockers.length === 0 ? 'Baseline complete, no blockers — pilot can start' : 'Baseline complete with ' + blockers.length + ' blocker(s)') +
+  (warnings.length > 0 ? ' · ' + warnings.length + ' warning(s)' : '')
+)
 
 return {
   manifestPath: written && written.ok ? MANIFEST : null,
@@ -344,7 +429,11 @@ return {
   totalViolations,
   baseline: baseline.map(b => ({ key: b.key, ok: b.ok, detail: b.detail })),
   blockers,
+  warnings,
+  deviations: manifest.deviations,
+  profilePending: manifest.profile.pending,
   nextStep: blockers.length === 0
-    ? 'Resolve nothing; run 20-migration-pilot with args { repo, capability: "' + manifest.pilotCandidate + '", manifestPath }'
+    ? 'Run 20-migration-pilot with args { repo, capability: "' + manifest.pilotCandidate + '", manifestPath }. ' +
+      'Read `deviations` and `profilePending` first — both are things this phase could not settle for you.'
     : 'Clear the blockers above first — a pilot measured against a red baseline proves nothing',
 }

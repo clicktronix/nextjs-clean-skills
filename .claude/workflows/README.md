@@ -30,12 +30,12 @@ Run in order. Each is a separate `Workflow` call so a human reads the result bef
 
 | # | Workflow | Writes | Gate after it |
 | --- | --- | --- | --- |
-| 10 | `10-migration-inventory` | `rules/`, a draft contract, `migration-manifest.json` | blockers must be empty |
+| 10 | `10-migration-baseline` | `rules/`, a draft contract, `migration-manifest.json` | blockers must be empty |
 | 20 | `20-migration-pilot` | one capability | **accept / revise / reject** — human |
 | 30 | _not written yet_ | remaining capabilities | — |
 
 ```
-Workflow({ name: '10-migration-inventory', args: {
+Workflow({ name: '10-migration-baseline', args: {
   repo: '/abs/path/to/target',
   contractSource: '/abs/path/to/nextjs-clean-skills',
   ordinaryChange: 'add an optional field to a work item and show it in the list',
@@ -117,18 +117,40 @@ which is the documented condition for choosing a barrier over `pipeline()`.
 
 **Surfaces are derived from consumers, never proposed.** A surface with no named consumer is dropped
 from the plan by the script — both from the surface list and from the move that would have created
-the file — not argued about by an agent.
+the file — not argued about by an agent. Conversely a surface that *has* consumers but no existing
+file to repurpose is authored fresh, because announcing a surface to the consumer agent without
+anything creating it is how "the surfaces that now exist" became a lie.
 
 ## Constraints the scripts enforce because the document requires them
 
 - No framework or library migration rides along; existing schema, form, UI, cache and provider
   libraries are preserved.
-- No compatibility `lib` / `services` / `utils` / `common` bucket.
+- No **permanent** compatibility `lib` / `services` / `utils` / `common` bucket. An adapter at the
+  migration edge is allowed — the document sanctions one — but only named, owned, and reported with
+  the condition under which it goes away.
 - One capability never carries both physical topologies; its obsolete old paths are deleted in the
   same change.
-- A boundary failure is reported, not tunnelled around with a re-export, barrel or deep relative
-  import — and a violation is fixed by correcting the dependency, never by `eslint-disable` or by
-  widening the contract.
+- A boundary failure is reported, not tunnelled around with a re-export, barrel, duplicate or deep
+  relative import. The mover must name which one of the document's six statements is true and stop,
+  rather than improvise; and a violation is fixed by correcting the dependency, never by
+  `eslint-disable` or by widening the contract.
+
+## Known deviations and gaps
+
+Recorded here and in the manifest's `deviations`, because § Sources Of Truth says a disagreement
+between surfaces is a defect — so these are open items, not settled choices:
+
+- **Step 7 says "for the pilot"; phase 1 enables the checks repo-wide** and before the pilot moves,
+  because a pilot-scoped check cannot produce the census the burndown is measured against. Needs a
+  decision on the document, not a quiet exception.
+- **Files assigned `placement: "shared"` are migrated by neither workflow.** Phase 2 is
+  capability-scoped and its role vocabulary has no shared role; shared admission is a separate gate.
+- **Neither phase runs the capability's real user workflow** (step 8) or compares runtime behaviour
+  beyond the behaviour oracle's verdict. The pilot states both in its output.
+- **The Product Profile is partially recorded.** The manifest keeps the six lenses' findings and
+  lists what remains: schema/form/cache/notification libraries, store and remote-provider ownership,
+  the auth and tenancy model, route-private and shared UI conventions, and accepted migration debt
+  with owner and removal condition.
 
 ## Notes on the runtime
 
