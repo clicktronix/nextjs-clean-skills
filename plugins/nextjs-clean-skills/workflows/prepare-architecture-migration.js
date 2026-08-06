@@ -321,6 +321,14 @@ phase('Enable')
 const enabled = await agent(
   `Install the executable architecture floor into ${REPO}. This is the only phase of this workflow allowed to write, and only these files.\n\n` +
   '## Steps\n' +
+  // Before anything is written, not after. The copied rules import `typescript` and
+  // `eslint-plugin-import` and resolve through `eslint-import-resolver-typescript`
+  // (see rules/README.md); without them the checks die with ERR_MODULE_NOT_FOUND
+  // after the contract and the ESLint amendment are already on disk, leaving the
+  // target half-converted and the census unmeasurable.
+  `0. Check that ${REPO} can resolve \`typescript\`, \`eslint-plugin-import\` and \`eslint-import-resolver-typescript\`. ` +
+  'If any is missing, install it with the package manager this repository already uses (read its lockfile — bun, pnpm, yarn or npm) as a devDependency, and report which ones you added. ' +
+  'If you cannot install them, STOP and report that: writing the rules without them leaves the target half-converted and the census unmeasurable.\n' +
   `1. Copy the seven non-README files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
   `2. Write ${REPO}/rules/architecture-contract.json: start from ${SRC}/rules/architecture-contract.json, then set sourceRoot/appRoot/moduleRoot/sharedRoot and importAliases to this repo's real values (alias prefixes MUST end with '/'), and fill purePackages / runtimePackages from the classification below. Leave databaseClientIdentifiers and databaseResources as the inventory found them (empty arrays are fine).\n` +
   `3. Spread the two ESLint configs after the existing flat configs, per ${SRC}/rules/README.md, in a way that does not disturb the existing config.\n` +

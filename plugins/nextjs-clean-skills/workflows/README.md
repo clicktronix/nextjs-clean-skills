@@ -5,8 +5,14 @@ repository. They execute the procedure already written in
 [`docs/adoption-and-enforcement.md`](../docs/adoption-and-enforcement.md) — they do not invent a
 second one. Where the two disagree, the document wins and the script is the defect.
 
-Shipped with the plugin, so installing it is all the setup a target repository needs. Every script
-is parameterised by `args.repo` and runs against any repository from anywhere.
+Shipped with the plugin, so nothing has to be fetched or checked out to run them. Every script is
+parameterised by `args.repo` and runs against any repository from anywhere.
+
+The **target** still needs three packages, because the rules installed into it import them:
+`typescript`, `eslint-plugin-import` and `eslint-import-resolver-typescript` (see
+[`rules/README.md`](../rules/README.md)). Phase 1 checks for them and installs the missing ones with
+whatever package manager the target's lockfile names, before it writes anything — a rules copy that
+cannot run leaves the target half-converted and the census unmeasurable.
 
 **These workflows have not yet been executed against a live repository.** Every claim below about
 what they do comes from reading the scripts and from `npm run validate`, which parses them the way

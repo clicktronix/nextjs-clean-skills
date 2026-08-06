@@ -220,7 +220,13 @@ const slice = await agent(
   `- segments and publicSurfaces: the admitted vocabulary, read from ${REPO}/rules/architecture-contract.json.\n` +
   `- assignments: every entry whose capability is "${CAP}", verbatim.\n` +
   `- consumers: that capability's recorded consumers.\n` +
-  '- contractSource: the path the manifest records under that key, verbatim. Empty string if it has none.\n' +
+  // Revalidated, not trusted. The two phases are separate invocations: between them the
+  // plugin can be upgraded, pruned or reinstalled, and a path that no longer resolves
+  // would be interpolated into the planning prompt as if it did.
+  '- contractSource: the path the manifest records under that key. Before returning it, confirm that all four of ' +
+  '`docs/architecture-contract.md`, `docs/adoption-and-enforcement.md`, `rules/architecture-contract.json` and ' +
+  '`skills/designing-architecture/SKILL.md` still exist under it. Return it verbatim if they all do; return an empty ' +
+  'string if the manifest has no such key or any marker is missing. Do not substitute a different version or path.\n' +
   '- ordinaryChange, and baselineRadius: the before touch set the change-radius baseline probe recorded (copy its detail verbatim).\n' +
   '- violationCensus: the recorded counts.\n\n' +
   'Read only. Write nothing. If the manifest is missing, return found=false.\n\nStructured output only.',

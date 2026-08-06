@@ -42,6 +42,22 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The forbidden-syntax check for the workflow VM walks the parsed AST instead of matching
+  line-scoped regexes. A dead-branch `await import('node:fs')` and a `new Date()` split across two
+  lines both passed while it reported green — a syntax rule judged by anything but the syntax tree
+  only ever covers the spellings someone thought to write down.
+- `validate-docs` refuses to pass on an empty link walk. Replacing the link iteration with an empty
+  iterable left every assertion in the file — including the plugin-boundary one — inspecting nothing
+  while `docs ok (20 files, 0 internal links, …)` still exited 0. It also now walks reference-style
+  definitions, images and HTML `href`/`src`, none of which the generator rewrites: a link form
+  nobody checks is a link form that ships broken.
+- Phase 1 checks the target for `typescript`, `eslint-plugin-import` and
+  `eslint-import-resolver-typescript` and installs the missing ones before it writes anything. The
+  rules it copies import all three, so without them the checks died with ERR_MODULE_NOT_FOUND after
+  the contract and the ESLint amendment were already on disk. The workflows README no longer claims
+  installing the plugin is all the setup a target needs.
+- Phase 2 revalidates the contract path recorded in the manifest instead of trusting it. The phases
+  are separate invocations, and the plugin can be upgraded or pruned between them.
 - The workflows README claimed parity with the manifest's `deviations` while listing four open items
   against the manifest's two. The missing two — step 8's real user workflow, and the outstanding
   Product Profile fields — are now recorded in the manifest, so the two surfaces agree as

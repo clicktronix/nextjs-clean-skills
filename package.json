@@ -29,6 +29,7 @@
   ],
   "devDependencies": {
     "@typescript-eslint/parser": "^8.65.0",
+    "acorn": "^8.17.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^9.39.5",

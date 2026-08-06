@@ -75,8 +75,10 @@ const isInsideRoot = (target) => isInside(root, target)
 // also fails on link forms sync-plugin-contract does not rewrite instead of depending on the
 // target coincidentally not existing.
 const pluginRoot = path.join(root, PLUGIN)
+let boundaryChecked = 0
 const checkPluginBoundary = (from, rawTarget, target) => {
   if (!from.startsWith(`${PLUGIN}/`)) return
+  boundaryChecked += 1
   if (isInside(pluginRoot, target)) return
   errors.push(`${from}: link leaves the published plugin, so it is broken once installed: ${rawTarget}`)
 }
@@ -137,6 +139,21 @@ for (const file of files) {
     checkLink(file, match[1])
   }
 
+  // The inline form was the only one walked. A reference definition, an image, or an
+  // HTML destination is just as breakable, and sync-plugin-contract rewrites none of
+  // them — so a link form nobody checks is a link form that ships broken to installed
+  // users while `docs ok` still prints. None of these three forms appears in docs/ or
+  // rules/ today; they are checked so that the day one does, the mirror is judged too.
+  for (const match of text.matchAll(/^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/gm)) {
+    checkLink(file, match[1])
+  }
+  for (const match of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    checkLink(file, match[1])
+  }
+  for (const match of text.matchAll(/<[a-zA-Z][^>]*?\s(?:href|src)=["']([^"']+)["']/g)) {
+    checkLink(file, match[1])
+  }
+
   for (const match of text.matchAll(/```mermaid\s*\n([\s\S]*?)\n```/g)) {
     const source = match[1].trim()
     parsedDiagrams += 1
@@ -174,6 +191,15 @@ for (const file of docs) {
   if (!docsIndex.includes(`](${relative})`)) {
     errors.push(`docs/README.md does not link ${relative}`)
   }
+}
+
+// Counting links is not the same as checking them. Emptying the link loop left every
+// assertion in this file — including the plugin-boundary one — inspecting nothing while
+// `docs ok (20 files, 0 internal links, …)` still printed exit 0. These floors are
+// deliberately loose: they catch a walk that collapsed, not a doc that lost a link.
+if (linkCount === 0) errors.push('no internal links were checked — the link walk inspected nothing')
+if (boundaryChecked === 0) {
+  errors.push('no link inside the plugin was boundary-checked — the shipped tree was not judged')
 }
 
 fail(errors)

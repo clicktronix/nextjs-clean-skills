@@ -20,7 +20,21 @@
 //               with `if (false)`; the greps they replaced stayed green on a rename.
 // The workflow files remain the single source of truth for both.
 
+import * as acorn from 'acorn'
 import { fail, listFiles, readJson, readText } from './_lib.mjs'
+
+// Every node in the tree, in no particular order. acorn ships no walker of its own in
+// the base package, and the forbidden-syntax check below only needs "visit everything".
+function* walk(node) {
+  if (!node || typeof node.type !== 'string') return
+  yield node
+  for (const key of Object.keys(node)) {
+    if (key === 'loc' || key === 'range') continue
+    const value = node[key]
+    if (Array.isArray(value)) for (const child of value) yield* walk(child)
+    else if (value && typeof value === 'object') yield* walk(value)
+  }
+}
 
 // Read from the contract, never a second copy. scripts/validate-capability-pilots.mjs
 // already sets this precedent, and CHANGELOG records the same fix once before:
@@ -120,6 +134,22 @@ for (const file of files) {
     errors.push(`${file}: does not parse as an async-function body — ${error.message}`)
   }
 
+  // Parsed the way the runtime runs it: an async-function body, so top-level `return`
+  // and `await` are legal and `export` is not. Same `meta` rewrite the AsyncFunction
+  // check above uses, and it stays on line 1, so reported line numbers still match the
+  // file.
+  let parsed = null
+  try {
+    parsed = acorn.parse(source.replace(/^export const meta = /m, 'const meta = '), {
+      ecmaVersion: 'latest',
+      locations: true,
+      allowReturnOutsideFunction: true,
+      allowAwaitOutsideFunction: true,
+    })
+  } catch {
+    parsed = null
+  }
+
   const dead = deadPlaceholders(source)
   check(
     dead.length === 0,
@@ -144,23 +174,43 @@ for (const file of files) {
     }
   }
 
-  // Line-scoped so a mention inside a comment explaining the rule does not trip it.
-  const lines = source.split('\n')
-  lines.forEach((line, i) => {
-    const where = `${file}:${i + 1}`
-    // Strip a trailing line comment only when the `//` is not inside a string. The
-    // blanket replace cut from the first `//` anywhere, so a real Date.now() on a
-    // line that also carried a URL was invisible — and prompt strings here are full
-    // of URLs.
-    const code = stripLineComment(line)
-    if (/^\s*import\s/.test(code) || /\brequire\(/.test(code)) errors.push(`${where}: scripts cannot import — no imports or require()`)
-    if (/\bDate\.now\(/.test(code)) errors.push(`${where}: Date.now() throws at runtime (it would break resume)`)
-    if (/\bMath\.random\(/.test(code)) errors.push(`${where}: Math.random() throws at runtime (it would break resume)`)
-    if (/\bnew Date\(\s*\)/.test(code)) errors.push(`${where}: argless new Date() throws at runtime (it would break resume)`)
-    // No TypeScript-annotation regex: the parse check above already rejects TS (it
-    // does not parse as JS), so the regex added nothing and false-positived on legal
-    // JS such as `f(a ? b : number)`.
-  })
+  // Walked over the parsed AST, not line by line. The line-scoped regexes this
+  // replaced matched one exact spelling each, so anything the parser accepts and the
+  // pattern does not slipped through while the check still reported green: a
+  // dead-branch `await import('node:fs')` and a `new\n  Date()` split across two lines
+  // both passed. A syntax rule has to be judged by the syntax tree.
+  //
+  // Comments carry no nodes, so a mention inside a comment explaining the rule still
+  // does not trip it — the property the line-scoped version needed stripLineComment for.
+  // Without this the forbidden-syntax check below would walk an empty tree and report
+  // green — the shape of vacuity this file exists to prevent.
+  check(parsed !== null, `${file}: could not be parsed as a module, so the forbidden-syntax check inspected nothing`)
+
+  for (const node of walk(parsed)) {
+    const where = `${file}:${node.loc.start.line}`
+    if (node.type === 'ImportDeclaration' || node.type === 'ImportExpression') {
+      errors.push(`${where}: scripts cannot import — no imports, no dynamic import()`)
+      continue
+    }
+    const callee = node.type === 'CallExpression' || node.type === 'NewExpression' ? node.callee : null
+    if (!callee) continue
+    const named = (object, property) =>
+      callee.type === 'MemberExpression' &&
+      !callee.computed &&
+      callee.object.type === 'Identifier' && callee.object.name === object &&
+      callee.property.type === 'Identifier' && callee.property.name === property
+    if (callee.type === 'Identifier' && callee.name === 'require') {
+      errors.push(`${where}: scripts cannot import — no imports or require()`)
+    }
+    if (named('Date', 'now')) errors.push(`${where}: Date.now() throws at runtime (it would break resume)`)
+    if (named('Math', 'random')) errors.push(`${where}: Math.random() throws at runtime (it would break resume)`)
+    if (node.type === 'NewExpression' && callee.type === 'Identifier' && callee.name === 'Date' && node.arguments.length === 0) {
+      errors.push(`${where}: argless new Date() throws at runtime (it would break resume)`)
+    }
+  }
+  // No TypeScript-annotation check: the parse above already rejects TS (it does not
+  // parse as JS), so a regex added nothing and false-positived on legal JS such as
+  // `f(a ? b : number)`.
 }
 
 // ─── Whole-body execution with stub hooks ───
