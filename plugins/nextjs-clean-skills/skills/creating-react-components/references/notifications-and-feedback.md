@@ -4,7 +4,7 @@
 
 The runtime channel maps semantic application failures to public results that the presenter can
 format. See
-[Error Taxonomy](../../designing-nextjs-capabilities/references/errors/error-taxonomy.md).
+[Error Taxonomy](../../designing-architecture/references/errors/error-taxonomy.md).
 
 Scattered calls drift in copy, severity, and error mapping. Centralize notifications behind small
 helpers and use one confirmation boundary.

@@ -9,11 +9,29 @@ globalThis.window = dom.window
 globalThis.document = dom.window.document
 const { default: mermaid } = await import('mermaid')
 
+const PLUGIN = 'plugins/nextjs-clean-skills'
 const docs = listFiles('docs', (file) => file.endsWith('.md')).sort()
-// .claude/workflows/README.md links into docs/ and rules/; unchecked, a renamed
+// The mirrored copy under the plugin is what an installed user actually reads, and
+// sync-plugin-contract rewrites its relative links. Byte-identity to the source proves the
+// transform ran; only walking the copy's own links proves the transform produced valid ones.
+//
+// Derived from `docs`, never re-listed: `listFiles` returns [] for a directory that is not there,
+// so a typo or a moved mirror would have dropped half this file's coverage while still printing
+// ok — the check-that-looked-nowhere failure this repository exists to remove. A mirrored file that
+// is missing now throws ENOENT instead of vanishing from the list.
+// Listed, not spelled out as `rules/README.md`: sync-plugin-contract mirrors rules/ whole, so a
+// second markdown file added there ships to installed users. Naming one file walked exactly one
+// file no matter what the mirror actually carried.
+const rulesDocs = listFiles('rules', (file) => file.endsWith('.md')).sort()
+const shipped = [...docs, ...rulesDocs].map((file) => `${PLUGIN}/${file}`)
+// plugins/nextjs-clean-skills/workflows/README.md links into docs/ and rules/; unchecked, a renamed
 // section there would rot silently like any other doc in this repo.
-const files = ['README.md', 'rules/README.md', '.claude/workflows/README.md', ...docs]
+const files = ['README.md', `${PLUGIN}/workflows/README.md`, ...docs, ...rulesDocs, ...shipped]
 const errors = []
+// Both directories are non-empty in every state this repository can be in, so an empty listing
+// means the walk looked somewhere else and the counts below would report success over nothing.
+if (docs.length === 0) errors.push('no markdown found under docs/ — the doc check walked nothing')
+if (rulesDocs.length === 0) errors.push('no markdown found under rules/ — the doc check walked nothing')
 let diagramCount = 0
 let linkCount = 0
 
@@ -44,9 +62,25 @@ const getAnchors = (file) => {
   return anchorCache.get(file)
 }
 
-const isInsideRoot = (target) => {
-  const relative = path.relative(root, target)
+const isInside = (base, target) => {
+  const relative = path.relative(base, target)
   return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+}
+const isInsideRoot = (target) => isInside(root, target)
+
+// A link inside the plugin must resolve inside the plugin. Resolving against the checkout is not
+// the same test: from `<plugin>/workflows/README.md`, `../../../docs/x.md` finds the repository's
+// docs/ here and nothing at all once installed, so the whole-repo check passed while the shipped
+// document pointed two levels above the plugin root. This is the stronger invariant, because it
+// also fails on link forms sync-plugin-contract does not rewrite instead of depending on the
+// target coincidentally not existing.
+const pluginRoot = path.join(root, PLUGIN)
+let boundaryChecked = 0
+const checkPluginBoundary = (from, rawTarget, target) => {
+  if (!from.startsWith(`${PLUGIN}/`)) return
+  boundaryChecked += 1
+  if (isInside(pluginRoot, target)) return
+  errors.push(`${from}: link leaves the published plugin, so it is broken once installed: ${rawTarget}`)
 }
 
 const checkLink = (from, rawTarget) => {
@@ -79,6 +113,8 @@ const checkLink = (from, rawTarget) => {
     return
   }
 
+  checkPluginBoundary(from, rawTarget, target)
+
   if (!fs.existsSync(target)) {
     errors.push(`${from}: link target does not exist: ${rawTarget}`)
     return
@@ -100,6 +136,21 @@ for (const file of files) {
   let parsedDiagrams = 0
 
   for (const match of text.matchAll(/(?<!!)\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    checkLink(file, match[1])
+  }
+
+  // The inline form was the only one walked. A reference definition, an image, or an
+  // HTML destination is just as breakable, and sync-plugin-contract rewrites none of
+  // them — so a link form nobody checks is a link form that ships broken to installed
+  // users while `docs ok` still prints. None of these three forms appears in docs/ or
+  // rules/ today; they are checked so that the day one does, the mirror is judged too.
+  for (const match of text.matchAll(/^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/gm)) {
+    checkLink(file, match[1])
+  }
+  for (const match of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    checkLink(file, match[1])
+  }
+  for (const match of text.matchAll(/<[a-zA-Z][^>]*?\s(?:href|src)=["']([^"']+)["']/g)) {
     checkLink(file, match[1])
   }
 
@@ -142,5 +193,16 @@ for (const file of docs) {
   }
 }
 
+// Counting links is not the same as checking them. Emptying the link loop left every
+// assertion in this file — including the plugin-boundary one — inspecting nothing while
+// `docs ok (20 files, 0 internal links, …)` still printed exit 0. These floors are
+// deliberately loose: they catch a walk that collapsed, not a doc that lost a link.
+if (linkCount === 0) errors.push('no internal links were checked — the link walk inspected nothing')
+if (boundaryChecked === 0) {
+  errors.push('no link inside the plugin was boundary-checked — the shipped tree was not judged')
+}
+
 fail(errors)
-console.log(`docs ok (${docs.length} files, ${linkCount} internal links, ${diagramCount} diagrams)`)
+// files.length, not docs.length: reporting the smaller number hid a coverage drop of half the
+// links behind an unchanged headline.
+console.log(`docs ok (${files.length} files, ${linkCount} internal links, ${diagramCount} diagrams)`)

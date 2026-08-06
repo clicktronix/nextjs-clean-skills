@@ -1,12 +1,13 @@
 {
   "name": "nextjs-clean-skills",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "node scripts/sync-version.mjs --check && node scripts/validate-cwd-independence.mjs && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/validate-docs.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-measure-evidence.mjs && node scripts/validate-workflows.mjs && node scripts/validate-contract-tools.mjs && node scripts/validate-architecture-pilots.mjs && node scripts/validate-capability-pilots.mjs && node tests/architecture-pilots/run-runtime-tests.mjs && node scripts/validate-rules.mjs",
+    "validate": "node scripts/sync-version.mjs --check && node scripts/sync-plugin-contract.mjs --check && node scripts/validate-cwd-independence.mjs && node scripts/validate-json-schemas.mjs && node scripts/validate-skill-frontmatter.mjs && node scripts/lint-skill-md.mjs && node scripts/lint-references-no-frontmatter.mjs && node scripts/lint-no-content-duplication.mjs && node scripts/validate-docs.mjs && node scripts/validate-scenarios.mjs && node scripts/validate-measure-evidence.mjs && node scripts/validate-workflows.mjs && node scripts/validate-contract-tools.mjs && node scripts/validate-architecture-pilots.mjs && node scripts/validate-capability-pilots.mjs && node tests/architecture-pilots/run-runtime-tests.mjs && node scripts/validate-rules.mjs",
     "validate:pilots": "node tests/architecture-pilots/run-runtime-tests.mjs",
-    "sync-version": "node scripts/sync-version.mjs"
+    "sync-version": "node scripts/sync-version.mjs && node scripts/sync-plugin-contract.mjs",
+    "sync-plugin-contract": "node scripts/sync-plugin-contract.mjs"
   },
   "keywords": [
     "clean-architecture",
@@ -28,6 +29,7 @@
   ],
   "devDependencies": {
     "@typescript-eslint/parser": "^8.65.0",
+    "acorn": "^8.17.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^9.39.5",

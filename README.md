@@ -7,7 +7,7 @@ architecture and React Server/Client Component rules.
 
 | Plugin | Skills | Purpose |
 | --- | --- | --- |
-| `nextjs-clean-skills` | `designing-nextjs-capabilities`, `creating-react-components` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
+| `nextjs-clean-skills` | `designing-architecture`, `creating-react-components` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
 
 Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
@@ -38,7 +38,7 @@ Interactive install:
 After install, run `/reload-plugins`. Invoke directly with:
 
 ```shell
-/nextjs-clean-skills:designing-nextjs-capabilities
+/nextjs-clean-skills:designing-architecture
 /nextjs-clean-skills:creating-react-components
 ```
 
@@ -84,7 +84,7 @@ Put that file at `$REPO_ROOT/.agents/plugins/marketplace.json`. Codex installs p
 Installed skills:
 
 ```text
-$designing-nextjs-capabilities
+$designing-architecture
 $creating-react-components
 ```
 
@@ -161,10 +161,23 @@ npm run validate
 
 ## Migration Workflows
 
-[`.claude/workflows/`](.claude/workflows/README.md) holds maintainer tooling: multi-agent workflows
-that adopt this architecture in an existing Next.js repository, executing the procedure in
-[`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) rather than a second one. They
-are not part of the published plugin.
+[`plugins/nextjs-clean-skills/workflows/`](plugins/nextjs-clean-skills/workflows/README.md) ships two
+multi-agent workflows that adopt this architecture in an existing Next.js repository, executing the
+procedure in [`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) rather than a
+second one. They require dynamic workflows to be enabled, and they are part of the plugin — installing
+it is all the setup a target repository needs:
+
+```text
+Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange } })
+Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } })
+```
+
+`/workflows` lists what the session resolved, which is the fastest way to confirm the plugin's
+workflows loaded.
+
+Phase 1 is not read-only — it writes into the target — so run it on a branch you can throw away.
+Neither workflow has yet been executed against a live repository; treat the first run as an
+experiment.
 
 ## Versioning
 

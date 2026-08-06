@@ -30,7 +30,7 @@ try {
 }
 
 const expectedSkills = [
-  'plugins/nextjs-clean-skills/skills/designing-nextjs-capabilities/SKILL.md',
+  'plugins/nextjs-clean-skills/skills/designing-architecture/SKILL.md',
   'plugins/nextjs-clean-skills/skills/creating-react-components/SKILL.md',
 ]
 const observedSkills = observed.skills.map((file) => file.split(path.sep).join('/'))

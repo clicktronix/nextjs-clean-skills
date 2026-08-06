@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Portable Claude Code skills for capability-first Next.js 16 architecture and React Server/Client Component design.",
-    "version": "3.0.0"
+    "version": "4.0.0"
   },
   "plugins": [
     {
       "name": "nextjs-clean-skills",
       "source": "./plugins/nextjs-clean-skills",
       "description": "Next.js 16 skills for capability-first architecture and React Server/Client Component design.",
-      "version": "3.0.0",
+      "version": "4.0.0",
       "keywords": [
         "clean-architecture",
         "nextjs",

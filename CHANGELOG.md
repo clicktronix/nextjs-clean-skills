@@ -4,26 +4,128 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: renamed the architecture skill from `designing-nextjs-capabilities` to
+  `designing-architecture`. The previous name repeated `nextjs`, which the plugin name already
+  carries, and scoped the skill to capability placement when it also governs runtime boundaries,
+  caching, ports, authorization and RLS. Invocations become
+  `/nextjs-clean-skills:designing-architecture` and `$designing-architecture`. Frozen eval artifacts
+  keep their historical paths, which predate both renames.
+
 ### Added
 
-- Maintainer migration workflows under `.claude/workflows/`: `10-migration-baseline` inventories a
-  target repository, assigns every source file one owner and role, installs `rules/` with a drafted
+- Migration workflows now ship **inside the plugin**, at
+  `plugins/nextjs-clean-skills/workflows/`: `prepare-architecture-migration` inventories a target
+  repository, assigns every source file one owner and role, installs `rules/` with a drafted
   contract, and records the behavioural baseline plus a per-messageId violation census;
-  `20-migration-pilot` migrates one capability against three oracles — the target's own
+  `migrate-capability` migrates one capability against three oracles — the target's own
   typecheck/lint/tests/production build, `rules/` as a burndown against that census, and an
   adversarial review of the properties this document says static rules cannot prove — then stops at
-  the human accept/revise/reject gate. Deviations from the written procedure and the Product Profile
-  fields the phase could not settle are recorded in the manifest rather than left implicit.
+  the human accept/revise/reject gate. Previously they lived in the repository's own
+  `.claude/workflows/` and reached nobody who installed the plugin. The numeric `10-`/`20-` prefixes
+  are gone: a workflow name is also its slash command, and the ordering it encoded is already stated
+  in each `whenToUse`.
+- `sync-plugin-contract` mirrors `docs/` and `rules/` into the plugin so an installed copy carries
+  the normative contract the workflows read, rewriting the relative links that would otherwise break
+  one directory deeper. The repository root stays the single source of truth and `npm run validate`
+  fails on a stale or hand-edited copy; the mirrored docs are walked by the link checker too, since
+  byte-identity proves the transform ran but not that it produced valid links.
+- `contractSource` became optional. Omitted, phase 1 spends one probe agent to locate the plugin
+  root and accepts a candidate only when all four normative sources exist under it. It resolves once
+  rather than in each of the fifteen agents that need the path. Phase 2 reads the resolved path back out
+  of the manifest instead of re-probing, so both phases quote the same installed copy.
 - `npm run validate` gained `validate-workflows`, which parses each workflow as the runtime does,
   evaluates its `meta` in an empty scope, checks phase parity both ways, rejects the globals the
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
-  against tables. `.claude/workflows/README.md` is now covered by the docs link check.
+  against tables. The workflows README is now covered by the docs link check.
+
+### Added
+
+- `dependencyDecisions` lets the operator answer the packages a run reported as undecided:
+  `{ "dayjs": "runtime" }`. Phase 1 correctly refuses to classify a dependency the product has not
+  ruled on — but until now that stop was a dead end, because the only way forward was to hand-edit
+  the target's contract, which is exactly the unrecorded guess the stop existed to prevent. Decisions
+  are checked against *this* run's undecided list, so a stale answer to an older question is refused
+  rather than written into a new repository's contract, and they are recorded in the manifest and the
+  run result so a later reader can tell an inference from a ruling.
 
 ### Fixed
 
-- Set the planned plugin version to `3.0.0` so the breaking skill rename no longer shares the
-  released `2.0.0` manifest version, and made capability-first descriptions the synchronized
-  marketplace source of truth.
+- The baseline census carries whether it could measure anything. On a repository that has not moved
+  a file yet, `moduleRoot` does not exist, so every capability, segment and surface rule reports zero
+  for want of anything to classify — a structural vacuum, not a clean bill of health. Phase 2
+  compared its post-migration counts against those zeros, so the first correct pilot read as a
+  repo-wide regression and would have been told to revise. Phase 1 now records
+  `capabilityTierBinds`, warns when it is false, and phase 2 waives only the regression arm on such
+  a baseline; the pilot capability must still reach zero, which never depended on the baseline.
+- Phase 1 adds `migration-manifest.json` to the target's formatter ignore list alongside `rules/`.
+  It writes that file itself in a later phase, and it failed the target's `format:check` for exactly
+  the reason the vendored files did — the first fix covered the directory and missed the file.
+- Phase 1 accepts `args` as a JSON string as well as an object. Some invocation paths serialise it
+  before the script sees it, every field then read as `undefined`, and the run died with
+  "args.repo is required" while pointing at a call that supplied `repo` — blaming the caller for the
+  one thing they had got right. Found by the first live run, not by three review passes.
+- Phase 1 may write the target's linter and formatter ignore lists, and is told to keep the target's
+  own gates as green as it found them. The vendored `rules/` files are written to this repository's
+  style, so installing them broke the target's `format:check` — and the phase could not fix it,
+  because the ignore files were outside its writable set. Reformatting them instead was never an
+  option: it forks them from the plugin source and breaks re-sync.
+- Phase 1 no longer requires `check-database-resources.mjs` to exit 0 at baseline. The checker
+  attributes an accessing subject from `moduleRoot`/`sharedRoot`/`appRoot`, and before migration
+  every data-access file lies outside all three, so enforcement property 7 is unsatisfiable by
+  construction — the instruction demanded that phase 1 prove something only phase 2 can create. It is
+  now recorded as a burndown item, with an explicit prohibition on the one workaround that would make
+  it pass: declaring roots that describe a layout the repository does not have.
+- Phase 1 checks that the three packages `rules/` needs are *declared*, not merely resolvable. One of
+  them commonly arrives transitively through `eslint-config-next`, leaving the floor resting on a
+  dependency the repository never asked for.
+- The architecture oracle's `ok` meant two things at once. The prompt asked for `ok=false` both when
+  a tool could not run and when the counts came back red, while `archUnmeasured` read every
+  `ok=false` as "no measurement" — so a capability with real violations reached the human as
+  `inconclusive` ("the oracles did not report") instead of `revise` ("still N violations"). `ok` now
+  means only that the tools ran; red is computed from `counts`. A result missing the `capability`
+  counter, or any counter present in the baseline census, is unmeasured rather than clean: absent is
+  not zero.
+- The pilot's plan is now screened as a partition of the manifest's file set — every assigned file
+  exactly once, nothing unassigned, no source twice. Screening judged destinations only, so a plan
+  covering half the capability passed every check and the pilot reported success over a subset,
+  leaving the other half at old paths importing modules that had moved. Surfaces are also checked
+  against the recorded consumers and rejected when their export contract is empty.
+- `reject` stops the run before the fix loop, not after it. `recommendation()` already put reject
+  first, but it is called after the loop, so with fix rounds enabled the fix agents edited the
+  ownership model the reviewer had told us to abandon and the human gate received a mutated version
+  of the thing it was asked to judge. Every existing whole-body test used `maxFixRounds: 0`, which
+  hid it completely.
+- Four required handoffs are gated instead of logged: an inventory lens that did not return now
+  stops phase 1 rather than assigning owners from evidence nobody gathered; a failed manifest writer
+  is a blocker rather than `manifestPath: null` alongside "no blockers, pilot can start"; and a
+  failed consumer move stops phase 2 rather than letting the oracles measure a half-migrated tree.
+  A consumer move that legitimately touches nothing is still a success.
+- The forbidden-syntax check for the workflow VM walks the parsed AST instead of matching
+  line-scoped regexes. A dead-branch `await import('node:fs')` and a `new Date()` split across two
+  lines both passed while it reported green — a syntax rule judged by anything but the syntax tree
+  only ever covers the spellings someone thought to write down.
+- `validate-docs` refuses to pass on an empty link walk. Replacing the link iteration with an empty
+  iterable left every assertion in the file — including the plugin-boundary one — inspecting nothing
+  while `docs ok (20 files, 0 internal links, …)` still exited 0. It also now walks reference-style
+  definitions, images and HTML `href`/`src`, none of which the generator rewrites: a link form
+  nobody checks is a link form that ships broken.
+- Phase 1 checks the target for `typescript`, `eslint-plugin-import` and
+  `eslint-import-resolver-typescript` and installs the missing ones before it writes anything. The
+  rules it copies import all three, so without them the checks died with ERR_MODULE_NOT_FOUND after
+  the contract and the ESLint amendment were already on disk. The workflows README no longer claims
+  installing the plugin is all the setup a target needs.
+- Phase 2 revalidates the contract path recorded in the manifest instead of trusting it. The phases
+  are separate invocations, and the plugin can be upgraded or pruned between them.
+- The workflows README claimed parity with the manifest's `deviations` while listing four open items
+  against the manifest's two. The missing two — step 8's real user workflow, and the outstanding
+  Product Profile fields — are now recorded in the manifest, so the two surfaces agree as
+  § Sources Of Truth requires.
+- Recorded in the workflows README, rather than only in a pull-request description that a squash
+  merge discards, that these workflows have never been executed against a live repository.
+- Stopped a breaking skill rename from shipping under an already-released manifest version, and
+  made capability-first descriptions the synchronized marketplace source of truth.
 - Derived source, module, app, shared, alias, ESLint-glob, cycle, and database-subject resolution
   from one executable contract. Added a nonstandard-root/alias canary so portability cannot regress
   behind a passing default fixture. Direct files under `sharedRoot` remain classified and standard
@@ -111,7 +213,7 @@ All notable changes to this project are documented in this file.
   remains available at the named commit and research tag; the changelog now records release-level
   changes only.
 - Removed the closing `## Verification Gate` from both skills. Its items restated the rule sections
-  almost one for one — seven of eight in `designing-nextjs-capabilities`, all seven in
+  almost one for one — seven of eight in `designing-architecture`, all seven in
   `creating-react-components` — so the third copy of each rule spent always-on context and pushed
   models that already self-verify into re-checking. The two items with content of their own moved to
   the sections that own them. `validate-skill-frontmatter.mjs` no longer recommends the heading.
@@ -141,7 +243,7 @@ All notable changes to this project are documented in this file.
 - Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
   candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
   `shared/server` root the contract admits, and generation runs on Codex models only.
-- Told `designing-nextjs-capabilities` to read its references directly rather than delegating a handful of
+- Told `designing-architecture` to read its references directly rather than delegating a handful of
   file reads to subagents, and to size a written proposal to the decision it serves.
 - Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
   `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
