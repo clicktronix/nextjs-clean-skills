@@ -105,9 +105,9 @@ rerender requirement.
 - [Styling, Text, And Accessibility](references/styling-and-i18n.md)
 - [Notifications And Feedback](references/notifications-and-feedback.md)
 - [Component Testing](references/component-testing.md)
-- [Client Cache Lifecycle](../designing-nextjs-capabilities/references/caching/client-cache.md)
-- [Failure Ownership](../designing-nextjs-capabilities/references/errors/failure-at-the-boundary.md)
-- [Error Taxonomy](../designing-nextjs-capabilities/references/errors/error-taxonomy.md)
+- [Client Cache Lifecycle](../designing-architecture/references/caching/client-cache.md)
+- [Failure Ownership](../designing-architecture/references/errors/failure-at-the-boundary.md)
+- [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.md)
 
 ## Decision Gate
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Contract test for .claude/workflows/*.js.
+// Contract test for plugins/nextjs-clean-skills/workflows/*.js.
 //
 // Workflow scripts are never imported or executed by this repository's tooling, so
 // nothing else can catch a violation of the runtime contract — the failure would
@@ -29,7 +29,7 @@ const CONTRACT = readJson('rules/architecture-contract.json')
 const SEGMENTS = CONTRACT.segments
 const SURFACES = CONTRACT.publicSurfaces
 
-const DIR = '.claude/workflows'
+const DIR = 'plugins/nextjs-clean-skills/workflows'
 const errors = []
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const HOOKS = ['args', 'budget', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'workflow']
@@ -58,7 +58,7 @@ const check = (ok, message) => {
 // Through _lib, like every sibling validator: it resolves against `root` so a check
 // cannot quietly look at the wrong directory.
 const files = listFiles(DIR, f => f.endsWith('.js')).map(f => f.split('/').pop()).sort()
-check(files.length > 0, 'no workflow scripts found under .claude/workflows/')
+check(files.length > 0, 'no workflow scripts found under plugins/nextjs-clean-skills/workflows/')
 
 function metaOf(source, file) {
   const marker = 'export const meta = '
@@ -187,7 +187,7 @@ async function runBody(source, { args: argv, overrides = {} } = {}) {
 }
 
 // ─── destination(): admitted, closed, injective ───
-const PILOT = '20-migration-pilot.js'
+const PILOT = 'migrate-capability.js'
 // Assert the file is there. Every table below was opt-in on this name, so an
 // ordinary rename deleted all of it silently while the success line kept claiming
 // "destination table" — the repo's own declared failure mode, "a check that passes
@@ -437,7 +437,7 @@ if (files.includes(PILOT)) {
 }
 
 // ─── Call sites, exercised ───
-const BASELINE = '10-migration-baseline.js'
+const BASELINE = 'prepare-architecture-migration.js'
 if (files.includes(PILOT) && files.includes(BASELINE)) {
   const pilotSrc = readText(`${DIR}/${PILOT}`)
   const baseSrc = readText(`${DIR}/${BASELINE}`)

@@ -1,0 +1,17 @@
+{
+  "skills": ["designing-architecture"],
+  "tests_reference": "references/seams/dependency-categories.md",
+  "query": "This app stores work items in Postgres, reached through the Supabase client. Migrations are checked into the repo and the CLI starts a local instance. Add reads and writes for work items and show how they are tested.",
+  "baseline_failure": "RED hypothesis: the agent defines a WorkItemsRepository port with one method per table operation, implements it with a Supabase adapter, injects it into application code, and tests only through a hand-built fake — so no test executes the real query, filter, or policy.",
+  "expected_behavior": [
+    "Classifies the dependency as locally substitutable because the engine runs in the test suite from checked-in migrations",
+    "Keeps the query module private under modules/work-items/server/ instead of mirroring the database with a repository port",
+    "Tests that server module against the local engine so filters, escaping, and policies are actually exercised",
+    "Names that a port here would substitute the team's own queries rather than an external system"
+  ],
+  "anti_expectation": [
+    "Does NOT conclude that ports are never useful — an owned service over the network still gets one",
+    "Does NOT remove the seam for a scenario that must orchestrate several sources without the database",
+    "Does NOT replace the port with a global singleton client imported by UI, app/**, or another capability"
+  ]
+}

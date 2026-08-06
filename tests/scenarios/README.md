@@ -7,7 +7,7 @@ comparative architecture release gate in [`../architecture-evals/`](../architect
 
 ```json
 {
-  "skills": ["designing-nextjs-capabilities"],
+  "skills": ["designing-architecture"],
   "tests_reference": "references/<file>.md#<anchor>",
   "query": "the task given to the agent",
   "baseline_failure": "the predicted failure without the reference",

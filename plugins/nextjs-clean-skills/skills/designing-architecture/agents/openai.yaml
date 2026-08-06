@@ -1,0 +1,4 @@
+interface:
+  display_name: "Designing Architecture"
+  short_description: "Design capability-owned Next.js boundaries"
+  default_prompt: "Use $designing-architecture to design this Next.js feature around capability ownership and native runtime boundaries."

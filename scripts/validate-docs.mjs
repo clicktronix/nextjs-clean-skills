@@ -10,9 +10,19 @@ globalThis.document = dom.window.document
 const { default: mermaid } = await import('mermaid')
 
 const docs = listFiles('docs', (file) => file.endsWith('.md')).sort()
-// .claude/workflows/README.md links into docs/ and rules/; unchecked, a renamed
+// The mirrored copy under the plugin is what an installed user actually reads, and
+// sync-plugin-contract rewrites its relative links. Byte-identity to the source proves the
+// transform ran; only walking the copy's own links proves the transform produced valid ones.
+const shipped = listFiles('plugins/nextjs-clean-skills/docs', (file) => file.endsWith('.md')).sort()
+// plugins/nextjs-clean-skills/workflows/README.md links into docs/ and rules/; unchecked, a renamed
 // section there would rot silently like any other doc in this repo.
-const files = ['README.md', 'rules/README.md', '.claude/workflows/README.md', ...docs]
+const files = [
+  'README.md',
+  'rules/README.md',
+  'plugins/nextjs-clean-skills/workflows/README.md',
+  ...docs,
+  ...shipped,
+]
 const errors = []
 let diagramCount = 0
 let linkCount = 0

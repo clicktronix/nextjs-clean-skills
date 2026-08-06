@@ -21,7 +21,7 @@ before awaiting them.
 
 Choose one RSC capture owner: framework instrumentation or the Client boundary. Do not report from
 both. See
-[failure ownership](../../designing-nextjs-capabilities/references/errors/failure-at-the-boundary.md).
+[failure ownership](../../designing-architecture/references/errors/failure-at-the-boundary.md).
 Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
 nested or parallel route with `error.tsx`, or the project's component Error Boundary.
 

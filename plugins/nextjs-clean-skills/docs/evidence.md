@@ -60,7 +60,7 @@ shipping executable import rules while requiring project-specific runtime and ow
 ## Capability Pilot Baseline
 
 The immutable template baseline is
-[`tests/architecture-pilots/baseline.json`](../tests/architecture-pilots/baseline.json), anchored to
+[`tests/architecture-pilots/baseline.json`](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/baseline.json), anchored to
 `0bae9739e5d688f55ebe971658ce4b533a24daf3`.
 
 For `work-items` it recorded:
@@ -111,8 +111,8 @@ The provider comparison is valid only after adding a production composition surf
 one-file result selected its provider in the test harness and is retained as superseded evidence.
 
 Full details are in
-[`tests/architecture-pilots/RESULTS.md`](../tests/architecture-pilots/RESULTS.md) and
-[`results.json`](../tests/architecture-pilots/results.json).
+[`tests/architecture-pilots/RESULTS.md`](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/RESULTS.md) and
+[`results.json`](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/results.json).
 
 ## Agent Evaluation
 
@@ -147,7 +147,7 @@ Manual review still found:
 
 These are release regressions in the canonical contract. Blind score is not architecture proof.
 See
-[`RELEASE_V3_RESULTS.md`](../tests/architecture-evals/RELEASE_V3_RESULTS.md).
+[`RELEASE_V3_RESULTS.md`](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-evals/RELEASE_V3_RESULTS.md).
 
 ## Project Judgement
 

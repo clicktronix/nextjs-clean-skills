@@ -152,11 +152,11 @@ if (fs.existsSync(coverageAbs)) {
 const EVIDENCE = 'docs/evidence.md'
 const evidenceAbs = path.join(root, EVIDENCE)
 if (fs.existsSync(evidenceAbs)) {
-  const architecture = files.filter((file) => file.includes('/designing-nextjs-capabilities/'))
+  const architecture = files.filter((file) => file.includes('/designing-architecture/'))
   const observed = architecture.filter((file) => readJson(file).baseline_observed !== undefined)
   const text = fs.readFileSync(evidenceAbs, 'utf8')
   const claims = [
-    [/contains (\d+) `designing-nextjs-capabilities` scenarios/, architecture.length, 'scenario files'],
+    [/contains (\d+) `designing-architecture` scenarios/, architecture.length, 'scenario files'],
     [/- (\d+) contain recorded baseline observations;/, observed.length, 'baseline observations'],
     [
       /- (\d+) remain RED hypotheses;/,
@@ -174,5 +174,5 @@ if (fs.existsSync(evidenceAbs)) {
 
 fail(errors)
 console.log(
-  `scenarios ok (${files.length}, evidence counts match ${files.filter((file) => file.includes('/designing-nextjs-capabilities/')).length} architecture scenarios)`
+  `scenarios ok (${files.length}, evidence counts match ${files.filter((file) => file.includes('/designing-architecture/')).length} architecture scenarios)`
 )

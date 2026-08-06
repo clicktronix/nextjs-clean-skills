@@ -68,7 +68,7 @@ build, and a test command. That scenario does not exist here.
 
 `opus5-gates/{with-gates,no-gates}` stay byte-for-byte as generated, so `armDirHash` in each run's
 metadata keeps matching. Both arms therefore still carry `name: nextjs-architecture`, the skill name
-in use when they were generated; the shipped skill is now `designing-nextjs-capabilities`.
+in use when they were generated; the shipped skill is now `designing-architecture`.
 
 Two changes landed on the shipped skills after this result set and deliberately did not touch the
 arms: `creating-react-components` (formerly `react-component-creator`) gained first-level links to

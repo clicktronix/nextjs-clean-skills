@@ -4,20 +4,49 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: renamed the architecture skill from `designing-nextjs-capabilities` to
+  `designing-architecture`. The previous name repeated `nextjs`, which the plugin name already
+  carries, and scoped the skill to capability placement when it also governs runtime boundaries,
+  caching, ports, authorization and RLS. Invocations become
+  `/nextjs-clean-skills:designing-architecture` and `$designing-architecture`. Frozen eval artifacts
+  keep their historical paths, which predate both renames.
+
 ### Added
 
-- Maintainer migration workflows under `.claude/workflows/`: `10-migration-baseline` inventories a
-  target repository, assigns every source file one owner and role, installs `rules/` with a drafted
+- Migration workflows now ship **inside the plugin**, at
+  `plugins/nextjs-clean-skills/workflows/`: `prepare-architecture-migration` inventories a target
+  repository, assigns every source file one owner and role, installs `rules/` with a drafted
   contract, and records the behavioural baseline plus a per-messageId violation census;
-  `20-migration-pilot` migrates one capability against three oracles — the target's own
+  `migrate-capability` migrates one capability against three oracles — the target's own
   typecheck/lint/tests/production build, `rules/` as a burndown against that census, and an
   adversarial review of the properties this document says static rules cannot prove — then stops at
-  the human accept/revise/reject gate. Deviations from the written procedure and the Product Profile
-  fields the phase could not settle are recorded in the manifest rather than left implicit.
+  the human accept/revise/reject gate. Previously they lived in the repository's own
+  `.claude/workflows/` and reached nobody who installed the plugin. The numeric `10-`/`20-` prefixes
+  are gone: a workflow name is also its slash command, and the ordering it encoded is already stated
+  in each `whenToUse`.
+- `sync-plugin-contract` mirrors `docs/` and `rules/` into the plugin so an installed copy carries
+  the normative contract the workflows read, rewriting the relative links that would otherwise break
+  one directory deeper. The repository root stays the single source of truth and `npm run validate`
+  fails on a stale or hand-edited copy; the mirrored docs are walked by the link checker too, since
+  byte-identity proves the transform ran but not that it produced valid links.
+- `contractSource` became optional. Omitted, phase 1 spends one probe agent to locate the plugin
+  root and accepts a candidate only when all four normative sources exist under it. It resolves once
+  rather than in each of the fifteen agents that need the path.
 - `npm run validate` gained `validate-workflows`, which parses each workflow as the runtime does,
   evaluates its `meta` in an empty scope, checks phase parity both ways, rejects the globals the
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
-  against tables. `.claude/workflows/README.md` is now covered by the docs link check.
+  against tables. The workflows README is now covered by the docs link check.
+
+### Fixed
+
+- The workflows README claimed parity with the manifest's `deviations` while listing four open items
+  against the manifest's two. The missing two — step 8's real user workflow, and the outstanding
+  Product Profile fields — are now recorded in the manifest, so the two surfaces agree as
+  § Sources Of Truth requires.
+- Recorded in the workflows README, rather than only in a pull-request description that a squash
+  merge discards, that these workflows have never been executed against a live repository.
 
 ### Fixed
 
@@ -111,7 +140,7 @@ All notable changes to this project are documented in this file.
   remains available at the named commit and research tag; the changelog now records release-level
   changes only.
 - Removed the closing `## Verification Gate` from both skills. Its items restated the rule sections
-  almost one for one — seven of eight in `designing-nextjs-capabilities`, all seven in
+  almost one for one — seven of eight in `designing-architecture`, all seven in
   `creating-react-components` — so the third copy of each rule spent always-on context and pushed
   models that already self-verify into re-checking. The two items with content of their own moved to
   the sections that own them. `validate-skill-frontmatter.mjs` no longer recommends the heading.
@@ -124,7 +153,7 @@ All notable changes to this project are documented in this file.
 - Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
   keeping framework-specific rules out of portable references.
 - **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
-  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
+  `nextjs-architecture` to `designing-architecture`, `react-component-creator` to
   `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
   links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
   the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
@@ -141,7 +170,7 @@ All notable changes to this project are documented in this file.
 - Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
   candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
   `shared/server` root the contract admits, and generation runs on Codex models only.
-- Told `designing-nextjs-capabilities` to read its references directly rather than delegating a handful of
+- Told `designing-architecture` to read its references directly rather than delegating a handful of
   file reads to subagents, and to size a written proposal to the decision it serves.
 - Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
   `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,

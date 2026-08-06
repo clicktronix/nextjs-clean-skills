@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "designing-architecture"
+  ],
+  "tests_reference": "references/outbound/row-vs-domain-types.md",
+  "query": "A work_items table is read on a hot path and select('*') is banned. The work-items domain segment already exports WorkItemSchema. Produce the explicit column list for the private server query and the code that turns rows into domain values.",
+  "baseline_failure": "RED hypothesis: the agent derives the column list from the domain schema — Object.keys(WorkItemSchema.entries).join(', ') — and returns parsed rows straight through, so storage column names become the domain field names and travel into view models and form fields.",
+  "expected_behavior": [
+    "Declares a row schema owned by modules/work-items/server/ and derives the column list from it",
+    "Keeps the row-to-domain mapping in that private server module",
+    "Explains that the two shapes change for different reasons, so a rename in the store is not a UI change",
+    "Preserves drift protection: the column list is still derived, not hand-maintained"
+  ],
+  "anti_expectation": [
+    "Does NOT go back to select('*') to avoid maintaining a list",
+    "Does NOT demand a hand-written mapping for stored functions that already return the domain shape",
+    "Does NOT hand-write the column list as a string literal disconnected from any schema"
+  ]
+}
