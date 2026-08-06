@@ -111,6 +111,9 @@ const MANIFEST_SCHEMA = {
     ordinaryChange: { type: 'string' },
     baselineRadius: { type: 'string', description: 'the before touch set recorded by phase 1, verbatim' },
     violationCensus: { type: 'object', additionalProperties: { type: 'integer' } },
+    // Whether phase 1's census had anything to measure. Undeclared, this schema would be
+    // closed against a key phase 1 writes — the third instance of that trap in this file.
+    capabilityTierBinds: { type: 'boolean', description: 'true when the baseline census was taken with moduleRoot populated; false when it was taken before any file moved and every capability-tier count was structurally zero' },
     consumers: { type: 'array', items: { type: 'string' }, description: 'app routes and other capabilities that use this capability today' },
     // additionalProperties stays OPEN here: the prompt asks for the manifest rows
     // verbatim, and those rows also carry `placement` and `capability`. Closing it
@@ -243,7 +246,8 @@ const slice = await agent(
   '`skills/designing-architecture/SKILL.md` still exist under it. Return it verbatim if they all do; return an empty ' +
   'string if the manifest has no such key or any marker is missing. Do not substitute a different version or path.\n' +
   '- ordinaryChange, and baselineRadius: the before touch set the change-radius baseline probe recorded (copy its detail verbatim).\n' +
-  '- violationCensus: the recorded counts.\n\n' +
+  '- violationCensus: the recorded counts.\n' +
+  '- capabilityTierBinds: the flag the manifest records under that key; false if it records none.\n\n' +
   'Read only. Write nothing. If the manifest is missing, return found=false.\n\nStructured output only.',
   { label: 'load-manifest', phase: 'Load', schema: MANIFEST_SCHEMA }
 )
@@ -300,6 +304,10 @@ if (SEGMENTS.length === 0 || SURFACES.length === 0 || unsafeVocabulary.length > 
 const FILES = slice.assignments || []
 const CONSUMERS = slice.consumers || []
 const CENSUS = slice.violationCensus || {}
+// Phase 1 records whether its census could bind to anything. Absent, assume it could not:
+// an older manifest predates the flag, and treating an unknown baseline as meaningful is
+// the failure this exists to prevent.
+const CENSUS_BINDS = slice.capabilityTierBinds === true
 const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 0)
 
 if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
@@ -654,10 +662,17 @@ function archUnmeasured(a, census) {
 // non-zero capability count exited the loop early and then got `revise` from the
 // gate with its fix rounds unspent. Returns the reason, so the report can name it
 // instead of re-deriving the same inputs and disagreeing again.
-function archRed(a, census) {
+function archRed(a, census, binds) {
   if (archUnmeasured(a, census)) return 'not measured'
   const c = a.counts
   if (c.capability !== 0) return 'the capability still has ' + c.capability + ' violation(s)'
+  // The regression arm needs a baseline that measured something. When phase 1 censused a
+  // repository whose moduleRoot did not exist yet, every capability-tier count was zero
+  // because the rules had nothing to bind to — so comparing against it flags the FIRST
+  // pilot for every violation the rules can now finally see, and a correct migration is
+  // told to revise. The capability's own count must still reach zero: that arm is above,
+  // and it does not depend on the baseline.
+  if (!binds) return ''
   const regressed = Object.keys(c).filter(k => k !== 'capability' && (c[k] || 0) > ((census || {})[k] || 0))
   return regressed.length > 0 ? 'regressions above baseline: ' + regressed.join(', ') : ''
 }
@@ -667,7 +682,7 @@ function archRed(a, census) {
 // verdict that means "reject the architecture" — while a dead review agent fell
 // through and could produce `accept`. Silence is `inconclusive` in every case, and
 // `reject` belongs to the review oracle actually saying so.
-function recommendation(o, census) {
+function recommendation(o, census, binds) {
   const measured = {
     behaviour: !!o.behaviour,
     // An architecture agent that could not run its tools is unmeasured, not red.
@@ -679,7 +694,7 @@ function recommendation(o, census) {
     return { gate: 'inconclusive', unmeasured, reason: 'oracles that did not report: ' + unmeasured.join(', ') }
   }
   const mustFix = (o.review.findings || []).filter(f => f.severity === 'must-fix')
-  const arch = archRed(o.architecture, census)
+  const arch = archRed(o.architecture, census, binds)
   // `reject` FIRST. It sat after the behaviour and architecture branches, so the one
   // verdict meaning "do not migrate the next capability with this ownership model"
   // was downgraded to `revise` in exactly the states where it is most likely true —
@@ -764,7 +779,7 @@ while (
   // fix agents were editing a design the reviewer had told us to drop, and the human
   // gate then received a mutated version of the thing it was asked to judge.
   !(oracles.review && oracles.review.verdict === 'reject') &&
-  (archRed(oracles.architecture, CENSUS) || !(oracles.behaviour && oracles.behaviour.ok) ||
+  (archRed(oracles.architecture, CENSUS, CENSUS_BINDS) || !(oracles.behaviour && oracles.behaviour.ok) ||
    ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
 ) {
   const nowState = loopState(oracles)
@@ -826,7 +841,7 @@ const capViolations = archCounts.capability
 const regressions = Object.keys(archCounts).filter(k => k !== 'capability' && (archCounts[k] || 0) > (CENSUS[k] || 0))
 const mustFix = ((oracles.review && oracles.review.findings) || []).filter(f => f.severity === 'must-fix')
 
-const decided = recommendation(oracles, CENSUS)
+const decided = recommendation(oracles, CENSUS, CENSUS_BINDS)
 const gate = decided.gate
 const unmeasured = decided.unmeasured
 

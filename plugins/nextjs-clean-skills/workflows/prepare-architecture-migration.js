@@ -233,6 +233,10 @@ const BASELINE_SCHEMA = {
     ok: { type: 'boolean' },
     command: { type: 'string' },
     counts: { type: 'object', additionalProperties: { type: 'integer' }, description: 'for the census: violations keyed by ESLint messageId or tool name' },
+    // The capability-tier rules key off positions under moduleRoot/sharedRoot. Before the
+    // first move those directories do not exist, so every one of them reports zero — a
+    // structural vacuum, not a clean bill of health. Phase 2 has to know which it got.
+    capabilityTierBinds: { type: 'boolean', description: 'for the census: true only when moduleRoot exists in the target AND contains at least one source file, so the capability-tier rules had something to classify' },
     detail: { type: 'string' },
   },
 }
@@ -411,7 +415,7 @@ const enabled = await agent(
   // target's own gates, which the burndown then reads as migration debt that was never
   // ours. Excluding the directory is the only option that keeps both true — and it needs
   // to be sanctioned here, because these ignore files sit outside the writable set above.
-  `3a. Keep the target's OWN gates exactly as green as they were before this step. \`rules/\` holds vendored files: exclude that directory from the target's linter and formatter — an \`{ ignores: ['rules/**'] }\` entry in the ESLint config, plus \`rules/\` in .prettierignore or the equivalent for whichever formatter ${REPO} runs. ` +
+  `3a. Keep the target's OWN gates exactly as green as they were before this step. \`rules/\` holds vendored files: exclude that directory from the target's linter and formatter — an \`{ ignores: ['rules/**'] }\` entry in the ESLint config, plus \`rules/\` AND \`migration-manifest.json\` in .prettierignore or the equivalent for whichever formatter ${REPO} runs — the manifest is written by a later phase of this same workflow and fails the target's formatter for the same reason the vendored files do. ` +
   'You may write those ignore files and only those, in addition to the files listed above. Do NOT reformat or edit the vendored files themselves: they must stay byte-identical to the source so the copy can be re-synced. ' +
   `Then re-run the target's own lint and format commands and confirm both still pass. If installing the floor changed either verdict, say so — a floor that breaks the repository's existing gates is not installed, it is imposed.\n` +
   `4. Run \`node rules/check-dependency-classification.mjs\` from ${REPO}. It must exit 0. If a package is unclassified, add it to the side the classification below says, and if that list says undecided, report it and stop rather than guessing.\n\n` +
@@ -483,7 +487,8 @@ const PROBES = [
       'Also run `node rules/check-module-cycles.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`.\n\n' +
       'In `counts`, report one key per ESLint messageId (crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot, …) with its violation count, ' +
       'one key per non-ESLint tool with its violation count, and `preexisting` for errors from rules this repo already had before the install. ' +
-      'Set ok=true when the tools RAN — a high violation count is the expected starting point. Set ok=false only if a tool could not run at all, ' +
+      'Also set `capabilityTierBinds`: true only if moduleRoot (from the contract you just wrote) exists in the target AND holds at least one source file. If it does not, every capability, segment and surface messageId will report zero because there is nothing under those roots to classify — say so plainly in `detail` rather than presenting the zeros as a clean result.\n' +
+  'Set ok=true when the tools RAN — a high violation count is the expected starting point. Set ok=false only if a tool could not run at all, ' +
       'or if `preexisting` is non-zero: pre-existing lint debt is a red baseline, and step 8 of the adoption procedure names lint alongside type, test and build.',
   },
 ]
@@ -531,6 +536,13 @@ for (const p of PROBES) {
 
 const census = baseline.find(b => b.key === 'census')
 const violations = (census && census.counts) || {}
+// Whether the capability-tier rules had anything to bind to when this census was taken.
+// On a repository that has not moved a file yet they do not: moduleRoot does not exist, so
+// every capability, segment and surface messageId reports zero. Phase 2 compares its
+// post-migration counts against this census, and against a vacuum ANY count reads as a
+// regression — so a correct pilot would be told to revise. The flag travels with the
+// numbers because the numbers alone cannot say which kind of zero they are.
+const capabilityTierBinds = !!(census && census.capabilityTierBinds)
 const totalViolations = Object.keys(violations).reduce((n, k) => n + (violations[k] || 0), 0)
 log('Baseline: ' + baseline.filter(b => b.ok).length + '/' + baseline.length + ' probes ok, ' + totalViolations + ' violations censused')
 
@@ -608,6 +620,7 @@ const manifest = {
   deps: assignment.deps || {},
   baseline: baseline,
   violationCensus: violations,
+  capabilityTierBinds,
   ordinaryChange: ORDINARY || null,
   rulesInstalled: !!(enabled && enabled.ok),
 }
@@ -643,6 +656,11 @@ if (unassignedInPilot.length > 0) {
   blockers.push(unassignedInPilot.length + ' file(s) in the pilot capability have no owner')
 }
 const warnings = []
+if (!capabilityTierBinds) {
+  warnings.push('the capability-tier census is a structural vacuum: moduleRoot does not exist yet, so every ' +
+    'capability, segment and surface rule reported zero because it had nothing to classify. Those zeros are not a ' +
+    'clean baseline, and phase 2 must not read the counts that appear after the first move as regressions above it.')
+}
 if (unassigned.length > unassignedInPilot.length) {
   warnings.push((unassigned.length - unassignedInPilot.length) + ' file(s) outside the pilot have no owner — fine for now, they block their own capability later')
 }

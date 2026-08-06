@@ -52,6 +52,16 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The baseline census carries whether it could measure anything. On a repository that has not moved
+  a file yet, `moduleRoot` does not exist, so every capability, segment and surface rule reports zero
+  for want of anything to classify — a structural vacuum, not a clean bill of health. Phase 2
+  compared its post-migration counts against those zeros, so the first correct pilot read as a
+  repo-wide regression and would have been told to revise. Phase 1 now records
+  `capabilityTierBinds`, warns when it is false, and phase 2 waives only the regression arm on such
+  a baseline; the pilot capability must still reach zero, which never depended on the baseline.
+- Phase 1 adds `migration-manifest.json` to the target's formatter ignore list alongside `rules/`.
+  It writes that file itself in a later phase, and it failed the target's `format:check` for exactly
+  the reason the vendored files did — the first fix covered the directory and missed the file.
 - Phase 1 accepts `args` as a JSON string as well as an object. Some invocation paths serialise it
   before the script sees it, every field then read as `undefined`, and the run died with
   "args.repo is required" while pointing at a call that supplied `repo` — blaming the caller for the

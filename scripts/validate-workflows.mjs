@@ -476,10 +476,22 @@ if (files.includes(PILOT)) {
     // archRed returns the REASON it is red ('' when green), so the gate and the report
     // cannot disagree about why. Assert truthiness, and that a red answer explains itself.
     for (const [label, a, expected] of archCases) {
-      const reason = archRed(a, census)
+      const reason = archRed(a, census, true)
       check(!!reason === expected, `archRed(${label}): expected red=${expected}, got ${JSON.stringify(reason)}`)
       if (expected) check(typeof reason === 'string' && reason.length > 0, `archRed(${label}): a red verdict must name its reason`)
     }
+    // A baseline censused before any file moved measured nothing: moduleRoot did not exist,
+    // so every capability-tier rule reported zero for want of anything to classify. Compared
+    // against that vacuum, the first correct pilot looks like a repo-wide regression.
+    check(
+      archRed({ ok: true, counts: { capability: 0, crossCapabilityInternal: 9, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) === '',
+      'archRed(vacuous baseline): counts appearing after the first move are not regressions above a baseline that measured nothing'
+    )
+    // The capability's own arm does NOT depend on the baseline and must still fire.
+    check(
+      archRed({ ok: true, counts: { capability: 3, crossCapabilityInternal: 0, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) !== '',
+      'archRed(vacuous baseline, capability dirty): the capability arm must not be waived with the regression arm'
+    )
     check(archUnmeasured(undefined) === true, 'archUnmeasured(absent): must be unmeasured')
     check(archUnmeasured({ ok: false, counts: { capability: 0 } }) === true, 'archUnmeasured(ok=false): a tool that could not run is unmeasured, not clean')
     check(archUnmeasured({ ok: true, counts: { capability: 0 } }) === false, 'archUnmeasured(measured): must be measured')
