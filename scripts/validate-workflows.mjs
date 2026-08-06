@@ -341,10 +341,18 @@ if (files.includes(PILOT)) {
       errors.push(`${PILOT}: could not extract the plan-screening region — the anchors this test relies on moved`)
     } else {
       const screen = new Function(
-        'plan', 'destination', 'SURFACES', 'SEGMENTS', 'MODULE_ROOT', 'CAP', 'log',
+        'plan', 'destination', 'SURFACES', 'SEGMENTS', 'MODULE_ROOT', 'CAP', 'log', 'FILES', 'CONSUMERS',
         `${source.slice(planFrom, planTo)}; return { moving, staying, deleting, usedSurfaces, surfacesToAuthor, MOVE_TABLE, SURFACE_TABLE, AUTHOR_TABLE }`
       )
-      const run = plan => screen(plan, destination, SURFACES, SEGMENTS, 'src/modules', 'work-items', () => {})
+      // FILES and CONSUMERS are the manifest inputs the region screens the plan against.
+      // By default they are derived from the plan under test so the pre-existing tables,
+      // which predate that screening, still describe well-formed plans; a case that wants
+      // to exercise the partition rules passes its own.
+      const run = (plan, files, consumers) => screen(
+        plan, destination, SURFACES, SEGMENTS, 'src/modules', 'work-items', () => {},
+        files || (plan.moves || []).map(mv => ({ file: mv.file })),
+        consumers || [...new Set((plan.surfaces || []).flatMap(s => s.consumers || []))]
+      )
 
       const collidingBasenames = {
         moves: [
@@ -459,11 +467,11 @@ if (files.includes(PILOT)) {
       ['absent', undefined, true],
       ['not measured (ok=false)', { ok: false, counts: { capability: 0 } }, true],
       ['empty counts', { ok: true, counts: {} }, true],
-      ['capability still dirty', { ok: true, counts: { capability: 3, crossCapabilityInternal: 1 } }, true],
+      ['capability still dirty', { ok: true, counts: { capability: 3, crossCapabilityInternal: 1, domainDirection: 0 } }, true],
       ['capability undefined', { ok: true, counts: { crossCapabilityInternal: 1 } }, true],
-      ['regression elsewhere', { ok: true, counts: { capability: 0, domainDirection: 3 } }, true],
-      ['clean and improved', { ok: true, counts: { capability: 0, crossCapabilityInternal: 1 } }, false],
-      ['new messageId appears', { ok: true, counts: { capability: 0, serverClient: 1 } }, true],
+      ['regression elsewhere', { ok: true, counts: { capability: 0, crossCapabilityInternal: 0, domainDirection: 3 } }, true],
+      ['clean and improved', { ok: true, counts: { capability: 0, crossCapabilityInternal: 1, domainDirection: 0 } }, false],
+      ['new messageId appears', { ok: true, counts: { capability: 0, crossCapabilityInternal: 0, domainDirection: 0, serverClient: 1 } }, true],
     ]
     // archRed returns the REASON it is red ('' when green), so the gate and the report
     // cannot disagree about why. Assert truthiness, and that a red answer explains itself.
@@ -475,8 +483,12 @@ if (files.includes(PILOT)) {
     check(archUnmeasured(undefined) === true, 'archUnmeasured(absent): must be unmeasured')
     check(archUnmeasured({ ok: false, counts: { capability: 0 } }) === true, 'archUnmeasured(ok=false): a tool that could not run is unmeasured, not clean')
     check(archUnmeasured({ ok: true, counts: { capability: 0 } }) === false, 'archUnmeasured(measured): must be measured')
+    check(archUnmeasured({ ok: true, counts: { crossCapabilityInternal: 1 } }) === true, 'archUnmeasured(no capability counter): the burndown counter is the measurement')
+    check(archUnmeasured({ ok: true, counts: { capability: 0 } }, { serverClient: 2 }) === true, 'archUnmeasured(baseline counter missing): absent is not zero')
 
-    const green = { ok: true, counts: { capability: 0 } }
+    // Carries every census counter: a result that omits one cannot be compared against
+    // its baseline, so the decision function now calls that unmeasured rather than clean.
+    const green = { ok: true, counts: { capability: 0, crossCapabilityInternal: 1, domainDirection: 0 } }
     const gateCases = [
       ['behaviour agent died', { behaviour: null, architecture: green, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
       ['review agent died', { behaviour: { ok: true }, architecture: green, review: null }, 'inconclusive'],
@@ -484,15 +496,20 @@ if (files.includes(PILOT)) {
       ['behaviour red', { behaviour: { ok: false }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'revise'],
       // "could not run" is not "found violations": it is silence, and silence is
       // never a verdict. This row previously hardcoded 'revise' and pinned the bug.
-      ['architecture could not run', { behaviour: { ok: true }, architecture: { ok: false, counts: { capability: 0 } }, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
+      ['architecture could not run', { behaviour: { ok: true }, architecture: { ok: false, counts: { capability: 0, crossCapabilityInternal: 1, domainDirection: 0 } }, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
+      // `ok` now means only "the tools ran". A red measurement must reach the human as
+      // red, not as silence: reported as `inconclusive` it read as "we do not know".
+      ['architecture measured and red', { behaviour: { ok: true }, architecture: { ok: true, counts: { capability: 5, crossCapabilityInternal: 1, domainDirection: 0 } }, review: { verdict: 'sound', findings: [] } }, 'revise'],
+      // A counter present at baseline and absent now is not a counter at zero.
+      ['architecture dropped a baseline counter', { behaviour: { ok: true }, architecture: { ok: true, counts: { capability: 0, crossCapabilityInternal: 1 } }, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
       ['architecture reported nothing', { behaviour: { ok: true }, architecture: { ok: true, counts: {} }, review: { verdict: 'sound', findings: [] } }, 'inconclusive'],
       ['review rejects', { behaviour: { ok: true }, architecture: green, review: { verdict: 'reject', findings: [] } }, 'reject'],
       // reject must DOMINATE. It sat after the behaviour and architecture branches, so
       // the one verdict meaning "abandon this ownership model" was downgraded to
       // `revise` in exactly the states where it is most likely correct.
       ['reject with behaviour red', { behaviour: { ok: false }, architecture: green, review: { verdict: 'reject', findings: [] } }, 'reject'],
-      ['reject with architecture red', { behaviour: { ok: true }, architecture: { ok: true, counts: { capability: 4 } }, review: { verdict: 'reject', findings: [] } }, 'reject'],
-      ['reject with must-fix too', { behaviour: { ok: false }, architecture: { ok: true, counts: { capability: 2 } }, review: { verdict: 'reject', findings: [{ severity: 'must-fix' }] } }, 'reject'],
+      ['reject with architecture red', { behaviour: { ok: true }, architecture: { ok: true, counts: { capability: 4, crossCapabilityInternal: 1, domainDirection: 0 } }, review: { verdict: 'reject', findings: [] } }, 'reject'],
+      ['reject with must-fix too', { behaviour: { ok: false }, architecture: { ok: true, counts: { capability: 2, crossCapabilityInternal: 1, domainDirection: 0 } }, review: { verdict: 'reject', findings: [{ severity: 'must-fix' }] } }, 'reject'],
       ['must-fix present', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'must-fix' }] } }, 'revise'],
       ['nits only', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'nit' }] } }, 'accept'],
       ['all green', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'accept'],
@@ -536,6 +553,28 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   ]) {
     const { result } = await runBody(baseSrc, { args: argv })
     check(result && typeof result.error === 'string', `${BASELINE} (${label}): must refuse before spending an agent, got ${JSON.stringify(result)}`)
+  }
+
+  // ─── phase 1 required handoffs ───
+  // A missing lens and a failed manifest writer both reported success: the lens count
+  // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".
+  {
+    const ARGS1 = { repo: '/t', ordinaryChange: 'add a field' }
+    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+
+    const lensLabels = (await runBody(baseSrc, { args: ARGS1, overrides: withSrc })).calls.filter(c => typeof c === 'string' && c.startsWith('lens:'))
+    check(lensLabels.length > 0, `${BASELINE}: no inventory lens ran, so the gate below proves nothing`)
+    const oneDead = await runBody(baseSrc, { args: ARGS1, overrides: { ...withSrc, [lensLabels[0]]: null } })
+    check(
+      oneDead.result && typeof oneDead.result.error === 'string',
+      `${BASELINE} (one lens died): must stop rather than assign owners from evidence nobody gathered, got ${JSON.stringify(oneDead.result && oneDead.result.error)}`
+    )
+
+    const noManifest = await runBody(baseSrc, { args: ARGS1, overrides: { ...withSrc, 'write-manifest': { ok: false, detail: 'disk full' } } })
+    check(
+      noManifest.result && (noManifest.result.blockers || []).some(b => /manifest/i.test(b)),
+      `${BASELINE} (manifest writer failed): must be a blocker — phase 2 reads everything from it. blockers=${JSON.stringify(noManifest.result && noManifest.result.blockers)}`
+    )
   }
 
   // ─── contractSource resolution ───
@@ -617,10 +656,75 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     'move:internals': { ok: true, filesTouched: ['src/modules/work-items/domain/calc.ts'], detail: '' },
     'move:consumers': { ok: true, filesTouched: [], detail: '' },
     'verify:behaviour': { ok: true, detail: 'green' },
-    'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 1 }, detail: '' },
+    'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 1 }, detail: '' },  // census below declares only crossCapabilityInternal
     'verify:review': { verdict: 'sound', findings: [] },
   }
   const pilot = over => runBody(pilotSrc, { args: pilotArgs, overrides: { ...base, ...over } })
+
+  // ─── Plan must be a partition of the manifest's file set ───
+  // Screening judged destinations only, so a plan covering a subset passed and the pilot
+  // reported success over the files it happened to mention.
+  {
+    const twoFiles = { ...manifest, assignments: [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/fmt.ts' }] }
+    const partitionCases = [
+      ['plan omits an assigned file', twoFiles, { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces: [] }],
+      ['plan names an unassigned file', manifest, { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/elsewhere/x.ts', role: 'domain' }], surfaces: [] }],
+      ['one source planned twice', manifest, { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/calc.ts', role: 'server' }], surfaces: [] }],
+      ['surface names an unrecorded consumer', manifest, { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces: [{ surface: 'server', consumers: ['src/app/invented.tsx'], exports: ['listItems'] }] }],
+      ['surface with an empty export contract', manifest, { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces: [{ surface: 'server', consumers: ['src/app/p.tsx'], exports: [] }] }],
+    ]
+    for (const [label, mf, plan] of partitionCases) {
+      const out = await pilot({ 'load-manifest': mf, 'plan:work-items': plan })
+      check(
+        out.result && out.result.error === 'plan rejected before any write',
+        `${PILOT} (${label}): must be rejected before the first write, got ${JSON.stringify(out.result && (out.result.error || out.result.recommendation))}`
+      )
+      check(!out.calls.includes('move:internals'), `${PILOT} (${label}): the mover ran on a rejected plan`)
+    }
+  }
+
+  // ─── reject stops before the fix loop ───
+  // recommendation() puts reject first, but it runs AFTER the loop, so with rounds
+  // enabled the fix agents edited the design the reviewer said to drop. maxFixRounds: 0
+  // everywhere else in this file hid that entirely.
+  {
+    const rejected = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 2 },
+      overrides: { ...base, 'verify:behaviour': { ok: false, detail: 'red' }, 'verify:review': { verdict: 'reject', findings: [{ severity: 'must-fix' }] } },
+    })
+    check(
+      !rejected.calls.some(c => typeof c === 'string' && c.startsWith('fix:')),
+      `${PILOT} (reject with rounds enabled): fix agents ran against a rejected ownership model — ${JSON.stringify(rejected.calls)}`
+    )
+    check(rejected.result && rejected.result.recommendation === 'reject', `${PILOT} (reject with rounds enabled): expected reject, got ${JSON.stringify(rejected.result && rejected.result.recommendation)}`)
+    // The same shape WITHOUT a reject must still spend rounds, or the assertion above
+    // would pass on a workflow that simply never fixes anything.
+    const revising = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 2 },
+      overrides: { ...base, 'verify:behaviour': { ok: false, detail: 'red' }, 'verify:review': { verdict: 'sound', findings: [{ severity: 'must-fix' }] } },
+    })
+    check(
+      revising.calls.some(c => typeof c === 'string' && c.startsWith('fix:')),
+      `${PILOT} (red without reject): no fix round ran, so the reject assertion above proves nothing`
+    )
+  }
+
+  // ─── a failed consumer move is not a migrated tree ───
+  {
+    const stalled = await pilot({ 'move:consumers': { ok: false, filesTouched: [], detail: 'could not rewrite imports' } })
+    check(
+      stalled.result && stalled.result.recommendation === 'inconclusive',
+      `${PILOT} (consumer move failed): expected inconclusive, got ${JSON.stringify(stalled.result && stalled.result.recommendation)}`
+    )
+    check(!stalled.calls.includes('verify:behaviour'), `${PILOT} (consumer move failed): verified a half-migrated tree`)
+    // Zero files touched is legitimate here — consumers reaching the capability through
+    // an unchanged surface path need no edit — so it must NOT be treated as a failure.
+    const quiet = await pilot({ 'move:consumers': { ok: true, filesTouched: [], detail: 'no import needed rewriting' } })
+    check(
+      quiet.result && quiet.result.recommendation === 'accept',
+      `${PILOT} (consumer move touched nothing): a correct no-op must not read as a failure, got ${JSON.stringify(quiet.result && quiet.result.recommendation)}`
+    )
+  }
 
   const happy = await pilot({})
   check(happy.result && happy.result.recommendation === 'accept', `${PILOT} (all green): expected accept, got ${JSON.stringify(happy.result && happy.result.recommendation)}`)

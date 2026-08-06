@@ -256,6 +256,18 @@ const lensOuts = lensRaw
   .filter(Boolean)
 
 log('Inventory: ' + lensOuts.length + '/' + LENSES.length + ' lenses returned')
+// A missing lens is a hole in the census, not a smaller census. Each one is the only
+// authority over its slice of the tree, so a run built on four of six assigns owners
+// from evidence nobody gathered — and the log line above was the only trace of it.
+if (lensOuts.length < LENSES.length) {
+  const missing = LENSES.filter((l, i) => !lensRaw[i]).map(l => l.key)
+  return {
+    error: 'inventory incomplete: ' + missing.length + ' of ' + LENSES.length + ' lenses did not return',
+    missingLenses: missing,
+    detail: 'Each lens is the only authority over its part of the tree, so assignment and the census ' +
+      'would be built on evidence that was never gathered. Re-run; agents that died are not agents that found nothing.',
+  }
+}
 if (lensOuts.length === 0) return { error: 'every inventory lens failed — nothing to assign' }
 
 const lensByKey = Object.create(null)
@@ -552,6 +564,13 @@ if (Object.keys(violations).length === 0) {
 }
 const radiusProbe = baseline.find(b => b.key === 'change-radius')
 if (radiusProbe && !radiusProbe.ok) blockers.push('the change-radius before-set was not established: ' + radiusProbe.detail)
+// The manifest IS the handoff. Without it phase 2 has no assignments, no census and no
+// contract path — yet `manifestPath: null` shipped alongside "no blockers, pilot can
+// start", which is an invitation to run phase 2 against nothing.
+if (!written || !written.ok) {
+  blockers.push('migration-manifest.json was not written: ' + ((written && written.detail) || 'the writer agent returned nothing') +
+    ' — phase 2 reads every assignment, the census and the contract path from it')
+}
 
 log(
   (blockers.length === 0 ? 'Baseline complete, no blockers — pilot can start' : 'Baseline complete with ' + blockers.length + ' blocker(s)') +

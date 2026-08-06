@@ -409,7 +409,38 @@ const byDest = Object.create(null)
 for (const r of moving) (byDest[r.dest] ||= []).push(r.file)
 for (const d of Object.keys(byDest)) if (byDest[d].length > 1) collisions.push({ dest: d, sources: byDest[d] })
 
-if (invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || duplicateSurfaces.length > 0) {
+// The plan has to be a PARTITION of the manifest's file set: every assigned file
+// exactly once, and nothing that was not assigned. Screening judged destinations only,
+// so a plan covering half the capability passed every check and the pilot reported
+// success over a subset — with the unplanned half left at its old paths importing
+// modules that had moved, which is the both-topologies-at-once state the scope guards
+// forbid. `stay` and `delete` are roles, so "not migrating this file" is still a plan
+// entry; silence is not.
+const assignedFiles = FILES.map(a => a.file)
+const plannedSources = (plan.moves || []).map(mv => mv.file)
+const sourceSeen = Object.create(null)
+const duplicateSources = []
+for (const f of plannedSources) {
+  if (sourceSeen[f]) duplicateSources.push(f)
+  sourceSeen[f] = true
+}
+const unplannedFiles = assignedFiles.filter(f => !sourceSeen[f])
+const unknownSources = plannedSources.filter(f => assignedFiles.indexOf(f) === -1)
+
+// A surface is created for named consumers. `usedSurfaces` only required the list to be
+// non-empty, so an invented consumer path kept a surface alive that nothing imports, and
+// an empty export list published a contract with no contents.
+const strayConsumers = []
+for (const s of usedSurfaces) {
+  for (const c of s.consumers || []) if (CONSUMERS.indexOf(c) === -1) strayConsumers.push({ surface: s.surface, consumer: c })
+}
+const emptyExports = usedSurfaces.filter(s => (s.exports || []).length === 0).map(s => s.surface)
+
+if (
+  invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || duplicateSurfaces.length > 0 ||
+  duplicateSources.length > 0 || unplannedFiles.length > 0 || unknownSources.length > 0 ||
+  strayConsumers.length > 0 || emptyExports.length > 0
+) {
   return {
     error: 'plan rejected before any write',
     reasons: []
@@ -418,11 +449,21 @@ if (invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || dup
       // Accepting a collision means telling the mover to overwrite one product
       // file with another and delete the original in the same change.
       .concat(collisions.length > 0 ? ['two or more sources resolve to one destination'] : [])
-      .concat(duplicateSurfaces.length > 0 ? ['one surface declared more than once, with conflicting contracts'] : []),
+      .concat(duplicateSurfaces.length > 0 ? ['one surface declared more than once, with conflicting contracts'] : [])
+      .concat(unplannedFiles.length > 0 ? ['the plan does not cover every file the manifest assigned to this capability'] : [])
+      .concat(unknownSources.length > 0 ? ['the plan names files the manifest did not assign to this capability'] : [])
+      .concat(duplicateSources.length > 0 ? ['one source file planned more than once'] : [])
+      .concat(strayConsumers.length > 0 ? ['a surface names a consumer the manifest did not record'] : [])
+      .concat(emptyExports.length > 0 ? ['a surface is created with an empty export contract'] : []),
     invalid: invalid.map(r => ({ file: r.file, role: r.role, surface: r.surface, basename: r.basename })),
     badSurfaces: badSurfaces.map(s => s.surface),
     collisions,
     duplicateSurfaces,
+    unplannedFiles,
+    unknownSources,
+    duplicateSources,
+    strayConsumers,
+    emptyExports,
     admitted: { segments: SEGMENTS, surfaces: SURFACES },
   }
 }
@@ -512,6 +553,25 @@ const external = await agent(
 )
 if (external) log('Move consumers: ' + (external.ok ? (external.filesTouched || []).length + ' files touched' : 'FAILED — ' + external.detail))
 
+// Same reasoning as the internals gate above, and it was missing here: a dead or failed
+// consumer mover fell through to Verify, which then measured a tree whose external
+// importers still point at paths that no longer exist.
+//
+// Failure, not emptiness. `moveIncomplete` also treats zero files touched as incomplete,
+// which is right for internals — nothing moved means nothing happened — but wrong here:
+// consumers that reach the capability through a surface whose path did not change need
+// no edit, and a correct run legitimately touches nothing.
+if (CONSUMERS.length > 0 && (!external || !external.ok)) {
+  return {
+    capability: CAP,
+    recommendation: 'inconclusive',
+    reason: 'the consumer move did not complete: ' + ((external && external.detail) || 'the mover returned nothing'),
+    filesTouched: (internals && internals.filesTouched) || [],
+    humanGate: 'Internals moved but external consumers did not follow, so the tree is half-migrated and ' +
+      'imports point at paths that no longer exist. Nothing was verified. Inspect the working tree before re-running.',
+  }
+}
+
 const declaredAdapters = []
   .concat((internals && internals.adapters) || [])
   .concat((external && external.adapters) || [])
@@ -530,9 +590,12 @@ const ARCH_PROBE =
   `Additionally include the key \`capability\` with the number of violations whose file is under ${MODULE_ROOT}/${CAP}/.\n\n` +
   'Baseline census for comparison (do NOT try to make the numbers look good — report what the tools say):\n' +
   '```json\n' + JSON.stringify(CENSUS, null, 2) + '\n```\n\n' +
-  'Set ok=false if any of the tools could not be RUN at all (missing plugin, missing config, crash) — ' +
-  'that is "not measured", which the caller must not read as "clean". Otherwise set ok=true only when the ' +
-  'capability key is 0 and no total exceeds its baseline. Fix nothing.\n\nStructured output only.'
+  '`ok` means "the tools RAN", nothing else. Set ok=false only when a tool could not be run at all ' +
+  '(missing plugin, missing config, crash) — that is "not measured", which the caller must not read as "clean". ' +
+  'If the tools ran, set ok=true and report what they found however red it is: the caller computes red from ' +
+  '`counts`, so an ok=false meaning "measured, and bad" was read as "did not measure" and turned a red ' +
+  'capability into an inconclusive verdict. Report every messageId in the baseline census above, including the ' +
+  'ones now at zero — an omitted counter cannot be compared against its baseline. Fix nothing.\n\nStructured output only.'
 
 // ─── Pure decision logic ───
 // These three are deliberately free of closure state: they take everything they
@@ -555,8 +618,19 @@ function moveIncomplete(step) {
 // "Could not be run" is NOT "found violations". ARCH_PROBE tells the agent to set
 // ok=false when a tool could not run at all, and the caller must not read that as
 // clean — but it must not read it as dirty either. Silence is its own state.
-function archUnmeasured(a) {
-  return !a || !a.ok || Object.keys(a.counts || {}).length === 0
+function archUnmeasured(a, census) {
+  if (!a || !a.ok) return true
+  const c = a.counts || {}
+  if (Object.keys(c).length === 0) return true
+  // `capability` is the counter the burndown is measured on. A result without it is a
+  // result about something else, and `c.capability !== 0` would read `undefined !== 0`
+  // as red — the right verdict from the wrong reading, which stops being right the
+  // moment the shape changes.
+  if (typeof c.capability !== 'number') return true
+  // Every baseline counter has to come back, including the ones now at zero: a missing
+  // key compares as absent rather than as zero, so an agent that simply stopped
+  // reporting a messageId looked like it had eliminated it.
+  return Object.keys(census || {}).some(k => typeof c[k] !== 'number')
 }
 
 // One predicate for a MEASURED architectural oracle, used by both the fix loop and
@@ -566,7 +640,7 @@ function archUnmeasured(a) {
 // gate with its fix rounds unspent. Returns the reason, so the report can name it
 // instead of re-deriving the same inputs and disagreeing again.
 function archRed(a, census) {
-  if (archUnmeasured(a)) return 'not measured'
+  if (archUnmeasured(a, census)) return 'not measured'
   const c = a.counts
   if (c.capability !== 0) return 'the capability still has ' + c.capability + ' violation(s)'
   const regressed = Object.keys(c).filter(k => k !== 'capability' && (c[k] || 0) > ((census || {})[k] || 0))
@@ -582,7 +656,7 @@ function recommendation(o, census) {
   const measured = {
     behaviour: !!o.behaviour,
     // An architecture agent that could not run its tools is unmeasured, not red.
-    architecture: !archUnmeasured(o.architecture),
+    architecture: !archUnmeasured(o.architecture, census),
     review: !!(o.review && o.review.verdict),
   }
   const unmeasured = Object.keys(measured).filter(k => !measured[k])
@@ -670,6 +744,11 @@ const loopState = o => JSON.stringify({
 })
 while (
   fixRounds < MAX_FIX &&
+  // `reject` means the ownership model is wrong, so there is nothing here to repair.
+  // recommendation() already puts reject first, but it runs AFTER this loop — so the
+  // fix agents were editing a design the reviewer had told us to drop, and the human
+  // gate then received a mutated version of the thing it was asked to judge.
+  !(oracles.review && oracles.review.verdict === 'reject') &&
   (archRed(oracles.architecture, CENSUS) || !(oracles.behaviour && oracles.behaviour.ok) ||
    ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
 ) {

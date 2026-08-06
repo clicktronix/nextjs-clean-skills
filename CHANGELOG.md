@@ -42,6 +42,28 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The architecture oracle's `ok` meant two things at once. The prompt asked for `ok=false` both when
+  a tool could not run and when the counts came back red, while `archUnmeasured` read every
+  `ok=false` as "no measurement" — so a capability with real violations reached the human as
+  `inconclusive` ("the oracles did not report") instead of `revise` ("still N violations"). `ok` now
+  means only that the tools ran; red is computed from `counts`. A result missing the `capability`
+  counter, or any counter present in the baseline census, is unmeasured rather than clean: absent is
+  not zero.
+- The pilot's plan is now screened as a partition of the manifest's file set — every assigned file
+  exactly once, nothing unassigned, no source twice. Screening judged destinations only, so a plan
+  covering half the capability passed every check and the pilot reported success over a subset,
+  leaving the other half at old paths importing modules that had moved. Surfaces are also checked
+  against the recorded consumers and rejected when their export contract is empty.
+- `reject` stops the run before the fix loop, not after it. `recommendation()` already put reject
+  first, but it is called after the loop, so with fix rounds enabled the fix agents edited the
+  ownership model the reviewer had told us to abandon and the human gate received a mutated version
+  of the thing it was asked to judge. Every existing whole-body test used `maxFixRounds: 0`, which
+  hid it completely.
+- Four required handoffs are gated instead of logged: an inventory lens that did not return now
+  stops phase 1 rather than assigning owners from evidence nobody gathered; a failed manifest writer
+  is a blocker rather than `manifestPath: null` alongside "no blockers, pilot can start"; and a
+  failed consumer move stops phase 2 rather than letting the oracles measure a half-migrated tree.
+  A consumer move that legitimately touches nothing is still a success.
 - The forbidden-syntax check for the workflow VM walks the parsed AST instead of matching
   line-scoped regexes. A dead-branch `await import('node:fs')` and a `new Date()` split across two
   lines both passed while it reported green — a syntax rule judged by anything but the syntax tree
