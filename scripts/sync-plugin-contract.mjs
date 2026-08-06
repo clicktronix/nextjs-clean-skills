@@ -46,10 +46,11 @@ let written = 0
 if (sources.length === 0) errors.push('no sources found under docs/ or rules/ — the mirror verified nothing')
 
 for (const source of sources) {
+  const isMarkdown = source.endsWith('.md')
   const target = path.join(PLUGIN, source)
   const absoluteSource = path.join(root, source)
   const absoluteTarget = path.join(root, target)
-  const wanted = source.endsWith('.md')
+  const wanted = isMarkdown
     ? rewrite(fs.readFileSync(absoluteSource, 'utf8'))
     : fs.readFileSync(absoluteSource)
 
@@ -58,8 +59,8 @@ for (const source of sources) {
       errors.push(`${target} is missing; run \`npm run sync-plugin-contract\``)
       continue
     }
-    const actual = fs.readFileSync(absoluteTarget, source.endsWith('.md') ? 'utf8' : null)
-    const same = source.endsWith('.md') ? actual === wanted : Buffer.compare(actual, wanted) === 0
+    const actual = fs.readFileSync(absoluteTarget, isMarkdown ? 'utf8' : null)
+    const same = isMarkdown ? actual === wanted : Buffer.compare(actual, wanted) === 0
     if (!same) errors.push(`${target} is stale; run \`npm run sync-plugin-contract\``)
     continue
   }

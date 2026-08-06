@@ -47,9 +47,8 @@ All notable changes to this project are documented in this file.
   § Sources Of Truth requires.
 - Recorded in the workflows README, rather than only in a pull-request description that a squash
   merge discards, that these workflows have never been executed against a live repository.
-- Set the planned plugin version to `3.0.0` so the breaking skill rename no longer shares the
-  released `2.0.0` manifest version, and made capability-first descriptions the synchronized
-  marketplace source of truth.
+- Stopped a breaking skill rename from shipping under an already-released manifest version, and
+  made capability-first descriptions the synchronized marketplace source of truth.
 - Derived source, module, app, shared, alias, ESLint-glob, cycle, and database-subject resolution
   from one executable contract. Added a nonstandard-root/alias canary so portability cannot regress
   behind a passing default fixture. Direct files under `sharedRoot` remain classified and standard

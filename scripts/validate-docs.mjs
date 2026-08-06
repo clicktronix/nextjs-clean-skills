@@ -19,11 +19,19 @@ const docs = listFiles('docs', (file) => file.endsWith('.md')).sort()
 // so a typo or a moved mirror would have dropped half this file's coverage while still printing
 // ok — the check-that-looked-nowhere failure this repository exists to remove. A mirrored file that
 // is missing now throws ENOENT instead of vanishing from the list.
-const shipped = [...docs, 'rules/README.md'].map((file) => `${PLUGIN}/${file}`)
+// Listed, not spelled out as `rules/README.md`: sync-plugin-contract mirrors rules/ whole, so a
+// second markdown file added there ships to installed users. Naming one file walked exactly one
+// file no matter what the mirror actually carried.
+const rulesDocs = listFiles('rules', (file) => file.endsWith('.md')).sort()
+const shipped = [...docs, ...rulesDocs].map((file) => `${PLUGIN}/${file}`)
 // plugins/nextjs-clean-skills/workflows/README.md links into docs/ and rules/; unchecked, a renamed
 // section there would rot silently like any other doc in this repo.
-const files = ['README.md', 'rules/README.md', `${PLUGIN}/workflows/README.md`, ...docs, ...shipped]
+const files = ['README.md', `${PLUGIN}/workflows/README.md`, ...docs, ...rulesDocs, ...shipped]
 const errors = []
+// Both directories are non-empty in every state this repository can be in, so an empty listing
+// means the walk looked somewhere else and the counts below would report success over nothing.
+if (docs.length === 0) errors.push('no markdown found under docs/ — the doc check walked nothing')
+if (rulesDocs.length === 0) errors.push('no markdown found under rules/ — the doc check walked nothing')
 let diagramCount = 0
 let linkCount = 0
 

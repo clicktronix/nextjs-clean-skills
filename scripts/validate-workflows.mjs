@@ -55,6 +55,32 @@ const check = (ok, message) => {
   if (!ok) errors.push(message)
 }
 
+// These files are almost entirely agent prompts assembled from template literals, so `${…}` in a
+// quote that does not interpolate ships the placeholder text to the agent verbatim. That is the
+// failure the baseline workflow's own comment names: an agent handed a path that does not exist
+// proceeds from memory instead of from the contract. Nothing else would catch it — the string is
+// valid JavaScript and the prompt still reads plausibly.
+function deadPlaceholders(source) {
+  const found = []
+  const lines = source.split('\n')
+  for (let n = 0; n < lines.length; n += 1) {
+    const line = lines[n]
+    let quote = null
+    for (let i = 0; i < line.length; i += 1) {
+      const c = line[i]
+      if (quote) {
+        if (c === '\\') { i += 1; continue }
+        if (c === quote) { quote = null; continue }
+        if (quote !== '`' && c === '$' && line[i + 1] === '{') found.push(n + 1)
+        continue
+      }
+      if (c === "'" || c === '"' || c === '`') quote = c
+      else if (c === '/' && line[i + 1] === '/') break
+    }
+  }
+  return [...new Set(found)]
+}
+
 // Through _lib, like every sibling validator: it resolves against `root` so a check
 // cannot quietly look at the wrong directory.
 const files = listFiles(DIR, f => f.endsWith('.js')).map(f => f.split('/').pop()).sort()
@@ -93,6 +119,12 @@ for (const file of files) {
   } catch (error) {
     errors.push(`${file}: does not parse as an async-function body — ${error.message}`)
   }
+
+  const dead = deadPlaceholders(source)
+  check(
+    dead.length === 0,
+    `${file}: \${...} inside a non-interpolating quote on line(s) ${dead.join(', ')} — the placeholder reaches the agent as literal text`
+  )
 
   const meta = metaOf(source, file)
   if (meta) {
@@ -506,10 +538,16 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   {
     const nonReadme = listFiles('rules', file => !file.endsWith('README.md')).length
     const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-    check(
-      baseSrc.includes(`${words[nonReadme]} non-README files`),
-      `${BASELINE}: rules/ has ${nonReadme} non-README files but the copy instruction does not say "${words[nonReadme]}"`
-    )
+    // Off the end of the table the check would grep for "undefined non-README files" — it still
+    // fails, but says nothing useful about why.
+    if (nonReadme >= words.length) {
+      check(false, `${BASELINE}: rules/ has ${nonReadme} non-README files, past the spelled-out range; extend words[] or write the count as a digit`)
+    } else {
+      check(
+        baseSrc.includes(`${words[nonReadme]} non-README files`),
+        `${BASELINE}: rules/ has ${nonReadme} non-README files but the copy instruction does not say "${words[nonReadme]}"`
+      )
+    }
   }
 
   const manifest = {
