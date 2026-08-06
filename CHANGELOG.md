@@ -40,6 +40,16 @@ All notable changes to this project are documented in this file.
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
   against tables. The workflows README is now covered by the docs link check.
 
+### Added
+
+- `dependencyDecisions` lets the operator answer the packages a run reported as undecided:
+  `{ "dayjs": "runtime" }`. Phase 1 correctly refuses to classify a dependency the product has not
+  ruled on — but until now that stop was a dead end, because the only way forward was to hand-edit
+  the target's contract, which is exactly the unrecorded guess the stop existed to prevent. Decisions
+  are checked against *this* run's undecided list, so a stale answer to an older question is refused
+  rather than written into a new repository's contract, and they are recorded in the manifest and the
+  run result so a later reader can tell an inference from a ruling.
+
 ### Fixed
 
 - Phase 1 accepts `args` as a JSON string as well as an object. Some invocation paths serialise it

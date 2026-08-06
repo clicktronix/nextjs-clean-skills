@@ -583,6 +583,59 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
+  // ─── human decisions on undecided dependencies ───
+  // Refusing to guess only helps if the answer has somewhere to go. Without this argument
+  // the first live run's stop was a dead end: the operator's only route forward was to
+  // hand-edit the target's contract, which is the guess the stop existed to prevent.
+  {
+    const ARGSD = { repo: '/t', ordinaryChange: 'add a field' }
+    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const assigned = {
+      capabilities: [{ name: 'work-items' }],
+      assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
+      unassigned: [],
+      deps: { pure: [], runtime: [], undecided: ['dayjs'] },
+    }
+    const over = { ...withSrc, assign: assigned }
+
+    const stillOpen = await runBody(baseSrc, { args: ARGSD, overrides: over })
+    check(
+      (stillOpen.result && (stillOpen.result.blockers || []).some(b => /undecided/.test(b))),
+      `${BASELINE} (undecided, no decision): must block. blockers=${JSON.stringify(stillOpen.result && stillOpen.result.blockers)}`
+    )
+
+    const decided = await runBody(baseSrc, {
+      args: { ...ARGSD, dependencyDecisions: { dayjs: 'runtime' } },
+      overrides: over,
+    })
+    check(
+      !((decided.result && (decided.result.blockers || [])).some(b => /undecided/.test(b))),
+      `${BASELINE} (decision supplied): must clear the blocker. blockers=${JSON.stringify(decided.result && decided.result.blockers)}`
+    )
+    // The decision has to reach the agent that writes the contract, not just the blocker list.
+    check(
+      decided.prompts.some(p => p.label === 'enable-rules' && /runtime:[^\n]*dayjs/.test(p.prompt)),
+      `${BASELINE} (decision supplied): dayjs never reached the install prompt as a runtime package`
+    )
+    // And it must be recorded, so a later reader can tell an inference from a ruling.
+    check(
+      decided.result && (decided.result.dependencyDecisions || []).some(d => d.package === 'dayjs' && d.side === 'runtime'),
+      `${BASELINE} (decision supplied): the manifest does not record who decided it`
+    )
+
+    const badSide = await runBody(baseSrc, { args: { ...ARGSD, dependencyDecisions: { dayjs: 'maybe' } }, overrides: over })
+    check(
+      badSide.result && /must be "pure" or "runtime"/.test(badSide.result.error || ''),
+      `${BASELINE} (bad decision value): must be refused, got ${JSON.stringify(badSide.result && badSide.result.error)}`
+    )
+    // A decision about a package this run never raised is a stale answer to an older question.
+    const stale = await runBody(baseSrc, { args: { ...ARGSD, dependencyDecisions: { lodash: 'pure' } }, overrides: over })
+    check(
+      stale.result && /did not report as undecided/.test(stale.result.error || ''),
+      `${BASELINE} (stale decision): must be refused, got ${JSON.stringify(stale.result && stale.result.error)}`
+    )
+  }
+
   // ─── phase 1 required handoffs ───
   // A missing lens and a failed manifest writer both reported success: the lens count
   // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".

@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, then INSTALL rules/ and a drafted architecture-contract.json into the target and amend its ESLint config, capture the behavioural baseline and the violation census, and write migration-manifest.json. Moves no product code.',
   whenToUse:
-    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", contractSource?: "/abs/path/to/the/plugin/root" }. contractSource is resolved from the installed plugin when omitted.',
+    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", contractSource?: "/abs/path/to/the/plugin/root", dependencyDecisions?: { "pkg": "pure|runtime" } }. contractSource is resolved from the installed plugin when omitted; dependencyDecisions answers the packages a previous run reported as undecided.',
   phases: [
     { title: 'Inventory', detail: 'six read-only lenses over routes, capabilities, runtime boundaries, data access, deps, roots' },
     { title: 'Assign', detail: 'single owner + role + runtime class for every source file (barrier: assignment needs the whole set)' },
@@ -339,6 +339,48 @@ log(
   (assignment.unassigned || []).length + ' unassigned, ' + ((assignment.deps && assignment.deps.undecided) || []).length + ' undecided deps'
 )
 
+// ─── Human decisions on the undecided dependencies ───
+// Refusing to guess is only half a design. The first live run stopped on one unclassified
+// package — correctly — and left the operator nowhere to put the answer: the only way
+// forward was to hand-edit the target's contract, which is exactly the guess the stop
+// existed to prevent, made by hand and unrecorded. `dependencyDecisions` is that channel.
+// Applied here rather than in the Enable prompt so the classification the agent is handed
+// is already complete, and so the manifest can record who decided what.
+const DECISIONS = ARGS.dependencyDecisions || {}
+const deps = assignment.deps || {}
+const decidedByHuman = []
+if (Object.keys(DECISIONS).length > 0) {
+  const bad = Object.keys(DECISIONS).filter(k => DECISIONS[k] !== 'pure' && DECISIONS[k] !== 'runtime')
+  if (bad.length > 0) {
+    return {
+      error: 'args.dependencyDecisions values must be "pure" or "runtime"',
+      offending: bad.map(k => k + ': ' + JSON.stringify(DECISIONS[k])),
+    }
+  }
+  // Only the ones this run actually reported as undecided. A decision about a package the
+  // inventory never raised is a stale copy of a previous run's question, and silently
+  // classifying on it would put the operator's old answer into a new repository's contract.
+  const open = deps.undecided || []
+  const unknown = Object.keys(DECISIONS).filter(k => open.indexOf(k) === -1)
+  if (unknown.length > 0) {
+    return {
+      error: 'args.dependencyDecisions names packages this run did not report as undecided',
+      offending: unknown,
+      undecided: open,
+      detail: 'Decisions are answers to THIS run\'s question. Drop the stale entries, or re-read the undecided list above.',
+    }
+  }
+  for (const name of open) {
+    if (!DECISIONS[name]) continue
+    deps[DECISIONS[name]] = (deps[DECISIONS[name]] || []).concat(name)
+    decidedByHuman.push({ package: name, side: DECISIONS[name] })
+  }
+  deps.undecided = open.filter(name => !DECISIONS[name])
+  assignment.deps = deps
+  log('Dependency decisions applied: ' + decidedByHuman.map(d => d.package + '→' + d.side).join(', ') +
+    (deps.undecided.length > 0 ? ' · ' + deps.undecided.length + ' still undecided' : ''))
+}
+
 // ─── Enable: install the executable floor, then census ───
 // Order matters and is not ours to choose: rules/README.md requires every direct
 // dependency classified BEFORE the rules are enabled, because a newly installed
@@ -516,6 +558,10 @@ const manifest = {
       'accepted migration debt with owner and removal condition',
     ],
   },
+  // Who decided what, and by what authority. A contract saying `dayjs` is a runtime
+  // package does not say whether static analysis inferred that or a human ruled on it,
+  // and only the second is something a later reader can go back and question.
+  dependencyDecisions: decidedByHuman,
   // Deviations from the written procedure, recorded rather than defended silently.
   deviations: [
     {
@@ -633,6 +679,10 @@ return {
   baseline: baseline.map(b => ({ key: b.key, ok: b.ok, detail: b.detail })),
   blockers,
   warnings,
+  // Surfaced in the run result, not only buried in the manifest: this is the one part of
+  // the contract the operator supplied rather than the analysis inferred, and the run
+  // report is what they actually read.
+  dependencyDecisions: decidedByHuman,
   deviations: manifest.deviations,
   profilePending: manifest.profile.pending,
   nextStep: blockers.length === 0
