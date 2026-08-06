@@ -555,6 +555,34 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(result && typeof result.error === 'string', `${BASELINE} (${label}): must refuse before spending an agent, got ${JSON.stringify(result)}`)
   }
 
+  // ─── args may arrive as a JSON string ───
+  // Some invocation paths serialise `args` before the script sees it. Every field then
+  // read as undefined and the run died with "args.repo is required" while pointing at a
+  // request that supplied it — the error blamed the caller for the one thing they got right.
+  {
+    const asObject = { repo: '/t', ordinaryChange: 'add a field' }
+    const asString = JSON.stringify(asObject)
+    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const fromString = await runBody(baseSrc, { args: asString, overrides: withSrc })
+    check(
+      !(fromString.result && /args\.repo is required/.test(fromString.result.error || '')),
+      `${BASELINE} (args as a JSON string): must parse it, not report the supplied repo as missing`
+    )
+    check(fromString.calls.length > 0, `${BASELINE} (args as a JSON string): no agent ran, so the run did not start`)
+    // Malformed input must still fail, and say what is wrong with it.
+    const broken = await runBody(baseSrc, { args: '{not json', overrides: withSrc })
+    check(
+      broken.result && /not valid JSON/.test(broken.result.error || ''),
+      `${BASELINE} (args as a broken string): must name the real problem, got ${JSON.stringify(broken.result)}`
+    )
+    // Phase 2 takes the same path.
+    const pilotFromString = await runBody(pilotSrc, { args: JSON.stringify({ repo: '/t', capability: 'work-items' }) })
+    check(
+      !(pilotFromString.result && /both required/.test(pilotFromString.result.error || '')),
+      `${PILOT} (args as a JSON string): must parse it, got ${JSON.stringify(pilotFromString.result && pilotFromString.result.error)}`
+    )
+  }
+
   // ─── phase 1 required handoffs ───
   // A missing lens and a failed manifest writer both reported success: the lens count
   // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".

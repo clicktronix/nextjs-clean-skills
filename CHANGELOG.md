@@ -42,6 +42,24 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Phase 1 accepts `args` as a JSON string as well as an object. Some invocation paths serialise it
+  before the script sees it, every field then read as `undefined`, and the run died with
+  "args.repo is required" while pointing at a call that supplied `repo` — blaming the caller for the
+  one thing they had got right. Found by the first live run, not by three review passes.
+- Phase 1 may write the target's linter and formatter ignore lists, and is told to keep the target's
+  own gates as green as it found them. The vendored `rules/` files are written to this repository's
+  style, so installing them broke the target's `format:check` — and the phase could not fix it,
+  because the ignore files were outside its writable set. Reformatting them instead was never an
+  option: it forks them from the plugin source and breaks re-sync.
+- Phase 1 no longer requires `check-database-resources.mjs` to exit 0 at baseline. The checker
+  attributes an accessing subject from `moduleRoot`/`sharedRoot`/`appRoot`, and before migration
+  every data-access file lies outside all three, so enforcement property 7 is unsatisfiable by
+  construction — the instruction demanded that phase 1 prove something only phase 2 can create. It is
+  now recorded as a burndown item, with an explicit prohibition on the one workaround that would make
+  it pass: declaring roots that describe a layout the repository does not have.
+- Phase 1 checks that the three packages `rules/` needs are *declared*, not merely resolvable. One of
+  them commonly arrives transitively through `eslint-config-next`, leaving the floor resting on a
+  dependency the repository never asked for.
 - The architecture oracle's `ok` meant two things at once. The prompt asked for `ok=false` both when
   a tool could not run and when the counts came back red, while `archUnmeasured` read every
   `ok=false` as "no measurement" — so a capability with real violations reached the human as

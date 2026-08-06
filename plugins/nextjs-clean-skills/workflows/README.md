@@ -14,10 +14,17 @@ The **target** still needs three packages, because the rules installed into it i
 whatever package manager the target's lockfile names, before it writes anything — a rules copy that
 cannot run leaves the target half-converted and the census unmeasurable.
 
-**These workflows have not yet been executed against a live repository.** Every claim below about
-what they do comes from reading the scripts and from `npm run validate`, which parses them the way
-the runtime does and executes their decision logic against tables. That proves the logic, not the
-outcome. Treat the first real run as an experiment and read every gate.
+**Phase 1 has been run once against a live repository; phase 2 never has.** The run was a layer-first
+Next.js app of 321 source files (`domain / use-cases / adapters / infrastructure / ui`). It installed
+the floor, left every file under `src/` untouched, kept the target's own typecheck, tests and ESLint
+green, and then stopped at the Enable gate because one direct dependency was unclassified — refusing
+to guess, which is the behaviour it is supposed to have. Three defects surfaced that no amount of
+reading had found: `args` arriving as a JSON string, an ignore-file write the phase was not permitted
+to make, and property 7 being demanded at a point where it cannot hold. All three are fixed.
+
+Everything else below still comes from reading the scripts and from `npm run validate`, which parses
+them the way the runtime does and executes their decision logic against tables. That proves the
+logic, not the outcome. Read every gate.
 
 ## Setup
 
@@ -25,8 +32,10 @@ outcome. Treat the first real run as an experiment and read every gate.
 2. The plugin installed, or a checkout of this repository. Nothing else: the normative documents and
    `rules/` ship inside the plugin next to `skills/`, and phase 1 locates them itself.
 3. The target repository is clean, its own tests pass, and it is on a branch you can throw away.
-   Phase 1 is not read-only: it installs `rules/`, writes a drafted contract, and amends the
-   target's ESLint config.
+   Phase 1 is not read-only: it installs `rules/`, writes a drafted contract, amends the target's
+   ESLint config, and adds `rules/` to the target's linter and formatter ignore lists. That last one
+   is not tidiness — the vendored files are written to *this* repository's style, so without it they
+   fail the target's own gates and the burndown starts by counting debt that was never the target's.
 4. Scripts are single-file plain JavaScript: no imports, no TypeScript. Shared constants are copied
    between them on purpose — the runtime does not allow a `lib/`.
 
@@ -168,8 +177,8 @@ anything creating it is how "the surfaces that now exist" became a lie.
 
 ## Known deviations and gaps
 
-Recorded here and, in the same four entries, in the manifest's `deviations`, because § Sources Of Truth says a disagreement
-between surfaces is a defect — so these are open items, not settled choices:
+Recorded here and, in the same five entries, in the manifest's `deviations`, because § Sources Of Truth says a
+disagreement between surfaces is a defect — so these are open items, not settled choices:
 
 - **Step 7 says "for the pilot"; phase 1 enables the checks repo-wide** and before the pilot moves,
   because a pilot-scoped check cannot produce the census the burndown is measured against. Needs a
@@ -178,6 +187,12 @@ between surfaces is a defect — so these are open items, not settled choices:
   capability-scoped and its role vocabulary has no shared role; shared admission is a separate gate.
 - **Neither phase runs the capability's real user workflow** (step 8) or compares runtime behaviour
   beyond the behaviour oracle's verdict. The pilot states both in its output.
+- **Enforcement property 7 cannot be green at baseline.** `check-database-resources.mjs` attributes an
+  accessing subject from `moduleRoot`, `sharedRoot` and `appRoot`; before migration every data-access
+  file is outside all three, so the subject is null and no ownership map can admit it. Phase 1 records
+  the check as red rather than requiring it to pass, and refuses the one thing that would force it
+  green — declaring roots that describe a layout the repository does not have. It must go green during
+  the pilot; if it does not, the roots or the ownership map are wrong.
 - **The Product Profile is partially recorded.** The manifest keeps the six lenses' findings and
   lists what remains: schema/form/cache/notification libraries, store and remote-provider ownership,
   the auth and tenancy model, route-private and shared UI conventions, and accepted migration debt

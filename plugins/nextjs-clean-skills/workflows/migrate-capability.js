@@ -25,12 +25,27 @@ export const meta = {
 // review = the properties docs/adoption-and-enforcement.md says static rules
 // cannot prove. A pilot is accepted only when all three agree.
 
-const REPO = (args && args.repo) || ''
-const CAP = (args && args.capability) || ''
-const MANIFEST = (args && args.manifestPath) || (REPO ? REPO + '/migration-manifest.json' : '')
+// `args` does not always arrive as an object. Several invocation paths hand the script
+// the JSON *string* instead, and every field then reads as undefined — so a run with a
+// perfectly good `repo` failed with "args.repo is required", blaming the caller for the
+// one thing they had got right. Parsed here, once, so the rest of the file can assume a
+// plain object. A string that is not JSON still fails, but says so.
+let ARGS = args || {}
+if (typeof args === 'string') {
+  try {
+    ARGS = JSON.parse(args)
+  } catch (error) {
+    return { error: 'args arrived as a string that is not valid JSON: ' + error.message }
+  }
+}
+if (!ARGS || typeof ARGS !== 'object') return { error: 'args must be an object, got ' + typeof ARGS }
+
+const REPO = ARGS.repo || ''
+const CAP = ARGS.capability || ''
+const MANIFEST = ARGS.manifestPath || (REPO ? REPO + '/migration-manifest.json' : '')
 // typeof, not `|| 2`: zero is falsy, so `maxFixRounds: 0` ("verify only, fix nothing")
 // silently became two rounds.
-const MAX_FIX = Math.max(0, args && typeof args.maxFixRounds === 'number' ? args.maxFixRounds : 2)
+const MAX_FIX = Math.max(0, typeof ARGS.maxFixRounds === 'number' ? ARGS.maxFixRounds : 2)
 
 if (!REPO || !CAP) return { error: 'args.repo and args.capability are both required' }
 // CAP lands inside every computed path. Validate it here so a capability name can
@@ -246,7 +261,7 @@ const roots = slice.roots || {}
 // destination hangs off it. Defaulting it to `<source>/modules` silently moved a
 // whole capability into a path the target's contract does not name (src/features,
 // app/modules, a monorepo package). It must come from the contract, or we stop.
-const MODULE_ROOT = (args && args.moduleRoot) || roots.moduleRoot || ''
+const MODULE_ROOT = ARGS.moduleRoot || roots.moduleRoot || ''
 // Validated, not merely non-empty. It arrives from an agent reading the TARGET's
 // contract — data this script treats as untrusted everywhere else — and every
 // destination hangs off it, so an unchecked value made "closed" closed only
