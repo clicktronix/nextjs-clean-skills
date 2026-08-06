@@ -33,7 +33,8 @@ All notable changes to this project are documented in this file.
   byte-identity proves the transform ran but not that it produced valid links.
 - `contractSource` became optional. Omitted, phase 1 spends one probe agent to locate the plugin
   root and accepts a candidate only when all four normative sources exist under it. It resolves once
-  rather than in each of the fifteen agents that need the path.
+  rather than in each of the fifteen agents that need the path. Phase 2 reads the resolved path back out
+  of the manifest instead of re-probing, so both phases quote the same installed copy.
 - `npm run validate` gained `validate-workflows`, which parses each workflow as the runtime does,
   evaluates its `meta` in an empty scope, checks phase parity both ways, rejects the globals the
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic

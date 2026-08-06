@@ -576,6 +576,25 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   check(happy.result && happy.result.recommendation === 'accept', `${PILOT} (all green): expected accept, got ${JSON.stringify(happy.result && happy.result.recommendation)}`)
   check(happy.calls.includes('move:internals'), `${PILOT}: the internals mover must be called`)
 
+  // Phase 1 records where it found the contract; phase 2 must carry that into the agents that make
+  // placement decisions. Declared in the schema but never read, or read but never used, the pilot
+  // silently falls back to "the repository's own docs, if present" — which for anyone running from
+  // an installed plugin is nothing.
+  {
+    const SRC = '/plugin/root'
+    const carried = await pilot({ 'load-manifest': { ...manifest, contractSource: SRC } })
+    check(
+      carried.prompts.some(p => p.prompt.includes(`${SRC}/skills/designing-architecture/SKILL.md`)),
+      `${PILOT}: the manifest's contractSource never reaches an agent prompt`
+    )
+    // And the absent case must still run rather than emit a path built from an empty string.
+    const bare = await pilot({})
+    check(
+      !bare.prompts.some(p => p.prompt.includes('/skills/designing-architecture/SKILL.md')),
+      `${PILOT}: a manifest without contractSource still emitted a contract path`
+    )
+  }
+
   // The guard must be REACHED, not merely correct. This is the mutation that a
   // table test alone cannot catch: `if (moveIncomplete(internals))` -> `if (false)`.
   const deadMover = await pilot({ 'move:internals': null })

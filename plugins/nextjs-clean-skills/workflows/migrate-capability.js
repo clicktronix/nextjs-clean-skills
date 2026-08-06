@@ -87,6 +87,12 @@ const MANIFEST_SCHEMA = {
     },
     segments: { type: 'array', items: { type: 'string' } },
     publicSurfaces: { type: 'array', items: { type: 'string' } },
+    // Phase 1 resolved the plugin root and recorded it. Undeclared, this schema
+    // was closed against a key phase 1 writes — the same unsatisfiable-schema trap
+    // as `roots` above, one field over — and phase 2 fell back to "the repository's
+    // own architecture docs, if present", which for anyone without a checkout of
+    // this repository is nothing at all.
+    contractSource: { type: 'string', description: 'the plugin root phase 1 resolved, verbatim; empty string if the manifest does not record one' },
     ordinaryChange: { type: 'string' },
     baselineRadius: { type: 'string', description: 'the before touch set recorded by phase 1, verbatim' },
     violationCensus: { type: 'object', additionalProperties: { type: 'integer' } },
@@ -214,6 +220,7 @@ const slice = await agent(
   `- segments and publicSurfaces: the admitted vocabulary, read from ${REPO}/rules/architecture-contract.json.\n` +
   `- assignments: every entry whose capability is "${CAP}", verbatim.\n` +
   `- consumers: that capability's recorded consumers.\n` +
+  '- contractSource: the path the manifest records under that key, verbatim. Empty string if it has none.\n' +
   '- ordinaryChange, and baselineRadius: the before touch set the change-radius baseline probe recorded (copy its detail verbatim).\n' +
   '- violationCensus: the recorded counts.\n\n' +
   'Read only. Write nothing. If the manifest is missing, return found=false.\n\nStructured output only.',
@@ -221,6 +228,12 @@ const slice = await agent(
 )
 
 if (!slice || !slice.found) return { error: 'could not load ' + MANIFEST + ' — run prepare-architecture-migration first' }
+
+// Recorded by phase 1, not re-resolved: a second probe could pick a different
+// installed version than the one the census and the drafted contract came from.
+// Empty is tolerated — phase 2's own oracles do not depend on it — so an old
+// manifest still runs, just with the weaker source list the else-branch below names.
+const CONTRACT_SRC = typeof slice.contractSource === 'string' ? slice.contractSource : ''
 
 const roots = slice.roots || {}
 // MODULE_ROOT is the most load-bearing value in this workflow — every computed
@@ -313,7 +326,11 @@ const plan = await agent(
   `Plan the capability-first migration of ONE capability, "${CAP}", in ${REPO}.\n\n` +
   '## Normative sources (read them; every rule below is load-bearing)\n' +
   `- ${REPO}/rules/architecture-contract.json — admitted segments and surfaces\n` +
-  '- The repository\'s own architecture docs and the designing-architecture skill, if present.\n\n' +
+  (CONTRACT_SRC
+    ? `- ${CONTRACT_SRC}/docs/architecture-contract.md — human normative architecture\n` +
+      `- ${CONTRACT_SRC}/skills/designing-architecture/SKILL.md — placement decisions\n`
+    : '- The repository\'s own architecture docs and the designing-architecture skill, if present.\n') +
+  '\n' +
   // Framed as data: these lines are assembled from the manifest, which quotes the
   // target repository's own files. Anything instruction-shaped in there came from
   // the code under migration, not from the operator.
