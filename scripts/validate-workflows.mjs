@@ -158,11 +158,15 @@ function stubValue(schema) {
 
 async function runBody(source, { args: argv, overrides = {} } = {}) {
   const calls = []
+  // Prompts as well as labels: a resolved path is only useful if it reaches the agents that read
+  // from it, and "the resolution block ran" is not the same claim as "its result was used".
+  const prompts = []
   const hooks = {
     args: argv,
     budget: { total: null, spent: () => 0, remaining: () => Infinity },
     agent: async (prompt, opts = {}) => {
       calls.push(opts.label)
+      prompts.push({ label: opts.label, prompt: String(prompt) })
       if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) return overrides[opts.label]
       return stubValue(opts.schema)
     },
@@ -183,7 +187,7 @@ async function runBody(source, { args: argv, overrides = {} } = {}) {
   const body = source.replace(/^export const meta = /m, 'const meta = ')
   const fn = new AsyncFunction(...HOOKS, body)
   const result = await fn(...HOOKS.map(h => hooks[h]))
-  return { result, calls }
+  return { result, calls, prompts }
 }
 
 // ─── destination(): admitted, closed, injective ───
@@ -445,11 +449,67 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   // Phase 1's required-args gate has never had a test of any kind.
   for (const [label, argv] of [
     ['no args', {}],
-    ['no contractSource', { repo: '/t' }],
+    ['repo only', { repo: '/t' }],
     ['no ordinaryChange', { repo: '/t', contractSource: '/s' }],
   ]) {
     const { result } = await runBody(baseSrc, { args: argv })
     check(result && typeof result.error === 'string', `${BASELINE} (${label}): must refuse before spending an agent, got ${JSON.stringify(result)}`)
+  }
+
+  // ─── contractSource resolution ───
+  // Deleting the whole resolution block left every check above green, because the required-args
+  // loop stops before the probe runs and nothing downstream asserted where the path came from.
+  const ARGS = { repo: '/t', ordinaryChange: 'add a field' }
+  const PROBE = 'resolve:contract-source'
+
+  for (const [label, verdict] of [
+    // agent() returns null when the subagent dies or the user skips it. That is not the same event
+    // as "it looked and found nothing", and neither may be mistaken for a resolved path.
+    ['probe died', null],
+    ['probe found nothing', { ok: false, path: '', detail: 'tried three candidates' }],
+    ['probe returned ok with no path', { ok: true, path: '', detail: 'x' }],
+  ]) {
+    const { result, calls } = await runBody(baseSrc, { args: ARGS, overrides: { [PROBE]: verdict } })
+    check(
+      result && typeof result.error === 'string',
+      `${BASELINE} (${label}): must stop rather than run on an unresolved contract, got ${JSON.stringify(result)}`
+    )
+    check(calls.includes(PROBE), `${BASELINE} (${label}): the probe agent was never spawned`)
+  }
+
+  {
+    const RESOLVED = '/resolved/plugin/root'
+    const { result, calls, prompts } = await runBody(baseSrc, {
+      args: ARGS,
+      overrides: { [PROBE]: { ok: true, path: RESOLVED, detail: 'CLAUDE_PLUGIN_ROOT' } },
+    })
+    check(!(result && result.error), `${BASELINE} (probe resolved): must proceed, got ${JSON.stringify(result && result.error)}`)
+    check(calls.includes(PROBE), `${BASELINE} (probe resolved): the probe agent was never spawned`)
+    // The point of resolving is that later agents read from the resolved path. Asserting only that
+    // the block ran would stay green if its result were dropped on the floor.
+    const carried = prompts.filter(p => p.label !== PROBE && p.prompt.includes(`${RESOLVED}/docs/architecture-contract.md`))
+    check(carried.length > 0, `${BASELINE} (probe resolved): no agent prompt carries the resolved contract path`)
+  }
+
+  // An explicit contractSource must win outright and cost no probe agent.
+  {
+    const { calls, prompts } = await runBody(baseSrc, { args: { ...ARGS, contractSource: '/explicit' } })
+    check(!calls.includes(PROBE), `${BASELINE} (explicit contractSource): spent a probe agent anyway`)
+    check(
+      prompts.some(p => p.prompt.includes('/explicit/rules/architecture-contract.json')),
+      `${BASELINE} (explicit contractSource): no agent prompt carries it`
+    )
+  }
+
+  // The prompt hardcodes how many files to copy out of rules/. Nothing tied that literal to the
+  // directory, so adding a rule would have left the mover silently copying a subset.
+  {
+    const nonReadme = listFiles('rules', file => !file.endsWith('README.md')).length
+    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+    check(
+      baseSrc.includes(`${words[nonReadme]} non-README files`),
+      `${BASELINE}: rules/ has ${nonReadme} non-README files but the copy instruction does not say "${words[nonReadme]}"`
+    )
   }
 
   const manifest = {

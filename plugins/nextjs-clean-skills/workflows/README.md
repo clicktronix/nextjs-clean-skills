@@ -2,7 +2,7 @@
 
 Multi-agent workflows that adopt the capability-first architecture in an **existing** Next.js
 repository. They execute the procedure already written in
-[`docs/adoption-and-enforcement.md`](../../../docs/adoption-and-enforcement.md) — they do not invent a
+[`docs/adoption-and-enforcement.md`](../docs/adoption-and-enforcement.md) — they do not invent a
 second one. Where the two disagree, the document wins and the script is the defect.
 
 Shipped with the plugin, so installing it is all the setup a target repository needs. Every script
@@ -80,7 +80,7 @@ produced it. All three of these already existed in this repository before the wo
 | --- | --- | --- |
 | Behaviour | the target's own typecheck, lint, tests, **production build** | stay green |
 | Architecture | `rules/` — 16 named ESLint messageIds, cycle, ownership, dependency checks | capability at 0, no total above baseline |
-| Review | the properties [the document says static rules cannot prove](../../../docs/adoption-and-enforcement.md) | no must-fix |
+| Review | the properties [the document says static rules cannot prove](../docs/adoption-and-enforcement.md) | no must-fix |
 
 Phase 1 records the first two **before** anything moves — behaviour green, violations censused. The
 review oracle has no baseline by nature: it is a judgement about the migrated result, so it exists

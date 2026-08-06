@@ -47,9 +47,6 @@ All notable changes to this project are documented in this file.
   § Sources Of Truth requires.
 - Recorded in the workflows README, rather than only in a pull-request description that a squash
   merge discards, that these workflows have never been executed against a live repository.
-
-### Fixed
-
 - Set the planned plugin version to `3.0.0` so the breaking skill rename no longer shares the
   released `2.0.0` manifest version, and made capability-first descriptions the synchronized
   marketplace source of truth.
@@ -153,7 +150,7 @@ All notable changes to this project are documented in this file.
 - Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
   keeping framework-specific rules out of portable references.
 - **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
-  `nextjs-architecture` to `designing-architecture`, `react-component-creator` to
+  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
   `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
   links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
   the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits

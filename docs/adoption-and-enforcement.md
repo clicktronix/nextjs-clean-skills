@@ -14,6 +14,7 @@ facts.
 | `rules/` | executable portable invariants |
 | `docs/evidence.md` | sources and measurements; does not create rules |
 | target repository profile | concrete aliases, capabilities, stack, and stricter constraints |
+| `plugins/nextjs-clean-skills/{docs,rules}/` | none — a generated mirror of the two rows above, so the migration workflows reach them from an installed plugin. Edit the source; `npm run validate` fails on a drifted copy |
 
 A disagreement is a defect. Correct every affected surface rather than choosing the convenient one.
 
