@@ -754,6 +754,36 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   }
   const pilot = over => runBody(pilotSrc, { args: pilotArgs, overrides: { ...base, ...over } })
 
+  // ─── the gate must name what is left and what to do ───
+  // The operator of the first live run did not understand the sentence asking them to decide, and
+  // separately asked why old directories were still there. Both are the same defect: the gate cited
+  // the procedure instead of instructing the reader.
+  {
+    const withCaps = {
+      ...manifest,
+      capabilities: [{ name: 'work-items', files: 28 }, { name: 'labels', files: 9 }, { name: 'identity', files: 32 }],
+    }
+    const out = await pilot({ 'load-manifest': withCaps })
+    const gateText = (out.result && out.result.humanGate) || ''
+    check(
+      (out.result && out.result.remainingCapabilities || []).join(',') === 'labels,identity',
+      `${PILOT}: the gate must list the capabilities still on the old layout, got ${JSON.stringify(out.result && out.result.remainingCapabilities)}`
+    )
+    // The instruction LINES, not the bare words: asserting `includes('ACCEPT')` passed on the
+    // incidental "BEFORE YOU ACCEPT" further down, so gutting the three instructions left the check
+    // green. A substring assertion is only as strong as the string is unique.
+    for (const phrase of ['BOTH layouts', '- ACCEPT:', '- REVISE:', '- REJECT:', 'REAL user path']) {
+      check(gateText.includes(phrase), `${PILOT}: humanGate must contain "${phrase}" — it is what the reader has to act on`)
+    }
+    check(gateText.includes('labels'), `${PILOT}: humanGate must name the next capability by name, not "<next>"`)
+    // A single-capability repository must not be told that other capabilities are waiting.
+    const solo = await pilot({ 'load-manifest': { ...manifest, capabilities: [{ name: 'work-items', files: 28 }] } })
+    check(
+      (solo.result.humanGate || '').includes('whole tree'),
+      `${PILOT}: with no other capability the gate must say so rather than implying a wave that does not exist`
+    )
+  }
+
   // ─── Plan must be a partition of the manifest's file set ───
   // Screening judged destinations only, so a plan covering a subset passed and the pilot
   // reported success over the files it happened to mention.

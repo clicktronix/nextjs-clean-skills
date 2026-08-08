@@ -48,6 +48,17 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- The pilot's human gate is written as instructions instead of a citation. It named the document and
+  asked for "accept, revise or reject"; the operator of the first live run said they did not
+  understand the sentence, which means the gate asked for a decision it had not equipped them to
+  make. It now states what the run did, what each verdict means, what to do next in each case, and
+  the name of the next capability to pass to the workflow.
+- The gate names the capabilities still on the old layout, and says that a repository holding both
+  layouts between capabilities is the intended state. The same operator saw `src/modules/work-items/`
+  beside an untouched `src/use-cases/labels/` and asked whether the migration had failed. It had not
+  — a pilot is one capability by design — but nothing in the output said so. `capabilities` is now
+  admitted by the manifest schema, which had been closed against a key phase 1 writes: the fourth
+  instance of that trap in this file.
 - Two checks the architecture stated and nothing enforced, ported from the downstream template and
   made portable on the way:
   - `check-shared-admission.mjs` decides the countable half of shared admission — how many real

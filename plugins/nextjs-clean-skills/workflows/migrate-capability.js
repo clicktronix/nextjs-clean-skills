@@ -114,6 +114,20 @@ const MANIFEST_SCHEMA = {
     // Whether phase 1's census had anything to measure. Undeclared, this schema would be
     // closed against a key phase 1 writes — the third instance of that trap in this file.
     capabilityTierBinds: { type: 'boolean', description: 'true when the baseline census was taken with moduleRoot populated; false when it was taken before any file moved and every capability-tier count was structurally zero' },
+    // Phase 1 records every capability it found; this schema did not admit the list, so phase 2
+    // could not say which capabilities are still on the old layout. The operator of the first live
+    // run saw src/modules/work-items/ next to src/use-cases/labels/ and asked whether the migration
+    // had failed. It had not — the repository carries both layouts on purpose until the wave ends —
+    // but nothing in the output said so. Fourth instance of the closed-schema trap in this file.
+    capabilities: {
+      type: 'array',
+      description: 'every capability the manifest lists, not only the one being migrated',
+      items: {
+        type: 'object',
+        required: ['name'],
+        properties: { name: { type: 'string' }, files: { type: 'integer' } },
+      },
+    },
     consumers: { type: 'array', items: { type: 'string' }, description: 'app routes and other capabilities that use this capability today' },
     // additionalProperties stays OPEN here: the prompt asks for the manifest rows
     // verbatim, and those rows also carry `placement` and `capability`. Closing it
@@ -249,6 +263,7 @@ const slice = await agent(
   // Revalidated, not trusted. The two phases are separate invocations: between them the
   // plugin can be upgraded, pruned or reinstalled, and a path that no longer resolves
   // would be interpolated into the planning prompt as if it did.
+  `- capabilities: the name of EVERY capability the manifest lists, not just "${CAP}", with its file count.\n` +
   '- contractSource: the path the manifest records under that key. Before returning it, confirm that all four of ' +
   '`docs/architecture-contract.md`, `docs/adoption-and-enforcement.md`, `rules/architecture-contract.json` and ' +
   '`skills/designing-architecture/SKILL.md` still exist under it. Return it verbatim if they all do; return an empty ' +
@@ -316,6 +331,14 @@ const CENSUS = slice.violationCensus || {}
 // an older manifest predates the flag, and treating an unknown baseline as meaningful is
 // the failure this exists to prevent.
 const CENSUS_BINDS = slice.capabilityTierBinds === true
+
+// Every capability except this one is still on the old layout, and saying so is not a nicety. The
+// first operator to run this saw the new module tree beside the untouched old directories and asked
+// whether the migration had failed. A pilot is one capability BY DESIGN, so the mixed tree is the
+// intended intermediate state — but "intended" has to be stated, or it reads as wreckage.
+const REMAINING = (slice.capabilities || [])
+  .map(c => c && c.name)
+  .filter(name => typeof name === 'string' && name !== CAP)
 const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 0)
 
 if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
@@ -908,15 +931,30 @@ return {
   // numbers all looked healthy and named no cause.
   reason: decided.reason,
   unmeasuredOracles: unmeasured,
+  // Written as instructions to a person, not as a citation. The first operator to reach this gate
+  // said, in as many words, that they did not understand the sentence asking them to decide — so it
+  // asked for a decision it had not equipped them to make.
   humanGate:
-    'docs/adoption-and-enforcement.md requires a human decision here: accept, revise, or reject the ' +
-    'architecture BEFORE migrating another capability. This workflow does not migrate the next one.\n' +
-    'Step 8 of that procedure also requires running THE REAL WORKFLOW of this capability — a user path ' +
-    'end to end — which no agent here did. Do that before accepting; type, lint, test and build passing ' +
-    'is not the same evidence.\n' +
+    'WHAT THIS RUN DID: migrated ONE capability, "' + CAP + '". ' +
+    (REMAINING.length > 0
+      ? REMAINING.length + ' other capabilit' + (REMAINING.length === 1 ? 'y is' : 'ies are') +
+        ' still on the old layout (' + REMAINING.join(', ') + '), so the repository now holds BOTH layouts. ' +
+        'That is the intended state between capabilities, not a half-finished migration — each capability moves whole, one at a time.\n'
+      : 'No other capability was recorded, so this was the whole tree.\n') +
+    '\nWHAT YOU DO NOW — this is a decision only you can make, and the next capability waits on it:\n' +
+    '- ACCEPT: the ownership model works. Run this workflow again with capability: "<next>" ' +
+    (REMAINING.length > 0 ? '(e.g. "' + REMAINING[0] + '").' : '(none left).') + '\n' +
+    '- REVISE: the model is right but this migration is not. Fix what the findings below name, re-run ' +
+    'this same capability, and decide again.\n' +
+    '- REJECT: the ownership model itself is wrong for this codebase. Stop the programme and change the ' +
+    'contract — do NOT migrate another capability onto a model you have rejected.\n' +
+    '\nBEFORE YOU ACCEPT: run this capability\'s REAL user path end to end, by hand, in the running app. ' +
+    'Step 8 of docs/adoption-and-enforcement.md requires it and no agent here did it. Type, lint, test and ' +
+    'build passing is a different claim from "the feature still works".\n' +
     (gate === 'inconclusive'
-      ? 'This run is inconclusive, not a verdict: ' + unmeasured.join(', ') + ' did not report. Re-run before deciding anything.'
-      : ''),
+      ? '\nTHIS RUN IS NOT A VERDICT: ' + unmeasured.join(', ') + ' did not report, so there is nothing to accept or reject yet. Re-run first.'
+      : '\nThis run recommends: ' + gate + ' — ' + decided.reason + '. The recommendation is advice; the decision is yours.'),
+  remainingCapabilities: REMAINING,
   plan: { moves: moving.length, stayed: staying.length, deleted: deleting.length, surfaces: usedSurfaces.map(s => s.surface), surfacesDroppedForNoConsumer: unusedSurfaces.map(s => s.surface), surfaceMovesDropped: droppedSurfaceMoves.map(r => r.file), emptySegmentsAvoided: plan.emptySegmentsAvoided || [], risks: plan.risks || [] },
   oracles: {
     behaviour: oracles.behaviour ? { ok: oracles.behaviour.ok, detail: oracles.behaviour.detail } : null,
