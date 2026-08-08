@@ -13,6 +13,7 @@ const PATHS = 'rules/contract-paths.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
 const errors = []
 
+let sandboxSummary = 'sandbox skipped'
 let ESLint
 try {
   ;({ ESLint } = await import('eslint'))
@@ -561,15 +562,143 @@ if (ESLint) {
       )
     }
 
-    if (errors.length === 0) {
-      console.log(
-        `rules ok (${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 4} resolver/cycle/portability canaries)`
-      )
-    }
+    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 4} resolver/cycle/portability canaries`
   } finally {
     process.chdir(previousCwd)
     fs.rmSync(sandbox, { recursive: true, force: true })
   }
 }
 
+// ─── Admission and neutrality checks, on their own fixture trees ───
+// These two are standalone scripts rather than ESLint rules, so the sandbox above cannot exercise
+// them: it has no shared root and no neutral surface. Each tree is built to produce ONE verdict, and
+// each verdict is asserted in both directions — a check that only ever passes is the failure mode
+// this repository exists to remove. The alias is deliberately `~/`, not `@/`: the versions these
+// were ported from hardcoded `@/`, so a fixture using the conventional alias would have proved
+// nothing about portability.
+let floorAssertions = 0
+const ADMISSION = 'rules/check-shared-admission.mjs'
+const NEUTRAL = 'rules/check-neutral-surfaces.mjs'
+
+function buildTree(files, contract) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'floor-'))
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"private":true,"type":"module"}\n')
+  fs.mkdirSync(path.join(dir, 'rules'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'rules/architecture-contract.json'), `${JSON.stringify(contract, null, 2)}\n`)
+  for (const [relative, body] of Object.entries(files)) {
+    const absolute = path.join(dir, relative)
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, body)
+  }
+  return dir
+}
+
+const FLOOR_CONTRACT = {
+  sourceRoot: 'src',
+  moduleRoot: 'src/modules',
+  appRoot: 'src/app',
+  sharedRoot: 'src/shared',
+  importAliases: { '~/': 'src/' },
+  segments: ['domain', 'application', 'server', 'client', 'ui'],
+  publicSurfaces: ['server', 'rsc', 'client', 'query-cache'],
+  clientSurfaces: ['client', 'ui'],
+  neutralSurfaces: ['query-cache'],
+  sharedRoots: ['kernel'],
+}
+
+const runCheck = (script, dir) =>
+  spawnSync(process.execPath, [path.join(root, script), dir], { encoding: 'utf8' })
+
+function expectCheck(script, label, files, contract, wantStatus, wantText) {
+  floorAssertions += 1
+  const dir = buildTree(files, contract)
+  try {
+    const result = runCheck(script, dir)
+    const output = `${result.stdout}${result.stderr}`
+    if (result.status !== wantStatus) {
+      errors.push(`${script} (${label}): expected exit ${wantStatus}, got ${result.status} — ${output.trim().slice(0, 200)}`)
+    } else if (wantText && !output.includes(wantText)) {
+      errors.push(`${script} (${label}): expected output to mention "${wantText}", got ${output.trim().slice(0, 200)}`)
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+const twoConsumers = {
+  'src/shared/kernel/money.ts': 'export const money = 1\n',
+  'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+  'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+}
+expectCheck(ADMISSION, 'two capabilities admit it', twoConsumers, FLOOR_CONTRACT, 0, 'shared admission ok')
+expectCheck(
+  ADMISSION,
+  'no importer at all',
+  { ...twoConsumers, 'src/shared/kernel/ghost.ts': 'export const ghost = 1\n' },
+  FLOOR_CONTRACT,
+  1,
+  'has no importer at all'
+)
+expectCheck(
+  ADMISSION,
+  'one capability owns it',
+  {
+    ...twoConsumers,
+    'src/shared/kernel/solo.ts': 'export const solo = 1\n',
+    'src/modules/orders/server/c.ts': "import { solo } from '~/shared/kernel/solo'\nexport const c = solo\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'that is its natural owner'
+)
+// The ratchet must tighten as well as hold: an improvement that leaves the budget untouched would
+// let the next regression slip back under it unnoticed.
+expectCheck(
+  ADMISSION,
+  'budget is now generous',
+  twoConsumers,
+  { ...FLOOR_CONTRACT, sharedAdmissionBudget: { unused: 2, demote: 2, speculative: 2 } },
+  1,
+  'Lower `sharedAdmissionBudget`'
+)
+// A test importing a helper is not a consumer: a file kept alive only by its own test is dead code
+// with a test attached.
+expectCheck(
+  ADMISSION,
+  'a test is not a consumer',
+  {
+    ...twoConsumers,
+    'src/shared/kernel/tested.ts': 'export const tested = 1\n',
+    'src/shared/kernel/__tests__/tested.test.ts': "import { tested } from '~/shared/kernel/tested'\nexport const t = tested\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'has no importer at all'
+)
+
+const bothSides = {
+  'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
+  'src/modules/orders/rsc.ts': "import { key } from '~/modules/orders/query-cache'\nexport const rsc = key\n",
+  'src/modules/orders/client/hook.ts': "'use client'\nimport { key } from '~/modules/orders/query-cache'\nexport const useOrders = () => key\n",
+}
+expectCheck(NEUTRAL, 'both runtimes consume it', bothSides, FLOOR_CONTRACT, 0, 'neutral surfaces ok')
+const { 'src/modules/orders/client/hook.ts': _clientSide, ...serverOnly } = bothSides
+expectCheck(NEUTRAL, 'server side only', serverOnly, FLOOR_CONTRACT, 1, 'found server')
+const { 'src/modules/orders/rsc.ts': _serverSide, ...clientOnly } = bothSides
+expectCheck(NEUTRAL, 'client side only', clientOnly, FLOOR_CONTRACT, 1, 'found client')
+// A route handler reading the surface is using it as a server module, not prefetching into a
+// hydrated cache — so it must not count as the second side.
+expectCheck(
+  NEUTRAL,
+  'a route handler is not the server side',
+  {
+    ...clientOnly,
+    'src/app/orders/route.ts': "import { key } from '~/modules/orders/query-cache'\nexport const GET = () => key\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+
 fail(errors)
+console.log(`rules ok (${sandboxSummary}, ${floorAssertions} admission/neutrality verdicts)`)

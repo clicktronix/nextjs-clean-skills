@@ -13,7 +13,65 @@ All notable changes to this project are documented in this file.
   `/nextjs-clean-skills:designing-architecture` and `$designing-architecture`. Frozen eval artifacts
   keep their historical paths, which predate both renames.
 
+
+- Replaced the prescribed four-provider component recipe with state ownership first: keep
+  per-keystroke state in its smallest subtree and split Context only by real consumer sets or update
+  frequencies.
+- Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
+  keeping framework-specific rules out of portable references.
+- **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
+  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
+  `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
+  links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
+  the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
+  that predate the rename, and `tests/architecture-evals/candidate/` plus `opus5-gates/` are hashed
+  snapshots.
+- Scoped the `creating-react-components` decision gate to non-trivial changes so a one-line UI edit
+  does not require the full seven-field classification.
+- Linked failure ownership and error taxonomy directly from `creating-react-components`, which reached
+  them only through `loading-and-errors.md` and `notifications-and-feedback.md`. A reference behind a
+  reference gets previewed rather than read whole, so the routing path now stays one level deep.
+- Added what each skill does to its `description`, after the existing "Use when" trigger clause that
+  this repository requires, so routing metadata carries capability and trigger rather than trigger
+  alone.
+- Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
+  candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
+  `shared/server` root the contract admits, and generation runs on Codex models only.
+- Told `designing-architecture` to read its references directly rather than delegating a handful of
+  file reads to subagents, and to size a written proposal to the decision it serves.
+- Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
+  `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
+  `database-resource-ownership`, `external-backend-authority`, and `supabase-identity-modes`. The
+  original observations are retained under `green_check_invalidated` with the reason; the coverage
+  table now reports them as rerun-pending rather than GREEN. This is the content-hash guard working
+  as designed — the cells need a RED/GREEN rerun before release, not a hash refresh.
+
 ### Added
+
+- Two checks the architecture stated and nothing enforced, ported from the downstream template and
+  made portable on the way:
+  - `check-shared-admission.mjs` decides the countable half of shared admission — how many real
+    OWNERS (a capability, `app`, another shared root) import a file under `sharedRoot`. Identical
+    meaning, lifecycle and coordination cost stay a review judgement, and the check says so rather
+    than claiming a semantic property is linted. Verdicts: `unused` (delete), `demote` (one
+    capability owns it, that is its home), `speculative` (one importer, written for a second
+    consumer that never arrived), `private` (its own root's detail, not governed).
+  - `check-neutral-surfaces.mjs` decides whether a runtime-neutral surface is consumed from both
+    runtimes. `eslint-boundaries.mjs` already constrained what such a surface may import; nothing
+    checked that it is actually shared. A `query-cache.ts` used by one runtime is that runtime's
+    module sitting in a public slot.
+- The ratchet and the exemptions live in `architecture-contract.json` (`sharedAdmissionBudget`,
+  `sharedAdmissionExempt`), not in the script. A vendored check carrying one repository's debt
+  numbers is a check the first adopter edits, which forks it from this source and ends re-sync —
+  which is exactly what happened to the copy this was ported from. Absent, the budget is zero.
+- Both checks resolve paths through `contract-paths.mjs`, so a repository whose alias is not `@/`
+  and whose source root is not `src` is judged correctly. The fixtures use `~/` deliberately: with
+  the conventional alias they would have proved nothing about portability.
+- Both phases run them. Phase 1 counts them in the census and states that, like the database check,
+  they are structurally red before anything moves. Phase 2's architecture oracle runs them against
+  the migrated capability, where a helper moved into `shared/**` or a surface created by the
+  migration is exactly what they exist to catch.
+
 
 - Migration workflows now ship **inside the plugin**, at
   `plugins/nextjs-clean-skills/workflows/`: `prepare-architecture-migration` inventories a target
@@ -40,7 +98,6 @@ All notable changes to this project are documented in this file.
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
   against tables. The workflows README is now covered by the docs link check.
 
-### Added
 
 - `dependencyDecisions` lets the operator answer the packages a run reported as undecided:
   `{ "dayjs": "runtime" }`. Phase 1 correctly refuses to classify a dependency the product has not
@@ -49,6 +106,24 @@ All notable changes to this project are documented in this file.
   are checked against *this* run's undecided list, so a stale answer to an older question is refused
   rather than written into a new repository's contract, and they are recorded in the manifest and the
   run result so a later reader can tell an inference from a ruling.
+
+
+- Added the narrow runtime-neutral `query-cache.ts` surface for serializable TanStack Query keys
+  shared by server prefetch/hydration and browser queries. Server cache tags and one-sided keys stay
+  private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
+- Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
+  and stable contract rather than by tables or CRUD screens.
+- Added exhaustive direct dependency classification and a Supabase resource ownership canary for
+  undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
+- Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
+  from RLS, and added the external-authority profile for Next.js BFF modules.
+- Added focused loading/error ownership and component-testing references, including accessible
+  pending states, expected failure rendering, component-level test selection, and direct Hook calls.
+- Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
+  Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
+- Added a two-arm Claude Opus 5 A/B runner (`scripts/run-opus5-gate-eval.mjs`) that reuses the
+  frozen scenarios, rubric, response schema, blind-shuffle algorithm, and Codex judge. The frozen
+  four-arm runner and its result sets are untouched and still replay byte-for-byte.
 
 ### Fixed
 
@@ -188,25 +263,6 @@ All notable changes to this project are documented in this file.
   unverified enforcement point is the same trade that turned `additionalProperties` into a ban on
   upgrades. If these skills are ever uploaded through the Skills API, the check belongs there.
 
-### Added
-
-- Added the narrow runtime-neutral `query-cache.ts` surface for serializable TanStack Query keys
-  shared by server prefetch/hydration and browser queries. Server cache tags and one-sided keys stay
-  private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
-- Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
-  and stable contract rather than by tables or CRUD screens.
-- Added exhaustive direct dependency classification and a Supabase resource ownership canary for
-  undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
-- Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
-  from RLS, and added the external-authority profile for Next.js BFF modules.
-- Added focused loading/error ownership and component-testing references, including accessible
-  pending states, expected failure rendering, component-level test selection, and direct Hook calls.
-- Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
-  Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
-- Added a two-arm Claude Opus 5 A/B runner (`scripts/run-opus5-gate-eval.mjs`) that reuses the
-  frozen scenarios, rubric, response schema, blind-shuffle algorithm, and Codex judge. The frozen
-  four-arm runner and its result sets are untouched and still replay byte-for-byte.
-
 ### Removed
 
 - Removed the withdrawn layer-first design journal from the release changelog. Its exact state
@@ -217,40 +273,6 @@ All notable changes to this project are documented in this file.
   `creating-react-components` — so the third copy of each rule spent always-on context and pushed
   models that already self-verify into re-checking. The two items with content of their own moved to
   the sections that own them. `validate-skill-frontmatter.mjs` no longer recommends the heading.
-
-### Changed
-
-- Replaced the prescribed four-provider component recipe with state ownership first: keep
-  per-keystroke state in its smallest subtree and split Context only by real consumer sets or update
-  frequencies.
-- Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
-  keeping framework-specific rules out of portable references.
-- **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
-  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
-  `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
-  links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
-  the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
-  that predate the rename, and `tests/architecture-evals/candidate/` plus `opus5-gates/` are hashed
-  snapshots.
-- Scoped the `creating-react-components` decision gate to non-trivial changes so a one-line UI edit
-  does not require the full seven-field classification.
-- Linked failure ownership and error taxonomy directly from `creating-react-components`, which reached
-  them only through `loading-and-errors.md` and `notifications-and-feedback.md`. A reference behind a
-  reference gets previewed rather than read whole, so the routing path now stays one level deep.
-- Added what each skill does to its `description`, after the existing "Use when" trigger clause that
-  this repository requires, so routing metadata carries capability and trigger rather than trigger
-  alone.
-- Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
-  candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
-  `shared/server` root the contract admits, and generation runs on Codex models only.
-- Told `designing-architecture` to read its references directly rather than delegating a handful of
-  file reads to subagents, and to size a written proposal to the decision it serves.
-- Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
-  `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
-  `database-resource-ownership`, `external-backend-authority`, and `supabase-identity-modes`. The
-  original observations are retained under `green_check_invalidated` with the reason; the coverage
-  table now reports them as rerun-pending rather than GREEN. This is the content-hash guard working
-  as designed — the cells need a RED/GREEN rerun before release, not a hash refresh.
 
 ## [2.0.0] - 2026-07-28
 

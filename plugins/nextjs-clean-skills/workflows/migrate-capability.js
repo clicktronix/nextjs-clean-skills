@@ -657,6 +657,8 @@ const ARCH_PROBE =
   '## Run all of these and report faithfully\n' +
   '- ESLint with the installed boundary configs over the source root.\n' +
   '- `node rules/check-module-cycles.mjs`\n' +
+  '- `node rules/check-shared-admission.mjs` — a helper this migration moved into shared/** needs two real owners\n' +
+  '- `node rules/check-neutral-surfaces.mjs` — a query-cache surface this migration created needs both runtimes\n' +
   '- `node rules/check-dependency-classification.mjs`\n' +
   '- `node rules/check-database-resources.mjs` if the contract declares database resources.\n\n' +
   '## Report\n' +

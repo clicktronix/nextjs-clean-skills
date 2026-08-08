@@ -14,6 +14,8 @@ try to infer business meaning from path names.
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
+| `check-shared-admission.mjs` | the countable half of shared admission: how many real owners import a shared file |
+| `check-neutral-surfaces.mjs` | a runtime-neutral surface is consumed from both runtimes, not one |
 
 ## Install
 
@@ -47,6 +49,8 @@ Add the capability graph check to the same CI command:
 
 ```bash
 node rules/check-module-cycles.mjs
+node rules/check-shared-admission.mjs
+node rules/check-neutral-surfaces.mjs
 ```
 
 Before enabling the rules, classify every direct runtime dependency in
