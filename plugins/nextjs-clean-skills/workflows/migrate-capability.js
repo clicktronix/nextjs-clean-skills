@@ -237,7 +237,15 @@ const slice = await agent(
   '- roots: sourceRoot, appRoot, and moduleRoot/sharedRoot if the manifest or the target\'s rules/architecture-contract.json records them.\n' +
   `- segments and publicSurfaces: the admitted vocabulary, read from ${REPO}/rules/architecture-contract.json.\n` +
   `- assignments: every entry whose capability is "${CAP}", verbatim.\n` +
-  `- consumers: that capability's recorded consumers.\n` +
+  // Phase 1 records consumers at page granularity, and a real importer it missed reads later
+  // as a fabricated one: the plan names it, the screening cannot find it in the recorded list,
+  // and a correct plan is rejected. Completing the list here — where the data enters phase 2 —
+  // fixes it without weakening the screening or waiting for a phase 1 re-run.
+  `- consumers: that capability's recorded consumers, COMPLETED against the code. Return the union of ` +
+  `(a) the recorded entries verbatim, and (b) every file OUTSIDE the assignments above that imports one of ` +
+  `this capability's assigned files, found by Grep and named as a bare repo-relative path. A file owned by ` +
+  `another capability still counts — a cross-capability importer is a consumer, not an exception. ` +
+  `Paths only: no prose, no parenthetical notes.\n` +
   // Revalidated, not trusted. The two phases are separate invocations: between them the
   // plugin can be upgraded, pruned or reinstalled, and a path that no longer resolves
   // would be interpolated into the planning prompt as if it did.
@@ -376,8 +384,10 @@ const plan = await agent(
   '## Hard rules\n' +
   '- Do NOT propose destination directories or paths. This workflow computes them from the contract. Give roles only.\n' +
   '- Create a surface ONLY for a named consumer in the list above. A surface nobody imports is a defect, not future-proofing.\n' +
+  '- Name every consumer as a BARE repo-relative path, one per array entry: no prose, no trailing note in parentheses, no "and" joining two paths. ' +
+    'A consumer inside this capability is named by its destination path under ' + MODULE_ROOT + '/' + CAP + '/ — query-cache legitimately has those, because server prefetch and browser query share one key identity.\n' +
   '- Do NOT propose a segment that would end up empty. List the ones you deliberately avoided.\n' +
-  '- Route-private UI stays under the app root: that is role=stay, not a capability file.\n' +
+  '- Route-private UI stays under the app root: that is role=stay, not a capability file. A file the manifest did not assign to this capability may appear ONLY with role=stay; any other role for it is rejected.\n' +
   '- `export *` is never allowed on a surface. Action values are local async functions, not value re-exports.\n\n' +
   SCOPE_GUARDS + '\n\n' +
   'Read and Grep only in this phase — change nothing yet.\n\nStructured output only.',
@@ -448,14 +458,55 @@ for (const f of plannedSources) {
   sourceSeen[f] = true
 }
 const unplannedFiles = assignedFiles.filter(f => !sourceSeen[f])
-const unknownSources = plannedSources.filter(f => assignedFiles.indexOf(f) === -1)
+// `stay` is the one role that writes nothing, and the plan prompt above explicitly asks for
+// it on app-root files — which phase 1 assigns placement "app", never to a capability. Judging
+// those as unknown sources put the two instructions in direct contradiction: obeying the prompt
+// guaranteed rejection, and the pilot died on a plan that had described the app boundary
+// correctly. Every other role writes or deletes, so an unassigned file is still refused there.
+const unknownSources = (plan.moves || [])
+  .filter(mv => mv.role !== 'stay' && assignedFiles.indexOf(mv.file) === -1)
+  .map(mv => mv.file)
 
 // A surface is created for named consumers. `usedSurfaces` only required the list to be
 // non-empty, so an invented consumer path kept a surface alive that nothing imports, and
 // an empty export list published a contract with no contents.
+//
+// Matching against the manifest's recorded consumers ALONE was not satisfiable: phase 1 records
+// EXTERNAL consumers at page granularity, while a correct plan also names finer-grained app
+// files and — for query-cache, whose entire purpose is one key identity shared by server
+// prefetch and browser query — consumers INSIDE the capability, which can never appear in an
+// external-consumer list. So a consumer is admitted when it is recorded, or lives under this
+// capability's own module root, or under the app root. Anything else is still a fabrication.
+const CAP_ROOT = MODULE_ROOT + '/' + CAP + '/'
+const OWN_FILES = FILES.map(a => a.file)
+// Planners annotate a path with a trailing note ("…/route.ts (GET list + POST create)",
+// "…/keys.ts, which becomes app-level composition"). The prompt asks for bare paths; trimming
+// the note only keeps a leftover annotation from being read as an invented consumer.
+const bareConsumer = c => String(c).split(' (')[0].split(', ')[0].trim()
+// A recorded page-level list cannot hold three classes a correct plan must name. Each is
+// admitted explicitly rather than by relaxing the check to "any path under the source root",
+// which would readmit the fabricated consumer this guard exists to catch:
+//   1. consumers INSIDE the capability — query-cache exists so that server prefetch and browser
+//      query share one key identity, and neither of those is an external consumer;
+//   2. route-private app files finer-grained than the pages phase 1 records — an `_internal/…`
+//      file strictly below a recorded page's own directory, never a sibling of it;
+//   3. a file the manifest assigned to this capability, which is real by construction.
+const deeperThanRecorded = b => CONSUMERS.some(rc => {
+  const cut = rc.lastIndexOf('/')
+  if (cut === -1) return false
+  const dir = rc.slice(0, cut + 1)
+  return b.indexOf(dir) === 0 && b.slice(dir.length).indexOf('/') !== -1
+})
+const admittedConsumer = c => {
+  const bare = bareConsumer(c)
+  if (CONSUMERS.indexOf(c) !== -1 || CONSUMERS.indexOf(bare) !== -1) return true
+  if (bare.indexOf(CAP_ROOT) === 0) return true
+  if (OWN_FILES.indexOf(bare) !== -1) return true
+  return deeperThanRecorded(bare)
+}
 const strayConsumers = []
 for (const s of usedSurfaces) {
-  for (const c of s.consumers || []) if (CONSUMERS.indexOf(c) === -1) strayConsumers.push({ surface: s.surface, consumer: c })
+  for (const c of s.consumers || []) if (!admittedConsumer(c)) strayConsumers.push({ surface: s.surface, consumer: c })
 }
 const emptyExports = usedSurfaces.filter(s => (s.exports || []).length === 0).map(s => s.surface)
 
