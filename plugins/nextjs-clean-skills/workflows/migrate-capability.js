@@ -185,6 +185,33 @@ const PLAN_SCHEMA = {
         },
       },
     },
+    // The architecture forces some transports to change, and a forced change is still a change.
+    // In the first live run the capability's browser reads moved off Server Actions onto a GET
+    // route because the contract requires it — which altered the error shape, the retry predicate
+    // and how many times one outage reached Sentry. Typecheck, lint, 988 tests and the production
+    // build all stayed green, because nothing tested report-once; only the adversarial reviewer
+    // caught it, and it cost two fix rounds. Declared here, the consequence reaches the human who
+    // has to decide, instead of being discovered by whoever is on call.
+    channelChanges: {
+      type: 'array',
+      description: 'every runtime channel this migration changes because the architecture requires it',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['what', 'from', 'to', 'behaviourRisk'],
+        properties: {
+          what: { type: 'string', description: 'the behaviour whose channel changes, e.g. "browser list read"' },
+          from: { type: 'string', description: 'the channel today, e.g. "Server Action"' },
+          to: { type: 'string', description: 'the channel the contract requires, e.g. "GET route handler"' },
+          behaviourRisk: {
+            type: 'string',
+            description:
+              'what observably changes for a caller: error shape, retry policy, caching, streaming, ' +
+              'how often one failure is reported. "None" is an answer, but it must be stated.',
+          },
+        },
+      },
+    },
     emptySegmentsAvoided: { type: 'array', items: { type: 'string' } },
     risks: { type: 'array', items: { type: 'string' } },
   },
@@ -413,11 +440,27 @@ const plan = await agent(
   '- Route-private UI stays under the app root: that is role=stay, not a capability file. A file the manifest did not assign to this capability may appear ONLY with role=stay; any other role for it is rejected.\n' +
   '- `export *` is never allowed on a surface. Action values are local async functions, not value re-exports.\n\n' +
   SCOPE_GUARDS + '\n\n' +
+  '\n## Channel changes — declare them, do not smuggle them\n' +
+  'The contract decides which runtime channel each behaviour belongs on: browser-owned reads use GET ' +
+  'or streams and NEVER Server Actions; Server Actions are for UI mutations; RSC reads call capability ' +
+  'server code directly. Where this capability is on the wrong channel today, moving it is REQUIRED — ' +
+  'and it is still a behaviour change. List every one in `channelChanges` with what observably differs ' +
+  'for a caller: error shape, retry policy, cache semantics, streaming, how many times a single failure ' +
+  'is reported. Do not report "behaviour is preserved" for a channel you moved; the test suite passing ' +
+  'is not evidence that it is, because a suite written against the old channel does not test the new one.\n\n' +
   'Read and Grep only in this phase — change nothing yet.\n\nStructured output only.',
   { label: 'plan:' + CAP, phase: 'Plan', schema: PLAN_SCHEMA }
 )
 
 if (!plan) return { error: 'plan agent returned no result' }
+
+// Declared channel changes, carried to the movers and to the human gate. A forced transport change
+// is the one class of behaviour change this workflow cannot avoid making, so it is the one class it
+// must never make silently.
+const CHANNEL_CHANGES = (plan.channelChanges || []).filter(c => c && c.what && c.from && c.to)
+const CHANNEL_BLOCK = CHANNEL_CHANGES.map(
+  c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — risk: ' + (c.behaviourRisk || '(not stated)')
+).join('\n')
 
 // ─── Plan screening and table derivation ───
 // Everything from here to the Move banner is pure: it decides what is written and
@@ -612,6 +655,7 @@ const internals = await agent(
   '3. Delete the obsolete old paths in this same change. Leaving both topologies in place is a failure of this phase.\n' +
   '4. Do NOT yet touch files outside this capability — the next agent does that.\n\n' +
   SCOPE_GUARDS + '\n\n' +
+  (CHANNEL_BLOCK ? '\n## Channel changes this plan declared — implement them deliberately\n' + CHANNEL_BLOCK + '\nEach line is a transport the contract requires you to change. Keep the observable contract as close as the new channel allows, and where it cannot be kept, say so in `detail` rather than leaving it for the reviewer to find.\n' : '') +
   'Report every file you touched in filesTouched. If a move is impossible, stop and report it rather than improvising a different layout.\n\nStructured output only.',
   { label: 'move:internals', phase: 'Move', schema: STEP_SCHEMA }
 )
@@ -948,6 +992,12 @@ return {
     'this same capability, and decide again.\n' +
     '- REJECT: the ownership model itself is wrong for this codebase. Stop the programme and change the ' +
     'contract — do NOT migrate another capability onto a model you have rejected.\n' +
+    (CHANNEL_CHANGES.length > 0
+      ? '\nCHANNEL CHANGES IN THIS MIGRATION — verify these by hand, the test suite does not:\n' +
+        CHANNEL_CHANGES.map(c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — ' + (c.behaviourRisk || 'risk not stated')).join('\n') +
+        '\nThe contract required each of these moves, and each is still a behaviour change. A suite written ' +
+        'against the old channel passes without testing the new one.\n'
+      : '') +
     '\nBEFORE YOU ACCEPT: run this capability\'s REAL user path end to end, by hand, in the running app. ' +
     'Step 8 of docs/adoption-and-enforcement.md requires it and no agent here did it. Type, lint, test and ' +
     'build passing is a different claim from "the feature still works".\n' +
@@ -955,6 +1005,7 @@ return {
       ? '\nTHIS RUN IS NOT A VERDICT: ' + unmeasured.join(', ') + ' did not report, so there is nothing to accept or reject yet. Re-run first.'
       : '\nThis run recommends: ' + gate + ' — ' + decided.reason + '. The recommendation is advice; the decision is yours.'),
   remainingCapabilities: REMAINING,
+  channelChanges: CHANNEL_CHANGES,
   plan: { moves: moving.length, stayed: staying.length, deleted: deleting.length, surfaces: usedSurfaces.map(s => s.surface), surfacesDroppedForNoConsumer: unusedSurfaces.map(s => s.surface), surfaceMovesDropped: droppedSurfaceMoves.map(r => r.file), emptySegmentsAvoided: plan.emptySegmentsAvoided || [], risks: plan.risks || [] },
   oracles: {
     behaviour: oracles.behaviour ? { ok: oracles.behaviour.ok, detail: oracles.behaviour.detail } : null,

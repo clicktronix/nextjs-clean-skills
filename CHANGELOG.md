@@ -48,6 +48,14 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- The plan declares **channel changes**, and the gate surfaces them. The architecture decides which
+  runtime channel a behaviour belongs on — browser-owned reads use `GET` or streams and never Server
+  Actions — so a capability sitting on the wrong channel *must* move, and moving it is still a
+  behaviour change. In the first live run the pilot's browser reads went from Server Actions to a GET
+  route, which altered the error shape, made 5xx retryable under the shared predicate, and turned one
+  store outage into one Sentry report per attempt. Typecheck, lint, 988 tests and the production build
+  all stayed green, because nothing tested report-once; only the adversarial reviewer caught it, and it
+  cost two fix rounds. The word "channel" did not appear anywhere in phase 2 before this change.
 - The pilot's human gate is written as instructions instead of a citation. It named the document and
   asked for "accept, revise or reject"; the operator of the first live run said they did not
   understand the sentence, which means the gate asked for a decision it had not equipped them to

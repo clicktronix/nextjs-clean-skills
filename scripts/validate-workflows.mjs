@@ -784,6 +784,36 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
+  // ─── declared channel changes reach the human ───
+  // The first live run moved browser reads off Server Actions onto a GET route because the contract
+  // requires it, which changed the error shape, the retry predicate and how often one outage reached
+  // Sentry. Typecheck, lint, 988 tests and the build stayed green. Only the reviewer caught it, twice.
+  {
+    const planWithChannel = {
+      ...goodPlan,
+      channelChanges: [
+        { what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: 'retryable 5xx now reported per attempt' },
+      ],
+    }
+    const out = await pilot({ 'plan:work-items': planWithChannel })
+    const gateText = (out.result && out.result.humanGate) || ''
+    check(
+      (out.result && out.result.channelChanges || []).length === 1,
+      `${PILOT}: a declared channel change must reach the report, got ${JSON.stringify(out.result && out.result.channelChanges)}`
+    )
+    check(gateText.includes('CHANNEL CHANGES'), `${PILOT}: humanGate must surface channel changes — the suite does not test them`)
+    check(
+      gateText.includes('reported per attempt'),
+      `${PILOT}: humanGate must carry the declared behaviour risk, not just the fact that a channel moved`
+    )
+    // A migration that changes no channel must not manufacture a warning.
+    const quiet = await pilot({})
+    check(
+      !((quiet.result && quiet.result.humanGate) || '').includes('CHANNEL CHANGES'),
+      `${PILOT}: with no channel change the gate must stay silent about them`
+    )
+  }
+
   // ─── Plan must be a partition of the manifest's file set ───
   // Screening judged destinations only, so a plan covering a subset passed and the pilot
   // reported success over the files it happened to mention.
