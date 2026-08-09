@@ -219,6 +219,21 @@ All notable changes to this project are documented in this file.
   had never looked, and the script defaulted both to an empty list. The adversarial reviewer is now
   handed the declaration and asked to find transport changes the plan did not declare — nothing
   compared the claim with the built code before.
+- One module-graph extractor for all three checks, reporting each edge's KIND. Every checker grew
+  its own and each missed something different — a no-substitution template, `module.require`, a
+  two-argument `import()`, an empty named-import list — and an edge the extractor cannot see is an
+  importer that does not exist, which this floor prints as "delete it". The runtime view (type edges
+  erased) belongs to the neutral check alone: admission counts a type consumer as a consumer, and a
+  type-only cycle is still a cycle.
+- The neutral check's server graph is seeded from the RSC surface and the App Router composition
+  entrypoints only. `server/**` is where prefetch lives, not where the graph starts: seeded as a
+  root, an action-only helper there — or a private file nothing imports at all — manufactured the
+  prefetch side on its own. A file convention is matched against the configured page extensions
+  exactly, so `page.helper.ts` is a helper rather than an entrypoint and `route.helper.ts` is not a
+  channel of its own.
+- `unattributable` is a ratchet count like the others. Recorded but left out of the budget, it
+  printed on the SUCCESS path, so a tree the check openly could not judge exited zero under the line
+  "shared admission ok".
 - `check-neutral-surfaces.mjs` classifies consumers by the effective module graph. Every folder
   shortcut it used was wrong in a way that produced a verdict: `ui/**` was read as client though the
   contract permits server-renderable views there, a private `server/prefetch.ts` was neither side,

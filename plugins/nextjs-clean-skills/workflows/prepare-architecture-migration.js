@@ -743,14 +743,20 @@ if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not deci
 // gating the pilot on having placed every file in the target was our own addition.
 const pilotName = caps.length > 0 ? caps[0].name : null
 const unassigned = assignment.unassigned || []
-const unassignedInPilot = pilotName ? unassigned.filter(u => u.likelyCapability === pilotName) : []
+const unassignedInPilot = pilotName
+  ? unassigned.filter(u => typeof u.likelyCapability === 'string' && u.likelyCapability.trim() === pilotName)
+  : []
 // A row that names no capability, or one this inventory did not find, has no later run to block.
 // The warning below tells the operator the remaining rows "block their own capability later" — true
 // only of a row that names a capability, and this schema deliberately permits omitting the field.
 // So the unrouteable ones are answered HERE, where the answer is cheapest, instead of being carried
 // past every run of the wave and left at their old paths.
 const found = new Set(caps.map(c => c.name))
+// Normalised once, and the normalised value is what routing reads — see the same note in phase 2.
+// A row with a blank `file` is unanswerable rather than merely unplaced: `fileOwners` is keyed by
+// path, so there is no answer the operator could give, and it must not be recorded as waiting.
 const unrouteable = unassigned.filter(u => {
+  if (typeof u.file !== 'string' || u.file.trim() === '') return true
   const named = typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : ''
   return named === '' || !found.has(named)
 })

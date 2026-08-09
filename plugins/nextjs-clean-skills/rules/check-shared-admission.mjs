@@ -64,6 +64,11 @@ const budget = {
   unused: 0,
   demote: 0,
   speculative: 0,
+  // `unattributable` is a count like the others. Recorded but left out of the ratchet, it printed on
+  // the SUCCESS path — so a tree the check openly could not judge exited zero under the line
+  // "shared admission ok", and when another count was over budget those rows were not printed at
+  // all. That is the pre-migration shape passing on the strength of an admission of ignorance.
+  unattributable: 0,
   ...(contract.sharedAdmissionBudget ?? {}),
 }
 
@@ -105,6 +110,9 @@ function listSources(directory) {
 }
 
 
+// EVERY edge, type-only included. A shared type used by two capabilities is used by two
+// capabilities; erasing that edge reported a live types file as "no importer at all — delete it".
+// Runtime erasure belongs to the runtime question, which is check-neutral-surfaces.mjs.
 const specifiersOf = (file) =>
   moduleSpecifiers(ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true))
 
@@ -245,11 +253,22 @@ if (reasonless.length > 0) {
   process.exitCode = 1
 }
 
-const counts = { unused: unused.length, demote: demote.length, speculative: speculative.length }
+const counts = {
+  unused: unused.length,
+  demote: demote.length,
+  speculative: speculative.length,
+  unattributable: unattributable.length,
+}
 const over = Object.keys(budget).filter((kind) => counts[kind] > budget[kind])
 const under = Object.keys(budget).filter((kind) => counts[kind] < budget[kind])
 
 if (over.length > 0) {
+  for (const { file, importers } of unattributable) {
+    console.error(
+      `shared admission: ${file} could not be judged — its ${importers} importer(s) all sit outside ` +
+        'moduleRoot, appRoot and sharedRoot, so the contract names no owner for them'
+    )
+  }
   for (const file of unused) {
     console.error(`shared admission: ${file} has no importer at all — delete it`)
   }

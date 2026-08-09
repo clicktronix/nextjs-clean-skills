@@ -344,8 +344,10 @@ const slice = await agent(
   // as a fabricated one: the plan names it, the screening cannot find it in the recorded list,
   // and a correct plan is rejected. Completing the list here — where the data enters phase 2 —
   // fixes it without weakening the screening or waiting for a phase 1 re-run.
-  `- consumers: that capability's recorded consumers, COMPLETED against the code. Return the union of ` +
-  `(a) the recorded entries verbatim, and (b) every file OUTSIDE the assignments above that imports one of ` +
+  `- consumers: that capability's recorded consumers, VERIFIED and completed against the code. The recorded ` +
+  `list was written before anything moved, so a path in it may no longer exist or may no longer import this ` +
+  `capability; return an entry only if you confirm BOTH are still true today. Return the union of ` +
+  `(a) the recorded entries that still hold, and (b) every file OUTSIDE the assignments above that imports one of ` +
   `this capability's assigned files, found by Grep and named as a bare repo-relative path. A file owned by ` +
   `another capability still counts — a cross-capability importer is a consumer, not an exception. ` +
   `Paths only: no prose, no parenthetical notes.\n` +
@@ -500,11 +502,19 @@ const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 
 // row that names no capability has no later, so it would have been carried past every run of the
 // wave and left at its old path. Fail closed: it blocks the first run that reads it.
 const CAPABILITY_NAMES = new Set(CAP_ROWS.map(c => c.name).concat([CAP]))
-const unrouteable = u => {
-  const named = typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : ''
-  return named === '' || !CAPABILITY_NAMES.has(named)
-}
-const UNPLACED = (slice.unassigned || []).filter(u => u && (u.likelyCapability === CAP || unrouteable(u)))
+// Normalised ONCE, and the normalised value is what both decisions read. Trimming to decide that
+// `" work-items "` is routeable and then matching the untrimmed original against the capability
+// name meant a padded row passed the routeable test and failed every match after it — routed
+// nowhere, blocked by nobody, carried through the whole wave.
+const capabilityOf = u => (typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : '')
+const UNPLACED = (slice.unassigned || []).filter(u => {
+  if (!u) return false
+  // A row with no file names nothing, so no `fileOwners` answer can resolve it. It blocks here
+  // rather than being carried as an unanswerable objection.
+  if (typeof u.file !== 'string' || u.file.trim() === '') return true
+  const named = capabilityOf(u)
+  return named === CAP || named === '' || !CAPABILITY_NAMES.has(named)
+})
 if (UNPLACED.length > 0) {
   return {
     error: 'phase 1 could not place ' + UNPLACED.length + ' file(s) this run cannot migrate around — nothing was planned',
@@ -745,8 +755,11 @@ const surfaceDestOf = surface => CAP_ROOT + surface + '.ts'
 // stands today — and the same valid plan was then accepted or rejected depending on the order the
 // planner happened to list its moves in. Canonical destinations first, current sources last, so the
 // identity a file has right now always wins.
+// A moved surface's computed destination IS `surfaceDestOf(surface)` — `destination()` builds it
+// from the same two values — so registering it again adds nothing. Only the current source is a
+// second name, and it is registered last so the identity a file has TODAY wins over any
+// destination another move happens to claim.
 const SURFACE_DESTS = new Map(usedSurfaces.map(s => [surfaceDestOf(s.surface), s.surface]))
-for (const r of moving) if (r.role === 'surface' && r.surface) SURFACE_DESTS.set(r.dest, r.surface)
 for (const r of moving) if (r.role === 'surface' && r.surface) SURFACE_DESTS.set(r.file, r.surface)
 // A surface may legitimately be consumed by another surface — `actions.ts` reading the key identity
 // out of `query-cache.ts` is the canonical case — but that is a REFERENCE, not evidence. Left
@@ -754,10 +767,12 @@ for (const r of moving) if (r.role === 'surface' && r.surface) SURFACE_DESTS.set
 // consumer passed screening and started the mover, and two surfaces naming each other did the same
 // with no real importer anywhere in the chain. So surface-to-surface edges are followed, and every
 // used surface has to reach a concrete consumer through them.
+// The deleted test comes FIRST, before every admission branch. Applied only to the assigned-file
+// branch, a recorded consumer that this plan deletes still grounded the surface — and a recorded
+// list is exactly where a stale path survives, since phase 1 wrote it before anything moved.
 const concreteConsumer = bare =>
-  CONSUMERS.indexOf(bare) !== -1 ||
-  (OWN_FILES.indexOf(bare) !== -1 && DELETED_FILES.indexOf(bare) === -1) ||
-  PLANNED_DESTS.indexOf(bare) !== -1
+  DELETED_FILES.indexOf(bare) === -1 &&
+  (CONSUMERS.indexOf(bare) !== -1 || OWN_FILES.indexOf(bare) !== -1 || PLANNED_DESTS.indexOf(bare) !== -1)
 const strayConsumers = []
 const surfaceEdges = new Map()
 const grounded = new Set()
@@ -778,7 +793,7 @@ for (const s of usedSurfaces) {
       }
       continue
     }
-    if (concreteConsumer(bare) || CONSUMERS.indexOf(c) !== -1) {
+    if (concreteConsumer(bare)) {
       grounded.add(s.surface)
       continue
     }

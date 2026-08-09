@@ -268,6 +268,16 @@ export default missing
 import { b } from '../cycle-b/server.js'
 export const a = b
 `,
+  // A type-only cycle is a cycle: the contract requires the module dependency graph to be acyclic,
+  // without qualification. Erasing type edges in the shared extractor made this graph report none.
+  'src/modules/cycle-type-a/server.ts': `
+import type { B } from '../cycle-type-b/server.js'
+export type A = { b: B }
+`,
+  'src/modules/cycle-type-b/server.ts': `
+import type { A } from '../cycle-type-a/server.js'
+export type B = { a?: A }
+`,
   // The same cycle in NodeNext extensions, written with the `.mjs` specifiers TypeScript expects.
   // The resolver settings listed js/jsx/ts/tsx only, so these resolved to nothing and the canary
   // passed over a real cycle.
@@ -498,6 +508,12 @@ if (ESLint) {
     }
 
     const graphOutput = `${graphResult.stdout}${graphResult.stderr}`
+    // A type-only cycle is still a cycle. The contract requires the module dependency graph to be
+    // acyclic without qualification, and the shared extractor's runtime view — right for the
+    // neutral check — reported this graph as having no edges at all.
+    if (!graphOutput.includes('cycle-type-a -> cycle-type-b -> cycle-type-a')) {
+      errors.push(`type-only capability cycle canary failed: received ${graphOutput.trim() || `exit ${graphResult.status}`}`)
+    }
     if (
       graphResult.status === 0 ||
       !graphOutput.includes('graph-a -> graph-b -> graph-a')
@@ -510,6 +526,7 @@ if (ESLint) {
     fs.rmSync(path.join(sandbox, 'src/modules/graph-b/server/use-a.ts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-b/server.ts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-mts-b/server.mts'))
+    fs.rmSync(path.join(sandbox, 'src/modules/cycle-type-b/server.ts'))
     const cleanGraphResult = spawnSync(
       process.execPath,
       [path.join(sandbox, path.basename(CYCLES))],
@@ -773,6 +790,19 @@ expectCheck(
     'src/lib/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
   },
   FLOOR_CONTRACT,
+  1,
+  'could not be judged'
+)
+// A repository that has not migrated yet records the count deliberately, the way it records every
+// other kind of debt — the ratchet is how "we know, and it may not grow" is expressed.
+expectCheck(
+  ADMISSION,
+  'a recorded unattributable budget is how a pre-migration tree passes',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/lib/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+  },
+  { ...FLOOR_CONTRACT, sharedAdmissionBudget: { unattributable: 1 } },
   0,
   '1 unattributable'
 )
@@ -984,7 +1014,7 @@ expectCheck(
     ...FLOOR_CONTRACT,
     sharedAdmissionExempt: { 'src/shared/utils/date.ts': 'the subject of a different question in this fixture' },
   },
-  0,
+  1,
   'could not be judged'
 )
 expectCheck(
@@ -992,7 +1022,7 @@ expectCheck(
   'one capability plus one unattributable importer is not a demote',
   { ...admitted, 'src/legacy/wire.ts': "import { money } from '~/shared/kernel/money'\nexport const w = money\n" },
   FLOOR_CONTRACT,
-  0,
+  1,
   'could not be judged'
 )
 // A capability is a DIRECTORY under moduleRoot. A file sitting directly there was answered with its
@@ -1002,7 +1032,7 @@ expectCheck(
   'a file directly under moduleRoot is not a capability',
   { ...admitted, 'src/modules/index.ts': "import { money } from '~/shared/kernel/money'\nexport const all = money\n" },
   FLOOR_CONTRACT,
-  0,
+  1,
   'could not be judged'
 )
 
@@ -1013,12 +1043,19 @@ for (const [label, importer] of [
   ['a no-substitution template in import()', "const m = import(`~/shared/kernel/money`)\nexport const a = m\n"],
   ['a no-substitution template in require()', "const m = require(`~/shared/kernel/money`)\nmodule.exports = m\n"],
   ['module.require', "const m = module.require('~/shared/kernel/money')\nmodule.exports = m\n"],
+  ["module['require']", "const m = module['require']('~/shared/kernel/money')\nmodule.exports = m\n"],
+  ['import() with options', "const m = import('~/shared/kernel/money', { with: { type: 'json' } })\nexport const a = m\n"],
+  ['a bare side-effect named-import list', "import {} from '~/shared/kernel/money'\nexport const a = 1\n"],
+  ['a bare side-effect named re-export', "export {} from '~/shared/kernel/money'\n"],
+  // The whole point of the runtime/type split: erasing this edge told a live types file to delete
+  // itself. Admission counts consumers, and a type consumer is a consumer.
+  ['a type-only import', "import type { Money } from '~/shared/kernel/money'\nexport type A = Money\n"],
 ]) {
   expectCheck(
     ADMISSION,
     `${label} is an importer`,
     {
-      'src/shared/kernel/money.ts': 'export const money = 1\n',
+      'src/shared/kernel/money.ts': 'export const money = 1\nexport type Money = number\n',
       'src/modules/orders/server/a.ts': importer,
       'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
     },
@@ -1027,6 +1064,21 @@ for (const [label, importer] of [
     '1 admitted'
   )
 }
+
+// The negative half: an ordinary method that happens to be called `require` is not a module edge.
+// Accepting any property access named `require` read `loader.require(name)` as an import.
+expectCheck(
+  ADMISSION,
+  'an unrelated .require() method call is not an importer',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.ts': "declare const loader: { require(name: string): unknown }\nexport const a = loader.require('~/shared/kernel/money')\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'is used only by the "billing" capability'
+)
 
 // `import x = require()` is claimed by this check and was covered by no fixture: removing the branch
 // left the whole suite green.
@@ -1189,17 +1241,45 @@ expectCheck(
 )
 
 // FALSE FAILURE 1: the private server segment is where prefetch lives — the canonical server side.
+// `server/**` is where prefetch LIVES; it is not where the server graph STARTS. The composition
+// entrypoint that reaches it is what makes it a prefetch site.
+const privatePrefetch = {
+  'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
+  'src/modules/orders/server/prefetch.ts': `${importsKey('~/modules/orders/query-cache')}export const prefetch = () => key\n`,
+  'src/modules/orders/client/hook.ts': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const useOrders = () => key\n`,
+}
 expectCheck(
   NEUTRAL,
-  'a private server prefetch is the server side',
+  'a private server prefetch reached from a page is the server side',
   {
-    'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
-    'src/modules/orders/server/prefetch.ts': `${importsKey('~/modules/orders/query-cache')}export const prefetch = () => key\n`,
-    'src/modules/orders/client/hook.ts': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const useOrders = () => key\n`,
+    ...privatePrefetch,
+    'src/app/orders/page.tsx': "import { prefetch } from '~/modules/orders/server/prefetch'\nexport default prefetch\n",
   },
   FLOOR_CONTRACT,
   0,
   'neutral surfaces ok'
+)
+// Unreachable, it prefetches for nobody — and seeded as a root it used to say otherwise.
+expectCheck(
+  NEUTRAL,
+  'an unreachable private server file is not a prefetch site',
+  privatePrefetch,
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+// Reached only through an action, it is on the action's channel, not the prefetch path.
+expectCheck(
+  NEUTRAL,
+  'a private server helper reached only from an action is not a prefetch site',
+  {
+    ...privatePrefetch,
+    'src/modules/orders/actions.ts': "'use server'\nimport { prefetch } from '~/modules/orders/server/prefetch'\nexport const act = async () => prefetch()\n",
+    'src/app/orders/page.tsx': "import { act } from '~/modules/orders/actions'\nexport default act\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
 )
 
 // FALSE FAILURE 2: `export { key } from '...'` is an edge. Ignoring it hid a real consumer.
@@ -1378,10 +1458,36 @@ for (const entrypoint of [
 // extension left `page.page`, a name no inventory can contain.
 expectCheck(
   NEUTRAL,
-  'a pageExtensions-style page.page.tsx is still a page',
+  'a configured pageExtensions spelling is still a page',
   {
     ...clientOnly,
     'src/app/orders/page.page.tsx': `${importsKey('~/modules/orders/query-cache')}export default () => key\n`,
+  },
+  { ...FLOOR_CONTRACT, pageExtensions: ['page.tsx', 'ts', 'tsx'] },
+  0,
+  'neutral surfaces ok'
+)
+// A helper NAMED after a convention is not that convention. Matching the first dot-segment made
+// `page.helper.ts` a composition entrypoint on its own, and `route.helper.ts` a channel of its own —
+// one inventing a server side, the other cutting a real one.
+expectCheck(
+  NEUTRAL,
+  'a page.helper.ts is a helper, not a composition entrypoint',
+  {
+    ...clientOnly,
+    'src/app/orders/page.helper.ts': `${importsKey('~/modules/orders/query-cache')}export const h = () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+expectCheck(
+  NEUTRAL,
+  'a route.helper.ts reached from a page is on the prefetch path',
+  {
+    ...clientOnly,
+    'src/app/orders/route.helper.ts': `${importsKey('~/modules/orders/query-cache')}export const h = () => key\n`,
+    'src/app/orders/page.tsx': "import { h } from './route.helper'\nexport default h\n",
   },
   FLOOR_CONTRACT,
   0,

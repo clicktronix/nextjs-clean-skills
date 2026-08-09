@@ -26,11 +26,15 @@ seeded from the capability's `rsc` surface, its private `server/**` segment, and
 composition entrypoints (`appEntrypoints` overrides the list). Declarations and development
 artifacts are excluded — `developmentArtifactSuffixes` and `developmentArtifactDirectories` override
 those, and the same predicate governs `check-shared-admission.mjs`, which used to disagree with it.
-Every static module-loading form counts as an edge, including no-substitution templates and
-`module.require`; type-only edges do not.
+Every static module-loading form counts as an edge, including no-substitution templates,
+`module.require` and `module['require']`, and `import(specifier, options)`; an ordinary method that
+happens to be called `require` does not. Type-only edges are dropped HERE only: the extractor
+reports the kind and each check takes the view it needs, because a shared type imported by two
+capabilities is used by two capabilities and a type-only cycle is still a cycle.
 
 `sharedAdmissionBudget` and `sharedAdmissionExempt` are optional too: the first is the ratchet — counts
-that may fall and never rise, absent meaning zero on every count — and the second maps each
+that may fall and never rise, absent meaning zero on every count, `unattributable` included, so a tree
+the check cannot judge fails until its number is recorded deliberately — and the second maps each
 project-relative path the rule cannot apply to onto the reason it cannot, for example
 `{ "src/shared/kernel/env.ts": "read by the build, never imported" }`. A path with a blank reason
 fails: an exemption nobody has to justify switches the check off one file at a time. Both live here

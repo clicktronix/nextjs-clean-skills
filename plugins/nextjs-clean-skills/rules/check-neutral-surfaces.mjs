@@ -42,6 +42,7 @@ import {
   resolveToExistingFile,
   moduleSpecifiers,
   developmentArtifactPredicate,
+  SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
@@ -52,7 +53,11 @@ const serverSurfaces = new Set(contract.serverSurfaces ?? [])
 const SOURCE = /\.[cm]?[jt]sx?$/
 // Their own channels. A route handler or an action module that reads a neutral surface is using it
 // as a server module, not prefetching into a hydrated client cache, so it is not the second side.
-const OWN_CHANNELS = new Set(['route', 'actions'])
+// Under the app root, `route` is the only FILENAME convention that names a channel. `actions` is not
+// a Next.js convention at all — an action module is one because of its directive — so matching the
+// name cut a legitimate `page.tsx -> actions.helper.ts` composition path. The `actions` SURFACE of a
+// capability is still recognised, by its position in the module vocabulary, in `isOwnChannel`.
+const OWN_CHANNELS = new Set(['route'])
 // Next.js composition entrypoints — every current UI file convention, not a remembered subset:
 // `forbidden`, `unauthorized` and `global-not-found` were missing, so a page that legitimately
 // prefetched from one of them reported no server side at all. Overridable, because the framework
@@ -74,10 +79,19 @@ function listSourceFiles(directory) {
 }
 
 const stem = (file) => path.basename(file).replace(SOURCE, '')
-// The CONVENTION a file name states, which is its first dot-segment: `pageExtensions` lets a project
-// write `page.page.tsx`, and stripping only the final extension left `page.page` — a name no
-// convention list can contain, so the entrypoint was invisible.
-const convention = (file) => path.basename(file).split('.')[0]
+// The CONVENTION a file name states. Next matches a file convention against its CONFIGURED
+// extensions — `pageExtensions: ['page.tsx']` makes the route file `page.page.tsx` — so the name is
+// the basename minus one configured extension, exactly. Reading the first dot-segment instead made
+// every `page.helper.ts` a composition entrypoint and every `route.helper.ts` a channel of its own:
+// one invented a server side, the other cut a real one.
+const PAGE_EXTENSIONS = contract.pageExtensions ?? SOURCE_EXTENSIONS
+const convention = (file) => {
+  const base = path.basename(file)
+  for (const extension of PAGE_EXTENSIONS) {
+    if (base.endsWith(`.${extension}`)) return base.slice(0, -(extension.length + 1))
+  }
+  return null
+}
 
 function moduleLocation(file) {
   const parts = relativeParts(moduleRoot, file)
@@ -117,7 +131,7 @@ function hasDirective(parsed, directive) {
 // One extractor, shared with check-shared-admission.mjs and check-module-cycles.mjs. Three private
 // copies disagreed about which forms are edges — a no-substitution template, `module.require`, a
 // type-only import-equals — and every disagreement showed up as a missing consumer somewhere.
-const valueEdges = moduleSpecifiers
+const valueEdges = (parsed) => moduleSpecifiers(parsed, { valueOnly: true })
 
 const files = listSourceFiles(sourceRoot).filter((file) => !isNonRuntimeFile(file))
 const parsed = new Map(files.map((file) => [file, parse(file, fs.readFileSync(file, 'utf8'))]))
@@ -178,7 +192,11 @@ const clientReachable = reachableFrom(files.filter(isClientBoundary), isServerOn
 // directive is what makes it one.
 const serverRoots = files.filter((file) => {
   const module = moduleLocation(file)
-  if (module?.surface === 'rsc' || module?.segment === 'server') return true
+  // `server/**` is where prefetch LIVES, not where the server graph starts. Seeded as a root, an
+  // action-only helper under `server/**` — or a private file nothing imports at all — manufactured
+  // the prefetch side on its own, which is the claim the own-channel barrier exists to prevent. It
+  // must be REACHED from an RSC surface or an App composition entrypoint.
+  if (module?.surface === 'rsc') return true
   // Under the app root, only a real COMPOSITION entrypoint seeds the graph. "Every app file that is
   // not a route handler or an action" made a route's own private helper a server root of its own,
   // and a `'use client'` page a server root as well — each inventing a server side out of a file

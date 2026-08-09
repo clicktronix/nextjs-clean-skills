@@ -561,18 +561,23 @@ if (files.includes(PILOT)) {
       )
       check(!chained.error, `plan screening (a grounded surface chain): must be accepted, got ${JSON.stringify(chained.error)}`)
       // A file this same plan deletes is not evidence that anything imports the surface.
-      const viaDeleted = run(
-        {
-          moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/old.ts', role: 'delete' }],
-          surfaces: [{ surface: 'rsc', consumers: ['src/lib/old.ts'], exports: ['read'] }],
-        },
-        [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/old.ts' }],
-        []
-      )
-      check(
-        viaDeleted && typeof viaDeleted.error === 'string',
-        `plan screening (a consumer this plan deletes): must be rejected, got ${JSON.stringify(viaDeleted && viaDeleted.error)}`
-      )
+      // Both routes to the same claim: as an assigned file, and as a RECORDED consumer. The recorded
+      // list is where a stale path most easily survives — phase 1 wrote it before anything moved —
+      // and the deleted test used to sit on only one branch.
+      for (const [label, recorded] of [['as an assigned file', []], ['as a recorded consumer', ['src/lib/old.ts']]]) {
+        const viaDeleted = run(
+          {
+            moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/old.ts', role: 'delete' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/lib/old.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/old.ts' }],
+          recorded
+        )
+        check(
+          viaDeleted && typeof viaDeleted.error === 'string',
+          `plan screening (a consumer this plan deletes, ${label}): must be rejected, got ${JSON.stringify(viaDeleted && viaDeleted.error)}`
+        )
+      }
 
       // The registration order must not decide the verdict. A role change puts one surface's future
       // canonical path where another surface's file stands today; interleaved registration let the
@@ -904,10 +909,38 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       })
       const text = ((out.result && out.result.blockers) || []).join(' ')
       check(
-        /no owner/.test(text) && /src\/nowhere\.ts/.test(text) && /args\.fileOwners/.test(text),
+        /no owner/.test(text) && /args\.fileOwners/.test(text),
         `${BASELINE} (unplaced row with ${label}): must block here, since no later run can. blockers=${JSON.stringify(out.result && out.result.blockers)}`
       )
     }
+    // A row with no file is unanswerable, not merely unplaced: `fileOwners` is keyed by path, so
+    // there is nothing the operator could write. It names another FOUND capability deliberately, so
+    // only the blank-file rule can be what blocks it.
+    const blankFile = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: {
+        ...withSrc,
+        assign: {
+          ...assigned,
+          capabilities: [{ name: 'work-items' }, { name: 'labels' }],
+          unassigned: [{ file: '   ', why: 'unclear', likelyCapability: 'labels' }],
+        },
+      },
+    })
+    check(
+      /no owner/.test(((blankFile.result && blankFile.result.blockers) || []).join(' ')),
+      `${BASELINE} (unplaced row with no file): must block, since no fileOwners answer can resolve it. blockers=${JSON.stringify(blankFile.result && blankFile.result.blockers)}`
+    )
+
+    const paddedPilot = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: { ...withSrc, assign: { ...assigned, unassigned: [{ file: 'src/padded.ts', why: 'unclear', likelyCapability: ' work-items ' }] } },
+    })
+    check(
+      /no owner/.test(((paddedPilot.result && paddedPilot.result.blockers) || []).join(' ')),
+      `${BASELINE} (padded pilot name): must be normalised once and block. blockers=${JSON.stringify(paddedPilot.result && paddedPilot.result.blockers)}`
+    )
+
     // Control: a row naming a capability the inventory DID find waits for that capability's own run.
     const later = await runBody(baseSrc, {
       args: ARGSO,
@@ -1122,6 +1155,18 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       elsewhere.result && elsewhere.result.recommendation === 'accept',
       `${PILOT}: an unplaced file belonging to another capability must not block this one, got ${JSON.stringify(elsewhere.result && elsewhere.result.error)}`
     )
+    // Padded, it passed the routeable test on the trimmed value and then failed every match on the
+    // untrimmed one — routed nowhere and blocked by nobody.
+    const padded = await pilot({
+      'load-manifest': {
+        ...withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: ' work-items ' }]),
+        capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+      },
+    })
+    check(
+      padded.result && /could not place/.test(padded.result.error || '') && !padded.calls.includes('plan:work-items'),
+      `${PILOT}: a padded capability name must be normalised once and block this run, got ${JSON.stringify(padded.result && padded.result.error)}`
+    )
     // The schema has to admit the key, or the probe cannot return what the gate depends on.
     const loadCall = elsewhere.prompts.find(p => p.label === 'load-manifest')
     check(
@@ -1150,6 +1195,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       ['no likelyCapability at all', { file: 'src/lib/orphan.ts' }],
       ['a blank likelyCapability', { file: 'src/lib/orphan.ts', likelyCapability: '   ' }],
       ['a capability this manifest does not carry', { file: 'src/lib/orphan.ts', likelyCapability: 'invented' }],
+      ['no file to answer for', { file: '   ', likelyCapability: 'labels' }],
     ]) {
       const out = await pilot({
         'load-manifest': {

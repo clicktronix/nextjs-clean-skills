@@ -186,52 +186,79 @@ export function sourceFilesPattern(paths) {
 export { posix }
 
 /**
- * Every static module-loading form, in one place. Each checker grew its own extractor and each
- * missed something different: a no-substitution template (`import(`./x`)`) is a compile-time
- * constant that `ts.isStringLiteral` rejects, and `module.require('./x')` is a require by another
- * name. A specifier the extractor does not see is an edge the graph does not have — which reads as
- * "no importer, delete it" in one check and as a missing runtime consumer in another.
+ * Every static module-loading form, in one place, WITH ITS KIND. One shared extractor was right;
+ * one shared ANSWER was not. Type erasure is correct for runtime reachability — a type import puts
+ * nothing on either runtime — and wrong everywhere else: a shared type imported by two capabilities
+ * is used by two capabilities, and erasing that edge made `check-shared-admission.mjs` print
+ * "no importer at all — delete it" for a live types file. The cycle canary has the same need: the
+ * contract requires the module dependency graph to be acyclic, without qualification.
+ *
+ * So the extractor reports edges and each caller takes the view it needs.
  */
-export function moduleSpecifiers(parsed) {
-  const specifiers = []
+export function moduleEdges(parsed) {
+  const edges = []
   const literal = (node) => (node && ts.isStringLiteralLike(node) ? node.text : null)
-  const push = (node) => {
-    const text = literal(node)
-    if (text !== null) specifiers.push(text)
+  const push = (node, typeOnly) => {
+    const specifier = literal(node)
+    if (specifier !== null) edges.push({ specifier, typeOnly })
   }
-  const isRequireTarget = (expression) =>
-    (ts.isIdentifier(expression) && expression.text === 'require') ||
-    (ts.isPropertyAccessExpression(expression) &&
-      ts.isIdentifier(expression.name) &&
-      expression.name.text === 'require')
+  // `require` and `module.require` / `module['require']`, and nothing else. Accepting any property
+  // access named `require` read `loader.require(name)` — an ordinary method call on somebody's
+  // object — as a module edge.
+  const isRequireTarget = (expression) => {
+    if (ts.isIdentifier(expression)) return expression.text === 'require'
+    const receiver = ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)
+    if (!receiver) return false
+    if (!ts.isIdentifier(expression.expression) || expression.expression.text !== 'module') return false
+    return ts.isPropertyAccessExpression(expression)
+      ? ts.isIdentifier(expression.name) && expression.name.text === 'require'
+      : literal(expression.argumentExpression) === 'require'
+  }
+  // `every()` on an empty list is true, so `import {} from './x'` and `export {} from './x'` were
+  // classified as entirely type-only and dropped. They import nothing by name and still load the
+  // module for its side effects, which is a value edge.
+  const allTypeOnly = (elements) => elements.length > 0 && elements.every((element) => element.isTypeOnly)
   const visit = (node) => {
-    if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly) {
-      const bindings = node.importClause?.namedBindings
-      const allTypeOnly =
-        !node.importClause?.name &&
-        bindings &&
-        ts.isNamedImports(bindings) &&
-        bindings.elements.every((element) => element.isTypeOnly)
-      if (!allTypeOnly) push(node.moduleSpecifier)
+    if (ts.isImportDeclaration(node)) {
+      const clause = node.importClause
+      const bindings = clause?.namedBindings
+      const typeOnly = Boolean(
+        clause &&
+          (clause.isTypeOnly ||
+            (!clause.name && bindings && ts.isNamedImports(bindings) && allTypeOnly(bindings.elements)))
+      )
+      push(node.moduleSpecifier, typeOnly)
     }
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier && !node.isTypeOnly) {
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
       const clause = node.exportClause
-      const allTypeOnly =
-        clause && ts.isNamedExports(clause) && clause.elements.every((element) => element.isTypeOnly)
-      if (!allTypeOnly) push(node.moduleSpecifier)
+      const typeOnly = Boolean(
+        node.isTypeOnly || (clause && ts.isNamedExports(clause) && allTypeOnly(clause.elements))
+      )
+      push(node.moduleSpecifier, typeOnly)
     }
-    if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
-      push(node.moduleReference.expression)
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      push(node.moduleReference.expression, Boolean(node.isTypeOnly))
     }
-    if (ts.isCallExpression(node) && node.arguments.length === 1) {
-      if (node.expression.kind === ts.SyntaxKind.ImportKeyword || isRequireTarget(node.expression)) {
-        push(node.arguments[0])
+    if (ts.isCallExpression(node)) {
+      // `import(specifier, options)` is a two-argument call in current TypeScript; requiring exactly
+      // one argument made the import-attributes form invisible.
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length >= 1) {
+        push(node.arguments[0], false)
+      } else if (isRequireTarget(node.expression) && node.arguments.length === 1) {
+        push(node.arguments[0], false)
       }
     }
     ts.forEachChild(node, visit)
   }
   visit(parsed)
-  return specifiers
+  return edges
+}
+
+/** Specifier strings. `valueOnly` drops type-only edges, which is the runtime view. */
+export function moduleSpecifiers(parsed, { valueOnly = false } = {}) {
+  return moduleEdges(parsed)
+    .filter((edge) => !valueOnly || !edge.typeOnly)
+    .map((edge) => edge.specifier)
 }
 
 // Development artifacts ship on no runtime and own nothing. Each checker had its own list and they
