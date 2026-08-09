@@ -1164,6 +1164,43 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       ((diedMidLoop.result && diedMidLoop.result.humanGate) || '').includes('AN ORACLE STOPPED REPORTING'),
       `${PILOT}: the gate must say the tree was edited and then not measured`
     )
+    // A post-fix `reject` leaves through the loop's own reject guard, and below the cap that read as
+    // `converged` — "cleared what it was watching", printed above a verdict saying the model is wrong.
+    const rejectedAfterFix = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 2 },
+      overrides: {
+        ...base,
+        'verify:review': n => (n === 0 ? { verdict: 'revise', findings: [{ severity: 'must-fix' }] } : { verdict: 'reject', findings: [] }),
+      },
+    })
+    check(
+      rejectedAfterFix.result && rejectedAfterFix.result.fixLoopExit === 'rejected' &&
+        (rejectedAfterFix.result.humanGate || '').includes('REJECTED THE OWNERSHIP MODEL'),
+      `${PILOT}: a loop that stopped on a rejection must not report that it cleared what it was watching, got ${JSON.stringify(rejectedAfterFix.result && rejectedAfterFix.result.fixLoopExit)}`
+    )
+    // `no-progress` compares a serialisation, so key and finding ORDER decided whether a round had
+    // moved anything. Same state, different order, twice — the loop must still call it stalled.
+    const shuffled = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 4 },
+      overrides: {
+        ...base,
+        'verify:architecture': n => ({
+          ok: true,
+          counts: n % 2 === 0 ? { capability: 1, crossCapabilityInternal: 1 } : { crossCapabilityInternal: 1, capability: 1 },
+          detail: '',
+        }),
+        'verify:review': n => ({
+          verdict: 'revise',
+          findings: n % 2 === 0
+            ? [{ severity: 'must-fix', detail: 'a' }, { severity: 'must-fix', detail: 'b' }]
+            : [{ severity: 'must-fix', detail: 'b' }, { severity: 'must-fix', detail: 'a' }],
+        }),
+      },
+    })
+    check(
+      shuffled.result && shuffled.result.fixLoopExit === 'no-progress' && shuffled.result.fixRounds === 1,
+      `${PILOT}: reordered counters and findings are the same state — the loop must stop, got ${JSON.stringify(shuffled.result && [shuffled.result.fixLoopExit, shuffled.result.fixRounds])}`
+    )
 
     // A dead instruction probe fell through the same branch as a clean instruction layer.
     const staleDead = await pilot({ 'stale-instructions': null })

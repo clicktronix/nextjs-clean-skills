@@ -1027,11 +1027,22 @@ const fixFiles = []
 // architectural counts aborted a behaviour-only or review-only repair after one
 // round with the operator's budget unspent — and logged a message blaming the
 // architecture, which had never been the blocker.
+// Canonicalised, because the comparison is `===` on a serialisation. A probe that reports the same
+// counters in a different key order, or the same findings in a different order, is reporting the
+// same state — and raw JSON.stringify called that progress, so the loop kept spending rounds on a
+// tree nothing was moving.
+const canonicalCounts = counts =>
+  Object.keys(counts || {}).sort().map(k => k + '=' + (counts[k] || 0)).join(',')
 const loopState = o => JSON.stringify({
-  arch: (o.architecture && o.architecture.counts) || {},
+  arch: canonicalCounts(o.architecture && o.architecture.counts),
   behaviour: !!(o.behaviour && o.behaviour.ok),
+  // Kept verbatim on purpose: a changed failure message with the same red/green is evidence that
+  // something moved, and dropping it would make a real behaviour change look like a stalled loop.
   behaviourDetail: (o.behaviour && o.behaviour.detail) || '',
-  musts: ((o.review && o.review.findings) || []).filter(f => f.severity === 'must-fix').map(f => f.detail || f.property || ''),
+  musts: ((o.review && o.review.findings) || [])
+    .filter(f => f.severity === 'must-fix')
+    .map(f => f.detail || f.property || '')
+    .sort(),
 })
 // An oracle that did not report is not an oracle that reported failure, and no fix round can
 // repair a probe that never ran. Read off a null result, `!(o.behaviour && o.behaviour.ok)` was
@@ -1095,9 +1106,15 @@ if (fixLoopExit === 'not-entered' && fixRounds > 0) {
   // strength of a probe that never ran is the exact claim this workflow exists to refuse.
   fixLoopExit = !oraclesMeasured(oracles)
     ? 'unmeasured'
-    : fixRounds >= MAX_FIX && oraclesRed(oracles)
-      ? 'cap-reached'
-      : 'converged'
+    // A post-fix `reject` exits through the loop's own reject guard, and below the cap that was
+    // then reported as `converged` — "the fix loop cleared what it was watching", printed directly
+    // above a verdict saying the ownership model is wrong. The loop stopped because there was
+    // nothing left to repair, not because it succeeded.
+    : oracles.review.verdict === 'reject'
+      ? 'rejected'
+      : fixRounds >= MAX_FIX && oraclesRed(oracles)
+        ? 'cap-reached'
+        : 'converged'
 }
 
 // ─── Radius: the quality oracle ───
@@ -1222,15 +1239,18 @@ return {
       : fixLoopExit === 'no-progress'
         ? '\nTHE FIX LOOP STOPPED MOVING: a round changed nothing any oracle could see, so more rounds will not ' +
           'help. What remains needs a person.\n'
-        : fixLoopExit === 'unmeasured'
-          ? '\nTHE FIX LOOP STOPPED BECAUSE AN ORACLE STOPPED REPORTING after ' + fixRounds + ' round(s). ' +
-            'It did not finish and it did not fail — the tree was edited and then not measured. Re-run before ' +
-            'reading anything below as the state of this migration.\n'
-          : fixLoopExit === 'converged'
-            // `not-entered` stays silent on purpose: no round ran because nothing needed one, and a
-            // line about a loop that never started is noise in front of the decision.
-            ? '\nThe fix loop ran ' + fixRounds + ' round(s) and cleared what it was watching.\n'
-            : '') +
+        : fixLoopExit === 'rejected'
+          ? '\nTHE FIX LOOP STOPPED BECAUSE THE REVIEW ORACLE REJECTED THE OWNERSHIP MODEL, after ' + fixRounds +
+            ' round(s). Nothing here is a repair job: the decision below is about the model, not about this migration.\n'
+          : fixLoopExit === 'unmeasured'
+            ? '\nTHE FIX LOOP STOPPED BECAUSE AN ORACLE STOPPED REPORTING after ' + fixRounds + ' round(s). ' +
+              'It did not finish and it did not fail — the tree was edited and then not measured. Re-run before ' +
+              'reading anything below as the state of this migration.\n'
+            : fixLoopExit === 'converged'
+              // `not-entered` stays silent on purpose: no round ran because nothing needed one, and a
+              // line about a loop that never started is noise in front of the decision.
+              ? '\nThe fix loop ran ' + fixRounds + ' round(s) and cleared what it was watching.\n'
+              : '') +
     (staleProbeAsked && !staleProbeRan
       ? '\nTHE INSTRUCTION-LAYER CHECK DID NOT RUN, so nothing here says your rules are current. ' +
         'Silence from a probe that failed reads exactly like silence from a clean result — check ' +
@@ -1245,7 +1265,7 @@ return {
       : '') +
     (CHANNEL_CHANGES.length > 0
       ? '\nCHANNEL CHANGES IN THIS MIGRATION — verify these by hand, the test suite does not:\n' +
-        CHANNEL_CHANGES.map(c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — ' + (c.behaviourRisk || 'risk not stated')).join('\n') +
+        CHANNEL_CHANGES.map(c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — ' + c.behaviourRisk).join('\n') +
         '\nThe contract required each of these moves, and each is still a behaviour change. A suite written ' +
         'against the old channel passes without testing the new one.\n'
       : '') +

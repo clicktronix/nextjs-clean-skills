@@ -26,9 +26,11 @@ surface, its private `server/**` segment, or route composition under the app roo
 a route handler or an action module.
 
 `sharedAdmissionBudget` and `sharedAdmissionExempt` are optional too: the first is the ratchet — counts
-that may fall and never rise, absent meaning zero on every count — and the second lists project-relative
-paths the rule cannot apply to, each admitted with its reason. Both live here rather than in the script
-so a repository can record its own debt without editing a vendored file.
+that may fall and never rise, absent meaning zero on every count — and the second maps each
+project-relative path the rule cannot apply to onto the reason it cannot, for example
+`{ "src/shared/kernel/env.ts": "read by the build, never imported" }`. A path with a blank reason
+fails: an exemption nobody has to justify switches the check off one file at a time. Both live here
+rather than in the script so a repository can record its own debt without editing a vendored file.
 
 `generatedRoot` is optional. Declare it and generated provider contracts may be imported only by
 private `server`/`client` adapters or shared server/client runtime code; leave it out and the rule is

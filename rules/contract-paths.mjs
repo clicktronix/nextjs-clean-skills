@@ -137,22 +137,48 @@ export function resolveToExistingFile(paths, importer, specifier) {
   const base = resolveProjectImport(paths, importer, specifier)
   if (!base) return null
   const isFile = candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile()
-  if (isFile(base)) return base
-  // `./thing.js` in TypeScript source means `thing.ts`; strip the emitted extension before extending.
-  const stem = base.replace(/\.[cm]?jsx?$/, '')
-  const EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']
-  for (const extension of EXTENSIONS) {
-    if (isFile(`${stem}${extension}`)) return `${stem}${extension}`
+  // An emitted specifier maps back to the source that produces it, and the mapping is PER
+  // EXTENSION: `./x.mjs` is `x.mts`, never `x.ts`. One shared substitution list picked files
+  // TypeScript would not have picked and omitted declaration files entirely, so a live import
+  // resolved to nothing — and a target with no resolvable importer reads as unused, which is how
+  // the admission check came to recommend deleting code that was in use.
+  const emitted = Object.keys(EMITTED_SOURCES).find(extension => base.endsWith(extension))
+  if (emitted) {
+    const stem = base.slice(0, -emitted.length)
+    for (const extension of EMITTED_SOURCES[emitted]) {
+      if (isFile(`${stem}${extension}`)) return `${stem}${extension}`
+    }
+    // `./dir.js/index.ts` is not a resolution TypeScript performs, so an emitted specifier that
+    // matched no source is the end of the search, not a directory to look inside.
+    return null
   }
-  for (const extension of EXTENSIONS) {
+  if (isFile(base)) return base
+  for (const extension of EXTENSIONLESS_SOURCES) {
+    if (isFile(`${base}${extension}`)) return `${base}${extension}`
+  }
+  for (const extension of EXTENSIONLESS_SOURCES) {
     if (isFile(path.join(base, `index${extension}`))) return path.join(base, `index${extension}`)
   }
   return null
 }
 
+// Every extension a project source file can carry. The ESLint glob and the resolver share it: they
+// disagreed, and the glob was the narrower — so an `.mts` file was invisible to the boundary rules
+// while the resolver happily resolved imports into it.
+export const SOURCE_EXTENSIONS = ['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts']
+const EMITTED_SOURCES = {
+  '.js': ['.ts', '.tsx', '.d.ts', '.js', '.jsx'],
+  '.jsx': ['.tsx', '.d.ts', '.jsx'],
+  '.mjs': ['.mts', '.d.mts', '.mjs'],
+  '.cjs': ['.cts', '.d.cts', '.cjs'],
+}
+const EXTENSIONLESS_SOURCES = [
+  '.ts', '.tsx', '.d.ts', '.mts', '.d.mts', '.cts', '.d.cts', '.js', '.jsx', '.mjs', '.cjs',
+]
+
 export function sourceFilesPattern(paths) {
   const relative = posix(path.relative(paths.projectRoot, paths.sourceRoot))
-  return `${relative ? `${relative}/` : ''}**/*.{js,jsx,ts,tsx}`
+  return `${relative ? `${relative}/` : ''}**/*.{${SOURCE_EXTENSIONS.join(',')}}`
 }
 
 export { posix }

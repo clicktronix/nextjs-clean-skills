@@ -57,8 +57,18 @@ const budget = {
   ...(contract.sharedAdmissionBudget ?? {}),
 }
 
-/** Project-relative paths the rule cannot apply to, each admitted with a reason in the contract. */
-const exempt = new Set(contract.sharedAdmissionExempt ?? [])
+/**
+ * Project-relative paths the rule cannot apply to, each admitted WITH ITS REASON. Read as a plain
+ * list of paths, there was no value an author could write that both matched a path and carried the
+ * rationale this file's own failure message demands — so the requirement was unsatisfiable and
+ * every exemption was silently reasonless. An object is the representable form; a bare array is
+ * still accepted so an existing contract keeps working, and is reported as what it is.
+ */
+const exemptions = contract.sharedAdmissionExempt ?? {}
+const exempt = new Set(Array.isArray(exemptions) ? exemptions : Object.keys(exemptions))
+const reasonless = [...exempt].filter(
+  (file) => !String((Array.isArray(exemptions) ? '' : exemptions[file]) ?? '').trim()
+)
 
 const isTest = (file) => /\.(test|spec)\.tsx?$/.test(file) || file.includes(`${path.sep}__tests__${path.sep}`)
 
@@ -213,6 +223,21 @@ for (const file of listSources(sharedRoot)) {
       importers: named.length,
     })
   } else okCount += 1
+}
+
+// An exemption is a claim that the rule cannot apply here, and a claim without a reason is one
+// nobody can review later. Failing on it is the point: the failure message has always required the
+// reason, and until now there was nowhere to put one.
+if (reasonless.length > 0) {
+  for (const file of reasonless) {
+    console.error(`shared admission: ${file} is exempt with no reason recorded`)
+  }
+  console.error(
+    '\n`sharedAdmissionExempt` maps each project-relative path to the reason the rule cannot apply ' +
+      'to it, for example { "src/shared/kernel/env.ts": "read by the build, never imported" }. An ' +
+      'exemption nobody has to justify is a way to switch this check off one file at a time.'
+  )
+  process.exitCode = 1
 }
 
 const counts = { unused: unused.length, demote: demote.length, speculative: speculative.length }

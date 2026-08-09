@@ -272,6 +272,15 @@ export const graphB = true
 import { graphA } from '../../graph-a/server.js'
 export const useA = graphA
 `,
+
+  // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
+  // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
+  // shared resolver happily resolved imports into it. The two halves of the floor disagreed about
+  // what the project contains, and the narrower one was the one that judges.
+  'src/modules/nodenext/domain/bad-internal.mts': `
+import { getWorkItems } from '../../work-items/server/store.js'
+export default getWorkItems
+`,
 }
 
 const expectedBase = new Map([
@@ -301,6 +310,7 @@ const expectedBase = new Map([
   ['src/modules/work-items/server/index.tsx', 'shadowedSegmentIndex'],
   ['src/modules/bad-neutral/query-cache.ts', 'neutralDirection'],
   ['src/modules/bad-neutral-local/query-cache.ts', 'neutralDirection'],
+  ['src/modules/nodenext/domain/bad-internal.mts', 'crossCapabilityInternal'],
 ])
 
 const expectedStrict = new Map([
@@ -791,6 +801,90 @@ expectCheck(
   0,
   '1 admitted'
 )
+
+// The substitution is per emitted extension. One shared candidate list resolved `./x.mjs` to `x.ts`
+// — a file TypeScript would never have picked — and knew nothing about declaration files at all, so
+// an import that resolves in the compiler resolved to nothing here and its target read as unused.
+// Both candidates exist, so the fixture can only pass if the RIGHT one was chosen: the old shared
+// list tried `.ts` first and would have named the other file as the orphan.
+for (const [emitted, source] of [['.mjs', '.mts'], ['.cjs', '.cts']]) {
+  expectCheck(
+    ADMISSION,
+    `a '${emitted}' specifier resolves to '${source}', not to '.ts'`,
+    {
+      'src/shared/kernel/money.ts': 'export const money = 1\n',
+      [`src/shared/kernel/money${source}`]: 'export const money = 1\n',
+      'src/modules/orders/server/a.ts': `import { money } from '~/shared/kernel/money${emitted}'\nexport const a = money\n`,
+      'src/modules/billing/server/b.ts': `import { money } from '~/shared/kernel/money${emitted}'\nexport const b = money\n`,
+    },
+    FLOOR_CONTRACT,
+    1,
+    'money.ts has no importer'
+  )
+}
+// A declaration file was not a candidate at all, so an import that resolves in the compiler
+// resolved to nothing here and its target read as unused — advice to delete live code.
+expectCheck(
+  ADMISSION,
+  "a '.js' specifier resolves to a declaration file",
+  {
+    'src/shared/kernel/money.d.ts': 'export declare const money: number\n',
+    'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money.js'\nexport const a = money\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money.js'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+// A NodeNext-extension file is a source file. The ESLint glob said otherwise while the resolver
+// said it was, so the two halves of the floor disagreed about what the project contains.
+expectCheck(
+  ADMISSION,
+  'an .mts importer is visible to the admission scan',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.mts': "import { money } from '~/shared/kernel/money.js'\nexport const a = money\n",
+    'src/modules/billing/server/b.cts': "import { money } from '~/shared/kernel/money.js'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+
+// An exemption is a claim that the rule cannot apply, and the failure message has always demanded a
+// reason for it — while the value was read as a bare list of paths, so there was nowhere to put one.
+{
+  const orphan = {
+    'src/shared/kernel/env.ts': 'export const env = 1\n',
+    'src/modules/orders/server/a.ts': "export const a = 1\n",
+  }
+  expectCheck(
+    ADMISSION,
+    'an exemption carries its reason',
+    orphan,
+    { ...FLOOR_CONTRACT, sharedAdmissionExempt: { 'src/shared/kernel/env.ts': 'read by the build, never imported' } },
+    0,
+    'admitted'
+  )
+  expectCheck(
+    ADMISSION,
+    'an exemption with no reason fails',
+    orphan,
+    { ...FLOOR_CONTRACT, sharedAdmissionExempt: { 'src/shared/kernel/env.ts': '  ' } },
+    1,
+    'is exempt with no reason recorded'
+  )
+  // A contract written against the old shape still runs — and is told exactly what is missing,
+  // rather than being silently honoured as if a reason had been given.
+  expectCheck(
+    ADMISSION,
+    'a bare list of exempt paths is reported as reasonless',
+    orphan,
+    { ...FLOOR_CONTRACT, sharedAdmissionExempt: ['src/shared/kernel/env.ts'] },
+    1,
+    'is exempt with no reason recorded'
+  )
+}
 
 // Absent `generatedRoot` must mean "this project generates nothing", not "unchecked". The shipped
 // contract omits it, so this is the shape every adopter starts from.
