@@ -171,6 +171,14 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- One import resolver, in `contract-paths.mjs`, used by both new checks. They had one each and each
+  was blind exactly where the other could see: the admission check resolved directory `index` files
+  but not `./x.js` meaning `x.ts`, the neutral-surface check the reverse. The admission blindness had
+  teeth — an unresolvable import is an import it does not count, a shared file with no counted
+  importer is reported `unused`, and `unused` means "delete it". Both cases are now fixtures.
+- The check that pins the `rules/` file count reads every surface that states it, not only the
+  workflow. That is precisely how the commit correcting the workflow to "nine" left `rules/README.md`
+  saying "seven": the guard against a stale number was looking at one of the two places it appears.
 - `check-shared-admission.mjs` no longer answers `app` for files the contract cannot place. Anything
   under `sourceRoot` but outside `moduleRoot`, `appRoot` and `sharedRoot` belongs to a layout the
   contract does not describe, and calling it `app` made two files in `src/lib/` look like a

@@ -723,6 +723,35 @@ expectCheck(
 // admitted, with nothing unattributable.
 expectCheck(ADMISSION, 'named owners are still admitted', twoConsumers, FLOOR_CONTRACT, 0, '1 admitted, 0 private, 0 unattributable')
 
+// One resolver, shared. The admission check used to know about directory `index` files but not about
+// `./x.js` meaning `x.ts`; an import it cannot resolve is an import it does not count, and a shared
+// file with no counted importer is reported `unused` — advice to delete live code.
+expectCheck(
+  ADMISSION,
+  'an emitted-extension specifier still counts as an importer',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money.js'\nexport const a = money\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money.js'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+// And the other half of what the two used to know separately: a directory import.
+expectCheck(
+  ADMISSION,
+  'a directory import still counts as an importer',
+  {
+    'src/shared/kernel/money/index.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+
 // Absent `generatedRoot` must mean "this project generates nothing", not "unchecked". The shipped
 // contract omits it, so this is the shape every adopter starts from.
 {

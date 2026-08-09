@@ -124,6 +124,32 @@ export function resolveProjectImport(paths, importer, specifier) {
   return path.resolve(alias[1], specifier.slice(alias[0].length))
 }
 
+/**
+ * Resolve a specifier to a file that exists on disk, or null.
+ *
+ * One resolver, because two were worse than one: the admission check knew about directory `index`
+ * files but not about `./x.js` specifiers that mean `x.ts`, and the neutral-surface check knew the
+ * opposite. Each was blind exactly where the other could see, and the admission one's blindness had
+ * teeth — an unresolvable import means "nothing imports this file", and that verdict is `unused`,
+ * which tells you to delete live code.
+ */
+export function resolveToExistingFile(paths, importer, specifier) {
+  const base = resolveProjectImport(paths, importer, specifier)
+  if (!base) return null
+  const isFile = candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile()
+  if (isFile(base)) return base
+  // `./thing.js` in TypeScript source means `thing.ts`; strip the emitted extension before extending.
+  const stem = base.replace(/\.[cm]?jsx?$/, '')
+  const EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']
+  for (const extension of EXTENSIONS) {
+    if (isFile(`${stem}${extension}`)) return `${stem}${extension}`
+  }
+  for (const extension of EXTENSIONS) {
+    if (isFile(path.join(base, `index${extension}`))) return path.join(base, `index${extension}`)
+  }
+  return null
+}
+
 export function sourceFilesPattern(paths) {
   const relative = posix(path.relative(paths.projectRoot, paths.sourceRoot))
   return `${relative ? `${relative}/` : ''}**/*.{js,jsx,ts,tsx}`

@@ -776,10 +776,19 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     if (nonReadme >= words.length) {
       check(false, `${BASELINE}: rules/ has ${nonReadme} non-README files, past the spelled-out range; extend words[] or write the count as a digit`)
     } else {
-      check(
-        baseSrc.includes(`${words[nonReadme]} non-README files`),
-        `${BASELINE}: rules/ has ${nonReadme} non-README files but the copy instruction does not say "${words[nonReadme]}"`
-      )
+      // Every surface that states the count, not just the workflow. Pinning it here alone is how the
+      // commit that corrected the workflow to "nine" left rules/README.md saying "seven": the check
+      // that exists to catch a stale number was looking at one of the two places it appears.
+      for (const [label, text] of [
+        ['the copy instruction', baseSrc],
+        ['rules/README.md', readText('rules/README.md')],
+      ]) {
+        check(
+          !/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b non-README files/.test(text) ||
+            text.includes(`${words[nonReadme]} non-README files`),
+          `${BASELINE}: rules/ has ${nonReadme} non-README files but ${label} does not say "${words[nonReadme]}"`
+        )
+      }
     }
   }
 

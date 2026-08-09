@@ -33,7 +33,7 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { loadArchitecturePaths, isWithin, relativeParts, resolveProjectImport } from './contract-paths.mjs'
+import { loadArchitecturePaths, isWithin, relativeParts, resolveToExistingFile } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot, sharedRoot } = paths
@@ -77,19 +77,6 @@ function listSources(directory) {
   })
 }
 
-const CANDIDATE_SUFFIXES = ['.ts', '.tsx', `${path.sep}index.ts`, `${path.sep}index.tsx`]
-
-/** Resolve a specifier to a file on disk, through the contract's aliases, or null. */
-function resolveToFile(importer, specifier) {
-  const base = resolveProjectImport(paths, importer, specifier)
-  if (!base) return null
-  if (fs.existsSync(base) && fs.statSync(base).isFile()) return base
-  for (const suffix of CANDIDATE_SUFFIXES) {
-    const candidate = `${base}${suffix}`
-    if (fs.existsSync(candidate)) return candidate
-  }
-  return null
-}
 
 function specifiersOf(file) {
   const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
@@ -155,7 +142,7 @@ const importers = new Map()
 for (const file of [...listSources(sourceRoot), ...listOuterImporters()]) {
   if (isTest(file)) continue
   for (const specifier of specifiersOf(file)) {
-    const target = resolveToFile(file, specifier)
+    const target = resolveToExistingFile(paths, file, specifier)
     if (!target) continue
     if (!importers.has(target)) importers.set(target, new Set())
     importers.get(target).add(file)

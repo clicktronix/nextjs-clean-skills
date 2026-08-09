@@ -24,7 +24,7 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { loadArchitecturePaths, relativeParts, resolveProjectImport } from './contract-paths.mjs'
+import { loadArchitecturePaths, relativeParts, resolveToExistingFile } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot } = paths
@@ -108,18 +108,6 @@ function importSpecifiers(parsed) {
   return specifiers
 }
 
-/** Through the contract's aliases, so a repository that does not spell its alias `@/` still resolves. */
-function resolveImport(importer, specifier) {
-  const unresolved = resolveProjectImport(paths, importer, specifier)
-  if (!unresolved) return null
-  const withoutJs = unresolved.replace(/\.[cm]?jsx?$/, '')
-  const candidates = [
-    unresolved,
-    ...['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'].map((ext) => `${withoutJs}${ext}`),
-  ]
-  return candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isFile()) ?? null
-}
-
 const files = listSourceFiles(sourceRoot)
 const usage = new Map()
 for (const file of files) {
@@ -132,7 +120,7 @@ for (const file of files) {
   const side = consumerSide(file, parsed)
   if (!side) continue
   for (const specifier of importSpecifiers(parsed)) {
-    const target = resolveImport(file, specifier)
+    const target = resolveToExistingFile(paths, file, specifier)
     if (target && usage.has(target)) usage.get(target).add(side)
   }
 }
