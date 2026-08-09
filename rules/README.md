@@ -15,6 +15,10 @@ try to infer business meaning from path names.
 | `check-shared-admission.mjs` | the countable half of shared admission: how many real owners import a shared file |
 | `check-neutral-surfaces.mjs` | a runtime-neutral surface is consumed from both runtimes, not one |
 
+`generatedRoot` is optional. Declare it and generated provider contracts may be imported only by
+private `server`/`client` adapters or shared server/client runtime code; leave it out and the rule is
+inert, which is "this project generates nothing" rather than "this is unchecked".
+
 ## Install
 
 Copy the seven non-README files into the consuming repository, then spread both configs after the base flat

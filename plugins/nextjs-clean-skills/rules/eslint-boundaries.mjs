@@ -11,6 +11,7 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
+  isWithin,
   loadArchitecturePaths,
   posix,
   relativeParts,
@@ -32,6 +33,10 @@ const SERVER_SURFACES = new Set(contract.serverSurfaces)
 const SERVER_EXECUTION_SURFACES = new Set(contract.serverExecutionSurfaces)
 const CLIENT_SURFACES = new Set(contract.clientSurfaces)
 const NEUTRAL_SURFACES = new Set(contract.neutralSurfaces ?? [])
+// Optional. A repository with no generated provider contracts simply does not declare it, and the
+// rule below is then inert rather than broken — absent is "this project has none", not "unchecked".
+const GENERATED_ROOT = contract.generatedRoot ? path.join(PROJECT_ROOT, contract.generatedRoot) : null
+const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATED_ROOT, absolute)
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
@@ -131,6 +136,8 @@ const capabilityRule = {
         'Server capability code must not import the browser surface {{target}}.',
       privateServerBackedge:
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
+      generatedProviderLeak:
+        'Generated provider contracts may be imported only by private server/client adapters or shared server/client runtime code.',
       neutralDirection:
         'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
@@ -196,6 +203,19 @@ const capabilityRule = {
           context.report({ node, messageId: 'neutralDirection' })
           return
         }
+      }
+
+      // A generated provider row is the provider's shape, not the product's. Let it past the private
+      // adapter that translates it and every consumer downstream is coupled to a file a code
+      // generator rewrites. Checked before the shared/module rules because it is about WHAT the
+      // target is, not about which root it sits in.
+      if (
+        isGeneratedFile(targetPath) &&
+        !['server', 'client'].includes(sourceModule?.segment) &&
+        !['server', 'client'].includes(sourceShared?.root)
+      ) {
+        context.report({ node, messageId: 'generatedProviderLeak' })
+        return
       }
 
       if (sourceShared && targetModule) {

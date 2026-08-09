@@ -67,6 +67,12 @@ All notable changes to this project are documented in this file.
   first live run hit the cap with a must-fix outstanding and the report could not say so.
 
 
+- `generatedProviderLeak`: generated provider contracts may be imported only by private
+  `server`/`client` adapters or shared server/client runtime code. Let a generated row past the
+  adapter that translates it and every consumer downstream is coupled to a file a code generator
+  rewrites. The contract's new `generatedRoot` is optional — absent, the rule is inert, which states
+  "this project generates nothing" rather than leaving the property unchecked. Both halves are
+  covered: the private adapter's import is asserted clean, so the rule cannot only ever say no.
 - The plan declares **channel changes**, and the gate surfaces them. The architecture decides which
   runtime channel a behaviour belongs on — browser-owned reads use `GET` or streams and never Server
   Actions — so a capability sitting on the wrong channel *must* move, and moving it is still a

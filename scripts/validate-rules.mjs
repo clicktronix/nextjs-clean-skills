@@ -22,6 +22,19 @@ try {
 }
 
 const files = {
+  'src/generated/provider-rows.ts': `
+export type WorkItemRow = { id: string; title: string }
+`,
+  // Legal: a private server adapter is exactly where a provider row is translated.
+  'src/modules/work-items/server/rows.ts': `
+import type { WorkItemRow } from '@/generated/provider-rows'
+export const idOf = (row: WorkItemRow) => row.id
+`,
+  // Illegal: past the adapter, and every consumer downstream is coupled to a generated file.
+  'src/modules/work-items/domain/bad-generated.ts': `
+import type { WorkItemRow } from '@/generated/provider-rows'
+export const titleOf = (row: WorkItemRow) => row.title
+`,
   'src/modules/labels/server/store.ts': `
 export function listLabels() {
   return []
@@ -262,6 +275,7 @@ export const useA = graphA
 }
 
 const expectedBase = new Map([
+  ['src/modules/work-items/domain/bad-generated.ts', 'generatedProviderLeak'],
   ['src/app/bad-internal/page.ts', 'appInternal'],
   ['src/modules/board/server/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/work-items/domain/bad-server.ts', 'domainDirection'],
@@ -296,6 +310,9 @@ const expectedStrict = new Map([
 ])
 
 const clean = new Set([
+  // The permitting half of generatedProviderLeak: a private server adapter IS where a provider row
+  // is translated, so this import must stay clean or the rule only proves it can say no.
+  'src/modules/work-items/server/rows.ts',
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
   'src/modules/work-items/application/list.ts',
