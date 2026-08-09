@@ -176,6 +176,49 @@ All notable changes to this project are documented in this file.
   debt, none of which need `moduleRoot` to exist. Executing the decision function with those newly
   non-zero returned `accept`. Phase 1 now names the counters whose zero meant "nothing to classify"
   and phase 2 waives only those; an omitted set waives nothing, which is the safe direction.
+- Which capabilities are still on the old layout is read from the tree, not assumed. `REMAINING` was
+  every capability the manifest lists except the one being migrated — true only of the first run. On
+  the second it labelled the pilot the first run had migrated as old-layout; on the last it still
+  claimed a mixed tree and offered a finished capability as the next one to do. The manifest cannot
+  answer this, being written once before anything moves, so the load probe reports each capability's
+  current layout: migrated, old-layout, both at once (which the contract forbids and nothing had
+  named), or undetermined — and undetermined is counted as neither.
+- A dead agent no longer reads as a reporting one. `agent()` returns `null` when a subagent dies, and
+  `null` is falsy in exactly the places these guards read a boolean off it: a dead consumer mover was
+  ignored whenever phase 1 had recorded no consumer — the case where its whole-tree grep matters most
+  — and a missing behaviour or architecture probe read as RED, so fix agents spent the budget
+  repairing failures nobody had observed. The fix loop now runs only on oracles that reported, gains
+  an `unmeasured` exit for a probe that dies mid-loop, and a dead instruction probe or radius probe
+  says so in the gate instead of falling through the branch a clean result takes.
+- A surface consumer must be a file this run knows exists. The screening admitted anything under the
+  capability directory and anything deep enough under a recorded app folder — prefix tests, which
+  admit strings rather than files — so an invented path kept a surface alive and the mover published
+  a public surface no code imports. Admitted now: a recorded consumer, an assigned file, or a
+  destination the script itself computed.
+- `channelChanges` is a required plan field, and a malformed entry is rejected rather than dropped.
+  Optional, the key was absent both when the planner had assessed channels and found none and when it
+  had never looked, and the script defaulted both to an empty list. The adversarial reviewer is now
+  handed the declaration and asked to find transport changes the plan did not declare — nothing
+  compared the claim with the built code before.
+- `check-neutral-surfaces.mjs` classifies consumers by the effective module graph. Every folder
+  shortcut it used was wrong in a way that produced a verdict: `ui/**` was read as client though the
+  contract permits server-renderable views there, a private `server/prefetch.ts` was neither side,
+  test-only and type-only imports counted as runtime consumers, a named re-export was not an edge at
+  all, a `'use client'` string anywhere in the file counted as a directive, and a helper with no
+  directive was never client even when only Client Components import it.
+- Emitted specifiers resolve per extension, the way TypeScript resolves them: `./x.mjs` is `x.mts`,
+  never `x.ts`, and declaration files are candidates. One shared substitution list picked files the
+  compiler would not have picked and knew nothing about `.d.ts`, so a live import resolved to nothing
+  and its target read as unused. The ESLint glob covers the NodeNext extensions too — it and the
+  resolver disagreed about what the project contains, and the narrower one was the one that judges.
+- `sharedAdmissionExempt` maps each path to its reason. It was consumed as a bare list of paths while
+  the README and the failure message both required a rationale, so there was no value an author could
+  write that satisfied both — every exemption was reasonless by construction. A blank reason now
+  fails; an old bare-list contract still runs and is told what is missing.
+- The fix loop compares canonicalised state, and a rejection is reported as one. Counters in a
+  different key order or findings in a different order were treated as progress, and a post-fix
+  `reject` below the cap was labelled `converged` — "cleared what it was watching", printed directly
+  above a verdict saying the ownership model is wrong.
 - An unclassified dependency stops the run BEFORE anything is written to the target. The blocker was
   computed after the phase that copies `rules/`, drafts the contract and amends the ESLint config —
   so the target was already half-converted when the run announced it could not proceed. The refusal
