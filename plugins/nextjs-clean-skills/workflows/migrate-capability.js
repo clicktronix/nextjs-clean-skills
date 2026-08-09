@@ -354,7 +354,9 @@ const slice = await agent(
   `capability moved, and is never updated. Determine it from the tree, per capability:\n` +
   `    * oldPaths = that capability's recorded assignment paths that are NOT already under ` +
   `<moduleRoot>/<name>/. Count how many of them still exist on disk.\n` +
-  `    * moduleDir = whether <moduleRoot>/<name>/ exists AND contains at least one .ts/.tsx/.js/.jsx file.\n` +
+  `    * moduleDir = whether <moduleRoot>/<name>/ exists AND contains at least one source file — ` +
+  `.ts .tsx .mts .cts .js .jsx .mjs .cjs, the same set rules/ judges. A capability written in NodeNext ` +
+  `extensions is migrated, not undetermined.\n` +
   `    * status = "migrated" when moduleDir is populated and no oldPath survives; "old-layout" when moduleDir ` +
   `is absent or empty and at least one oldPath survives; "mixed" when BOTH are true — the capability carries ` +
   `two topologies at once, which the contract forbids; "undetermined" when neither is true, or when you could ` +

@@ -1021,6 +1021,13 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       loadCall && loadCall.schema.properties.unassigned && /unassigned/.test(loadCall.prompt),
       `${PILOT}: the load probe must be asked for the unassigned rows and be able to return them`
     )
+    // The layout probe reads the same extensions rules/ judges. Narrowed to js/jsx/ts/tsx it called
+    // a capability written in NodeNext extensions `undetermined`, which the gate then reports as a
+    // layout nobody could read rather than as the migrated capability it is.
+    check(
+      loadCall && ['.mts', '.cts', '.mjs', '.cjs'].every(extension => loadCall.prompt.includes(extension)),
+      `${PILOT}: the layout probe must count every source extension, or a NodeNext capability reads as undetermined`
+    )
   }
 
   // ─── the wave has a position, not just a first step ───
