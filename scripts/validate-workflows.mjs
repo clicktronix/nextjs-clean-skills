@@ -508,6 +508,48 @@ if (files.includes(PILOT)) {
           `plan screening (${label}): a surface justified only by surfaces must be rejected, got ${JSON.stringify(verdict && verdict.error)}`
         )
       }
+      // A MOVED surface has three names — its source, its computed destination, and the authored
+      // path — and only the last was registered as a surface. The other two were classified as
+      // ordinary files first, so the same self-reference passed under a different spelling.
+      const movedAliases = [
+        [
+          'a moved surface naming its own source',
+          {
+            moves: [{ file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/lib/api.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/api.ts' }],
+        ],
+        [
+          'a moved surface naming its own destination',
+          {
+            moves: [{ file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/modules/work-items/rsc.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/api.ts' }],
+        ],
+        [
+          'two moved surfaces naming each other by source',
+          {
+            moves: [
+              { file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' },
+              { file: 'src/lib/keys.ts', role: 'surface', surface: 'query-cache' },
+            ],
+            surfaces: [
+              { surface: 'rsc', consumers: ['src/lib/keys.ts'], exports: ['read'] },
+              { surface: 'query-cache', consumers: ['src/lib/api.ts'], exports: ['keys'] },
+            ],
+          },
+          [{ file: 'src/lib/api.ts' }, { file: 'src/lib/keys.ts' }],
+        ],
+      ]
+      for (const [label, plan, filesIn] of movedAliases) {
+        const verdict = run(plan, filesIn, [])
+        check(
+          verdict && typeof verdict.error === 'string',
+          `plan screening (${label}): must be rejected, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
       // Control: a surface-to-surface reference is legitimate once the chain ends at a real consumer.
       const chained = run(
         surfacePlan([
@@ -1020,6 +1062,21 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       loadCall && loadCall.schema.properties.unassigned && /unassigned/.test(loadCall.prompt),
       `${PILOT}: the load probe must be asked for the unassigned rows and be able to return them`
+    )
+    // Admitted is not enough. Optional, an agent may legally omit the rows the refusal depends on,
+    // and an omitted list reads exactly like "phase 1 placed everything".
+    check(
+      loadCall && Array.isArray(loadCall.schema.required) && loadCall.schema.required.includes('unassigned'),
+      `${PILOT}: unassigned must be required, or "none" and "not reported" are the same answer`
+    )
+    // A capability whose files are ALL unplaced hit the empty-assignment return first and got a
+    // dead end — the one case where the operator most needs the answer the refusal carries.
+    const allUnplaced = await pilot({
+      'load-manifest': { ...manifest, assignments: [], unassigned: [{ file: 'src/lib/a.ts', likelyCapability: 'work-items' }] },
+    })
+    check(
+      allUnplaced.result && /could not place/.test(allUnplaced.result.error || '') && /fileOwners/.test(allUnplaced.result.fix || ''),
+      `${PILOT}: an entirely unplaced capability must get the actionable refusal, not the empty-manifest dead end, got ${JSON.stringify(allUnplaced.result && allUnplaced.result.error)}`
     )
     // The layout probe reads the same extensions rules/ judges. Narrowed to js/jsx/ts/tsx it called
     // a capability written in NodeNext extensions `undetermined`, which the gate then reports as a

@@ -195,14 +195,18 @@ All notable changes to this project are documented in this file.
   recorded app folder — prefix tests, which admit strings rather than files — so an invented path
   kept a surface alive and the mover published a public surface no code imports. Admitted now: a
   recorded consumer, an assigned file this plan does not delete, or a destination the script itself
-  computed. Surface-to-surface references are followed rather than trusted: a surface naming its own
-  destination, or two naming each other, reaches no real importer and is rejected.
+  computed. Surface-to-surface references are followed rather than trusted, and a surface is matched
+  by every name it has in the plan — its moving source, its computed destination, and its authored
+  path — so a surface naming itself, or two naming each other, reaches no real importer and is
+  rejected whichever spelling it uses.
 - Phase 2 reads the files phase 1 could not place. Phase 1 blocks only the unplaced files it
   attributes to the pilot and tells the operator the rest "block their own capability later" — but
   the handoff schema did not admit `unassigned`, so later never came: the run migrated the assigned
   subset and left the rest at their old paths importing modules it had just moved, which is one
-  capability carrying both topologies. The refusal now happens before the planner and carries the
-  `fileOwners` answer.
+  capability carrying both topologies. The rows are required, not merely admitted — omitted, they
+  read exactly like "phase 1 placed everything" — and the refusal happens before the planner and
+  before the empty-manifest return, so a capability whose files are ALL unplaced gets the
+  `fileOwners` answer rather than a dead end.
 - The two shipped checks agree about a private-server consumer of a neutral surface. The neutral
   check counted it as the server side while `privateServerBackedge` called the same import a
   violation, so the advertised green floor was unreachable for a pattern § Dependency Direction 9

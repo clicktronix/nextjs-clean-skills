@@ -684,7 +684,8 @@ const FLOOR_CONTRACT = {
   sharedRoot: 'src/shared',
   importAliases: { '~/': 'src/' },
   segments: ['domain', 'application', 'server', 'client', 'ui'],
-  publicSurfaces: ['server', 'rsc', 'client', 'query-cache'],
+  publicSurfaces: ['server', 'rsc', 'actions', 'client', 'query-cache'],
+  serverSurfaces: ['server', 'rsc'],
   clientSurfaces: ['client', 'ui'],
   neutralSurfaces: ['query-cache'],
   sharedRoots: ['kernel'],
@@ -934,7 +935,39 @@ expectCheck(
   '1 admitted'
 )
 
+// Tests, mocks and stories were treated three different ways: tests skipped in both directions,
+// `__mocks__` skipped nowhere, stories skipped as subjects but still counted as importers. None of
+// them ships, and the rule they were feeding is "at least two real capabilities".
+for (const [label, file] of [
+  ['a mock is not a second owner', 'src/modules/billing/__mocks__/money.ts'],
+  ['a story is not a second owner', 'src/modules/billing/server/b.stories.tsx'],
+]) {
+  expectCheck(
+    ADMISSION,
+    label,
+    { ...admitted, [file]: "import { money } from '~/shared/kernel/money'\nexport const b = money\n" },
+    FLOOR_CONTRACT,
+    1,
+    'is used only by the "orders" capability'
+  )
+}
+
 // ─── an owner the contract cannot name decides nothing ───
+// An unadmitted shared root is the shape `invalidSharedRoot` exists to reject, and it was counting
+// towards the two-owner threshold.
+// The importer is exempted as a SUBJECT so the fixture asks one question: whether it counts as an
+// OWNER of the file it imports.
+expectCheck(
+  ADMISSION,
+  'an importer under an unadmitted shared root is not an owner',
+  { ...admitted, 'src/shared/utils/date.ts': "import { money } from '~/shared/kernel/money'\nexport const d = money\n" },
+  {
+    ...FLOOR_CONTRACT,
+    sharedAdmissionExempt: { 'src/shared/utils/date.ts': 'the subject of a different question in this fixture' },
+  },
+  0,
+  'could not be judged'
+)
 expectCheck(
   ADMISSION,
   'one capability plus one unattributable importer is not a demote',
@@ -1215,6 +1248,68 @@ expectCheck(
   FLOOR_CONTRACT,
   1,
   'found client'
+)
+
+// ─── the runtimes do not flow into each other ───
+// Unbounded traversal is the import graph, not the effective one. Each case below invented a side
+// out of an edge no build follows, and each passed as cross-runtime.
+expectCheck(
+  NEUTRAL,
+  "a 'use client' page is not a server root",
+  {
+    ...clientOnly,
+    'src/app/orders/page.tsx': `'use client'\n${importsKey('~/modules/orders/query-cache')}export default () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+expectCheck(
+  NEUTRAL,
+  'a page rendering a Client Component does not put it on the server',
+  {
+    'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
+    'src/modules/orders/client/hook.tsx': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const H = () => key\n`,
+    'src/app/orders/page.tsx': "import { H } from '~/modules/orders/client/hook'\nexport default H\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+expectCheck(
+  NEUTRAL,
+  "a route handler's own helper is not composition",
+  {
+    ...clientOnly,
+    'src/app/orders/helpers.ts': `${importsKey('~/modules/orders/query-cache')}export const h = () => key\n`,
+    'src/app/orders/route.ts': "import { h } from './helpers'\nexport const GET = h\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+expectCheck(
+  NEUTRAL,
+  'a Client Component importing a Server Action does not make the action browser code',
+  {
+    ...serverOnly,
+    'src/modules/orders/actions.ts': `'use server'\n${importsKey('~/modules/orders/query-cache')}export const act = async () => key\n`,
+    'src/modules/orders/client/hook.tsx': "'use client'\nimport { act } from '~/modules/orders/actions'\nexport const H = () => act\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+expectCheck(
+  NEUTRAL,
+  'a type-only import-equals is not a runtime consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/types.cts': "'use client'\nimport type keys = require('~/modules/orders/query-cache')\nexport type K = typeof keys\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
 )
 
 // FALSE FAILURE 3: a helper with no directive of its own that only Client Components import IS in

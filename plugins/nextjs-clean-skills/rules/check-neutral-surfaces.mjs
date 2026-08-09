@@ -42,6 +42,7 @@ const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot } = paths
 
 const neutralSurfaces = new Set(contract.neutralSurfaces ?? [])
+const serverSurfaces = new Set(contract.serverSurfaces ?? [])
 const SOURCE = /\.[cm]?[jt]sx?$/
 const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
 const STORY_FILE = /\.stories\.([cm]?[jt]sx?|mdx)$/
@@ -49,6 +50,10 @@ const TEST_DIR = new Set(['__tests__', '__mocks__'])
 // Their own channels. A route handler or an action module that reads a neutral surface is using it
 // as a server module, not prefetching into a hydrated client cache, so it is not the second side.
 const OWN_CHANNELS = new Set(['route', 'actions'])
+// Next.js composition entrypoints. Everything else under the app root is a file those import.
+const APP_ENTRYPOINTS = new Set([
+  'page', 'layout', 'template', 'default', 'loading', 'error', 'not-found', 'global-error',
+])
 
 function listSourceFiles(directory) {
   if (!fs.existsSync(directory)) return []
@@ -112,6 +117,9 @@ function valueEdges(parsed) {
     }
     if (
       ts.isImportEqualsDeclaration(node) &&
+      // `import type x = require('…')` is erased with every other type-only edge. Ignoring the flag
+      // here counted a types-only declaration as a runtime consumer.
+      !node.isTypeOnly &&
       ts.isExternalModuleReference(node.moduleReference) &&
       ts.isStringLiteral(node.moduleReference.expression)
     ) {
@@ -162,12 +170,16 @@ const edges = new Map(
   ])
 )
 
-function reachableFrom(roots) {
-  const seen = new Set(roots)
+// Traversal without barriers is not the effective graph, it is the import graph — and the whole
+// point of the runtimes is that they do not flow into each other. Unbounded, a page reaching a
+// Client Component put that component on the server, and a Client Component importing `actions.ts`
+// put the action module and everything below it in the browser. Neither happens in a build.
+function reachableFrom(roots, blocked) {
+  const seen = new Set(roots.filter((file) => !blocked(file)))
   const queue = [...seen]
   while (queue.length > 0) {
     for (const target of edges.get(queue.pop()) ?? []) {
-      if (seen.has(target)) continue
+      if (seen.has(target) || blocked(target)) continue
       seen.add(target)
       queue.push(target)
     }
@@ -175,10 +187,23 @@ function reachableFrom(roots) {
   return seen
 }
 
+const isClientBoundary = (file) => hasDirective(parsed.get(file), 'use client')
+// Where the server graph stops: a declared Client Component. Where the client graph stops: an
+// action module or any server-owned module — the browser holds a reference to a Server Action, not
+// its implementation, so nothing behind that boundary is browser code.
+const isServerOnly = (file) => {
+  if (hasDirective(parsed.get(file), 'use server')) return true
+  const module = moduleLocation(file)
+  if (module && (module.segment === 'server' || serverSurfaces.has(module.surface) || module.surface === 'actions')) {
+    return true
+  }
+  return Boolean(relativeParts(appRoot, file)) && OWN_CHANNELS.has(stem(file))
+}
+
 // The two graphs are INDEPENDENT, and a file can be in both. Answering with a single side and
 // letting client win meant a view rendered by a page and also imported by a Client Component
 // counted as browser-only, so a correctly wired surface was reported as having no server side.
-const clientReachable = reachableFrom(files.filter((file) => hasDirective(parsed.get(file), 'use client')))
+const clientReachable = reachableFrom(files.filter(isClientBoundary), isServerOnly)
 
 // Where prefetch and hydration happen: the capability's RSC surface, its private server segment
 // (§ Dependency Direction 9 admits that import for the neutral surface specifically), and route
@@ -189,10 +214,14 @@ const clientReachable = reachableFrom(files.filter((file) => hasDirective(parsed
 const serverRoots = files.filter((file) => {
   const module = moduleLocation(file)
   if (module?.surface === 'rsc' || module?.segment === 'server') return true
+  // Under the app root, only a real COMPOSITION entrypoint seeds the graph. "Every app file that is
+  // not a route handler or an action" made a route's own private helper a server root of its own,
+  // and a `'use client'` page a server root as well — each inventing a server side out of a file
+  // that composes nothing.
   if (!relativeParts(appRoot, file)) return false
-  return !OWN_CHANNELS.has(stem(file)) && !hasDirective(parsed.get(file), 'use server')
+  return APP_ENTRYPOINTS.has(stem(file))
 })
-const serverReachable = reachableFrom(serverRoots)
+const serverReachable = reachableFrom(serverRoots, isClientBoundary)
 
 const usage = new Map()
 for (const file of files) {

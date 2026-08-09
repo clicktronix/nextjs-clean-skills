@@ -81,7 +81,10 @@ const SCOPE_GUARDS = `
 const MANIFEST_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['found', 'assignments'],
+  // `unassigned` is REQUIRED, not merely admitted. Optional, an agent could legally omit the rows
+  // the refusal below depends on, and the workflow would read an empty list and proceed — the same
+  // silence-as-evidence the whole handoff exists to remove.
+  required: ['found', 'assignments', 'unassigned'],
   properties: {
     found: { type: 'boolean' },
     // Must admit every key phase 1 writes into manifest.roots, importAliases
@@ -485,8 +488,6 @@ const LAYOUT_STATE =
         : '')
 const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 0)
 
-if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
-
 // Phase 1 blocks only the unplaced files it attributes to the PILOT, and tells the operator in as
 // many words that the rest "block their own capability later". This is later. Without it the
 // promise was never kept: phase 2 migrated the assigned subset and left the unplaced files at their
@@ -504,6 +505,9 @@ if (UNPLACED.length > 0) {
       'resumeFromRunId so the inventory replays from cache, then run this workflow again.',
   }
 }
+
+if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
+
 log('Pilot ' + CAP + ': ' + FILES.length + ' files, ' + CONSUMERS.length + ' recorded consumers, ' + CENSUS_TOTAL + ' violations at baseline')
 
 // ─── Destination paths are computed HERE ───
@@ -720,7 +724,18 @@ const PLANNED_DESTS = moving.map(r => r.dest)
 // be satisfied entirely by paths the same plan was about to remove.
 const DELETED_FILES = deleting.map(r => r.file)
 const surfaceDestOf = surface => CAP_ROOT + surface + '.ts'
+// A surface has up to three names in one plan: the file it is being MOVED from, the destination the
+// move computes, and the authored path. All three are the same node in the graph below. Only the
+// authored path was registered, so a `role: 'surface'` move's destination reached `PLANNED_DESTS`
+// and its source reached `OWN_FILES` — both classified concrete BEFORE the surface test ran, so a
+// surface naming its own moving source, or two moved surfaces naming each other, grounded
+// themselves through the alias the graph could not see.
 const SURFACE_DESTS = new Map(usedSurfaces.map(s => [surfaceDestOf(s.surface), s.surface]))
+for (const r of moving) {
+  if (r.role !== 'surface' || !r.surface) continue
+  SURFACE_DESTS.set(r.dest, r.surface)
+  SURFACE_DESTS.set(r.file, r.surface)
+}
 // A surface may legitimately be consumed by another surface — `actions.ts` reading the key identity
 // out of `query-cache.ts` is the canonical case — but that is a REFERENCE, not evidence. Left
 // unqualified it was a way for a surface to justify itself: naming its own destination as its sole
@@ -735,21 +750,24 @@ const strayConsumers = []
 const surfaceEdges = new Map()
 const grounded = new Set()
 for (const s of usedSurfaces) {
-  const own = surfaceDestOf(s.surface)
   const edges = []
   for (const c of s.consumers || []) {
     const bare = bareConsumer(c)
-    // Self-reference is never evidence, however the path is spelled.
-    if (bare === own) {
-      strayConsumers.push({ surface: s.surface, consumer: c, why: 'a surface cannot be its own consumer' })
+    // The surface test runs FIRST, so an alias of a surface can never be mistaken for a concrete
+    // consumer. Ordered the other way, a moved surface's own source path and computed destination
+    // both looked like ordinary files and grounded the surface that named them.
+    const named = SURFACE_DESTS.get(bare)
+    if (named) {
+      // Self-reference is never evidence, by whichever of its names it is spelled.
+      if (named === s.surface) {
+        strayConsumers.push({ surface: s.surface, consumer: c, why: 'a surface cannot be its own consumer' })
+      } else {
+        edges.push(named)
+      }
       continue
     }
     if (concreteConsumer(bare) || CONSUMERS.indexOf(c) !== -1) {
       grounded.add(s.surface)
-      continue
-    }
-    if (SURFACE_DESTS.has(bare)) {
-      edges.push(SURFACE_DESTS.get(bare))
       continue
     }
     strayConsumers.push({ surface: s.surface, consumer: c, why: 'names no file this run knows to exist' })

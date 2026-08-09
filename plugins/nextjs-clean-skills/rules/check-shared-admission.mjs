@@ -70,6 +70,7 @@ const budget = {
  * every exemption was silently reasonless. An object is the representable form; a bare array is
  * still accepted so an existing contract keeps working, and is reported as what it is.
  */
+const sharedRoots = new Set(contract.sharedRoots ?? [])
 const exemptions = contract.sharedAdmissionExempt ?? {}
 const exempt = new Set(Array.isArray(exemptions) ? exemptions : Object.keys(exemptions))
 const reasonless = [...exempt].filter(
@@ -85,14 +86,22 @@ const reasonless = [...exempt].filter(
 // nothing imports by design was judged deletable.
 const EXT = SOURCE_EXTENSIONS.join('|')
 const SOURCE = new RegExp(`\\.(${EXT})$`)
-const isTest = (file) =>
-  new RegExp(`\\.(test|spec)\\.(${EXT})$`).test(file) || file.includes(`${path.sep}__tests__${path.sep}`)
-
 /**
- * Stories are discovered by a glob, not imported, so "no importer" says nothing about them — but
- * they DO count as importers of what they render.
+ * Development artifacts: tests, mocks and stories. None of them ships, and the rule they feed is
+ * "at least two real capabilities" — so none of them is an owner. They were treated three different
+ * ways: tests skipped both as subjects and as importers, `__mocks__` skipped nowhere, and stories
+ * skipped as subjects while still counting as importers, which let one production capability plus
+ * one story satisfy the two-owner threshold. Symmetric now, in both directions.
+ *
+ * A shared file whose only importer is a story is therefore `unused`, and that verdict is honest:
+ * shared code exists for two product consumers, and a story is not one of them.
+ *
+ * `.stories.mdx` is deliberately absent — `listSources()` never opens an `.mdx` file, so naming it
+ * here would have been a rule about files this check cannot see.
  */
-const isStory = (file) => new RegExp(`\\.stories\\.(${EXT}|mdx)$`).test(file)
+const isDevArtifact = (file) =>
+  new RegExp(`\\.(test|spec|stories)\\.(${EXT})$`).test(file) ||
+  ['__tests__', '__mocks__'].some((directory) => file.includes(`${path.sep}${directory}${path.sep}`))
 
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
@@ -168,7 +177,12 @@ function ownerOf(file) {
   // honest answer is that the contract names no owner for it.
   if (inModules) return inModules.length > 1 && capabilities.has(inModules[0]) ? inModules[0] : null
   const inShared = relativeParts(sharedRoot, file)
-  if (inShared) return `shared/${inShared[0]}`
+  // Only an ADMITTED shared root is an owner. Any first component was accepted, so an importer
+  // under an unadmitted root — the very shape `invalidSharedRoot` exists to reject — counted
+  // towards the two-owner threshold, and one real capability plus one illegal folder read as ok.
+  if (inShared) {
+    return inShared.length > 1 && sharedRoots.has(inShared[0]) ? `shared/${inShared[0]}` : null
+  }
   if (isWithin(appRoot, file)) return 'app'
   if (!isWithin(sourceRoot, file)) return 'root'
   return null
@@ -189,7 +203,7 @@ function listOuterImporters() {
 
 const importers = new Map()
 for (const file of [...listSources(sourceRoot), ...listOuterImporters()]) {
-  if (isTest(file)) continue
+  if (isDevArtifact(file)) continue
   for (const specifier of specifiersOf(file)) {
     const target = resolveToExistingFile(paths, file, specifier)
     if (!target) continue
@@ -206,7 +220,7 @@ let privateCount = 0
 let okCount = 0
 
 for (const file of listSources(sharedRoot)) {
-  if (isTest(file) || isStory(file)) continue
+  if (isDevArtifact(file)) continue
   const relative = path.relative(projectRoot, file)
   if (exempt.has(relative) || exempt.has(relative.split(path.sep).join('/'))) continue
 
