@@ -249,7 +249,13 @@ async function runBody(source, { args: argv, overrides = {} } = {}) {
     agent: async (prompt, opts = {}) => {
       calls.push(opts.label)
       prompts.push({ label: opts.label, prompt: String(prompt) })
-      if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) return overrides[opts.label]
+      if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) {
+        const answer = overrides[opts.label]
+        // A function override answers per call, indexed from zero. A fixed value cannot express
+        // the state a fix loop actually produces: a probe that reported on the first pass and then
+        // died on the re-verify, leaving the tree edited and the oracle watching it gone.
+        return typeof answer === 'function' ? answer(calls.filter(c => c === opts.label).length - 1) : answer
+      }
       return stubValue(opts.schema)
     },
     parallel: thunks => Promise.all(thunks.map(t => t().catch(() => null))),
@@ -1037,6 +1043,78 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       !((clean.result && clean.result.humanGate) || '').includes('DELETED PATHS'),
       `${PILOT}: with nothing stale the gate must stay silent about it`
+    )
+  }
+
+  // ─── an agent that never reported is not an agent that reported success ───
+  // `agent()` returns null when the subagent dies or is skipped, and null is falsy in exactly the
+  // places these guards read a boolean off it. Each of the five below let a dead probe pass as a
+  // clean one, or as a red one — both of which are claims about something nobody measured.
+  {
+    // A dead consumer mover was ignored whenever phase 1 had recorded no consumer — the case where
+    // this agent matters most, since its own first step says the grep is authoritative.
+    const noneRecorded = { ...manifest, consumers: [] }
+    const dead = await pilot({ 'load-manifest': noneRecorded, 'move:consumers': null })
+    check(
+      dead.result && dead.result.recommendation === 'inconclusive',
+      `${PILOT}: a dead consumer mover must be inconclusive even with no recorded consumers, got ${JSON.stringify(dead.result && dead.result.recommendation)}`
+    )
+    // Control: an empty list plus a mover that DID run and legitimately touched nothing is fine.
+    const quiet = await pilot({ 'load-manifest': noneRecorded, 'move:consumers': { ok: true, filesTouched: [], detail: '' } })
+    check(
+      quiet.result && quiet.result.recommendation === 'accept',
+      `${PILOT}: a consumer mover that ran and needed no edit must not be treated as a failure, got ${JSON.stringify(quiet.result && quiet.result.reason)}`
+    )
+
+    // A dead verify probe read as red and sent fix agents to repair failures nobody observed.
+    const withFix = over => runBody(pilotSrc, { args: { ...pilotArgs, maxFixRounds: 2 }, overrides: { ...base, ...over } })
+    for (const probe of ['verify:behaviour', 'verify:architecture', 'verify:review']) {
+      const out = await withFix({ [probe]: null })
+      check(
+        !out.calls.includes('fix:round-1'),
+        `${PILOT}: a dead ${probe} must not start a fix round — no edit can repair a probe that did not run`
+      )
+      check(
+        out.result && out.result.recommendation === 'inconclusive',
+        `${PILOT}: a dead ${probe} must be inconclusive, got ${JSON.stringify(out.result && out.result.recommendation)}`
+      )
+    }
+    // Control: a probe that ran and reported red is exactly what the fix loop is for.
+    const red = await withFix({ 'verify:behaviour': { ok: false, detail: 'tests fail' } })
+    check(
+      red.calls.includes('fix:round-1'),
+      `${PILOT}: a measured red behaviour oracle must still enter the fix loop`
+    )
+    // And a probe that dies DURING the loop leaves it neither converged nor capped: red on the
+    // first pass, gone on the re-verify. `cap-reached` there tells the operator to raise the
+    // budget, which cannot help — nothing measured the tree the fix round just edited.
+    const diedMidLoop = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 1 },
+      overrides: { ...base, 'verify:behaviour': n => (n === 0 ? { ok: false, detail: 'red' } : null) },
+    })
+    check(
+      diedMidLoop.result && diedMidLoop.result.fixLoopExit === 'unmeasured',
+      `${PILOT}: a loop that stopped because an oracle stopped reporting is neither converged nor capped, got ${JSON.stringify(diedMidLoop.result && diedMidLoop.result.fixLoopExit)}`
+    )
+    check(
+      ((diedMidLoop.result && diedMidLoop.result.humanGate) || '').includes('AN ORACLE STOPPED REPORTING'),
+      `${PILOT}: the gate must say the tree was edited and then not measured`
+    )
+
+    // A dead instruction probe fell through the same branch as a clean instruction layer.
+    const staleDead = await pilot({ 'stale-instructions': null })
+    check(
+      ((staleDead.result && staleDead.result.humanGate) || '').includes('DID NOT RUN'),
+      `${PILOT}: an instruction probe that returned nothing must say so in the gate, like one that returned ok=false`
+    )
+
+    // A dead radius probe printed the message for a manifest that recorded no ordinary change,
+    // sending the reader to fix phase 1 over a phase 2 failure.
+    const radiusDead = await pilot({ 'load-manifest': { ...manifest, ordinaryChange: 'add a field to the list view' }, radius: null })
+    const radiusText = (radiusDead.result && radiusDead.result.changeRadius) || ''
+    check(
+      typeof radiusText === 'string' && /did not report/.test(radiusText) && !/recorded no ordinaryChange/.test(radiusText),
+      `${PILOT}: a dead radius probe must be reported as a dead probe, not as a missing baseline, got ${JSON.stringify(radiusText)}`
     )
   }
 

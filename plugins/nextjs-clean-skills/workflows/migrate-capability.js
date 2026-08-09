@@ -793,7 +793,13 @@ if (external) log('Move consumers: ' + (external.ok ? (external.filesTouched || 
 // which is right for internals — nothing moved means nothing happened — but wrong here:
 // consumers that reach the capability through a surface whose path did not change need
 // no edit, and a correct run legitimately touches nothing.
-if (CONSUMERS.length > 0 && (!external || !external.ok)) {
+//
+// Not conditioned on the recorded consumer list either. `CONSUMERS.length > 0 &&` let a dead
+// mover through whenever phase 1 had recorded no consumer — and an empty recorded list is the
+// case where this agent matters MOST, because step 1 of its own prompt says the grep is
+// authoritative and the recorded list may be incomplete. So a run whose only evidence of "no
+// external importers" was an agent that never reported treated that silence as proof.
+if (!external || !external.ok) {
   return {
     capability: CAP,
     recommendation: 'inconclusive',
@@ -989,15 +995,27 @@ const loopState = o => JSON.stringify({
   behaviourDetail: (o.behaviour && o.behaviour.detail) || '',
   musts: ((o.review && o.review.findings) || []).filter(f => f.severity === 'must-fix').map(f => f.detail || f.property || ''),
 })
+// An oracle that did not report is not an oracle that reported failure, and no fix round can
+// repair a probe that never ran. Read off a null result, `!(o.behaviour && o.behaviour.ok)` was
+// true for a dead behaviour probe and `archRed` returns the string 'not measured' for a dead
+// architecture one — both of which the loop condition read as red. So a run whose probes had died
+// spent its whole budget sending fix agents to repair failures nobody had observed, mutating the
+// tree before the gate could say the run was inconclusive. recommendation() already calls this
+// state inconclusive; the loop has to agree with it.
+const oraclesMeasured = o =>
+  !!o.behaviour && !archUnmeasured(o.architecture, CENSUS) && !!(o.review && o.review.verdict)
+const oraclesRed = o =>
+  archRed(o.architecture, CENSUS, VACUOUS) || !o.behaviour.ok ||
+  (o.review.findings || []).some(f => f.severity === 'must-fix')
 while (
   fixRounds < MAX_FIX &&
+  oraclesMeasured(oracles) &&
   // `reject` means the ownership model is wrong, so there is nothing here to repair.
   // recommendation() already puts reject first, but it runs AFTER this loop — so the
   // fix agents were editing a design the reviewer had told us to drop, and the human
   // gate then received a mutated version of the thing it was asked to judge.
-  !(oracles.review && oracles.review.verdict === 'reject') &&
-  (archRed(oracles.architecture, CENSUS, VACUOUS) || !(oracles.behaviour && oracles.behaviour.ok) ||
-   ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
+  oracles.review.verdict !== 'reject' &&
+  oraclesRed(oracles)
 ) {
   const nowState = loopState(oracles)
   if (fixRounds > 0 && nowState === lastState) {
@@ -1034,12 +1052,14 @@ while (
 // Classified after the loop, from the state that made it stop. `cap-reached` means the budget ran
 // out with work still open; `converged` means the conditions the loop watches are all clear.
 if (fixLoopExit === 'not-entered' && fixRounds > 0) {
-  fixLoopExit = fixRounds >= MAX_FIX &&
-    (archRed(oracles.architecture, CENSUS, VACUOUS) ||
-      !(oracles.behaviour && oracles.behaviour.ok) ||
-      ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
-    ? 'cap-reached'
-    : 'converged'
+  // `unmeasured` before either of the other two: a re-verify whose probe died leaves nothing to
+  // call converged OR capped, and reporting "the fix loop cleared what it was watching" on the
+  // strength of a probe that never ran is the exact claim this workflow exists to refuse.
+  fixLoopExit = !oraclesMeasured(oracles)
+    ? 'unmeasured'
+    : fixRounds >= MAX_FIX && oraclesRed(oracles)
+      ? 'cap-reached'
+      : 'converged'
 }
 
 // ─── Radius: the quality oracle ───
@@ -1089,6 +1109,12 @@ const staleInstructions = (deleting.length > 0 || moving.length > 0)
     )
   : null
 const staleEntries = (staleInstructions && staleInstructions.entries) || []
+// Three states, not two. `staleInstructions && !staleInstructions.ok` is FALSE when the agent died
+// and returned null — so a dead probe fell through the same branch as a clean instruction layer and
+// the gate said nothing at all. "Not asked" (nothing moved, so nothing can be stale) is the only
+// state that may be silent.
+const staleProbeAsked = deleting.length > 0 || moving.length > 0
+const staleProbeRan = !!(staleInstructions && staleInstructions.ok)
 if (staleEntries.length > 0) {
   log('Instruction layer: ' + staleEntries.length + ' stale reference(s) to paths this migration removed')
 }
@@ -1158,12 +1184,16 @@ return {
       : fixLoopExit === 'no-progress'
         ? '\nTHE FIX LOOP STOPPED MOVING: a round changed nothing any oracle could see, so more rounds will not ' +
           'help. What remains needs a person.\n'
-        : fixLoopExit === 'converged'
-          // `not-entered` stays silent on purpose: no round ran because nothing needed one, and a
-          // line about a loop that never started is noise in front of the decision.
-          ? '\nThe fix loop ran ' + fixRounds + ' round(s) and cleared what it was watching.\n'
-          : '') +
-    (staleInstructions && !staleInstructions.ok
+        : fixLoopExit === 'unmeasured'
+          ? '\nTHE FIX LOOP STOPPED BECAUSE AN ORACLE STOPPED REPORTING after ' + fixRounds + ' round(s). ' +
+            'It did not finish and it did not fail — the tree was edited and then not measured. Re-run before ' +
+            'reading anything below as the state of this migration.\n'
+          : fixLoopExit === 'converged'
+            // `not-entered` stays silent on purpose: no round ran because nothing needed one, and a
+            // line about a loop that never started is noise in front of the decision.
+            ? '\nThe fix loop ran ' + fixRounds + ' round(s) and cleared what it was watching.\n'
+            : '') +
+    (staleProbeAsked && !staleProbeRan
       ? '\nTHE INSTRUCTION-LAYER CHECK DID NOT RUN, so nothing here says your rules are current. ' +
         'Silence from a probe that failed reads exactly like silence from a clean result — check ' +
         'AGENTS.md, CLAUDE.md and .claude/rules/ by hand for paths this migration deleted.\n'
@@ -1193,7 +1223,8 @@ return {
   capabilityLayout: { migrated: MIGRATED, remaining: REMAINING, halfMigrated: HALF_MIGRATED, undetermined: UNDETERMINED },
   staleInstructions: {
     // A probe that could not run is not a probe that found nothing.
-    checked: !!(staleInstructions && staleInstructions.ok),
+    checked: staleProbeRan,
+    asked: staleProbeAsked,
     entries: staleEntries,
   },
   channelChanges: CHANNEL_CHANGES,
@@ -1203,7 +1234,15 @@ return {
     architecture: oracles.architecture ? { ok: oracles.architecture.ok, capabilityViolations: capViolations, totalNow: archTotal, totalAtBaseline: CENSUS_TOTAL, regressions, counts: archCounts } : null,
     review: oracles.review ? { verdict: oracles.review.verdict, mustFix: mustFix.length, findings: oracles.review.findings } : null,
   },
-  changeRadius: radius ? { ok: radius.ok, detail: radius.detail } : 'not measured — phase 1 recorded no ordinaryChange',
+  // Two different "not measured"s, and the wrong one was printed for both. With an ordinaryChange
+  // recorded and a probe that died, this reported "phase 1 recorded no ordinaryChange" — sending
+  // the reader to fix phase 1 over a phase 2 failure, and quietly excusing the missing quality
+  // oracle in a run that could still be accepted.
+  changeRadius: radius
+    ? { ok: radius.ok, detail: radius.detail }
+    : slice.ordinaryChange
+      ? 'not measured — the radius probe did not report. Phase 1 DID record an ordinary change, so this is a dead probe, not a missing baseline: the quality oracle is simply absent from this run.'
+      : 'not measured — phase 1 recorded no ordinaryChange',
   fixRounds,
   fixLoopExit,
   fixRoundFilesTouched: fixFiles,
