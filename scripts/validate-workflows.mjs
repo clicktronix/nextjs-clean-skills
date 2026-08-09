@@ -847,7 +847,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   {
     const withCaps = {
       ...manifest,
-      capabilities: [{ name: 'work-items', files: 28 }, { name: 'labels', files: 9 }, { name: 'identity', files: 32 }],
+      capabilities: [
+        { name: 'work-items', files: 28, status: 'migrated' },
+        { name: 'labels', files: 9, status: 'old-layout' },
+        { name: 'identity', files: 32, status: 'old-layout' },
+      ],
     }
     const out = await pilot({ 'load-manifest': withCaps })
     const gateText = (out.result && out.result.humanGate) || ''
@@ -867,6 +871,73 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       (solo.result.humanGate || '').includes('whole tree'),
       `${PILOT}: with no other capability the gate must say so rather than implying a wave that does not exist`
+    )
+  }
+
+  // ─── the wave has a position, not just a first step ───
+  // `every capability except this one` is only true of the FIRST run. Said on the second it labels
+  // the capability the first run migrated as old-layout; said on the last it still claims a mixed
+  // tree and offers a finished capability as the next one to do. The manifest cannot answer this —
+  // it is written once, before anything moves — so the layout is read from the tree per capability.
+  {
+    const caps = rows => ({ ...manifest, capabilities: rows })
+
+    // Mid-wave: one done, one to go. The done one must not be offered as next.
+    const mid = await pilot({ 'load-manifest': caps([
+      { name: 'work-items', status: 'old-layout' },
+      { name: 'labels', status: 'migrated' },
+      { name: 'identity', status: 'old-layout' },
+    ]) })
+    const midGate = (mid.result && mid.result.humanGate) || ''
+    check(
+      (mid.result && mid.result.remainingCapabilities || []).join(',') === 'identity',
+      `${PILOT}: a capability already on the new layout must not be reported as remaining, got ${JSON.stringify(mid.result && mid.result.remainingCapabilities)}`
+    )
+    check(
+      /capability: "<next>" \(e\.g\. "identity"\)/.test(midGate),
+      `${PILOT}: the ACCEPT line must offer a capability that is actually still on the old layout`
+    )
+    check(
+      midGate.includes('Already migrated by earlier runs: labels'),
+      `${PILOT}: the gate must say which capabilities earlier runs already finished, or the operator redoes them`
+    )
+
+    // Last run of the wave: nothing left, and no claim of a mixed tree.
+    const last = await pilot({ 'load-manifest': caps([
+      { name: 'work-items', status: 'migrated' },
+      { name: 'labels', status: 'migrated' },
+    ]) })
+    const lastGate = (last.result && last.result.humanGate) || ''
+    check(
+      (last.result && last.result.remainingCapabilities || []).length === 0 &&
+        !lastGate.includes('BOTH layouts') && lastGate.includes('completes the wave'),
+      `${PILOT}: when every other capability is migrated the gate must say the wave is complete, not that the tree is mixed`
+    )
+    check(
+      lastGate.includes('(none left'),
+      `${PILOT}: with nothing left the ACCEPT line must say so instead of naming a finished capability`
+    )
+
+    // Half-migrated is a defect the contract forbids, and it is invisible unless named.
+    const half = await pilot({ 'load-manifest': caps([{ name: 'labels', status: 'mixed' }]) })
+    check(
+      ((half.result && half.result.humanGate) || '').includes('HALF-MIGRATED: labels'),
+      `${PILOT}: a capability carrying both topologies must be named — that state is what the contract forbids`
+    )
+
+    // An older manifest read by an older prompt carries no status at all. Fail closed: an
+    // unclassified capability is neither counted as done nor asserted to be pending.
+    const unknown = await pilot({ 'load-manifest': caps([{ name: 'labels', files: 9 }]) })
+    const unknownGate = (unknown.result && unknown.result.humanGate) || ''
+    check(
+      (unknown.result && unknown.result.remainingCapabilities || []).length === 0 &&
+        (unknown.result && unknown.result.capabilityLayout || {}).undetermined.join(',') === 'labels',
+      `${PILOT}: a capability with no recorded status must be reported as undetermined, not silently counted either way`
+    )
+    check(
+      unknownGate.includes('LAYOUT NOT DETERMINED for labels') &&
+        unknownGate.includes('confirm it still needs migrating first'),
+      `${PILOT}: an undetermined layout must be stated as undetermined, and any suggestion built on it must carry the caveat`
     )
   }
 

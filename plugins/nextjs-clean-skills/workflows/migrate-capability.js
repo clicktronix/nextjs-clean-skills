@@ -132,7 +132,20 @@ const MANIFEST_SCHEMA = {
       items: {
         type: 'object',
         required: ['name'],
-        properties: { name: { type: 'string' }, files: { type: 'integer' } },
+        properties: {
+          name: { type: 'string' },
+          files: { type: 'integer' },
+          // The manifest is written once, by phase 1, and never updated — so a capability's
+          // ROW cannot say whether it has since been migrated. Derived here from the tree
+          // instead, because the manifest is the wrong place to look: without it the second
+          // run tells the operator that the capability the first run migrated is still on the
+          // old layout, and the last run of a wave still reports a mixed tree and recommends
+          // re-migrating something already done.
+          status: {
+            enum: ['migrated', 'old-layout', 'mixed', 'undetermined'],
+            description: 'the layout this capability is ON RIGHT NOW, read from the filesystem, not from the manifest',
+          },
+        },
       },
     },
     consumers: { type: 'array', items: { type: 'string' }, description: 'app routes and other capabilities that use this capability today' },
@@ -314,7 +327,19 @@ const slice = await agent(
   // Revalidated, not trusted. The two phases are separate invocations: between them the
   // plugin can be upgraded, pruned or reinstalled, and a path that no longer resolves
   // would be interpolated into the planning prompt as if it did.
-  `- capabilities: the name of EVERY capability the manifest lists, not just "${CAP}", with its file count.\n` +
+  `- capabilities: the name of EVERY capability the manifest lists, not just "${CAP}", with its file count and ` +
+  `its CURRENT layout status. The status is not in the manifest — the manifest was written once, before any ` +
+  `capability moved, and is never updated. Determine it from the tree, per capability:\n` +
+  `    * oldPaths = that capability's recorded assignment paths that are NOT already under ` +
+  `<moduleRoot>/<name>/. Count how many of them still exist on disk.\n` +
+  `    * moduleDir = whether <moduleRoot>/<name>/ exists AND contains at least one .ts/.tsx/.js/.jsx file.\n` +
+  `    * status = "migrated" when moduleDir is populated and no oldPath survives; "old-layout" when moduleDir ` +
+  `is absent or empty and at least one oldPath survives; "mixed" when BOTH are true — the capability carries ` +
+  `two topologies at once, which the contract forbids; "undetermined" when neither is true, or when you could ` +
+  `not check.\n` +
+  `  Report what you found. Do NOT assume every capability other than "${CAP}" is still on the old layout: on ` +
+  `the second and later runs of a wave, some of them are already migrated, and naming one of those as the next ` +
+  `capability sends the operator to redo finished work.\n` +
   '- contractSource: the path the manifest records under that key. Before returning it, confirm that all four of ' +
   '`docs/architecture-contract.md`, `docs/adoption-and-enforcement.md`, `rules/architecture-contract.json` and ' +
   '`skills/designing-architecture/SKILL.md` still exist under it. Return it verbatim if they all do; return an empty ' +
@@ -388,13 +413,50 @@ const CENSUS_BINDS = slice.capabilityTierBinds === true
 // moduleRoot to exist. Executing the decision function with those newly non-zero returned `accept`.
 const VACUOUS = new Set(Array.isArray(slice.vacuousCounters) ? slice.vacuousCounters : [])
 
-// Every capability except this one is still on the old layout, and saying so is not a nicety. The
-// first operator to run this saw the new module tree beside the untouched old directories and asked
-// whether the migration had failed. A pilot is one capability BY DESIGN, so the mixed tree is the
-// intended intermediate state — but "intended" has to be stated, or it reads as wreckage.
-const REMAINING = (slice.capabilities || [])
-  .map(c => c && c.name)
-  .filter(name => typeof name === 'string' && name !== CAP)
+// A mixed tree is the intended intermediate state, and saying so is not a nicety: the first operator
+// to run this saw the new module tree beside the untouched old directories and asked whether the
+// migration had failed. But "every capability except this one is still on the old layout" is only
+// true of the FIRST run. Said on the second it labels the pilot the first run migrated as old-layout;
+// said on the last it still claims a mixed tree and recommends re-migrating finished work. So the
+// four groups are read from the tree, and a capability whose layout could not be read is reported as
+// unknown rather than counted into either side.
+const CAP_ROWS = (slice.capabilities || []).filter(c => c && typeof c.name === 'string' && c.name !== CAP)
+const withStatus = want => CAP_ROWS.filter(c => c.status === want).map(c => c.name)
+const REMAINING = withStatus('old-layout')
+const MIGRATED = withStatus('migrated')
+const HALF_MIGRATED = withStatus('mixed')
+// Anything the probe did not classify — including an older manifest read by an older prompt, which
+// returns no status at all. Fail closed: an unclassified capability is NOT quietly counted as done.
+const UNDETERMINED = CAP_ROWS.filter(
+  c => !['old-layout', 'migrated', 'mixed'].includes(c.status)
+).map(c => c.name)
+// What the ACCEPT line offers as the next capability. Only a capability actually observed on the old
+// layout is a safe suggestion; an unclassified one is offered with the caveat attached.
+const NEXT_CANDIDATE = REMAINING[0] || UNDETERMINED[0] || ''
+const plural = (n, one, many) => (n === 1 ? one : many)
+const LAYOUT_STATE =
+  CAP_ROWS.length === 0
+    ? 'No other capability was recorded, so this was the whole tree.\n'
+    : (REMAINING.length > 0
+        ? REMAINING.length + ' other ' + plural(REMAINING.length, 'capability is', 'capabilities are') +
+          ' still on the old layout (' + REMAINING.join(', ') + '), so the repository now holds BOTH layouts. ' +
+          'That is the intended state between capabilities, not a half-finished migration — each capability moves whole, one at a time.\n'
+        : HALF_MIGRATED.length === 0 && UNDETERMINED.length === 0
+          ? 'Every other capability is already on the new layout (' + MIGRATED.join(', ') + '), so this run completes ' +
+            'the wave — the repository no longer holds two layouts.\n'
+          : '') +
+      (REMAINING.length > 0 && MIGRATED.length > 0
+        ? 'Already migrated by earlier runs: ' + MIGRATED.join(', ') + ' — those are done, do not re-run them.\n'
+        : '') +
+      (HALF_MIGRATED.length > 0
+        ? 'HALF-MIGRATED: ' + HALF_MIGRATED.join(', ') + ' ' + plural(HALF_MIGRATED.length, 'carries', 'carry') +
+          ' the old and the new topology at once. The contract forbids exactly that state — finish or revert each ' +
+          'of them before starting another capability.\n'
+        : '') +
+      (UNDETERMINED.length > 0
+        ? 'LAYOUT NOT DETERMINED for ' + UNDETERMINED.join(', ') + ': nothing here says whether ' +
+          plural(UNDETERMINED.length, 'it still needs', 'they still need') + ' migrating. Check before choosing the next one.\n'
+        : '')
 const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 0)
 
 if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
@@ -1077,14 +1139,14 @@ return {
   // asked for a decision it had not equipped them to make.
   humanGate:
     'WHAT THIS RUN DID: migrated ONE capability, "' + CAP + '". ' +
-    (REMAINING.length > 0
-      ? REMAINING.length + ' other capabilit' + (REMAINING.length === 1 ? 'y is' : 'ies are') +
-        ' still on the old layout (' + REMAINING.join(', ') + '), so the repository now holds BOTH layouts. ' +
-        'That is the intended state between capabilities, not a half-finished migration — each capability moves whole, one at a time.\n'
-      : 'No other capability was recorded, so this was the whole tree.\n') +
+    LAYOUT_STATE +
     '\nWHAT YOU DO NOW — this is a decision only you can make, and the next capability waits on it:\n' +
     '- ACCEPT: the ownership model works. Run this workflow again with capability: "<next>" ' +
-    (REMAINING.length > 0 ? '(e.g. "' + REMAINING[0] + '").' : '(none left).') + '\n' +
+    (REMAINING.length > 0
+      ? '(e.g. "' + REMAINING[0] + '").'
+      : NEXT_CANDIDATE
+        ? '(e.g. "' + NEXT_CANDIDATE + '" — but its layout was not determined, so confirm it still needs migrating first).'
+        : '(none left — every capability the manifest lists is on the new layout).') + '\n' +
     '- REVISE: the model is right but this migration is not. Fix what the findings below name, re-run ' +
     'this same capability, and decide again.\n' +
     '- REJECT: the ownership model itself is wrong for this codebase. Stop the programme and change the ' +
@@ -1126,6 +1188,9 @@ return {
       ? '\nTHIS RUN IS NOT A VERDICT: ' + unmeasured.join(', ') + ' did not report, so there is nothing to accept or reject yet. Re-run first.'
       : '\nThis run recommends: ' + gate + ' — ' + decided.reason + '. The recommendation is advice; the decision is yours.'),
   remainingCapabilities: REMAINING,
+  // The whole picture, not just one side of it. `remainingCapabilities` alone cannot distinguish
+  // "the wave is finished" from "no capability's layout could be read".
+  capabilityLayout: { migrated: MIGRATED, remaining: REMAINING, halfMigrated: HALF_MIGRATED, undetermined: UNDETERMINED },
   staleInstructions: {
     // A probe that could not run is not a probe that found nothing.
     checked: !!(staleInstructions && staleInstructions.ok),
