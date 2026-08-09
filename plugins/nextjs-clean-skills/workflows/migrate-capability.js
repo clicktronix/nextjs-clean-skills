@@ -217,6 +217,23 @@ const PLAN_SCHEMA = {
   },
 }
 
+// A measurement is not an edit. The radius probe was handed STEP_SCHEMA — the mover's schema, with
+// `filesTouched` and `adapters` on it — and duly filled `filesTouched` with a path it had only
+// imagined ("supabase/migrations/<new>_add_due_date.sql"). Nothing consumed it, so nothing broke;
+// but a schema that offers a read-only step the vocabulary of a write invites exactly that, and the
+// day someone aggregates filesTouched across every step it stops being harmless.
+const PROBE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['ok', 'detail'],
+  properties: {
+    ok: { type: 'boolean' },
+    command: { type: 'string' },
+    counts: { type: 'object', additionalProperties: { type: 'integer' } },
+    detail: { type: 'string' },
+  },
+}
+
 const STEP_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -880,6 +897,10 @@ let oracles = await verifyAll()
 
 // ─── Fix: bounded rounds, only while the architectural oracle is red ───
 let fixRounds = 0
+// Which exit the loop took. `fixRounds: 2` alone cannot distinguish "the cap ran out, one more
+// round might have finished it" from "a round changed nothing an oracle can see" — and those ask the
+// operator for different decisions. The first live run hit the cap with one must-fix outstanding.
+let fixLoopExit = 'not-entered'
 let lastState = ''
 const fixFiles = []
 // A snapshot of everything the loop is allowed to react to. Comparing only the
@@ -904,6 +925,7 @@ while (
 ) {
   const nowState = loopState(oracles)
   if (fixRounds > 0 && nowState === lastState) {
+    fixLoopExit = 'no-progress'
     log('Fix loop stopped: round ' + fixRounds + ' changed nothing any oracle can see')
     break
   }
@@ -933,7 +955,68 @@ while (
   oracles = await verifyAll()
 }
 
+// Classified after the loop, from the state that made it stop. `cap-reached` means the budget ran
+// out with work still open; `converged` means the conditions the loop watches are all clear.
+if (fixLoopExit === 'not-entered' && fixRounds > 0) {
+  fixLoopExit = fixRounds >= MAX_FIX &&
+    (archRed(oracles.architecture, CENSUS, CENSUS_BINDS) ||
+      !(oracles.behaviour && oracles.behaviour.ok) ||
+      ((oracles.review && oracles.review.findings) || []).some(f => f.severity === 'must-fix'))
+    ? 'cap-reached'
+    : 'converged'
+}
+
 // ─── Radius: the quality oracle ───
+// ─── Instruction layer: the paths this migration invalidated ───
+// A capability moves and the repository's own agent instructions keep describing where it used to
+// be. The adversarial reviewer found this on the third round of the first live run — by luck, since
+// it is not one of the properties it is asked about — and a human had to fix it afterwards. Until
+// then every agent session opening that repository read rules naming files this change had deleted.
+//
+// Detection only. These files are how a team tells its agents how to work, and rewriting them is a
+// decision about the team's own documentation, not a consequence of moving a capability. The gate
+// names the file, the line and the dead path; the human decides what to say instead.
+const staleInstructions = (deleting.length > 0 || moving.length > 0)
+  ? await agent(
+      `Find instruction files in ${REPO} that still describe where "${CAP}" used to live.\n\n` +
+      '## Where to look\n' +
+      'AGENTS.md, CLAUDE.md, .cursorrules, and everything under .claude/rules/, .claude/skills/, .cursor/rules/, ' +
+      'docs/ and wiki/ that is written as instructions to a developer or an agent. Read only — change nothing.\n\n' +
+      '## What counts as stale\n' +
+      'A mention of any path this migration deleted or moved away from:\n' +
+      (deleting.concat(moving).map(r => '- ' + r.file).join('\n') || '- (none)') + '\n\n' +
+      'Report the file, the line number and the dead path, one entry each. A path that still exists is not stale. ' +
+      'Prose that describes the OLD architecture without naming a path is worth reporting too, in `detail`, but say ' +
+      'that is what it is.\n\nStructured output only.',
+      { label: 'stale-instructions', phase: 'Radius', schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['ok', 'entries', 'detail'],
+        properties: {
+          ok: { type: 'boolean', description: 'true when the search ran; not a claim that nothing is stale' },
+          entries: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['file', 'deadPath'],
+              properties: {
+                file: { type: 'string' },
+                line: { type: 'integer' },
+                deadPath: { type: 'string' },
+              },
+            },
+          },
+          detail: { type: 'string' },
+        },
+      } }
+    )
+  : null
+const staleEntries = (staleInstructions && staleInstructions.entries) || []
+if (staleEntries.length > 0) {
+  log('Instruction layer: ' + staleEntries.length + ' stale reference(s) to paths this migration removed')
+}
+
 phase('Radius')
 
 const radius = slice.ordinaryChange
@@ -951,7 +1034,7 @@ const radius = slice.ordinaryChange
       'claim as "behaviour is unchanged" — say which one you are making.\n' +
       'Behaviour oracle result: ' + ((oracles.behaviour && oracles.behaviour.detail) || '(not measured)') + '\n\n' +
       'A radius that grew is a real result and must be reported as such. Read only.\n\nStructured output only.',
-      { label: 'radius', phase: 'Radius', schema: STEP_SCHEMA }
+      { label: 'radius', phase: 'Radius', schema: PROBE_SCHEMA }
     )
   : null
 
@@ -992,6 +1075,21 @@ return {
     'this same capability, and decide again.\n' +
     '- REJECT: the ownership model itself is wrong for this codebase. Stop the programme and change the ' +
     'contract — do NOT migrate another capability onto a model you have rejected.\n' +
+    (fixLoopExit === 'cap-reached'
+      ? '\nTHE FIX LOOP RAN OUT OF ROUNDS with work still open (maxFixRounds: ' + MAX_FIX + '). That is a budget, ' +
+        'not a conclusion — another round may well finish it. Re-run with a higher maxFixRounds before reading ' +
+        'the verdict below as the state of this migration.\n'
+      : fixLoopExit === 'no-progress'
+        ? '\nTHE FIX LOOP STOPPED MOVING: a round changed nothing any oracle could see, so more rounds will not ' +
+          'help. What remains needs a person.\n'
+        : '') +
+    (staleEntries.length > 0
+      ? '\nYOUR INSTRUCTION FILES NOW POINT AT DELETED PATHS — ' + staleEntries.length + ' reference(s):\n' +
+        staleEntries.slice(0, 12).map(e => '- ' + e.file + (e.line ? ':' + e.line : '') + ' -> ' + e.deadPath).join('\n') +
+        '\nNothing here rewrote them: they are how your team instructs its agents, and that wording is yours. ' +
+        'But until they are updated, every agent session in this repository reads rules describing a layout that ' +
+        'no longer exists.\n'
+      : '') +
     (CHANNEL_CHANGES.length > 0
       ? '\nCHANNEL CHANGES IN THIS MIGRATION — verify these by hand, the test suite does not:\n' +
         CHANNEL_CHANGES.map(c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — ' + (c.behaviourRisk || 'risk not stated')).join('\n') +
@@ -1005,6 +1103,11 @@ return {
       ? '\nTHIS RUN IS NOT A VERDICT: ' + unmeasured.join(', ') + ' did not report, so there is nothing to accept or reject yet. Re-run first.'
       : '\nThis run recommends: ' + gate + ' — ' + decided.reason + '. The recommendation is advice; the decision is yours.'),
   remainingCapabilities: REMAINING,
+  staleInstructions: {
+    // A probe that could not run is not a probe that found nothing.
+    checked: !!(staleInstructions && staleInstructions.ok),
+    entries: staleEntries,
+  },
   channelChanges: CHANNEL_CHANGES,
   plan: { moves: moving.length, stayed: staying.length, deleted: deleting.length, surfaces: usedSurfaces.map(s => s.surface), surfacesDroppedForNoConsumer: unusedSurfaces.map(s => s.surface), surfaceMovesDropped: droppedSurfaceMoves.map(r => r.file), emptySegmentsAvoided: plan.emptySegmentsAvoided || [], risks: plan.risks || [] },
   oracles: {
@@ -1014,6 +1117,7 @@ return {
   },
   changeRadius: radius ? { ok: radius.ok, detail: radius.detail } : 'not measured — phase 1 recorded no ordinaryChange',
   fixRounds,
+  fixLoopExit,
   fixRoundFilesTouched: fixFiles,
   adapters: declaredAdapters,
   filesTouched: []

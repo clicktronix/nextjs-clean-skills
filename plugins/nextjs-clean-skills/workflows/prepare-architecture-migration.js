@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, then INSTALL rules/ and a drafted architecture-contract.json into the target and amend its ESLint config, capture the behavioural baseline and the violation census, and write migration-manifest.json. Moves no product code.',
   whenToUse:
-    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", contractSource?: "/abs/path/to/the/plugin/root", dependencyDecisions?: { "pkg": "pure|runtime" } }. contractSource is resolved from the installed plugin when omitted; dependencyDecisions answers the packages a previous run reported as undecided.',
+    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", contractSource?: "/abs/path/to/the/plugin/root", dependencyDecisions?: { "pkg": "pure|runtime" }, fileOwners?: { "src/x.ts": "capability" } }. contractSource is resolved from the installed plugin when omitted; dependencyDecisions and fileOwners answer the packages and files a previous run reported as undecided or unplaced.',
   phases: [
     { title: 'Inventory', detail: 'six read-only lenses over routes, capabilities, runtime boundaries, data access, deps, roots' },
     { title: 'Assign', detail: 'single owner + role + runtime class for every source file (barrier: assignment needs the whole set)' },
@@ -311,7 +311,7 @@ const LENS_BLOCK = lensOuts
 // produces contested files and duplicate capabilities.
 phase('Assign')
 
-const assignment = await agent(
+let assignment = await agent(
   `Assign a single owner and role to every source file in ${REPO}.\n\n` +
   '## Inventory from six independent lenses\n' + LENS_BLOCK + '\n\n' +
   CONTRACT_DOCS + '\n\n' +
@@ -383,6 +383,56 @@ if (Object.keys(DECISIONS).length > 0) {
   assignment.deps = deps
   log('Dependency decisions applied: ' + decidedByHuman.map(d => d.package + '→' + d.side).join(', ') +
     (deps.undecided.length > 0 ? ' · ' + deps.undecided.length + ' still undecided' : ''))
+}
+
+// ─── Human decisions on the files nobody could place ───
+// Same shape, same reason as the dependency decisions above. The first live run stopped on five
+// unplaceable files in the pilot — correctly — and the operator's only way forward was to run the
+// whole phase again: fourteen agents to answer a question five strings would have answered. Costlier
+// than the dependency dead-end, and identical in kind.
+const OWNERS = ARGS.fileOwners || {}
+const ownedByHuman = []
+if (Object.keys(OWNERS).length > 0) {
+  const open = (assignment.unassigned || []).map(u => u && u.file).filter(Boolean)
+  const capabilityNames = new Set((assignment.capabilities || []).map(c => c && c.name).filter(Boolean))
+  const unknownFiles = Object.keys(OWNERS).filter(f => open.indexOf(f) === -1)
+  if (unknownFiles.length > 0) {
+    return {
+      error: 'args.fileOwners names files this run did not report as unassigned',
+      offending: unknownFiles,
+      unassigned: open,
+      detail: 'Ownership decisions answer THIS run\'s question. A stale answer would place a file by a ' +
+        'judgement made about a different tree.',
+    }
+  }
+  // The capability has to exist. Inventing one here would create a module root nothing else knows
+  // about, and phase 2 computes every destination from a capability name.
+  const unknownCaps = [...new Set(Object.values(OWNERS))].filter(c => !capabilityNames.has(c))
+  if (unknownCaps.length > 0) {
+    return {
+      error: 'args.fileOwners names capabilities this run did not find',
+      offending: unknownCaps,
+      capabilities: [...capabilityNames],
+      detail: 'Assign the file to a capability the inventory found, or re-run so the inventory can find the new one.',
+    }
+  }
+  // Built, not mutated in place. `assignment` is what the agent returned, and a result you were
+  // handed is not yours to edit — the runtime replays cached results on resume, so an in-place edit
+  // is a value that differs depending on how many times something ran.
+  const placed = []
+  for (const file of open) {
+    const capability = OWNERS[file]
+    if (!capability) continue
+    placed.push({ file, capability, evidence: 'assigned by the operator' })
+    ownedByHuman.push({ file, capability })
+  }
+  assignment = {
+    ...assignment,
+    assignments: (assignment.assignments || []).concat(placed),
+    unassigned: (assignment.unassigned || []).filter(u => !OWNERS[u && u.file]),
+  }
+  log('Ownership decisions applied: ' + ownedByHuman.map(o => o.file + '→' + o.capability).join(', ') +
+    ((assignment.unassigned || []).length > 0 ? ' · ' + assignment.unassigned.length + ' still unplaced' : ''))
 }
 
 // ─── Enable: install the executable floor, then census ───
@@ -575,6 +625,7 @@ const manifest = {
   // package does not say whether static analysis inferred that or a human ruled on it,
   // and only the second is something a later reader can go back and question.
   dependencyDecisions: decidedByHuman,
+  fileOwners: ownedByHuman,
   // Deviations from the written procedure, recorded rather than defended silently.
   deviations: [
     {
@@ -654,7 +705,12 @@ const pilotName = caps.length > 0 ? caps[0].name : null
 const unassigned = assignment.unassigned || []
 const unassignedInPilot = pilotName ? unassigned.filter(u => u.likelyCapability === pilotName) : []
 if (unassignedInPilot.length > 0) {
-  blockers.push(unassignedInPilot.length + ' file(s) in the pilot capability have no owner')
+  blockers.push(
+    unassignedInPilot.length + ' file(s) in the pilot capability have no owner: ' +
+      unassignedInPilot.map(u => u.file).join(', ') +
+      '. Answer with args.fileOwners { "<file>": "<capability>" } and re-run — add resumeFromRunId so the ' +
+      'inventory and assignment replay from cache instead of costing a second full pass.'
+  )
 }
 const warnings = []
 if (!capabilityTierBinds) {
@@ -702,6 +758,7 @@ return {
   // the contract the operator supplied rather than the analysis inferred, and the run
   // report is what they actually read.
   dependencyDecisions: decidedByHuman,
+  fileOwners: ownedByHuman,
   deviations: manifest.deviations,
   profilePending: manifest.profile.pending,
   nextStep: blockers.length === 0

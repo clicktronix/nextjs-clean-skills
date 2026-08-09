@@ -648,6 +648,49 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
+  // ─── ownership decisions on the files nobody could place ───
+  // The first live run blocked on five unplaceable pilot files and the only way forward was a second
+  // full pass. Same dead end as the dependency decisions, and costlier.
+  {
+    const ARGSO = { repo: '/t', ordinaryChange: 'add a field' }
+    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const assigned = {
+      capabilities: [{ name: 'work-items' }],
+      assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
+      unassigned: [{ file: 'src/orphan.ts', why: 'no clear owner', likelyCapability: 'work-items' }],
+      deps: { pure: [], runtime: [], undecided: [] },
+    }
+    const over = { ...withSrc, assign: assigned }
+
+    const blocked = await runBody(baseSrc, { args: ARGSO, overrides: over })
+    const blockerText = ((blocked.result && blocked.result.blockers) || []).join(' ')
+    check(/no owner/.test(blockerText), `${BASELINE} (unplaced pilot file): must block. blockers=${JSON.stringify(blocked.result && blocked.result.blockers)}`)
+    // The blocker has to carry the answer, not just the complaint — that is the whole defect.
+    check(/args\.fileOwners/.test(blockerText), `${BASELINE} (unplaced pilot file): the blocker must say how to answer it`)
+    check(/src\/orphan\.ts/.test(blockerText), `${BASELINE} (unplaced pilot file): the blocker must name the files`)
+
+    const answered = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/orphan.ts': 'work-items' } }, overrides: over })
+    check(
+      !/no owner/.test(((answered.result && answered.result.blockers) || []).join(' ')),
+      `${BASELINE} (ownership supplied): must clear the blocker. blockers=${JSON.stringify(answered.result && answered.result.blockers)}`
+    )
+    check(
+      (answered.result && answered.result.fileOwners || []).some(o => o.file === 'src/orphan.ts' && o.capability === 'work-items'),
+      `${BASELINE} (ownership supplied): the decision must be recorded as the operator's, not inferred`
+    )
+    // A capability the inventory never found would create a module root nothing else knows about.
+    const invented = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/orphan.ts': 'invented' } }, overrides: over })
+    check(
+      invented.result && /capabilities this run did not find/.test(invented.result.error || ''),
+      `${BASELINE} (invented capability): must be refused, got ${JSON.stringify(invented.result && invented.result.error)}`
+    )
+    const stale = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/gone.ts': 'work-items' } }, overrides: over })
+    check(
+      stale.result && /did not report as unassigned/.test(stale.result.error || ''),
+      `${BASELINE} (stale ownership answer): must be refused, got ${JSON.stringify(stale.result && stale.result.error)}`
+    )
+  }
+
   // ─── phase 1 required handoffs ───
   // A missing lens and a failed manifest writer both reported success: the lens count
   // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".
@@ -781,6 +824,64 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       (solo.result.humanGate || '').includes('whole tree'),
       `${PILOT}: with no other capability the gate must say so rather than implying a wave that does not exist`
+    )
+  }
+
+  // ─── why the fix loop stopped ───
+  // `fixRounds: 2` cannot distinguish "the budget ran out" from "a round changed nothing", and the
+  // two ask the operator for different things. The first live run hit the cap with a must-fix open.
+  {
+    const red = { 'verify:behaviour': { ok: false, detail: 'red' }, 'verify:review': { verdict: 'sound', findings: [{ severity: 'must-fix' }] } }
+    const capped = await runBody(pilotSrc, { args: { ...pilotArgs, maxFixRounds: 1 }, overrides: { ...base, ...red } })
+    check(capped.result && capped.result.fixLoopExit === 'cap-reached', `${PILOT}: exhausting maxFixRounds must be reported as cap-reached, got ${JSON.stringify(capped.result && capped.result.fixLoopExit)}`)
+    check(
+      (capped.result.humanGate || '').includes('RAN OUT OF ROUNDS'),
+      `${PILOT}: the gate must say the budget ran out — a verdict read as final would be read wrong`
+    )
+    const untouched = await pilot({})
+    check(untouched.result && untouched.result.fixLoopExit === 'not-entered', `${PILOT}: an all-green run never enters the loop, got ${JSON.stringify(untouched.result && untouched.result.fixLoopExit)}`)
+    check(
+      !((untouched.result.humanGate || '').includes('RAN OUT OF ROUNDS')),
+      `${PILOT}: a run that never needed a fix round must not claim its budget ran out`
+    )
+  }
+
+  // ─── a read-only probe must not be offered a writer's vocabulary ───
+  {
+    const src = readText(`${DIR}/${PILOT}`)
+    const radiusCall = src.slice(src.indexOf("label: 'radius'"), src.indexOf("label: 'radius'") + 120)
+    check(
+      radiusCall.includes('PROBE_SCHEMA'),
+      `${PILOT}: the radius step measures and must not be handed the mover's schema — it filled filesTouched with a path it had only imagined`
+    )
+    check(
+      !/filesTouched/.test(src.slice(src.indexOf('const PROBE_SCHEMA'), src.indexOf('const STEP_SCHEMA'))),
+      `${PILOT}: PROBE_SCHEMA must not carry filesTouched, or it is STEP_SCHEMA under another name`
+    )
+  }
+
+  // ─── stale instruction files reach the human ───
+  {
+    const stale = await pilot({
+      'stale-instructions': { ok: true, detail: '', entries: [{ file: 'AGENTS.md', line: 70, deadPath: 'src/use-cases/work-items' }] },
+    })
+    const gateText = (stale.result && stale.result.humanGate) || ''
+    check(
+      (stale.result && stale.result.staleInstructions && stale.result.staleInstructions.entries || []).length === 1,
+      `${PILOT}: a stale instruction reference must reach the report`
+    )
+    check(gateText.includes('AGENTS.md:70'), `${PILOT}: the gate must name the file and line, not just a count`)
+    check(gateText.includes('src/use-cases/work-items'), `${PILOT}: the gate must name the dead path`)
+    // "could not run" is not "found nothing" — the report must be able to tell them apart.
+    const died = await pilot({ 'stale-instructions': null })
+    check(
+      died.result && died.result.staleInstructions && died.result.staleInstructions.checked === false,
+      `${PILOT}: a dead instruction probe must not read as a clean instruction layer`
+    )
+    const clean = await pilot({ 'stale-instructions': { ok: true, detail: '', entries: [] } })
+    check(
+      !((clean.result && clean.result.humanGate) || '').includes('DELETED PATHS'),
+      `${PILOT}: with nothing stale the gate must stay silent about it`
     )
   }
 

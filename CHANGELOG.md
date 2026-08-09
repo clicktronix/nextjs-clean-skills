@@ -48,6 +48,25 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- `fileOwners` answers the files a run reported as unplaceable, the way `dependencyDecisions` answers
+  unclassified packages. The first live run stopped on five unowned files in the pilot — the right
+  call — and the operator's only route forward was a second full pass: fourteen agents to settle a
+  question five strings would have settled. The blocker now carries the answer, names the files, and
+  points at `resumeFromRunId` so the retry replays the inventory from cache. Decisions are checked
+  against this run's unassigned list and against the capabilities the inventory actually found, so
+  neither a stale answer nor an invented capability can enter the manifest.
+- Phase 2 reports instruction files that still name paths it deleted. The adversarial reviewer found
+  this on the third round of the first live run — by luck, since it is not a property it is asked
+  about — and a human fixed it afterwards; until then every agent session in that repository read
+  rules describing a layout that no longer existed. Detection only: those files are how a team
+  instructs its agents, and the wording is theirs. The gate names file, line and dead path, and a
+  probe that could not run is reported as unchecked rather than as clean.
+- The report says WHY the fix loop stopped — `cap-reached`, `no-progress`, `converged` or
+  `not-entered`. `fixRounds: 2` cannot tell "the budget ran out, another round might finish it" from
+  "a round changed nothing an oracle can see", and those ask the operator for different things. The
+  first live run hit the cap with a must-fix outstanding and the report could not say so.
+
+
 - The plan declares **channel changes**, and the gate surfaces them. The architecture decides which
   runtime channel a behaviour belongs on — browser-owned reads use `GET` or streams and never Server
   Actions — so a capability sitting on the wrong channel *must* move, and moving it is still a
@@ -145,6 +164,12 @@ All notable changes to this project are documented in this file.
   four-arm runner and its result sets are untouched and still replay byte-for-byte.
 
 ### Fixed
+
+- The change-radius step is handed a read-only schema instead of the mover's. Offered `filesTouched`,
+  it filled it with a path it had only imagined — a migration file for the hypothetical change it was
+  asked to measure. Nothing consumed it, but a schema that gives a measurement the vocabulary of a
+  write invites exactly that.
+
 
 - The baseline census carries whether it could measure anything. On a repository that has not moved
   a file yet, `moduleRoot` does not exist, so every capability, segment and surface rule reports zero
