@@ -858,7 +858,7 @@ async function verifyAll() {
     { key: 'architecture', text: ARCH_PROBE },
   ]
   const out = await parallel(
-    probes.map(p => () => agent(p.key === 'architecture' ? p.text : 'Measure one oracle after the migration.\n\n' + p.text, { label: 'verify:' + p.key, phase: 'Verify', schema: STEP_SCHEMA }))
+    probes.map(p => () => agent(p.key === 'architecture' ? p.text : 'Measure one oracle after the migration.\n\n' + p.text, { label: 'verify:' + p.key, phase: 'Verify', schema: PROBE_SCHEMA }))
       .concat([() => agent(
         `Adversarially review the migration of capability "${CAP}" in ${REPO}. Your job is to find where it is WRONG, not to agree.\n\n` +
         '## Review exactly the properties static rules cannot prove\n' +
@@ -1082,7 +1082,16 @@ return {
       : fixLoopExit === 'no-progress'
         ? '\nTHE FIX LOOP STOPPED MOVING: a round changed nothing any oracle could see, so more rounds will not ' +
           'help. What remains needs a person.\n'
-        : '') +
+        : fixLoopExit === 'converged'
+          // `not-entered` stays silent on purpose: no round ran because nothing needed one, and a
+          // line about a loop that never started is noise in front of the decision.
+          ? '\nThe fix loop ran ' + fixRounds + ' round(s) and cleared what it was watching.\n'
+          : '') +
+    (staleInstructions && !staleInstructions.ok
+      ? '\nTHE INSTRUCTION-LAYER CHECK DID NOT RUN, so nothing here says your rules are current. ' +
+        'Silence from a probe that failed reads exactly like silence from a clean result — check ' +
+        'AGENTS.md, CLAUDE.md and .claude/rules/ by hand for paths this migration deleted.\n'
+      : '') +
     (staleEntries.length > 0
       ? '\nYOUR INSTRUCTION FILES NOW POINT AT DELETED PATHS — ' + staleEntries.length + ' reference(s):\n' +
         staleEntries.slice(0, 12).map(e => '- ' + e.file + (e.line ? ':' + e.line : '') + ' -> ' + e.deadPath).join('\n') +

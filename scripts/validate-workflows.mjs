@@ -656,7 +656,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
-      assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
+      assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', runtime: 'server' }],
       unassigned: [{ file: 'src/orphan.ts', why: 'no clear owner', likelyCapability: 'work-items' }],
       deps: { pure: [], runtime: [], undecided: [] },
     }
@@ -677,6 +677,14 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       (answered.result && answered.result.fileOwners || []).some(o => o.file === 'src/orphan.ts' && o.capability === 'work-items'),
       `${BASELINE} (ownership supplied): the decision must be recorded as the operator's, not inferred`
+    )
+    // The counts everything downstream reads are derived from `assignments`, so the merge has to
+    // happen before they are built. It did not: capabilities[].files undercounted by exactly the
+    // files the operator had just placed.
+    const counted = ((answered.result && answered.result.capabilities) || []).find(c => c.name === 'work-items')
+    check(
+      counted && counted.files === 2,
+      `${BASELINE} (ownership supplied): the placed file must be counted in its capability, got ${JSON.stringify(counted)}`
     )
     // A capability the inventory never found would create a module root nothing else knows about.
     const invented = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/orphan.ts': 'invented' } }, overrides: over })
@@ -840,6 +848,13 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
     const untouched = await pilot({})
     check(untouched.result && untouched.result.fixLoopExit === 'not-entered', `${PILOT}: an all-green run never enters the loop, got ${JSON.stringify(untouched.result && untouched.result.fixLoopExit)}`)
+    // Converged is a state the operator acts on differently from a cap; it needs its own line.
+    const converged = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 3 },
+      overrides: { ...base, 'verify:behaviour': { ok: false, detail: 'red' } },
+    })
+    check(converged.result && converged.result.fixLoopExit === 'no-progress' || (converged.result || {}).fixLoopExit === 'converged',
+      `${PILOT}: a loop that ended on its own must be classified, got ${JSON.stringify(converged.result && converged.result.fixLoopExit)}`)
     check(
       !((untouched.result.humanGate || '').includes('RAN OUT OF ROUNDS')),
       `${PILOT}: a run that never needed a fix round must not claim its budget ran out`
@@ -873,10 +888,16 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(gateText.includes('AGENTS.md:70'), `${PILOT}: the gate must name the file and line, not just a count`)
     check(gateText.includes('src/use-cases/work-items'), `${PILOT}: the gate must name the dead path`)
     // "could not run" is not "found nothing" — the report must be able to tell them apart.
-    const died = await pilot({ 'stale-instructions': null })
+    const died = await pilot({ 'stale-instructions': { ok: false, detail: 'could not read', entries: [] } })
     check(
       died.result && died.result.staleInstructions && died.result.staleInstructions.checked === false,
       `${PILOT}: a dead instruction probe must not read as a clean instruction layer`
+    )
+    // In the GATE, not only in the payload. Silence there is indistinguishable from a clean layer,
+    // and the gate is the surface the operator actually reads.
+    check(
+      ((died.result && died.result.humanGate) || '').includes('DID NOT RUN'),
+      `${PILOT}: a failed instruction probe must say so in the gate, not fall silent like a clean one`
     )
     const clean = await pilot({ 'stale-instructions': { ok: true, detail: '', entries: [] } })
     check(

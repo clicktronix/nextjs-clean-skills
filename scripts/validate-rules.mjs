@@ -347,6 +347,17 @@ if (ESLint) {
     for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES]) {
       fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
     }
+    // `generatedRoot` is deliberately absent from the shipped contract: declared there, every repo
+    // adopting the floor would inherit a generated root it never has. The sandbox declares it so the
+    // rule has something to bind to; the inert-when-absent case is asserted separately below.
+    fs.writeFileSync(
+      path.join(sandbox, 'architecture-contract.json'),
+      `${JSON.stringify(
+        { ...JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8')), generatedRoot: 'src/generated' },
+        null,
+        2
+      )}\n`
+    )
     fs.writeFileSync(
       path.join(sandbox, 'tsconfig.json'),
       `${JSON.stringify(
@@ -692,6 +703,50 @@ expectCheck(
   1,
   'has no importer at all'
 )
+
+// A pre-migration tree is mostly files the contract cannot place, and that is this check's audience.
+// Answering 'app' for them made two files in src/lib look like a legitimate consumer set and reported
+// a shared helper "admitted" on the evidence of nothing.
+expectCheck(
+  ADMISSION,
+  'importers the contract cannot name',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/lib/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+    'src/lib/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 unattributable'
+)
+// And it must not swallow the real verdicts: a genuine two-capability consumer set still reads as
+// admitted, with nothing unattributable.
+expectCheck(ADMISSION, 'named owners are still admitted', twoConsumers, FLOOR_CONTRACT, 0, '1 admitted, 0 private, 0 unattributable')
+
+// Absent `generatedRoot` must mean "this project generates nothing", not "unchecked". The shipped
+// contract omits it, so this is the shape every adopter starts from.
+{
+  const dir = buildTree(
+    {
+      'src/generated/rows.ts': 'export type Row = { id: string }\n',
+      'src/modules/orders/domain/thing.ts': "import type { Row } from '~/generated/rows'\nexport const idOf = (r: Row) => r.id\n",
+    },
+    FLOOR_CONTRACT
+  )
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(root, 'node_modules/.bin/eslint'), '--no-config-lookup', '--config', path.join(root, 'rules/eslint-boundaries.mjs'), '.'],
+      { cwd: dir, encoding: 'utf8' }
+    )
+    floorAssertions += 1
+    if (/generatedProviderLeak/.test(`${result.stdout}${result.stderr}`)) {
+      errors.push('generatedProviderLeak fired with no generatedRoot declared — absent must mean inert, not unchecked')
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
 
 const bothSides = {
   'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",

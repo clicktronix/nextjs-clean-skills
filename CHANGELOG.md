@@ -171,6 +171,34 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- `check-shared-admission.mjs` no longer answers `app` for files the contract cannot place. Anything
+  under `sourceRoot` but outside `moduleRoot`, `appRoot` and `sharedRoot` belongs to a layout the
+  contract does not describe, and calling it `app` made two files in `src/lib/` look like a
+  legitimate consumer set — so a shared helper was reported *admitted* on the evidence of nothing.
+  That is the tree this check exists for: before migration almost every file is one of these. They
+  are now counted and printed as `unattributable`, which declines to judge rather than guessing.
+- `generatedRoot` is no longer shipped in the contract template. Declared there, every repository
+  adopting the floor would inherit a `src/generated` it never has — the opposite of the optional,
+  inert-when-absent behaviour intended. The sandbox declares it explicitly, and the absent case is
+  asserted: the rule must stay silent, not merely unchecked.
+- The operator's file-ownership answers are merged before anything is derived from the assignment
+  list. They were applied after `byCap` was built, so `capabilities[].files` undercounted by exactly
+  the files the operator had just placed. The injected rows now carry the shape the schema requires
+  and the planner reads, with `runtime` stated as unknown rather than invented.
+- A failed instruction-layer probe says so in the gate. It set `checked: false` in the payload but
+  emitted no gate line, which is indistinguishable from a clean layer on the surface the operator
+  actually reads.
+- The three verify oracles measure, so they take the read-only schema too. Only the radius probe had
+  been moved; the oracles whose own prompt says "Measure one oracle" still carried `filesTouched`.
+- The fix loop's `converged` exit gets its own gate line. `not-entered` stays silent deliberately: a
+  line about a loop that never had to start is noise in front of the decision.
+- Two stale counts in documentation: `rules/README.md` still said "seven non-README files" (nine) and
+  the workflows README still said 16 messageIds (17). The workflow's own copy instruction was updated
+  in the same commit that left the README behind, and the check that pins that number reads only the
+  workflow. Both optional contract keys the admission check reads are now documented beside
+  `generatedRoot`, which had been given both surfaces while they had neither.
+- The workflows README claimed phase 2 had never run against a live repository. It has.
+
 - The change-radius step is handed a read-only schema instead of the mover's. Offered `filesTouched`,
   it filled it with a path it had only imagined — a migration file for the hypothetical change it was
   asked to measure. Nothing consumed it, but a schema that gives a measurement the vocabulary of a

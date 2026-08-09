@@ -17,13 +17,18 @@ try to infer business meaning from path names.
 | `check-shared-admission.mjs` | the countable half of shared admission: how many real owners import a shared file |
 | `check-neutral-surfaces.mjs` | a runtime-neutral surface is consumed from both runtimes, not one |
 
+`sharedAdmissionBudget` and `sharedAdmissionExempt` are optional too: the first is the ratchet — counts
+that may fall and never rise, absent meaning zero on every count — and the second lists project-relative
+paths the rule cannot apply to, each admitted with its reason. Both live here rather than in the script
+so a repository can record its own debt without editing a vendored file.
+
 `generatedRoot` is optional. Declare it and generated provider contracts may be imported only by
 private `server`/`client` adapters or shared server/client runtime code; leave it out and the rule is
 inert, which is "this project generates nothing" rather than "this is unchecked".
 
 ## Install
 
-Copy the seven non-README files into the consuming repository, then spread both configs after the base flat
+Copy the nine non-README files into the consuming repository, then spread both configs after the base flat
 ESLint configs:
 
 ```js

@@ -333,6 +333,65 @@ let assignment = await agent(
 
 if (!assignment) return { error: 'assignment agent returned no result' }
 
+// ─── Human decisions on the files nobody could place ───
+// Same shape, same reason as the dependency decisions above. The first live run stopped on five
+// unplaceable files in the pilot — correctly — and the operator's only way forward was to run the
+// whole phase again: fourteen agents to answer a question five strings would have answered. Costlier
+// than the dependency dead-end, and identical in kind.
+const OWNERS = ARGS.fileOwners || {}
+const ownedByHuman = []
+if (Object.keys(OWNERS).length > 0) {
+  const open = (assignment.unassigned || []).map(u => u && u.file).filter(Boolean)
+  const capabilityNames = new Set((assignment.capabilities || []).map(c => c && c.name).filter(Boolean))
+  const unknownFiles = Object.keys(OWNERS).filter(f => open.indexOf(f) === -1)
+  if (unknownFiles.length > 0) {
+    return {
+      error: 'args.fileOwners names files this run did not report as unassigned',
+      offending: unknownFiles,
+      unassigned: open,
+      detail: 'Ownership decisions answer THIS run\'s question. A stale answer would place a file by a ' +
+        'judgement made about a different tree.',
+    }
+  }
+  // The capability has to exist. Inventing one here would create a module root nothing else knows
+  // about, and phase 2 computes every destination from a capability name.
+  const unknownCaps = [...new Set(Object.values(OWNERS))].filter(c => !capabilityNames.has(c))
+  if (unknownCaps.length > 0) {
+    return {
+      error: 'args.fileOwners names capabilities this run did not find',
+      offending: unknownCaps,
+      capabilities: [...capabilityNames],
+      detail: 'Assign the file to a capability the inventory found, or re-run so the inventory can find the new one.',
+    }
+  }
+  // Built, not mutated in place. `assignment` is what the agent returned, and a result you were
+  // handed is not yours to edit — the runtime replays cached results on resume, so an in-place edit
+  // is a value that differs depending on how many times something ran.
+  const placed = []
+  for (const file of open) {
+    const capability = OWNERS[file]
+    if (!capability) continue
+    // Same shape ASSIGN_SCHEMA requires and phase 2's file table reads. `runtime` is genuinely
+    // unknown here — the operator answered ownership, not runtime — and saying so beats inventing a
+    // hint the planner would treat as evidence.
+    placed.push({
+      file,
+      capability,
+      placement: 'capability',
+      runtime: 'unknown',
+      evidence: 'placed by the operator; runtime and segment were not inferred',
+    })
+    ownedByHuman.push({ file, capability })
+  }
+  assignment = {
+    ...assignment,
+    assignments: (assignment.assignments || []).concat(placed),
+    unassigned: (assignment.unassigned || []).filter(u => !OWNERS[u && u.file]),
+  }
+  log('Ownership decisions applied: ' + ownedByHuman.map(o => o.file + '→' + o.capability).join(', ') +
+    ((assignment.unassigned || []).length > 0 ? ' · ' + assignment.unassigned.length + ' still unplaced' : ''))
+}
+
 const caps = (assignment.capabilities || []).slice().sort((a, b) => (b.pilotScore || 0) - (a.pilotScore || 0))
 const byCap = Object.create(null)
 for (const a of assignment.assignments || []) {
@@ -383,56 +442,6 @@ if (Object.keys(DECISIONS).length > 0) {
   assignment.deps = deps
   log('Dependency decisions applied: ' + decidedByHuman.map(d => d.package + '→' + d.side).join(', ') +
     (deps.undecided.length > 0 ? ' · ' + deps.undecided.length + ' still undecided' : ''))
-}
-
-// ─── Human decisions on the files nobody could place ───
-// Same shape, same reason as the dependency decisions above. The first live run stopped on five
-// unplaceable files in the pilot — correctly — and the operator's only way forward was to run the
-// whole phase again: fourteen agents to answer a question five strings would have answered. Costlier
-// than the dependency dead-end, and identical in kind.
-const OWNERS = ARGS.fileOwners || {}
-const ownedByHuman = []
-if (Object.keys(OWNERS).length > 0) {
-  const open = (assignment.unassigned || []).map(u => u && u.file).filter(Boolean)
-  const capabilityNames = new Set((assignment.capabilities || []).map(c => c && c.name).filter(Boolean))
-  const unknownFiles = Object.keys(OWNERS).filter(f => open.indexOf(f) === -1)
-  if (unknownFiles.length > 0) {
-    return {
-      error: 'args.fileOwners names files this run did not report as unassigned',
-      offending: unknownFiles,
-      unassigned: open,
-      detail: 'Ownership decisions answer THIS run\'s question. A stale answer would place a file by a ' +
-        'judgement made about a different tree.',
-    }
-  }
-  // The capability has to exist. Inventing one here would create a module root nothing else knows
-  // about, and phase 2 computes every destination from a capability name.
-  const unknownCaps = [...new Set(Object.values(OWNERS))].filter(c => !capabilityNames.has(c))
-  if (unknownCaps.length > 0) {
-    return {
-      error: 'args.fileOwners names capabilities this run did not find',
-      offending: unknownCaps,
-      capabilities: [...capabilityNames],
-      detail: 'Assign the file to a capability the inventory found, or re-run so the inventory can find the new one.',
-    }
-  }
-  // Built, not mutated in place. `assignment` is what the agent returned, and a result you were
-  // handed is not yours to edit — the runtime replays cached results on resume, so an in-place edit
-  // is a value that differs depending on how many times something ran.
-  const placed = []
-  for (const file of open) {
-    const capability = OWNERS[file]
-    if (!capability) continue
-    placed.push({ file, capability, evidence: 'assigned by the operator' })
-    ownedByHuman.push({ file, capability })
-  }
-  assignment = {
-    ...assignment,
-    assignments: (assignment.assignments || []).concat(placed),
-    unassigned: (assignment.unassigned || []).filter(u => !OWNERS[u && u.file]),
-  }
-  log('Ownership decisions applied: ' + ownedByHuman.map(o => o.file + '→' + o.capability).join(', ') +
-    ((assignment.unassigned || []).length > 0 ? ' · ' + assignment.unassigned.length + ' still unplaced' : ''))
 }
 
 // ─── Enable: install the executable floor, then census ───

@@ -2,7 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "contractVersion": "4.1.0",
   "sourceRoot": "src",
-  "generatedRoot": "src/generated",
   "moduleRoot": "src/modules",
   "appRoot": "src/app",
   "sharedRoot": "src/shared",

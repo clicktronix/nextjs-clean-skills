@@ -118,7 +118,16 @@ const capabilities = new Set(
     : []
 )
 
-/** Which owner does an importing file belong to? */
+/**
+ * Which owner does an importing file belong to, or null when the contract cannot name one?
+ *
+ * The null case is the pre-migration tree: files under sourceRoot but outside moduleRoot, appRoot
+ * and sharedRoot belong to a layout the contract does not describe. An earlier version answered
+ * 'app' for those, which is how two files in `src/lib/` came to look like a legitimate consumer set
+ * and a shared helper was reported "admitted" on the evidence of nothing. That is the audience this
+ * check exists for — before migration almost every file is one of these — so guessing there is worse
+ * than declining.
+ */
 function ownerOf(file) {
   const inModules = relativeParts(moduleRoot, file)
   if (inModules) return inModules[0]
@@ -126,7 +135,7 @@ function ownerOf(file) {
   if (inShared) return `shared/${inShared[0]}`
   if (isWithin(appRoot, file)) return 'app'
   if (!isWithin(sourceRoot, file)) return 'root'
-  return 'app'
+  return null
 }
 
 /**
@@ -156,6 +165,7 @@ for (const file of [...listSources(sourceRoot), ...listOuterImporters()]) {
 const unused = []
 const demote = []
 const speculative = []
+const unattributable = []
 let privateCount = 0
 let okCount = 0
 
@@ -172,13 +182,18 @@ for (const file of listSources(sharedRoot)) {
 
   const ownSharedRoot = ownerOf(file)
   const external = [...own].filter((importer) => ownerOf(importer) !== ownSharedRoot)
-  const owners = new Set(external.map(ownerOf))
+  const named = external.filter((importer) => ownerOf(importer) !== null)
+  const owners = new Set(named.map(ownerOf))
 
-  if (owners.size === 0) privateCount += 1
+  if (external.length > 0 && named.length === 0) {
+    // Every importer sits in the layout the contract does not describe. The rule is about owners,
+    // and there are none to count — reported as undecided rather than folded into either verdict.
+    unattributable.push({ file: relative, importers: external.length })
+  } else if (owners.size === 0) privateCount += 1
   else if (owners.size === 1 && capabilities.has([...owners][0])) {
     demote.push({ file: relative, owner: [...owners][0] })
-  } else if (external.length === 1) {
-    speculative.push({ file: relative, importer: path.relative(projectRoot, external[0]) })
+  } else if (named.length === 1) {
+    speculative.push({ file: relative, importer: path.relative(projectRoot, named[0]) })
   } else okCount += 1
 }
 
@@ -216,8 +231,18 @@ if (over.length > 0) {
   )
   process.exitCode = 1
 } else {
+  // The unattributable count is printed even on success. Silently rolling it into "admitted" is how
+  // a pre-migration repository would read a clean line over a tree the check could not judge.
+  if (unattributable.length > 0) {
+    for (const { file, importers } of unattributable) {
+      console.log(
+        `shared admission: ${file} could not be judged — its ${importers} importer(s) all sit outside ` +
+          'moduleRoot, appRoot and sharedRoot, so the contract names no owner for them'
+      )
+    }
+  }
   console.log(
-    `shared admission ok (${okCount} admitted, ${privateCount} private; at budget: ` +
-      `${counts.unused} unused, ${counts.demote} to demote, ${counts.speculative} speculative)`
+    `shared admission ok (${okCount} admitted, ${privateCount} private, ${unattributable.length} unattributable; ` +
+      `at budget: ${counts.unused} unused, ${counts.demote} to demote, ${counts.speculative} speculative)`
   )
 }

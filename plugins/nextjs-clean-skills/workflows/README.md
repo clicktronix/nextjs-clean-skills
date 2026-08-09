@@ -14,17 +14,23 @@ The **target** still needs three packages, because the rules installed into it i
 whatever package manager the target's lockfile names, before it writes anything — a rules copy that
 cannot run leaves the target half-converted and the census unmeasurable.
 
-**Phase 1 has been run once against a live repository; phase 2 never has.** The run was a layer-first
-Next.js app of 321 source files (`domain / use-cases / adapters / infrastructure / ui`). It installed
-the floor, left every file under `src/` untouched, kept the target's own typecheck, tests and ESLint
-green, and then stopped at the Enable gate because one direct dependency was unclassified — refusing
-to guess, which is the behaviour it is supposed to have. Three defects surfaced that no amount of
-reading had found: `args` arriving as a JSON string, an ignore-file write the phase was not permitted
-to make, and property 7 being demanded at a point where it cannot hold. All three are fixed.
+**Both phases have now been run end to end against a live repository.** A layer-first Next.js app of
+321 source files (`domain / use-cases / adapters / infrastructure / ui`). Phase 1 installed the floor
+without touching a file under `src/`. Phase 2 migrated one capability: five real moves, nine obsolete
+paths deleted in the same change, five public surfaces authored for named consumers, two fix rounds,
+and it stopped at `revise` on one outstanding must-fix rather than declaring success.
 
-Everything else below still comes from reading the scripts and from `npm run validate`, which parses
-them the way the runtime does and executes their decision logic against tables. That proves the
-logic, not the outcome. Read every gate.
+Those runs are where most of what follows was learned. Between them they exposed nine defects that
+reading had not: `args` arriving as a JSON string, an ignore-file write the phase was not permitted
+to make, enforcement property 7 demanded where it cannot hold, a census of structural zeros mistaken
+for a clean baseline, two dead ends where the workflow refused to guess and left the operator nowhere
+to answer, a capability left carrying both topologies at its HTTP boundary, a forced channel change
+that altered error reporting while every test stayed green, and an instruction layer still naming
+deleted files. All are fixed.
+
+The rest below comes from reading the scripts and from `npm run validate`, which parses them the way
+the runtime does and executes their decision logic against tables. That proves the logic, not the
+outcome. Read every gate.
 
 ## Setup
 
@@ -71,12 +77,17 @@ Both phase-1 arguments are required. `ordinaryChange` is a blocker rather than a
 there is no before-set, so the change-radius comparison — the only oracle that measures whether the
 architecture actually helped — cannot run, and steps 4 and 9 of the procedure are skipped.
 
-`contractSource` is the one optional argument. Omitted, phase 1 spends a single probe agent to
-locate the plugin root — `$CLAUDE_PLUGIN_ROOT`, then the plugin cache, then the surrounding checkout
-— and accepts a candidate only when all four normative sources exist under it. Pass it explicitly to
-override. It is resolved once rather than in each of the fifteen agents that need it, because
-independent resolutions can disagree and a subset reading a stale cached version is a split brain
-nobody notices until the census is wrong.
+Three arguments are optional. `contractSource`, omitted, costs a single probe agent that locates the
+plugin root — `$CLAUDE_PLUGIN_ROOT`, then the plugin cache, then the surrounding checkout — accepting
+a candidate only when all four normative sources exist under it. It resolves once rather than in each
+of the fifteen agents that need it, because independent resolutions can disagree and a subset reading
+a stale cached version is a split brain nobody notices until the census is wrong.
+
+`dependencyDecisions` and `fileOwners` answer the two questions a run can raise and cannot settle
+itself: which side an unclassified package belongs on, and which capability owns a file nothing could
+place. Both are checked against *this* run's open list, so a stale answer to an older question is
+refused rather than written into a new repository's contract. Without them the correct refusal to
+guess was a dead end whose only exit was a second full pass.
 
 `migrate-capability` needs `moduleRoot`. It takes it from the manifest or the target's contract and
 **refuses to guess**: every destination path is computed from it, so a default would move a whole
@@ -94,7 +105,7 @@ produced it. All three of these already existed in this repository before the wo
 | Oracle | What it is | Must |
 | --- | --- | --- |
 | Behaviour | the target's own typecheck, lint, tests, **production build** | stay green |
-| Architecture | `rules/` — 16 named ESLint messageIds, cycle, ownership, dependency checks | capability at 0, no total above baseline |
+| Architecture | `rules/` — 17 named ESLint messageIds, cycle, ownership, dependency checks | capability at 0, no total above baseline |
 | Review | the properties [the document says static rules cannot prove](../docs/adoption-and-enforcement.md) | no must-fix |
 
 Phase 1 records the first two **before** anything moves — behaviour green, violations censused. The
