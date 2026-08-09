@@ -248,7 +248,9 @@ async function runBody(source, { args: argv, overrides = {} } = {}) {
     budget: { total: null, spent: () => 0, remaining: () => Infinity },
     agent: async (prompt, opts = {}) => {
       calls.push(opts.label)
-      prompts.push({ label: opts.label, prompt: String(prompt) })
+      // The schema as the call site actually passes it. Asserting on a schema literal read out of
+      // the source proves the literal; asserting on this one proves the agent was handed it.
+      prompts.push({ label: opts.label, prompt: String(prompt), schema: opts.schema })
       if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) {
         const answer = overrides[opts.label]
         // A function override answers per call, indexed from zero. A fixed value cannot express
@@ -441,6 +443,68 @@ if (files.includes(PILOT)) {
         dropped && dropped.staying.some(r => r.file === 'src/lib/wi-client.ts'),
         'plan screening: a move dropped for an unconsumed surface must appear in the leave-in-place list'
       )
+
+      // ─── a consumer is a file, not a plausible string ───
+      // The two admission rules this replaces were prefix tests, and a prefix test admits strings.
+      // Anything under the capability directory passed, and so did any path deep enough under a
+      // recorded app folder — so an invented consumer kept a surface alive and the mover authored
+      // a public surface no code imports. `run()` derives CONSUMERS from the plan by default, so
+      // each case below passes its own recorded list and assigned files.
+      const FILES_IN = [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/keys.ts' }]
+      const RECORDED = ['src/app/(app)/work-items/page.tsx']
+      const withConsumer = c => ({
+        moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/keys.ts', role: 'client' }],
+        surfaces: [{ surface: 'query-cache', consumers: [c], exports: ['workItemKeys'] }],
+      })
+      const fabricated = [
+        ['a non-existent file under the capability root', 'src/modules/work-items/client/does-not-exist.ts'],
+        ['an invented path deep under a recorded app directory', 'src/app/(app)/work-items/_invented/hook.ts'],
+        ['a plausible path that is neither recorded nor assigned', 'src/features/work-items/api.ts'],
+      ]
+      for (const [label, consumer] of fabricated) {
+        const verdict = run(withConsumer(consumer), FILES_IN, RECORDED)
+        check(
+          verdict && typeof verdict.error === 'string' && (verdict.strayConsumers || []).length === 1,
+          `plan screening (${label}): a surface must not be authored for a consumer nothing shows to exist, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      // Controls: the three things that ARE real must still be admitted, or the guard is just a ban
+      // on internal consumers — and query-cache exists precisely to have them.
+      const admitted = [
+        ['a recorded consumer', RECORDED[0]],
+        ['a file the manifest assigned to this capability', 'src/lib/keys.ts'],
+        ['a destination this script computed', 'src/modules/work-items/client/keys.ts'],
+      ]
+      for (const [label, consumer] of admitted) {
+        const verdict = run(withConsumer(consumer), FILES_IN, RECORDED)
+        check(
+          verdict && !verdict.error,
+          `plan screening (${label}): must be admitted as a consumer, got ${JSON.stringify(verdict && verdict.strayConsumers)}`
+        )
+      }
+
+      // ─── a declared channel change is rejected, not quietly dropped ───
+      // The old filter discarded a malformed entry, so a planner that reported a transport change
+      // with one blank field produced a gate that said nothing about it — the report ate the
+      // warning. A blank `behaviourRisk` passes the schema, because "" is a string.
+      const withChannel = ch => ({ ...clean, channelChanges: [ch] })
+      const badChannels = [
+        ['blank behaviourRisk', { what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: '   ' }],
+        ['missing behaviourRisk', { what: 'browser list read', from: 'Server Action', to: 'GET route handler' }],
+        ['missing to', { what: 'browser list read', from: 'Server Action', behaviourRisk: 'retryable 5xx per attempt' }],
+      ]
+      for (const [label, ch] of badChannels) {
+        const verdict = run(withChannel(ch), (clean.moves || []).map(mv => ({ file: mv.file })), ['src/app/p.tsx'])
+        check(
+          verdict && typeof verdict.error === 'string' && (verdict.malformedChannels || []).length === 1,
+          `plan screening (channel with ${label}): must be rejected, not silently dropped, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      const goodChannel = run(
+        withChannel({ what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: 'retryable 5xx now reported per attempt' }),
+        (clean.moves || []).map(mv => ({ file: mv.file })), ['src/app/p.tsx']
+      )
+      check(goodChannel && !goodChannel.error, `plan screening (well-formed channel change): must be accepted, got ${JSON.stringify(goodChannel && goodChannel.error)}`)
     }
   }
 
@@ -1145,6 +1209,40 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       !((quiet.result && quiet.result.humanGate) || '').includes('CHANNEL CHANGES'),
       `${PILOT}: with no channel change the gate must stay silent about them`
+    )
+
+    // ─── the instruction and the audit are load-bearing ───
+    // Deleting the planner's whole channel-changes instruction left `npm run validate` green: every
+    // check read the DECLARATION, and a declaration nobody was asked for is empty in exactly the
+    // same way as one honestly assessed and found empty. So assert on the call sites themselves —
+    // the prompt that asks, the schema that makes the answer mandatory, and the reviewer that
+    // checks the answer against the code.
+    const planCall = out.prompts.find(p => p.label === 'plan:work-items')
+    check(
+      planCall && /Channel changes — declare them, do not smuggle them/.test(planCall.prompt) &&
+        /NEVER Server Actions/.test(planCall.prompt) && /`channelChanges`/.test(planCall.prompt),
+      `${PILOT}: the plan prompt must still instruct the planner to assess channels — nothing else asks`
+    )
+    check(
+      planCall && Array.isArray(planCall.schema.required) && planCall.schema.required.includes('channelChanges'),
+      `${PILOT}: channelChanges must be required, or "assessed and found none" is indistinguishable from "never asked"`
+    )
+    // The declaration is written before the code exists. Something has to compare it with what was
+    // actually built, and only the adversarial reviewer reads the built tree.
+    const reviewCall = out.prompts.find(p => p.label === 'verify:review')
+    check(
+      reviewCall && /CHANNELS: compare how each behaviour is transported NOW/.test(reviewCall.prompt) &&
+        /is NOT in that list is a must-fix/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must be asked to find transport changes the plan did not declare`
+    )
+    check(
+      reviewCall && reviewCall.prompt.includes('browser list read: Server Action -> GET route handler'),
+      `${PILOT}: the reviewer must be handed the actual declaration to check the code against`
+    )
+    const quietReview = quiet.prompts.find(p => p.label === 'verify:review')
+    check(
+      quietReview && /assessed channels and declared no change/.test(quietReview.prompt),
+      `${PILOT}: with nothing declared the reviewer must be told that is a claim, not an absence of one`
     )
   }
 

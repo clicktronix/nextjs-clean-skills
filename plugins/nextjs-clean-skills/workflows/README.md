@@ -172,6 +172,13 @@ the file — not argued about by an agent. Conversely a surface that *has* consu
 file to repurpose is authored fresh, because announcing a surface to the consumer agent without
 anything creating it is how "the surfaces that now exist" became a lie.
 
+The named consumer has to be a file this run knows exists: one the load probe recorded (it completes
+phase 1's page-level list by grepping the code for every importer), one the manifest assigned to this
+capability, or a destination the script itself computed. Earlier the check admitted anything under
+the capability directory and anything deep enough under a recorded app folder — prefix tests, which
+admit strings rather than files, so an invented path kept a surface alive and the mover published a
+public surface no code imports.
+
 ## Constraints the scripts enforce because the document requires them
 
 - No framework or library migration rides along; existing schema, form, UI, cache and provider

@@ -175,7 +175,11 @@ const MANIFEST_SCHEMA = {
 const PLAN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['moves', 'surfaces'],
+  // `channelChanges` is required so that an ASSESSMENT is required. Optional, the key was absent
+  // both when the planner had looked and found nothing and when it had never looked at all — and
+  // the script defaulted both to an empty list, so the gate stayed silent either way. An explicit
+  // empty array is a claim someone made; a missing key is not.
+  required: ['moves', 'surfaces', 'channelChanges'],
   properties: {
     moves: {
       type: 'array',
@@ -526,7 +530,10 @@ const plan = await agent(
   '- Do NOT propose destination directories or paths. This workflow computes them from the contract. Give roles only.\n' +
   '- Create a surface ONLY for a named consumer in the list above. A surface nobody imports is a defect, not future-proofing.\n' +
   '- Name every consumer as a BARE repo-relative path, one per array entry: no prose, no trailing note in parentheses, no "and" joining two paths. ' +
-    'A consumer inside this capability is named by its destination path under ' + MODULE_ROOT + '/' + CAP + '/ — query-cache legitimately has those, because server prefetch and browser query share one key identity.\n' +
+    'It must be a path that EXISTS TODAY: one from the consumer list above, or one of this capability\'s assigned files. ' +
+    'A consumer inside this capability is named by its CURRENT assigned path — not by a destination, which this workflow ' +
+    'computes and you do not. Internal consumers are legitimate: query-cache has them, because server prefetch and browser ' +
+    'query share one key identity. An invented path is rejected, and the surface with it.\n' +
   '- Do NOT propose a segment that would end up empty. List the ones you deliberately avoided.\n' +
   '- Route-private UI stays under the app root: that is role=stay, not a capability file. A file the manifest did not assign to this capability may appear ONLY with role=stay; any other role for it is rejected.\n' +
   '- `export *` is never allowed on a surface. Action values are local async functions, not value re-exports.\n\n' +
@@ -545,18 +552,29 @@ const plan = await agent(
 
 if (!plan) return { error: 'plan agent returned no result' }
 
-// Declared channel changes, carried to the movers and to the human gate. A forced transport change
-// is the one class of behaviour change this workflow cannot avoid making, so it is the one class it
-// must never make silently.
-const CHANNEL_CHANGES = (plan.channelChanges || []).filter(c => c && c.what && c.from && c.to)
-const CHANNEL_BLOCK = CHANNEL_CHANGES.map(
-  c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — risk: ' + (c.behaviourRisk || '(not stated)')
-).join('\n')
-
 // ─── Plan screening and table derivation ───
 // Everything from here to the Move banner is pure: it decides what is written and
 // what the mover is told, without side effects, so scripts/validate-workflows.mjs
 // executes this whole region against synthetic plans rather than grepping it.
+
+// Declared channel changes, carried to the movers and to the human gate. A forced transport change
+// is the one class of behaviour change this workflow cannot avoid making, so it is the one class it
+// must never make silently. Screened INSIDE this region deliberately: outside it, the rule was
+// unreachable by the test that runs the screening, which is how it stayed unexercised.
+//
+// Rejected, not filtered. `.filter(c => c && c.what && c.from && c.to)` DROPPED a malformed entry
+// silently — so a declared transport change with a blank field left the gate saying nothing about
+// it, which is worse than never declaring it: the planner reported the risk and the report ate it.
+// A blank `behaviourRisk` is the same defect one field over, and the schema cannot catch it because
+// "" satisfies `type: 'string'`.
+const CHANNEL_CHANGES = plan.channelChanges || []
+const malformedChannels = CHANNEL_CHANGES.filter(
+  c => !c || !c.what || !c.from || !c.to || !String(c.behaviourRisk || '').trim()
+)
+const CHANNEL_BLOCK = CHANNEL_CHANGES.map(
+  c => '- ' + c.what + ': ' + c.from + ' -> ' + c.to + ' — risk: ' + c.behaviourRisk
+).join('\n')
+
 const resolved = (plan.moves || []).map(mv => ({ ...mv, dest: destination(mv) }))
 const invalid = resolved.filter(r => r.role !== 'stay' && r.role !== 'delete' && !r.dest)
 const staying = resolved.filter(r => r.role === 'stay')
@@ -640,26 +658,29 @@ const OWN_FILES = FILES.map(a => a.file)
 // "…/keys.ts, which becomes app-level composition"). The prompt asks for bare paths; trimming
 // the note only keeps a leftover annotation from being read as an invented consumer.
 const bareConsumer = c => String(c).split(' (')[0].split(', ')[0].trim()
-// A recorded page-level list cannot hold three classes a correct plan must name. Each is
-// admitted explicitly rather than by relaxing the check to "any path under the source root",
-// which would readmit the fabricated consumer this guard exists to catch:
-//   1. consumers INSIDE the capability — query-cache exists so that server prefetch and browser
-//      query share one key identity, and neither of those is an external consumer;
-//   2. route-private app files finer-grained than the pages phase 1 records — an `_internal/…`
-//      file strictly below a recorded page's own directory, never a sibling of it;
-//   3. a file the manifest assigned to this capability, which is real by construction.
-const deeperThanRecorded = b => CONSUMERS.some(rc => {
-  const cut = rc.lastIndexOf('/')
-  if (cut === -1) return false
-  const dir = rc.slice(0, cut + 1)
-  return b.indexOf(dir) === 0 && b.slice(dir.length).indexOf('/') !== -1
-})
+// Every admitted consumer names a file this run KNOWS to exist — recorded, assigned, or computed
+// by this script. The two earlier escape hatches were prefix tests, and a prefix test admits
+// strings, not files: `bare.indexOf(CAP_ROOT) === 0` accepted anything at all under the capability
+// directory, so `src/modules/work-items/client/does-not-exist.ts` kept a surface alive; and
+// "strictly deeper than a recorded page's directory" accepted any invented path below a real app
+// folder. Both were authored surfaces with no real importer — the exact defect the screening is
+// here to catch, reached through the screening itself.
+//
+// The finer-grained app files that hatch was written for no longer need one: the Load probe now
+// completes the consumer list by grepping the code for every importer outside the assignments, so
+// a real route-private importer arrives as a RECORDED consumer.
+//
+// Consumers INSIDE the capability still need naming — query-cache exists so that server prefetch
+// and browser query share one key identity, and neither is an external consumer — but they are
+// named by identity now, not by prefix: an assigned file, or a destination this script computed
+// for one. A path under the capability root that is neither is not a consumer; it is a guess.
+const PLANNED_DESTS = moving.map(r => r.dest)
+const SURFACE_DESTS = usedSurfaces.map(s => CAP_ROOT + s.surface + '.ts')
 const admittedConsumer = c => {
   const bare = bareConsumer(c)
-  if (CONSUMERS.indexOf(c) !== -1 || CONSUMERS.indexOf(bare) !== -1) return true
-  if (bare.indexOf(CAP_ROOT) === 0) return true
-  if (OWN_FILES.indexOf(bare) !== -1) return true
-  return deeperThanRecorded(bare)
+  return CONSUMERS.indexOf(c) !== -1 || CONSUMERS.indexOf(bare) !== -1 ||
+    OWN_FILES.indexOf(bare) !== -1 || PLANNED_DESTS.indexOf(bare) !== -1 ||
+    SURFACE_DESTS.indexOf(bare) !== -1
 }
 const strayConsumers = []
 for (const s of usedSurfaces) {
@@ -670,7 +691,7 @@ const emptyExports = usedSurfaces.filter(s => (s.exports || []).length === 0).ma
 if (
   invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || duplicateSurfaces.length > 0 ||
   duplicateSources.length > 0 || unplannedFiles.length > 0 || unknownSources.length > 0 ||
-  strayConsumers.length > 0 || emptyExports.length > 0
+  strayConsumers.length > 0 || emptyExports.length > 0 || malformedChannels.length > 0
 ) {
   return {
     error: 'plan rejected before any write',
@@ -684,8 +705,9 @@ if (
       .concat(unplannedFiles.length > 0 ? ['the plan does not cover every file the manifest assigned to this capability'] : [])
       .concat(unknownSources.length > 0 ? ['the plan names files the manifest did not assign to this capability'] : [])
       .concat(duplicateSources.length > 0 ? ['one source file planned more than once'] : [])
-      .concat(strayConsumers.length > 0 ? ['a surface names a consumer the manifest did not record'] : [])
-      .concat(emptyExports.length > 0 ? ['a surface is created with an empty export contract'] : []),
+      .concat(strayConsumers.length > 0 ? ['a surface names a consumer that is neither recorded nor an assigned file of this capability'] : [])
+      .concat(emptyExports.length > 0 ? ['a surface is created with an empty export contract'] : [])
+      .concat(malformedChannels.length > 0 ? ['a declared channel change is missing what/from/to or its behaviourRisk'] : []),
     invalid: invalid.map(r => ({ file: r.file, role: r.role, surface: r.surface, basename: r.basename })),
     badSurfaces: badSurfaces.map(s => s.surface),
     collisions,
@@ -695,6 +717,7 @@ if (
     duplicateSources,
     strayConsumers,
     emptyExports,
+    malformedChannels,
     admitted: { segments: SEGMENTS, surfaces: SURFACES },
   }
 }
@@ -962,6 +985,21 @@ async function verifyAll() {
           ? declaredAdapters.map(a => '    - ' + a.file + ' (owner: ' + a.owner + '; removed when: ' + a.removeWhen + ')').join('\n')
           : '    (none declared)') + '\n' +
         '- Was an illegal dependency laundered through a re-export, barrel, or deep relative import?\n' +
+        // The declaration was written by the planner before the code existed, and nothing afterwards
+        // checked it against what was actually built. An undeclared transport change is the one class
+        // of behaviour change this migration is guaranteed to make and the suite is guaranteed to miss:
+        // the first live run moved browser reads off a Server Action onto GET, and typecheck, lint,
+        // 988 tests and the production build all stayed green while the error shape, the retry
+        // predicate and the report-once property all changed.
+        '- CHANNELS: compare how each behaviour is transported NOW against how it was before this ' +
+        'migration — Server Action, GET route handler, direct RSC call, stream. The planner declared ' +
+        'these and only these:\n' +
+        (CHANNEL_CHANGES.length > 0
+          ? CHANNEL_CHANGES.map(c => '    - ' + c.what + ': ' + c.from + ' -> ' + c.to + ' (risk: ' + c.behaviourRisk + ')').join('\n')
+          : '    (none — the planner assessed channels and declared no change)') + '\n' +
+        '  A transport that changed and is NOT in that list is a must-fix, and so is a declared risk ' +
+        'the code contradicts. "The tests pass" does not settle this: a suite written against the old ' +
+        'channel does not exercise the new one.\n' +
         '- Does any surface exist that no consumer imports?\n' +
         '- Was any library, schema tool, or UI kit swapped as a side effect? That is out of scope and is a must-fix.\n\n' +
         '## Verdict\n' +
