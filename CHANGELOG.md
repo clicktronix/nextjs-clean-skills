@@ -171,6 +171,15 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- `check-shared-admission.mjs` scans every source extension, not `.ts`/`.tsx` only, and counts
+  `require()` and `import x = require()` as imports. An importer the scan never opens is an importer
+  that does not exist; a file with no importers is `unused`; and `unused` prints as "delete it". Two
+  live `.js` consumers were enough to have a working helper recommended for deletion.
+- The same check counts OWNERS, not importing files. Two routes under one `app` owner were reported
+  admitted, though the rule it enforces reads "at least two real capabilities" — files belonging to
+  one owner are one consumer however many of them there are.
+- The root README said neither workflow had run against a live repository while the workflows README
+  documented both runs. § Sources Of Truth treats a disagreement between surfaces as a defect.
 - One import resolver, in `contract-paths.mjs`, used by both new checks. They had one each and each
   was blind exactly where the other could see: the admission check resolved directory `index` files
   but not `./x.js` meaning `x.ts`, the neutral-surface check the reverse. The admission blindness had

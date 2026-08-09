@@ -723,6 +723,46 @@ expectCheck(
 // admitted, with nothing unattributable.
 expectCheck(ADMISSION, 'named owners are still admitted', twoConsumers, FLOOR_CONTRACT, 0, '1 admitted, 0 private, 0 unattributable')
 
+// The verdict `unused` prints as "delete it", so an importer the scan cannot open is advice to
+// delete live code. Restricting the scan to .ts/.tsx did exactly that to two working .js consumers.
+expectCheck(
+  ADMISSION,
+  'JavaScript importers are importers',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.js': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+    'src/modules/billing/server/b.js': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+expectCheck(
+  ADMISSION,
+  'require() is an import',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.cjs': "const { money } = require('~/shared/kernel/money')\nmodule.exports = money\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+// The rule counts OWNERS. Two routes under one `app` owner are one consumer, however many files.
+expectCheck(
+  ADMISSION,
+  'two files under one owner are one consumer',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/app/one/page.tsx': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+    'src/app/two/page.tsx': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'one consumer, not two'
+)
+
 // One resolver, shared. The admission check used to know about directory `index` files but not about
 // `./x.js` meaning `x.ts`; an import it cannot resolve is an import it does not count, and a shared
 // file with no counted importer is reported `unused` — advice to delete live code.

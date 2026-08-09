@@ -68,12 +68,17 @@ const isTest = (file) => /\.(test|spec)\.tsx?$/.test(file) || file.includes(`${p
  */
 const isStory = (file) => /\.stories\.(tsx?|mdx)$/.test(file)
 
+// Every extension a project can import FROM. Restricting this to `.ts`/`.tsx` did not narrow the
+// check, it broke it: an importer the scan never opened is an importer that does not exist, a file
+// with no importers is `unused`, and `unused` prints as "delete it". Two live `.js` consumers were
+// enough to have a working helper recommended for deletion.
+const SOURCE = /\.[cm]?[jt]sx?$/
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name)
     if (entry.isDirectory()) return listSources(absolute)
-    return /\.tsx?$/.test(entry.name) ? [absolute] : []
+    return SOURCE.test(entry.name) ? [absolute] : []
   })
 }
 
@@ -92,6 +97,24 @@ function specifiersOf(file) {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const [argument] = node.arguments
       if (argument && ts.isStringLiteral(argument)) found.push(argument.text)
+    }
+    // `require('x')` and `import x = require('x')`. A repository mid-migration has both, and either
+    // one missed is an uncounted importer — which this file turns into advice to delete a live file.
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      found.push(node.arguments[0].text)
+    }
+    if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteral(node.moduleReference.expression)
+    ) {
+      found.push(node.moduleReference.expression.text)
     }
     ts.forEachChild(node, visit)
   }
@@ -179,8 +202,16 @@ for (const file of listSources(sharedRoot)) {
   } else if (owners.size === 0) privateCount += 1
   else if (owners.size === 1 && capabilities.has([...owners][0])) {
     demote.push({ file: relative, owner: [...owners][0] })
-  } else if (named.length === 1) {
-    speculative.push({ file: relative, importer: path.relative(projectRoot, named[0]) })
+  } else if (owners.size === 1) {
+    // One owner, and no capability to demote into. Counting FILES here made two routes under the
+    // same `app` owner read as a shared consumer set: the rule is "at least two real capabilities",
+    // and files belonging to one owner are one consumer however many of them there are.
+    speculative.push({
+      file: relative,
+      importer: path.relative(projectRoot, named[0]),
+      owner: [...owners][0],
+      importers: named.length,
+    })
   } else okCount += 1
 }
 
@@ -197,9 +228,11 @@ if (over.length > 0) {
       `shared admission: ${file} is used only by the "${owner}" capability — that is its natural owner, move it there`
     )
   }
-  for (const { file, importer } of speculative) {
+  for (const { file, importer, owner, importers } of speculative) {
     console.error(
-      `shared admission: ${file} has exactly one importer (${importer}) — not shared yet, keep it with its caller`
+      importers > 1
+        ? `shared admission: ${file} is imported by ${importers} file(s) that all belong to one owner ("${owner}") — that is one consumer, not two`
+        : `shared admission: ${file} has exactly one importer (${importer}) — not shared yet, keep it with its caller`
     )
   }
   console.error(
