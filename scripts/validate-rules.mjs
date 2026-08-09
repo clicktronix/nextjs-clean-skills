@@ -954,6 +954,21 @@ expectCheck(
   'could not be judged'
 )
 
+// `import x = require()` is claimed by this check and was covered by no fixture: removing the branch
+// left the whole suite green.
+expectCheck(
+  ADMISSION,
+  'an import-equals importer is an importer',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'src/modules/orders/server/a.ts': "import money = require('~/shared/kernel/money')\nexport const a = money\n",
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+
 // An exemption is a claim that the rule cannot apply, and the failure message has always demanded a
 // reason for it — while the value was read as a bare list of paths, so there was nowhere to put one.
 {

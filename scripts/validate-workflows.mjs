@@ -483,6 +483,55 @@ if (files.includes(PILOT)) {
         )
       }
 
+      // ─── a surface cannot justify itself ───
+      // The admitted set included the surfaces' own computed destinations, unqualified — so a
+      // surface naming its own destination as its sole consumer passed screening and started the
+      // mover, and two surfaces naming each other did the same with no real importer anywhere.
+      const surfacePlan = (surfaces) => ({ moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces })
+      const selfJustifying = [
+        [
+          'a surface naming its own destination',
+          [{ surface: 'query-cache', consumers: ['src/modules/work-items/query-cache.ts'], exports: ['keys'] }],
+        ],
+        [
+          'two surfaces naming each other',
+          [
+            { surface: 'query-cache', consumers: ['src/modules/work-items/rsc.ts'], exports: ['keys'] },
+            { surface: 'rsc', consumers: ['src/modules/work-items/query-cache.ts'], exports: ['read'] },
+          ],
+        ],
+      ]
+      for (const [label, surfaces] of selfJustifying) {
+        const verdict = run(surfacePlan(surfaces), [{ file: 'src/lib/calc.ts' }], [])
+        check(
+          verdict && typeof verdict.error === 'string',
+          `plan screening (${label}): a surface justified only by surfaces must be rejected, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      // Control: a surface-to-surface reference is legitimate once the chain ends at a real consumer.
+      const chained = run(
+        surfacePlan([
+          { surface: 'query-cache', consumers: ['src/modules/work-items/rsc.ts'], exports: ['keys'] },
+          { surface: 'rsc', consumers: ['src/app/p.tsx'], exports: ['read'] },
+        ]),
+        [{ file: 'src/lib/calc.ts' }],
+        ['src/app/p.tsx']
+      )
+      check(!chained.error, `plan screening (a grounded surface chain): must be accepted, got ${JSON.stringify(chained.error)}`)
+      // A file this same plan deletes is not evidence that anything imports the surface.
+      const viaDeleted = run(
+        {
+          moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/old.ts', role: 'delete' }],
+          surfaces: [{ surface: 'rsc', consumers: ['src/lib/old.ts'], exports: ['read'] }],
+        },
+        [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/old.ts' }],
+        []
+      )
+      check(
+        viaDeleted && typeof viaDeleted.error === 'string',
+        `plan screening (a consumer this plan deletes): must be rejected, got ${JSON.stringify(viaDeleted && viaDeleted.error)}`
+      )
+
       // ─── a declared channel change is rejected, not quietly dropped ───
       // The old filter discarded a malformed entry, so a planner that reported a transport change
       // with one blank field produced a gate that said nothing about it — the report ate the
@@ -941,6 +990,36 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       (solo.result.humanGate || '').includes('whole tree'),
       `${PILOT}: with no other capability the gate must say so rather than implying a wave that does not exist`
+    )
+  }
+
+  // ─── phase 1's promise is kept here or nowhere ───
+  // Phase 1 blocks only the unplaced files it attributes to the pilot and tells the operator the
+  // rest "block their own capability later". Phase 2's schema did not admit `unassigned` at all, so
+  // later never came: the run migrated the assigned subset and left the rest at their old paths.
+  {
+    const withUnplaced = rows => ({ ...manifest, unassigned: rows })
+    const blocked = await pilot({ 'load-manifest': withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'work-items', why: 'two owners' }]) })
+    check(
+      blocked.result && /could not place/.test(blocked.result.error || '') &&
+        !blocked.calls.includes('plan:work-items'),
+      `${PILOT}: an unplaced file attributed to this capability must stop the run before planning, got ${JSON.stringify(blocked.result && blocked.result.error)}`
+    )
+    check(
+      /fileOwners/.test((blocked.result && blocked.result.fix) || ''),
+      `${PILOT}: the refusal must carry the answer, not just the objection`
+    )
+    // Another capability's unplaced file is not this run's business.
+    const elsewhere = await pilot({ 'load-manifest': withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'labels' }]) })
+    check(
+      elsewhere.result && elsewhere.result.recommendation === 'accept',
+      `${PILOT}: an unplaced file belonging to another capability must not block this one, got ${JSON.stringify(elsewhere.result && elsewhere.result.error)}`
+    )
+    // The schema has to admit the key, or the probe cannot return what the gate depends on.
+    const loadCall = elsewhere.prompts.find(p => p.label === 'load-manifest')
+    check(
+      loadCall && loadCall.schema.properties.unassigned && /unassigned/.test(loadCall.prompt),
+      `${PILOT}: the load probe must be asked for the unassigned rows and be able to return them`
     )
   }
 

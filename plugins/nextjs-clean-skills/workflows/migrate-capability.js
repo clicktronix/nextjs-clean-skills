@@ -149,6 +149,24 @@ const MANIFEST_SCHEMA = {
       },
     },
     consumers: { type: 'array', items: { type: 'string' }, description: 'app routes and other capabilities that use this capability today' },
+    // Sixth instance of the closed-schema trap in this file, and this one broke a promise phase 1
+    // makes in writing: it blocks only the unplaced files it attributes to the PILOT and tells the
+    // operator the rest "block their own capability later". Undeclared here, phase 2 could not read
+    // them at all, so later never came — the run migrated the assigned subset and left the rest at
+    // their old paths, which is the both-topologies-at-once state the scope guards forbid.
+    unassigned: {
+      type: 'array',
+      description: 'files phase 1 could not place, verbatim; an empty list if the manifest records none',
+      items: {
+        type: 'object',
+        required: ['file'],
+        properties: {
+          file: { type: 'string' },
+          why: { type: 'string' },
+          likelyCapability: { type: 'string' },
+        },
+      },
+    },
     // additionalProperties stays OPEN here: the prompt asks for the manifest rows
     // verbatim, and those rows also carry `placement` and `capability`. Closing it
     // made "verbatim" unsatisfiable, burning validation retries and then returning
@@ -351,7 +369,9 @@ const slice = await agent(
   '- ordinaryChange, and baselineRadius: the before touch set the change-radius baseline probe recorded (copy its detail verbatim).\n' +
   '- violationCensus: the recorded counts.\n' +
   '- capabilityTierBinds: the flag the manifest records under that key; false if it records none.\n' +
-  '- vacuousCounters: the list the manifest records under that key, verbatim; an empty list if it records none.\n\n' +
+  '- vacuousCounters: the list the manifest records under that key, verbatim; an empty list if it records none.\n' +
+  '- unassigned: the rows the manifest records under that key, verbatim, INCLUDING the ones whose likelyCapability ' +
+  `is not "${CAP}". Return them as recorded; do not re-decide an owner here.\n\n` +
   'Read only. Write nothing. If the manifest is missing, return found=false.\n\nStructured output only.',
   { label: 'load-manifest', phase: 'Load', schema: MANIFEST_SCHEMA }
 )
@@ -464,6 +484,24 @@ const LAYOUT_STATE =
 const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 0)
 
 if (FILES.length === 0) return { error: 'the manifest has no files assigned to capability "' + CAP + '"' }
+
+// Phase 1 blocks only the unplaced files it attributes to the PILOT, and tells the operator in as
+// many words that the rest "block their own capability later". This is later. Without it the
+// promise was never kept: phase 2 migrated the assigned subset and left the unplaced files at their
+// old paths, importing modules that had just moved — one capability carrying both topologies, which
+// the scope guards call a failure of this phase. Refused before the planner runs, because a plan
+// built over an incomplete file set is a plan that cannot be corrected afterwards.
+const UNPLACED = (slice.unassigned || []).filter(u => u && u.likelyCapability === CAP)
+if (UNPLACED.length > 0) {
+  return {
+    error: 'phase 1 could not place ' + UNPLACED.length + ' file(s) it attributes to "' + CAP + '" — nothing was planned',
+    unassigned: UNPLACED,
+    detail: 'Migrating around them would leave those files at their old paths importing modules this run moved, ' +
+      'which is one capability carrying both topologies at once. Nothing has been written.',
+    fix: 'Re-run prepare-architecture-migration with args.fileOwners { "<file>": "<capability>" } for each, adding ' +
+      'resumeFromRunId so the inventory replays from cache, then run this workflow again.',
+  }
+}
 log('Pilot ' + CAP + ': ' + FILES.length + ' files, ' + CONSUMERS.length + ' recorded consumers, ' + CENSUS_TOTAL + ' violations at baseline')
 
 // ─── Destination paths are computed HERE ───
@@ -675,23 +713,65 @@ const bareConsumer = c => String(c).split(' (')[0].split(', ')[0].trim()
 // named by identity now, not by prefix: an assigned file, or a destination this script computed
 // for one. A path under the capability root that is neither is not a consumer; it is a guess.
 const PLANNED_DESTS = moving.map(r => r.dest)
-const SURFACE_DESTS = usedSurfaces.map(s => CAP_ROOT + s.surface + '.ts')
-const admittedConsumer = c => {
-  const bare = bareConsumer(c)
-  return CONSUMERS.indexOf(c) !== -1 || CONSUMERS.indexOf(bare) !== -1 ||
-    OWN_FILES.indexOf(bare) !== -1 || PLANNED_DESTS.indexOf(bare) !== -1 ||
-    SURFACE_DESTS.indexOf(bare) !== -1
-}
+// A file this plan DELETES is not evidence that anything imports the surface. It is admitted here
+// only as a source the plan may name, and `OWN_FILES` excluded nothing — so a consumer list could
+// be satisfied entirely by paths the same plan was about to remove.
+const DELETED_FILES = deleting.map(r => r.file)
+const surfaceDestOf = surface => CAP_ROOT + surface + '.ts'
+const SURFACE_DESTS = new Map(usedSurfaces.map(s => [surfaceDestOf(s.surface), s.surface]))
+// A surface may legitimately be consumed by another surface — `actions.ts` reading the key identity
+// out of `query-cache.ts` is the canonical case — but that is a REFERENCE, not evidence. Left
+// unqualified it was a way for a surface to justify itself: naming its own destination as its sole
+// consumer passed screening and started the mover, and two surfaces naming each other did the same
+// with no real importer anywhere in the chain. So surface-to-surface edges are followed, and every
+// used surface has to reach a concrete consumer through them.
+const concreteConsumer = bare =>
+  CONSUMERS.indexOf(bare) !== -1 ||
+  (OWN_FILES.indexOf(bare) !== -1 && DELETED_FILES.indexOf(bare) === -1) ||
+  PLANNED_DESTS.indexOf(bare) !== -1
 const strayConsumers = []
+const surfaceEdges = new Map()
+const grounded = new Set()
 for (const s of usedSurfaces) {
-  for (const c of s.consumers || []) if (!admittedConsumer(c)) strayConsumers.push({ surface: s.surface, consumer: c })
+  const own = surfaceDestOf(s.surface)
+  const edges = []
+  for (const c of s.consumers || []) {
+    const bare = bareConsumer(c)
+    // Self-reference is never evidence, however the path is spelled.
+    if (bare === own) {
+      strayConsumers.push({ surface: s.surface, consumer: c, why: 'a surface cannot be its own consumer' })
+      continue
+    }
+    if (concreteConsumer(bare) || CONSUMERS.indexOf(c) !== -1) {
+      grounded.add(s.surface)
+      continue
+    }
+    if (SURFACE_DESTS.has(bare)) {
+      edges.push(SURFACE_DESTS.get(bare))
+      continue
+    }
+    strayConsumers.push({ surface: s.surface, consumer: c, why: 'names no file this run knows to exist' })
+  }
+  surfaceEdges.set(s.surface, edges)
 }
+// Ground the rest by fixpoint: a surface consumed by a grounded surface is itself reached by that
+// surface's real consumers. Anything still ungrounded when this stops is a closed loop.
+for (let settled = false; !settled; ) {
+  settled = true
+  for (const [surface, edges] of surfaceEdges) {
+    if (grounded.has(surface) || !edges.some(target => grounded.has(target))) continue
+    grounded.add(surface)
+    settled = false
+  }
+}
+const ungroundedSurfaces = usedSurfaces.filter(s => !grounded.has(s.surface)).map(s => s.surface)
 const emptyExports = usedSurfaces.filter(s => (s.exports || []).length === 0).map(s => s.surface)
 
 if (
   invalid.length > 0 || badSurfaces.length > 0 || collisions.length > 0 || duplicateSurfaces.length > 0 ||
   duplicateSources.length > 0 || unplannedFiles.length > 0 || unknownSources.length > 0 ||
-  strayConsumers.length > 0 || emptyExports.length > 0 || malformedChannels.length > 0
+  strayConsumers.length > 0 || emptyExports.length > 0 || malformedChannels.length > 0 ||
+  ungroundedSurfaces.length > 0
 ) {
   return {
     error: 'plan rejected before any write',
@@ -707,7 +787,8 @@ if (
       .concat(duplicateSources.length > 0 ? ['one source file planned more than once'] : [])
       .concat(strayConsumers.length > 0 ? ['a surface names a consumer that is neither recorded nor an assigned file of this capability'] : [])
       .concat(emptyExports.length > 0 ? ['a surface is created with an empty export contract'] : [])
-      .concat(malformedChannels.length > 0 ? ['a declared channel change is missing what/from/to or its behaviourRisk'] : []),
+      .concat(malformedChannels.length > 0 ? ['a declared channel change is missing what/from/to or its behaviourRisk'] : [])
+      .concat(ungroundedSurfaces.length > 0 ? ['a surface is justified only by other surfaces — no real consumer at the end of the chain'] : []),
     invalid: invalid.map(r => ({ file: r.file, role: r.role, surface: r.surface, basename: r.basename })),
     badSurfaces: badSurfaces.map(s => s.surface),
     collisions,
@@ -718,6 +799,7 @@ if (
     strayConsumers,
     emptyExports,
     malformedChannels,
+    ungroundedSurfaces,
     admitted: { segments: SEGMENTS, surfaces: SURFACES },
   }
 }

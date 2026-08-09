@@ -190,11 +190,24 @@ All notable changes to this project are documented in this file.
   repairing failures nobody had observed. The fix loop now runs only on oracles that reported, gains
   an `unmeasured` exit for a probe that dies mid-loop, and a dead instruction probe or radius probe
   says so in the gate instead of falling through the branch a clean result takes.
-- A surface consumer must be a file this run knows exists. The screening admitted anything under the
-  capability directory and anything deep enough under a recorded app folder — prefix tests, which
-  admit strings rather than files — so an invented path kept a surface alive and the mover published
-  a public surface no code imports. Admitted now: a recorded consumer, an assigned file, or a
-  destination the script itself computed.
+- A surface consumer must be a file this run knows exists, and a surface cannot justify itself. The
+  screening admitted anything under the capability directory and anything deep enough under a
+  recorded app folder — prefix tests, which admit strings rather than files — so an invented path
+  kept a surface alive and the mover published a public surface no code imports. Admitted now: a
+  recorded consumer, an assigned file this plan does not delete, or a destination the script itself
+  computed. Surface-to-surface references are followed rather than trusted: a surface naming its own
+  destination, or two naming each other, reaches no real importer and is rejected.
+- Phase 2 reads the files phase 1 could not place. Phase 1 blocks only the unplaced files it
+  attributes to the pilot and tells the operator the rest "block their own capability later" — but
+  the handoff schema did not admit `unassigned`, so later never came: the run migrated the assigned
+  subset and left the rest at their old paths importing modules it had just moved, which is one
+  capability carrying both topologies. The refusal now happens before the planner and carries the
+  `fileOwners` answer.
+- The two shipped checks agree about a private-server consumer of a neutral surface. The neutral
+  check counted it as the server side while `privateServerBackedge` called the same import a
+  violation, so the advertised green floor was unreachable for a pattern § Dependency Direction 9
+  permits in as many words: "Both server and browser paths may import `query-cache.ts`". One sandbox
+  tree is now judged by both.
 - `channelChanges` is a required plan field, and a malformed entry is rejected rather than dropped.
   Optional, the key was absent both when the planner had assessed channels and found none and when it
   had never looked, and the script defaulted both to an empty list. The adversarial reviewer is now
@@ -280,8 +293,11 @@ All notable changes to this project are documented in this file.
   for want of anything to classify — a structural vacuum, not a clean bill of health. Phase 2
   compared its post-migration counts against those zeros, so the first correct pilot read as a
   repo-wide regression and would have been told to revise. Phase 1 now records
-  `capabilityTierBinds`, warns when it is false, and phase 2 waives only the regression arm on such
-  a baseline; the pilot capability must still reach zero, which never depended on the baseline.
+  `capabilityTierBinds` and warns when it is false; the pilot capability must still reach zero, which
+  never depended on the baseline. The waiver this entry originally described — suppressing the whole
+  regression arm on such a baseline — was replaced before release by the per-counter waiver above:
+  it also suppressed counters that never needed `moduleRoot`. Release notes describe the per-counter
+  behaviour; this entry stands only for the census flag.
 - Phase 1 adds `migration-manifest.json` to the target's formatter ignore list alongside `rules/`.
   It writes that file itself in a later phase, and it failed the target's `format:check` for exactly
   the reason the vendored files did — the first fix covered the directory and missed the file.
