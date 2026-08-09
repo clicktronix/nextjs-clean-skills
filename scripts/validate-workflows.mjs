@@ -476,7 +476,7 @@ if (files.includes(PILOT)) {
     // archRed returns the REASON it is red ('' when green), so the gate and the report
     // cannot disagree about why. Assert truthiness, and that a red answer explains itself.
     for (const [label, a, expected] of archCases) {
-      const reason = archRed(a, census, true)
+      const reason = archRed(a, census, new Set())
       check(!!reason === expected, `archRed(${label}): expected red=${expected}, got ${JSON.stringify(reason)}`)
       if (expected) check(typeof reason === 'string' && reason.length > 0, `archRed(${label}): a red verdict must name its reason`)
     }
@@ -484,12 +484,28 @@ if (files.includes(PILOT)) {
     // so every capability-tier rule reported zero for want of anything to classify. Compared
     // against that vacuum, the first correct pilot looks like a repo-wide regression.
     check(
-      archRed({ ok: true, counts: { capability: 0, crossCapabilityInternal: 9, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) === '',
-      'archRed(vacuous baseline): counts appearing after the first move are not regressions above a baseline that measured nothing'
+      archRed(
+        { ok: true, counts: { capability: 0, crossCapabilityInternal: 9, domainDirection: 0 } },
+        { crossCapabilityInternal: 0, domainDirection: 0 },
+        new Set(['crossCapabilityInternal', 'domainDirection'])
+      ) === '',
+      'archRed(named vacuous counter): a counter whose baseline zero meant "nothing to classify" cannot be regressed against'
     )
-    // The capability's own arm does NOT depend on the baseline and must still fire.
+    // The waiver is per counter. Waiving the whole arm also waived counters that measured the
+    // repository as it already was — unresolved imports, database ownership, pre-existing debt —
+    // and a migration can genuinely regress those. Executing the gate with them newly non-zero
+    // returned `accept`.
     check(
-      archRed({ ok: true, counts: { capability: 3, crossCapabilityInternal: 0, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) !== '',
+      archRed(
+        { ok: true, counts: { capability: 0, crossCapabilityInternal: 0, domainDirection: 0, 'import/no-unresolved': 4 } },
+        { crossCapabilityInternal: 0, domainDirection: 0, 'import/no-unresolved': 0 },
+        new Set(['crossCapabilityInternal', 'domainDirection'])
+      ) !== '',
+      'archRed(counter outside the vacuous set): a real regression must not be waived with the vacuous ones'
+    )
+    // The capability's own arm never depended on the baseline.
+    check(
+      archRed({ ok: true, counts: { capability: 3, crossCapabilityInternal: 0, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, new Set(['crossCapabilityInternal'])) !== '',
       'archRed(vacuous baseline, capability dirty): the capability arm must not be waived with the regression arm'
     )
     check(archUnmeasured(undefined) === true, 'archUnmeasured(absent): must be unmeasured')
@@ -610,10 +626,20 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     }
     const over = { ...withSrc, assign: assigned }
 
+    // Refused BEFORE the first write, not reported afterwards. Everything past phase('Enable') mutates
+    // the target, so a blocker in the final report meant a half-converted repository and a message.
     const stillOpen = await runBody(baseSrc, { args: ARGSD, overrides: over })
     check(
-      (stillOpen.result && (stillOpen.result.blockers || []).some(b => /undecided/.test(b))),
-      `${BASELINE} (undecided, no decision): must block. blockers=${JSON.stringify(stillOpen.result && stillOpen.result.blockers)}`
+      stillOpen.result && /must be classified before anything is written/.test(stillOpen.result.error || ''),
+      `${BASELINE} (undecided, no decision): must refuse before writing, got ${JSON.stringify(stillOpen.result && (stillOpen.result.error || stillOpen.result.blockers))}`
+    )
+    check(
+      !stillOpen.calls.includes('enable-rules'),
+      `${BASELINE} (undecided, no decision): the installer ran anyway — the target was mutated before the refusal`
+    )
+    check(
+      /dependencyDecisions/.test((stillOpen.result && stillOpen.result.fix) || ''),
+      `${BASELINE} (undecided, no decision): the refusal must carry the way to answer it`
     )
 
     const decided = await runBody(baseSrc, {
@@ -881,6 +907,34 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       !/filesTouched/.test(src.slice(src.indexOf('const PROBE_SCHEMA'), src.indexOf('const STEP_SCHEMA'))),
       `${PILOT}: PROBE_SCHEMA must not carry filesTouched, or it is STEP_SCHEMA under another name`
+    )
+  }
+
+  // ─── the vacuous waiver is per counter, end to end ───
+  // A single boolean suppressed every non-capability regression. The table above proves archRed;
+  // this proves the SET actually reaches it from the manifest, which the table cannot.
+  {
+    const censusManifest = {
+      ...manifest,
+      violationCensus: { crossCapabilityInternal: 0, 'import/no-unresolved': 0 },
+      vacuousCounters: ['crossCapabilityInternal'],
+    }
+    const regressed = await pilot({
+      'load-manifest': censusManifest,
+      'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 5, 'import/no-unresolved': 3 }, detail: '' },
+    })
+    check(
+      regressed.result && regressed.result.recommendation === 'revise',
+      `${PILOT} (regression outside the vacuous set): expected revise, got ${JSON.stringify(regressed.result && regressed.result.recommendation)} — ${JSON.stringify(regressed.result && regressed.result.reason)}`
+    )
+    // Control: the vacuous counter alone rising is exactly what the waiver exists for.
+    const waived = await pilot({
+      'load-manifest': censusManifest,
+      'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 5, 'import/no-unresolved': 0 }, detail: '' },
+    })
+    check(
+      waived.result && waived.result.recommendation === 'accept',
+      `${PILOT} (only the vacuous counter rose): expected accept, got ${JSON.stringify(waived.result && waived.result.recommendation)} — ${JSON.stringify(waived.result && waived.result.reason)}`
     )
   }
 

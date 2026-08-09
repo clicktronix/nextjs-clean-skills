@@ -236,6 +236,17 @@ const BASELINE_SCHEMA = {
     // The capability-tier rules key off positions under moduleRoot/sharedRoot. Before the
     // first move those directories do not exist, so every one of them reports zero — a
     // structural vacuum, not a clean bill of health. Phase 2 has to know which it got.
+    // WHICH counters were vacuous, not merely that some were. A single boolean made phase 2 waive
+    // every non-capability regression — including counters that never needed moduleRoot to exist,
+    // like unresolved imports, database ownership and pre-existing lint debt. Those measure the
+    // repository as it already is, and waiving them let a migration introduce them unnoticed.
+    vacuousCounters: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'counters that reported zero only because there was nothing under moduleRoot/sharedRoot to classify; ' +
+        'a counter that genuinely found nothing does NOT belong here',
+    },
     capabilityTierBinds: { type: 'boolean', description: 'for the census: true only when moduleRoot exists in the target AND contains at least one source file, so the capability-tier rules had something to classify' },
     detail: { type: 'string' },
   },
@@ -448,6 +459,22 @@ if (Object.keys(DECISIONS).length > 0) {
 // Order matters and is not ours to choose: rules/README.md requires every direct
 // dependency classified BEFORE the rules are enabled, because a newly installed
 // package fails closed.
+// Everything past this point WRITES into the target: rules/, a drafted contract, the ESLint config,
+// ignore files. An unclassified dependency makes the floor unable to pass, and the Enable prompt's
+// own step 4 requires it to exit 0 — so the run used to mutate the target and only afterwards report
+// that a package was undecided, leaving a half-converted repository behind a blocker in a report.
+// Refusing here costs the operator one argument; refusing there cost them a dirty working tree.
+if (((assignment.deps || {}).undecided || []).length > 0) {
+  return {
+    error: 'undecided dependencies must be classified before anything is written to the target',
+    undecided: assignment.deps.undecided,
+    detail: 'The architecture floor cannot pass with an unclassified direct dependency, and this phase writes ' +
+      'rules/, a contract and an ESLint change into ' + REPO + '. Nothing has been written.',
+    fix: 'Re-run with args.dependencyDecisions { "<package>": "pure" | "runtime" } for each package above — ' +
+      'add resumeFromRunId so the inventory and assignment replay from cache instead of costing a second full pass.',
+  }
+}
+
 phase('Enable')
 
 const enabled = await agent(
@@ -547,7 +574,8 @@ const PROBES = [
       'The admission and neutrality checks are expected to be RED before migration for the same structural reason the database check is: nothing lives under moduleRoot or sharedRoot yet. Count them, do not treat them as install failures.\n\n' +
       'In `counts`, report one key per ESLint messageId (crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot, …) with its violation count, ' +
       'one key per non-ESLint tool with its violation count, and `preexisting` for errors from rules this repo already had before the install. ' +
-      'Also set `capabilityTierBinds`: true only if moduleRoot (from the contract you just wrote) exists in the target AND holds at least one source file. If it does not, every capability, segment and surface messageId will report zero because there is nothing under those roots to classify — say so plainly in `detail` rather than presenting the zeros as a clean result.\n' +
+      'List in `vacuousCounters` every counter whose zero means "nothing to classify" rather than "nothing found" — the capability, segment and surface messageIds when moduleRoot is empty, and nothing else. A counter that ran over real files and found none is NOT vacuous: phase 2 waives regressions only for the ones named here, and naming a counter that works hides a regression the migration caused.\n' +
+  'Also set `capabilityTierBinds`: true only if moduleRoot (from the contract you just wrote) exists in the target AND holds at least one source file. If it does not, every capability, segment and surface messageId will report zero because there is nothing under those roots to classify — say so plainly in `detail` rather than presenting the zeros as a clean result.\n' +
   'Set ok=true when the tools RAN — a high violation count is the expected starting point. Set ok=false only if a tool could not run at all, ' +
       'or if `preexisting` is non-zero: pre-existing lint debt is a red baseline, and step 8 of the adoption procedure names lint alongside type, test and build.',
   },
@@ -603,6 +631,9 @@ const violations = (census && census.counts) || {}
 // regression — so a correct pilot would be told to revise. The flag travels with the
 // numbers because the numbers alone cannot say which kind of zero they are.
 const capabilityTierBinds = !!(census && census.capabilityTierBinds)
+// Named counters, not a global switch. Empty when the tier bound, which is the same thing as
+// "waive nothing".
+const vacuousCounters = (census && census.vacuousCounters) || []
 const totalViolations = Object.keys(violations).reduce((n, k) => n + (violations[k] || 0), 0)
 log('Baseline: ' + baseline.filter(b => b.ok).length + '/' + baseline.length + ' probes ok, ' + totalViolations + ' violations censused')
 
@@ -682,6 +713,7 @@ const manifest = {
   baseline: baseline,
   violationCensus: violations,
   capabilityTierBinds,
+  vacuousCounters,
   ordinaryChange: ORDINARY || null,
   rulesInstalled: !!(enabled && enabled.ok),
 }
@@ -705,7 +737,6 @@ const written = await agent(
 
 const blockers = []
 if (!(enabled && enabled.ok)) blockers.push('rules are not enabled — the architectural oracle is unavailable')
-if (((assignment.deps || {}).undecided || []).length > 0) blockers.push('undecided dependencies need a product decision before the rules can pass')
 if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not decided — phase 2 computes every destination from it and will refuse to guess')
 // Unassigned files block the PILOT only when they belong to the pilot capability.
 // The procedure asks to inventory the repo (step 1) and pick one capability (step 3);

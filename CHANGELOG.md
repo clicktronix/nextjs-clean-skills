@@ -171,6 +171,16 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- The vacuous-baseline waiver is per counter. `capabilityTierBinds === false` suppressed EVERY
+  non-capability regression — including unresolved imports, database ownership and pre-existing lint
+  debt, none of which need `moduleRoot` to exist. Executing the decision function with those newly
+  non-zero returned `accept`. Phase 1 now names the counters whose zero meant "nothing to classify"
+  and phase 2 waives only those; an omitted set waives nothing, which is the safe direction.
+- An unclassified dependency stops the run BEFORE anything is written to the target. The blocker was
+  computed after the phase that copies `rules/`, drafts the contract and amends the ESLint config —
+  so the target was already half-converted when the run announced it could not proceed. The refusal
+  carries the `dependencyDecisions` answer and `resumeFromRunId`, and the test asserts the installer
+  never ran, not merely that a blocker appears later.
 - `check-shared-admission.mjs` scans every source extension, not `.ts`/`.tsx` only, and counts
   `require()` and `import x = require()` as imports. An importer the scan never opens is an importer
   that does not exist; a file with no importers is `unused`; and `unused` prints as "delete it". Two
