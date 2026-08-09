@@ -12,16 +12,22 @@ try to infer business meaning from path names.
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
-| `check-shared-admission.mjs` | the countable half of shared admission: how many real owners import a shared file |
+| `check-shared-admission.mjs` | the countable half of shared admission: how many CAPABILITIES import a shared file |
 | `check-neutral-surfaces.mjs` | a runtime-neutral surface is consumed from both runtimes, not one |
 
 `check-neutral-surfaces.mjs` decides which runtime a consumer is on from the effective module graph,
 not from its folder: a file is client when it declares `'use client'` in its directive prologue or
 when something already in the client graph imports it. Folder alone cannot answer it — `ui/**` holds
-server-renderable views as well as client ones. Type-only edges and test files are excluded (neither
-ships on a runtime), and named re-exports count as edges. The server side is the capability's `rsc`
-surface, its private `server/**` segment, or route composition under the app root that is not itself
-a route handler or an action module.
+server-renderable views as well as client ones. The two graphs are traversed independently and a
+file may be on both, but neither crosses into the other: the server graph stops at a Client
+Component, the client graph stops at server-owned code, and both stop at a channel of its own — a
+Server Action or a route handler, which prefetches nothing in either direction. The server graph is
+seeded from the capability's `rsc` surface, its private `server/**` segment, and the App Router
+composition entrypoints (`appEntrypoints` overrides the list). Declarations and development
+artifacts are excluded — `developmentArtifactSuffixes` and `developmentArtifactDirectories` override
+those, and the same predicate governs `check-shared-admission.mjs`, which used to disagree with it.
+Every static module-loading form counts as an edge, including no-substitution templates and
+`module.require`; type-only edges do not.
 
 `sharedAdmissionBudget` and `sharedAdmissionExempt` are optional too: the first is the ratchet — counts
 that may fall and never rise, absent meaning zero on every count — and the second maps each

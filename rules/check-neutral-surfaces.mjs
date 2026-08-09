@@ -36,7 +36,13 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { loadArchitecturePaths, relativeParts, resolveToExistingFile } from './contract-paths.mjs'
+import {
+  loadArchitecturePaths,
+  relativeParts,
+  resolveToExistingFile,
+  moduleSpecifiers,
+  developmentArtifactPredicate,
+} from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot } = paths
@@ -44,16 +50,19 @@ const { contract, projectRoot, sourceRoot, moduleRoot, appRoot } = paths
 const neutralSurfaces = new Set(contract.neutralSurfaces ?? [])
 const serverSurfaces = new Set(contract.serverSurfaces ?? [])
 const SOURCE = /\.[cm]?[jt]sx?$/
-const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
-const STORY_FILE = /\.stories\.([cm]?[jt]sx?|mdx)$/
-const TEST_DIR = new Set(['__tests__', '__mocks__'])
 // Their own channels. A route handler or an action module that reads a neutral surface is using it
 // as a server module, not prefetching into a hydrated client cache, so it is not the second side.
 const OWN_CHANNELS = new Set(['route', 'actions'])
-// Next.js composition entrypoints. Everything else under the app root is a file those import.
-const APP_ENTRYPOINTS = new Set([
-  'page', 'layout', 'template', 'default', 'loading', 'error', 'not-found', 'global-error',
-])
+// Next.js composition entrypoints — every current UI file convention, not a remembered subset:
+// `forbidden`, `unauthorized` and `global-not-found` were missing, so a page that legitimately
+// prefetched from one of them reported no server side at all. Overridable, because the framework
+// adds conventions and `pageExtensions` lets a project spell them `page.page.tsx`.
+const APP_ENTRYPOINTS = new Set(
+  contract.appEntrypoints ?? [
+    'page', 'layout', 'template', 'default', 'loading', 'error', 'global-error',
+    'not-found', 'global-not-found', 'forbidden', 'unauthorized',
+  ]
+)
 
 function listSourceFiles(directory) {
   if (!fs.existsSync(directory)) return []
@@ -65,6 +74,10 @@ function listSourceFiles(directory) {
 }
 
 const stem = (file) => path.basename(file).replace(SOURCE, '')
+// The CONVENTION a file name states, which is its first dot-segment: `pageExtensions` lets a project
+// write `page.page.tsx`, and stripping only the final extension left `page.page` — a name no
+// convention list can contain, so the entrypoint was invisible.
+const convention = (file) => path.basename(file).split('.')[0]
 
 function moduleLocation(file) {
   const parts = relativeParts(moduleRoot, file)
@@ -80,10 +93,12 @@ function moduleLocation(file) {
 // Nothing here ships on a runtime, and each was enough to invent a side on its own: one client test
 // made a server-only surface look cross-runtime, a client story did the same, and a declaration file
 // under the app root manufactured a server consumer out of types that are erased before the build.
+const isDevArtifact = developmentArtifactPredicate(paths)
 function isNonRuntimeFile(file) {
   const base = path.basename(file)
-  if (TEST_FILE.test(base) || STORY_FILE.test(base) || base.endsWith('.d.ts') || /\.d\.[cm]ts$/.test(base)) return true
-  return path.relative(projectRoot, file).split(path.sep).some((part) => TEST_DIR.has(part))
+  // Declarations are types with a file extension: erased before any build, so they belong to no
+  // runtime. Everything else is the shared development-artifact predicate.
+  return base.endsWith('.d.ts') || /\.d\.[cm]ts$/.test(base) || isDevArtifact(file)
 }
 
 const parse = (file, source) => ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
@@ -99,65 +114,10 @@ function hasDirective(parsed, directive) {
   return false
 }
 
-// Value edges only, and every form of them. A type-only import is erased before the module graph
-// exists, so it puts nothing on either runtime; a re-export is as real an edge as an import; and a
-// `require()` or `import x = require()` is an edge in the `.cjs`/`.cts` files this check already
-// scans — omitting them made a real browser consumer invisible and its surface server-only.
-function valueEdges(parsed) {
-  const specifiers = []
-  const visit = (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'require' &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
-    ) {
-      specifiers.push(node.arguments[0].text)
-    }
-    if (
-      ts.isImportEqualsDeclaration(node) &&
-      // `import type x = require('…')` is erased with every other type-only edge. Ignoring the flag
-      // here counted a types-only declaration as a runtime consumer.
-      !node.isTypeOnly &&
-      ts.isExternalModuleReference(node.moduleReference) &&
-      ts.isStringLiteral(node.moduleReference.expression)
-    ) {
-      specifiers.push(node.moduleReference.expression.text)
-    }
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const clause = node.importClause
-      // No clause at all is `import './side-effect'`, which is a value edge by definition.
-      const typeOnly =
-        clause &&
-        (clause.isTypeOnly ||
-          (!clause.name &&
-            clause.namedBindings &&
-            ts.isNamedImports(clause.namedBindings) &&
-            clause.namedBindings.elements.every((element) => element.isTypeOnly)))
-      if (!typeOnly) specifiers.push(node.moduleSpecifier.text)
-    }
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      const typeOnly =
-        node.isTypeOnly ||
-        (node.exportClause &&
-          ts.isNamedExports(node.exportClause) &&
-          node.exportClause.elements.every((element) => element.isTypeOnly))
-      if (!typeOnly) specifiers.push(node.moduleSpecifier.text)
-    }
-    if (
-      ts.isCallExpression(node) &&
-      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
-    ) {
-      specifiers.push(node.arguments[0].text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(parsed)
-  return specifiers
-}
+// One extractor, shared with check-shared-admission.mjs and check-module-cycles.mjs. Three private
+// copies disagreed about which forms are edges — a no-substitution template, `module.require`, a
+// type-only import-equals — and every disagreement showed up as a missing consumer somewhere.
+const valueEdges = moduleSpecifiers
 
 const files = listSourceFiles(sourceRoot).filter((file) => !isNonRuntimeFile(file))
 const parsed = new Map(files.map((file) => [file, parse(file, fs.readFileSync(file, 'utf8'))]))
@@ -188,16 +148,21 @@ function reachableFrom(roots, blocked) {
 }
 
 const isClientBoundary = (file) => hasDirective(parsed.get(file), 'use client')
-// Where the server graph stops: a declared Client Component. Where the client graph stops: an
-// action module or any server-owned module — the browser holds a reference to a Server Action, not
-// its implementation, so nothing behind that boundary is browser code.
-const isServerOnly = (file) => {
+// A channel of its own: a Server Action or a route handler. It is not an RSC prefetch/hydration path
+// in either direction — the browser holds a reference to a Server Action rather than its
+// implementation, and a page that calls an action is not prefetching through it. Both graphs stop
+// here; the server one did not, so `page.tsx -> actions.ts -> query-cache.ts` manufactured the
+// prefetch side out of a channel that never prefetches.
+const isOwnChannel = (file) => {
   if (hasDirective(parsed.get(file), 'use server')) return true
+  if (moduleLocation(file)?.surface === 'actions') return true
+  return Boolean(relativeParts(appRoot, file)) && OWN_CHANNELS.has(convention(file))
+}
+// Where the client graph stops: an own channel, or any server-owned module.
+const isServerOnly = (file) => {
+  if (isOwnChannel(file)) return true
   const module = moduleLocation(file)
-  if (module && (module.segment === 'server' || serverSurfaces.has(module.surface) || module.surface === 'actions')) {
-    return true
-  }
-  return Boolean(relativeParts(appRoot, file)) && OWN_CHANNELS.has(stem(file))
+  return Boolean(module && (module.segment === 'server' || serverSurfaces.has(module.surface)))
 }
 
 // The two graphs are INDEPENDENT, and a file can be in both. Answering with a single side and
@@ -219,9 +184,9 @@ const serverRoots = files.filter((file) => {
   // and a `'use client'` page a server root as well — each inventing a server side out of a file
   // that composes nothing.
   if (!relativeParts(appRoot, file)) return false
-  return APP_ENTRYPOINTS.has(stem(file))
+  return APP_ENTRYPOINTS.has(convention(file))
 })
-const serverReachable = reachableFrom(serverRoots, isClientBoundary)
+const serverReachable = reachableFrom(serverRoots, (file) => isClientBoundary(file) || isOwnChannel(file))
 
 const usage = new Map()
 for (const file of files) {

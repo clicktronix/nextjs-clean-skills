@@ -11,22 +11,24 @@
  * docs/adoption-and-enforcement.md § What Static Rules Cannot Prove, which forbids adding a
  * syntactic proxy in order to claim a semantic property is linted.
  *
- * A consumer is an OWNER, not a file: a capability, `app`, or another shared root. Two files of one
- * capability importing a helper is one consumer, and that capability is its natural owner.
+ * A consumer is an OWNER, not a file, and the threshold counts CAPABILITIES — the document says "at
+ * least two real capability consumers" in those words. `app`, another shared root and
+ * repository-root wiring are scanned and named, because an importer the scan never opens is an
+ * importer that does not exist and a file with no importers is told to delete itself; but none of
+ * them is a capability, so none of them can satisfy admission. Counting owner strings instead
+ * admitted combinations the contract does not, and one of them had a fixture defending it.
  *
  * Verdicts per file under sharedRoot:
  *   unused        nothing imports it -> delete
  *   demote        its only owner is one capability -> that capability is the natural home
- *   speculative   exactly one importing file and no capability to demote into -> written for a
- *                 second consumer that never arrived
+ *   speculative   below two capability consumers for some other reason -> the message says which
  *   private       imported only from inside its own shared root -> that root's implementation
  *                 detail rather than an admitted surface, which the rule does not govern
- *   ok            everything else
+ *   unattributable  an importer the contract cannot name, with the threshold unmet -> undecided
+ *   ok            two or more capability consumers
  *
- * `app` is deliberately not treated the way a capability is. Route composition is not somewhere to
- * demote infrastructure into, so an app-only owner fails only when exactly one file imports it.
- *
- * Tests are not consumers: a helper kept alive only by its own test is dead code with a test.
+ * Development artifacts are not consumers: a helper kept alive only by its own test, mock or story
+ * is dead code with a test, a mock or a story.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -39,6 +41,8 @@ import {
   relativeParts,
   resolveToExistingFile,
   SOURCE_EXTENSIONS,
+  moduleSpecifiers,
+  developmentArtifactPredicate,
 } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
@@ -86,22 +90,10 @@ const reasonless = [...exempt].filter(
 // nothing imports by design was judged deletable.
 const EXT = SOURCE_EXTENSIONS.join('|')
 const SOURCE = new RegExp(`\\.(${EXT})$`)
-/**
- * Development artifacts: tests, mocks and stories. None of them ships, and the rule they feed is
- * "at least two real capabilities" — so none of them is an owner. They were treated three different
- * ways: tests skipped both as subjects and as importers, `__mocks__` skipped nowhere, and stories
- * skipped as subjects while still counting as importers, which let one production capability plus
- * one story satisfy the two-owner threshold. Symmetric now, in both directions.
- *
- * A shared file whose only importer is a story is therefore `unused`, and that verdict is honest:
- * shared code exists for two product consumers, and a story is not one of them.
- *
- * `.stories.mdx` is deliberately absent — `listSources()` never opens an `.mdx` file, so naming it
- * here would have been a rule about files this check cannot see.
- */
-const isDevArtifact = (file) =>
-  new RegExp(`\\.(test|spec|stories)\\.(${EXT})$`).test(file) ||
-  ['__tests__', '__mocks__'].some((directory) => file.includes(`${path.sep}${directory}${path.sep}`))
+// One predicate, shared with check-neutral-surfaces.mjs and overridable in the contract. Each check
+// used to carry its own list and they disagreed about mocks and about module-local `test/`
+// directories, so a mock could supply the second owner the rule requires.
+const isDevArtifact = developmentArtifactPredicate(paths)
 
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
@@ -113,44 +105,8 @@ function listSources(directory) {
 }
 
 
-function specifiersOf(file) {
-  const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
-  const found = []
-  const visit = (node) => {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      found.push(node.moduleSpecifier.text)
-    }
-    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      const [argument] = node.arguments
-      if (argument && ts.isStringLiteral(argument)) found.push(argument.text)
-    }
-    // `require('x')` and `import x = require('x')`. A repository mid-migration has both, and either
-    // one missed is an uncounted importer — which this file turns into advice to delete a live file.
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'require' &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
-    ) {
-      found.push(node.arguments[0].text)
-    }
-    if (
-      ts.isImportEqualsDeclaration(node) &&
-      ts.isExternalModuleReference(node.moduleReference) &&
-      ts.isStringLiteral(node.moduleReference.expression)
-    ) {
-      found.push(node.moduleReference.expression.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return found
-}
+const specifiersOf = (file) =>
+  moduleSpecifiers(ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true))
 
 const capabilities = new Set(
   fs.existsSync(moduleRoot)
@@ -241,22 +197,37 @@ for (const file of listSources(sharedRoot)) {
   // only by the X capability", which was not true, about a file the check could not see all of.
   // Two proven owners is the threshold the rule states, so below it an unknown importer decides
   // nothing; at or above it the verdict is `ok` on the named evidence alone.
-  if (external.length > named.length && owners.size < 2) {
+  // The threshold is two CAPABILITIES, in the contract's own words: "Admission requires: 1. at least
+  // two real capability consumers". Counting owner strings admitted combinations the document does
+  // not — one capability plus `app`, plus another shared root, plus repository-root wiring — and the
+  // root case was pinned by a fixture, so the check disagreed with its own normative source and had
+  // a test defending the disagreement. Non-capability importers still count for LIVENESS, which is
+  // why they are scanned at all: they keep a live file out of `unused`, whose advice is "delete it".
+  const capabilityOwners = new Set([...owners].filter((owner) => capabilities.has(owner)))
+
+  if (external.length > named.length && capabilityOwners.size < 2) {
     unattributable.push({ file: relative, importers: external.length })
   } else if (owners.size === 0) privateCount += 1
-  else if (owners.size === 1 && capabilities.has([...owners][0])) {
-    demote.push({ file: relative, owner: [...owners][0] })
-  } else if (owners.size === 1) {
-    // One owner, and no capability to demote into. Counting FILES here made two routes under the
-    // same `app` owner read as a shared consumer set: the rule is "at least two real capabilities",
-    // and files belonging to one owner are one consumer however many of them there are.
+  else if (capabilityOwners.size >= 2) okCount += 1
+  else if (capabilityOwners.size === 1 && owners.size === 1) {
+    demote.push({ file: relative, owner: [...capabilityOwners][0] })
+  } else {
+    // Below the threshold, and the reason differs. Counting FILES here made two routes under the
+    // same `app` owner read as a shared consumer set: files belonging to one owner are one consumer
+    // however many of them there are, and an owner that is not a capability is not a consumer the
+    // rule counts at all. The message is built here because only here is the shape known — a
+    // "move it into its owner" instruction is wrong when something outside that owner imports it too.
+    const others = [...owners].filter((owner) => !capabilities.has(owner)).sort().join(', ')
     speculative.push({
       file: relative,
-      importer: path.relative(projectRoot, named[0]),
-      owner: [...owners][0],
-      importers: named.length,
+      message:
+        capabilityOwners.size === 1
+          ? `${relative} is imported by one capability ("${[...capabilityOwners][0]}") and by non-capability code ("${others}") — admission counts capability consumers, and one is not two`
+          : owners.size > 0
+            ? `${relative} is imported only by non-capability code ("${others}") — admission counts capability consumers, and it has none`
+            : `${relative} has exactly one importer (${path.relative(projectRoot, named[0])}) — not shared yet, keep it with its caller`,
     })
-  } else okCount += 1
+  }
 }
 
 // An exemption is a claim that the rule cannot apply here, and a claim without a reason is one
@@ -287,13 +258,7 @@ if (over.length > 0) {
       `shared admission: ${file} is used only by the "${owner}" capability — that is its natural owner, move it there`
     )
   }
-  for (const { file, importer, owner, importers } of speculative) {
-    console.error(
-      importers > 1
-        ? `shared admission: ${file} is imported by ${importers} file(s) that all belong to one owner ("${owner}") — that is one consumer, not two`
-        : `shared admission: ${file} has exactly one importer (${importer}) — not shared yet, keep it with its caller`
-    )
-  }
+  for (const { message } of speculative) console.error(`shared admission: ${message}`)
   console.error(
     `\nover budget: ${over.map((k) => `${k} ${counts[k]} > ${budget[k]}`).join(', ')}.\n` +
       'Shared code needs two real consumers with identical meaning and lifecycle. Delete it, demote it ' +

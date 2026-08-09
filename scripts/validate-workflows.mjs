@@ -574,6 +574,31 @@ if (files.includes(PILOT)) {
         `plan screening (a consumer this plan deletes): must be rejected, got ${JSON.stringify(viaDeleted && viaDeleted.error)}`
       )
 
+      // The registration order must not decide the verdict. A role change puts one surface's future
+      // canonical path where another surface's file stands today; interleaved registration let the
+      // later destination overwrite that current-file identity, so the SAME valid plan was accepted
+      // in one move order and rejected in the other.
+      {
+        const roleChange = [
+          { file: 'src/modules/work-items/rsc.ts', role: 'surface', surface: 'query-cache' },
+          { file: 'src/lib/read.ts', role: 'surface', surface: 'rsc' },
+        ]
+        const filesIn = [{ file: 'src/modules/work-items/rsc.ts' }, { file: 'src/lib/read.ts' }]
+        // `rsc` names the path that TODAY holds the file becoming `query-cache`, so the correct
+        // reading is an edge rsc -> query-cache, and query-cache is grounded by a real consumer.
+        // Read the other way round it is `rsc` naming itself, which is a rejection.
+        const surfaces = [
+          { surface: 'query-cache', consumers: ['src/app/p.tsx'], exports: ['keys'] },
+          { surface: 'rsc', consumers: ['src/modules/work-items/rsc.ts'], exports: ['read'] },
+        ]
+        const orders = [roleChange, [...roleChange].reverse()]
+        const verdicts = orders.map(moves => run({ moves, surfaces }, filesIn, ['src/app/p.tsx']))
+        check(
+          verdicts.every(v => v && !v.error),
+          `plan screening (surface role change): the same plan must be judged the same in both move orders, got ${JSON.stringify(verdicts.map(v => v && v.error))}`
+        )
+      }
+
       // ─── a declared channel change is rejected, not quietly dropped ───
       // The old filter discarded a malformed entry, so a planner that reported a transport change
       // with one blank field produced a gate that said nothing about it — the report ate the
@@ -865,6 +890,40 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       (answered.result && answered.result.fileOwners || []).some(o => o.file === 'src/orphan.ts' && o.capability === 'work-items'),
       `${BASELINE} (ownership supplied): the decision must be recorded as the operator's, not inferred`
     )
+    // A row that names no capability, or one this inventory did not find, has no later run to block.
+    // The schema permits an omitted `likelyCapability` and the warning promised those rows would
+    // "block their own capability later" — so an unrouteable row was carried past every run instead.
+    for (const [label, row] of [
+      ['no likelyCapability', { file: 'src/nowhere.ts', why: 'unclear' }],
+      ['a blank likelyCapability', { file: 'src/nowhere.ts', why: 'unclear', likelyCapability: '  ' }],
+      ['a capability this inventory did not find', { file: 'src/nowhere.ts', why: 'unclear', likelyCapability: 'invented' }],
+    ]) {
+      const out = await runBody(baseSrc, {
+        args: ARGSO,
+        overrides: { ...withSrc, assign: { ...assigned, unassigned: [row] } },
+      })
+      const text = ((out.result && out.result.blockers) || []).join(' ')
+      check(
+        /no owner/.test(text) && /src\/nowhere\.ts/.test(text) && /args\.fileOwners/.test(text),
+        `${BASELINE} (unplaced row with ${label}): must block here, since no later run can. blockers=${JSON.stringify(out.result && out.result.blockers)}`
+      )
+    }
+    // Control: a row naming a capability the inventory DID find waits for that capability's own run.
+    const later = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: {
+        ...withSrc,
+        assign: {
+          ...assigned,
+          capabilities: [{ name: 'work-items' }, { name: 'labels' }],
+          unassigned: [{ file: 'src/later.ts', why: 'unclear', likelyCapability: 'labels' }],
+        },
+      },
+    })
+    check(
+      !/no owner/.test(((later.result && later.result.blockers) || []).join(' ')),
+      `${BASELINE} (routeable unplaced row): must not block the pilot. blockers=${JSON.stringify(later.result && later.result.blockers)}`
+    )
     // The counts everything downstream reads are derived from `assignments`, so the merge has to
     // happen before they are built. It did not: capabilities[].files undercounted by exactly the
     // files the operator had just placed.
@@ -1051,8 +1110,14 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       /fileOwners/.test((blocked.result && blocked.result.fix) || ''),
       `${PILOT}: the refusal must carry the answer, not just the objection`
     )
-    // Another capability's unplaced file is not this run's business.
-    const elsewhere = await pilot({ 'load-manifest': withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'labels' }]) })
+    // Another capability's unplaced file is not this run's business — provided the manifest actually
+    // names that capability, which is what makes the row routeable to a later run.
+    const elsewhere = await pilot({
+      'load-manifest': {
+        ...withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'labels' }]),
+        capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+      },
+    })
     check(
       elsewhere.result && elsewhere.result.recommendation === 'accept',
       `${PILOT}: an unplaced file belonging to another capability must not block this one, got ${JSON.stringify(elsewhere.result && elsewhere.result.error)}`
@@ -1078,6 +1143,26 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       allUnplaced.result && /could not place/.test(allUnplaced.result.error || '') && /fileOwners/.test(allUnplaced.result.fix || ''),
       `${PILOT}: an entirely unplaced capability must get the actionable refusal, not the empty-manifest dead end, got ${JSON.stringify(allUnplaced.result && allUnplaced.result.error)}`
     )
+    // A row that names no capability, or one this manifest does not carry, has no later run to block.
+    // Phase 1 permits an omitted `likelyCapability` and then promises those rows "block their own
+    // capability later"; unrouteable, they were carried past every run of the wave instead.
+    for (const [label, row] of [
+      ['no likelyCapability at all', { file: 'src/lib/orphan.ts' }],
+      ['a blank likelyCapability', { file: 'src/lib/orphan.ts', likelyCapability: '   ' }],
+      ['a capability this manifest does not carry', { file: 'src/lib/orphan.ts', likelyCapability: 'invented' }],
+    ]) {
+      const out = await pilot({
+        'load-manifest': {
+          ...withUnplaced([row]),
+          capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+        },
+      })
+      check(
+        out.result && /could not place/.test(out.result.error || '') && !out.calls.includes('plan:work-items'),
+        `${PILOT}: an unplaced row with ${label} must block the first run that reads it, got ${JSON.stringify(out.result && out.result.error)}`
+      )
+    }
+
     // The layout probe reads the same extensions rules/ judges. Narrowed to js/jsx/ts/tsx it called
     // a capability written in NodeNext extensions `undetermined`, which the gate then reports as a
     // layout nobody could read rather than as the migrated capability it is.

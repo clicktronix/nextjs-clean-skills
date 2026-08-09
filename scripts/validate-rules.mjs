@@ -817,7 +817,7 @@ expectCheck(
   },
   FLOOR_CONTRACT,
   1,
-  'one consumer, not two'
+  'admission counts capability consumers, and it has none'
 )
 
 // One resolver, shared. The admission check used to know about directory `index` files but not about
@@ -906,13 +906,29 @@ const admitted = {
   'src/shared/kernel/money.ts': 'export const money = 1\n',
   'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
 }
+// Root wiring is scanned for LIVENESS, not for ownership: it keeps a live file out of `unused`,
+// whose advice is "delete it", but the contract's threshold is "at least two real capability
+// consumers" and repository-root wiring is not one. The earlier fixture pinned the opposite and so
+// defended the check's disagreement with its own normative source.
 expectCheck(
   ADMISSION,
-  'a repository-root .js importer is an importer',
+  'repository-root wiring keeps a file alive without owning it',
   { ...admitted, 'instrumentation.js': "import { money } from '~/shared/kernel/money'\nexport const wired = money\n" },
   FLOOR_CONTRACT,
-  0,
-  '1 admitted'
+  1,
+  'imported by one capability ("orders") and by non-capability code ("root")'
+)
+// And the liveness half, in the same shape: it must never read as having no importer at all.
+expectCheck(
+  ADMISSION,
+  'root wiring is still an importer',
+  {
+    'src/shared/kernel/money.ts': 'export const money = 1\n',
+    'instrumentation.js': "import { money } from '~/shared/kernel/money'\nexport const wired = money\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'imported only by non-capability code ("root")'
 )
 expectCheck(
   ADMISSION,
@@ -939,7 +955,10 @@ expectCheck(
 // `__mocks__` skipped nowhere, stories skipped as subjects but still counted as importers. None of
 // them ships, and the rule they were feeding is "at least two real capabilities".
 for (const [label, file] of [
-  ['a mock is not a second owner', 'src/modules/billing/__mocks__/money.ts'],
+  ['a mock directory is not a second owner', 'src/modules/billing/__mocks__/money.ts'],
+  ['a mock suffix is not a second owner', 'src/modules/billing/server/b.mock.ts'],
+  ['a module-local test directory is not a second owner', 'src/modules/billing/server/test/b.ts'],
+  ['a module-local tests directory is not a second owner', 'src/modules/billing/tests/b.ts'],
   ['a story is not a second owner', 'src/modules/billing/server/b.stories.tsx'],
 ]) {
   expectCheck(
@@ -986,6 +1005,28 @@ expectCheck(
   0,
   'could not be judged'
 )
+
+// Every static module-loading form is an edge, and a form the extractor cannot see is an importer
+// that does not exist — which this check prints as "delete it". Three private extractors disagreed
+// about which forms count; there is one now, and each form has a fixture.
+for (const [label, importer] of [
+  ['a no-substitution template in import()', "const m = import(`~/shared/kernel/money`)\nexport const a = m\n"],
+  ['a no-substitution template in require()', "const m = require(`~/shared/kernel/money`)\nmodule.exports = m\n"],
+  ['module.require', "const m = module.require('~/shared/kernel/money')\nmodule.exports = m\n"],
+]) {
+  expectCheck(
+    ADMISSION,
+    `${label} is an importer`,
+    {
+      'src/shared/kernel/money.ts': 'export const money = 1\n',
+      'src/modules/orders/server/a.ts': importer,
+      'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+    },
+    FLOOR_CONTRACT,
+    0,
+    '1 admitted'
+  )
+}
 
 // `import x = require()` is claimed by this check and was covered by no fixture: removing the branch
 // left the whole suite green.
@@ -1306,6 +1347,66 @@ expectCheck(
   {
     ...serverOnly,
     'src/modules/orders/client/types.cts': "'use client'\nimport type keys = require('~/modules/orders/query-cache')\nexport type K = typeof keys\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+
+// ─── every App Router composition entrypoint seeds the server graph ───
+// The inventory was a remembered subset: `forbidden`, `unauthorized` and `global-not-found` are
+// current Next.js UI conventions and were missing, so a surface legitimately prefetched from one of
+// them reported no server side. One row per convention, because deleting all but `page` left every
+// verdict green.
+for (const entrypoint of [
+  'page', 'layout', 'template', 'default', 'loading', 'error', 'global-error',
+  'not-found', 'global-not-found', 'forbidden', 'unauthorized',
+]) {
+  expectCheck(
+    NEUTRAL,
+    `${entrypoint}.tsx is a server consumer`,
+    {
+      ...clientOnly,
+      [`src/app/orders/${entrypoint}.tsx`]: `${importsKey('~/modules/orders/query-cache')}export default () => key\n`,
+    },
+    FLOOR_CONTRACT,
+    0,
+    'neutral surfaces ok'
+  )
+}
+// `pageExtensions` lets a project spell a convention `page.page.tsx`; stripping only the final
+// extension left `page.page`, a name no inventory can contain.
+expectCheck(
+  NEUTRAL,
+  'a pageExtensions-style page.page.tsx is still a page',
+  {
+    ...clientOnly,
+    'src/app/orders/page.page.tsx': `${importsKey('~/modules/orders/query-cache')}export default () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  0,
+  'neutral surfaces ok'
+)
+// And the barrier the server graph was missing: an action is its own channel in both directions.
+expectCheck(
+  NEUTRAL,
+  'a page calling a Server Action does not prefetch through it',
+  {
+    ...clientOnly,
+    'src/modules/orders/actions.ts': `'use server'\n${importsKey('~/modules/orders/query-cache')}export const act = async () => key\n`,
+    'src/app/orders/page.tsx': "import { act } from '~/modules/orders/actions'\nexport default act\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+// A mock is not a browser consumer either — the predicate is shared with shared admission now.
+expectCheck(
+  NEUTRAL,
+  'a client mock is not a client consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/hook.mock.ts': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const m = key\n`,
   },
   FLOOR_CONTRACT,
   1,

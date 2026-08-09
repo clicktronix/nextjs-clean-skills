@@ -94,8 +94,10 @@ All notable changes to this project are documented in this file.
   instance of that trap in this file.
 - Two checks the architecture stated and nothing enforced, ported from the downstream template and
   made portable on the way:
-  - `check-shared-admission.mjs` decides the countable half of shared admission — how many real
-    OWNERS (a capability, `app`, another shared root) import a file under `sharedRoot`. Identical
+  - `check-shared-admission.mjs` decides the countable half of shared admission — how many
+    CAPABILITIES import a file under `sharedRoot`, which is the threshold the contract states in as
+    many words. `app`, other shared roots and repository-root wiring are scanned and named so a live
+    file is never called `unused`, but none of them is a capability and none can admit a file. Identical
     meaning, lifecycle and coordination cost stay a review judgement, and the check says so rather
     than claiming a semantic property is linted. Verdicts: `unused` (delete), `demote` (one
     capability owns it, that is its home), `speculative` (one importer, written for a second

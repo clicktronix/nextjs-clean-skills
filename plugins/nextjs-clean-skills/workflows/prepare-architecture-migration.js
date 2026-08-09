@@ -744,10 +744,21 @@ if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not deci
 const pilotName = caps.length > 0 ? caps[0].name : null
 const unassigned = assignment.unassigned || []
 const unassignedInPilot = pilotName ? unassigned.filter(u => u.likelyCapability === pilotName) : []
-if (unassignedInPilot.length > 0) {
+// A row that names no capability, or one this inventory did not find, has no later run to block.
+// The warning below tells the operator the remaining rows "block their own capability later" — true
+// only of a row that names a capability, and this schema deliberately permits omitting the field.
+// So the unrouteable ones are answered HERE, where the answer is cheapest, instead of being carried
+// past every run of the wave and left at their old paths.
+const found = new Set(caps.map(c => c.name))
+const unrouteable = unassigned.filter(u => {
+  const named = typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : ''
+  return named === '' || !found.has(named)
+})
+const stuck = unassignedInPilot.concat(unrouteable.filter(u => unassignedInPilot.indexOf(u) === -1))
+if (stuck.length > 0) {
   blockers.push(
-    unassignedInPilot.length + ' file(s) in the pilot capability have no owner: ' +
-      unassignedInPilot.map(u => u.file).join(', ') +
+    stuck.length + ' file(s) have no owner and cannot wait for a later capability: ' +
+      stuck.map(u => u.file + (u.likelyCapability ? ' (guessed: ' + u.likelyCapability + ')' : ' (no capability guessed)')).join(', ') +
       '. Answer with args.fileOwners { "<file>": "<capability>" } and re-run — add resumeFromRunId so the ' +
       'inventory and assignment replay from cache instead of costing a second full pass.'
   )
@@ -758,8 +769,8 @@ if (!capabilityTierBinds) {
     'capability, segment and surface rule reported zero because it had nothing to classify. Those zeros are not a ' +
     'clean baseline, and phase 2 must not read the counts that appear after the first move as regressions above it.')
 }
-if (unassigned.length > unassignedInPilot.length) {
-  warnings.push((unassigned.length - unassignedInPilot.length) + ' file(s) outside the pilot have no owner — fine for now, they block their own capability later')
+if (unassigned.length > stuck.length) {
+  warnings.push((unassigned.length - stuck.length) + ' file(s) outside the pilot have no owner but DO name a capability this inventory found — they block that capability when its own run reads them')
 }
 // No exemption. A red census (many violations) is the expected starting point and is
 // reported as ok=true by the probe; ok=false means the tools could not RUN. Skipping

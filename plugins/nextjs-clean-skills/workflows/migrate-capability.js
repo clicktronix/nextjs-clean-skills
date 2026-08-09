@@ -494,10 +494,20 @@ const CENSUS_TOTAL = Object.keys(CENSUS).reduce((n, k) => n + (CENSUS[k] || 0), 
 // old paths, importing modules that had just moved — one capability carrying both topologies, which
 // the scope guards call a failure of this phase. Refused before the planner runs, because a plan
 // built over an incomplete file set is a plan that cannot be corrected afterwards.
-const UNPLACED = (slice.unassigned || []).filter(u => u && u.likelyCapability === CAP)
+// Two kinds of row block this run. The exact match is obvious. The UNROUTEABLE row — no
+// `likelyCapability`, a blank one, or a name no capability in this manifest carries — is the one
+// phase 1's promise silently dropped: it says such files "block their own capability later", but a
+// row that names no capability has no later, so it would have been carried past every run of the
+// wave and left at its old path. Fail closed: it blocks the first run that reads it.
+const CAPABILITY_NAMES = new Set(CAP_ROWS.map(c => c.name).concat([CAP]))
+const unrouteable = u => {
+  const named = typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : ''
+  return named === '' || !CAPABILITY_NAMES.has(named)
+}
+const UNPLACED = (slice.unassigned || []).filter(u => u && (u.likelyCapability === CAP || unrouteable(u)))
 if (UNPLACED.length > 0) {
   return {
-    error: 'phase 1 could not place ' + UNPLACED.length + ' file(s) it attributes to "' + CAP + '" — nothing was planned',
+    error: 'phase 1 could not place ' + UNPLACED.length + ' file(s) this run cannot migrate around — nothing was planned',
     unassigned: UNPLACED,
     detail: 'Migrating around them would leave those files at their old paths importing modules this run moved, ' +
       'which is one capability carrying both topologies at once. Nothing has been written.',
@@ -730,12 +740,14 @@ const surfaceDestOf = surface => CAP_ROOT + surface + '.ts'
 // and its source reached `OWN_FILES` — both classified concrete BEFORE the surface test ran, so a
 // surface naming its own moving source, or two moved surfaces naming each other, grounded
 // themselves through the alias the graph could not see.
+// Registered in two passes, and the order is the point. Interleaved, one surface's destination could
+// overwrite another surface's CURRENT file identity when a role change puts one where the other
+// stands today — and the same valid plan was then accepted or rejected depending on the order the
+// planner happened to list its moves in. Canonical destinations first, current sources last, so the
+// identity a file has right now always wins.
 const SURFACE_DESTS = new Map(usedSurfaces.map(s => [surfaceDestOf(s.surface), s.surface]))
-for (const r of moving) {
-  if (r.role !== 'surface' || !r.surface) continue
-  SURFACE_DESTS.set(r.dest, r.surface)
-  SURFACE_DESTS.set(r.file, r.surface)
-}
+for (const r of moving) if (r.role === 'surface' && r.surface) SURFACE_DESTS.set(r.dest, r.surface)
+for (const r of moving) if (r.role === 'surface' && r.surface) SURFACE_DESTS.set(r.file, r.surface)
 // A surface may legitimately be consumed by another surface — `actions.ts` reading the key identity
 // out of `query-cache.ts` is the canonical case — but that is a REFERENCE, not evidence. Left
 // unqualified it was a way for a surface to justify itself: naming its own destination as its sole

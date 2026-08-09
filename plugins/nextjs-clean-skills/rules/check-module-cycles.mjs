@@ -4,23 +4,28 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { loadArchitecturePaths, relativeParts, resolveProjectImport } from './contract-paths.mjs'
+import {
+  loadArchitecturePaths,
+  relativeParts,
+  resolveProjectImport,
+  moduleSpecifiers,
+  developmentArtifactPredicate,
+  SOURCE_EXTENSIONS,
+} from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
 const { moduleRoot: modulesRoot } = paths
 
+// The same extension list and the same development-artifact predicate the other two checks use.
+// Three private copies is three chances to disagree about what the project contains.
+const SOURCE = new RegExp(`\\.(${SOURCE_EXTENSIONS.join('|')})$`)
+const isDevArtifact = developmentArtifactPredicate(paths)
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === '__tests__') return []
-      return listSources(absolute)
-    }
-    return /\.(?:[cm]?[jt]sx?)$/.test(entry.name) &&
-      !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
-      ? [absolute]
-      : []
+    if (entry.isDirectory()) return isDevArtifact(absolute + path.sep) ? [] : listSources(absolute)
+    return SOURCE.test(entry.name) && !isDevArtifact(absolute) ? [absolute] : []
   })
 }
 
@@ -30,39 +35,9 @@ function capabilityOf(absolute) {
 
 function importsFrom(file) {
   const source = fs.readFileSync(file, 'utf8')
-  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
-  const specifiers = []
-
-  function visit(node) {
-    if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-      node.moduleSpecifier &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      specifiers.push(node.moduleSpecifier.text)
-    }
-    if (
-      ts.isCallExpression(node) &&
-      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
-    ) {
-      specifiers.push(node.arguments[0].text)
-    }
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'require' &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0])
-    ) {
-      specifiers.push(node.arguments[0].text)
-    }
-    ts.forEachChild(node, visit)
-  }
-
-  visit(parsed)
-  return specifiers
+  // The shared extractor: a no-substitution template and `module.require` are edges too, and a
+  // cycle hidden behind one of them is a cycle this canary reported as absent.
+  return moduleSpecifiers(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true))
 }
 
 const graph = new Map()
