@@ -11,6 +11,7 @@ const STRICT = 'rules/eslint-boundaries-resolved.mjs'
 const CONTRACT = 'rules/architecture-contract.json'
 const PATHS = 'rules/contract-paths.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
+const NEUTRAL_CHECK = 'rules/check-neutral-surfaces.mjs'
 const errors = []
 
 let sandboxSummary = 'sandbox skipped'
@@ -90,11 +91,24 @@ export async function createWorkItem() {
   return { ok: true }
 }
 `,
+  // The directive is the point, not decoration: `check-neutral-surfaces.mjs` decides the browser
+  // side from the effective module graph, and a browser query with no boundary anywhere in the tree
+  // is not consumed from the browser. Folder alone used to answer this, which is how a
+  // server-renderable `ui/**` view counted as a client consumer.
   'src/modules/work-items/client/query.ts': `
+'use client'
 import { createWorkItem } from '../actions.js'
 import { workItemKeys } from '../query-cache.js'
 export const mutation = createWorkItem
 export const queryKey = workItemKeys.list()
+`,
+  // The contract's § Dependency Direction 9 — "Both server and browser paths may import
+  // `query-cache.ts`" — is the specific exception to 6's "server/** does not import its own root
+  // public surfaces". Clean here, and counted as the server side by the neutral check below: the
+  // two shipped checks used to contradict each other on exactly this file.
+  'src/modules/work-items/server/prefetch.ts': `
+import { workItemKeys } from '../query-cache.js'
+export const prefetchKey = workItemKeys.list()
 `,
   'src/modules/work-items/client.ts': `
 export { mutation } from './client/query.js'
@@ -254,6 +268,17 @@ export default missing
 import { b } from '../cycle-b/server.js'
 export const a = b
 `,
+  // The same cycle in NodeNext extensions, written with the `.mjs` specifiers TypeScript expects.
+  // The resolver settings listed js/jsx/ts/tsx only, so these resolved to nothing and the canary
+  // passed over a real cycle.
+  'src/modules/cycle-mts-a/server.mts': `
+import { b } from '../cycle-mts-b/server.mjs'
+export const a = b
+`,
+  'src/modules/cycle-mts-b/server.mts': `
+import { a } from '../cycle-mts-a/server.mjs'
+export const b = a
+`,
   'src/modules/cycle-b/server.ts': `
 import { a } from '../cycle-a/server.js'
 export const b = a
@@ -317,6 +342,8 @@ const expectedStrict = new Map([
   ['src/app/unresolved/page.ts', 'import/no-unresolved'],
   ['src/modules/cycle-a/server.ts', 'import/no-cycle'],
   ['src/modules/cycle-b/server.ts', 'import/no-cycle'],
+  ['src/modules/cycle-mts-a/server.mts', 'import/no-cycle'],
+  ['src/modules/cycle-mts-b/server.mts', 'import/no-cycle'],
 ])
 
 const clean = new Set([
@@ -337,6 +364,7 @@ const clean = new Set([
   'src/modules/work-items/ui/WorkItemsView/index.tsx',
   'src/modules/work-items/ui.ts',
   'src/modules/board/server/adapters.ts',
+  'src/modules/work-items/server/prefetch.ts',
   'src/modules/board/server.ts',
   'src/app/work-items/page.ts',
   'src/shared/kernel/id.ts',
@@ -354,7 +382,7 @@ if (ESLint) {
   try {
     fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
     fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
-    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES]) {
+    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES, NEUTRAL_CHECK]) {
       fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
     }
     // `generatedRoot` is deliberately absent from the shipped contract: declared there, every repo
@@ -386,7 +414,7 @@ if (ESLint) {
       )}\n`
     )
 
-    const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx}'], languageOptions: { parser } }\n`
+    const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx,mts,cts}'], languageOptions: { parser } }\n`
     fs.writeFileSync(
       path.join(sandbox, 'eslint.config.base.mjs'),
       `${parser}import boundaries from './eslint-boundaries.mjs'\nexport default [ts, ...boundaries]\n`
@@ -423,6 +451,23 @@ if (ESLint) {
       cwd: nestedCwd,
       encoding: 'utf8',
     })
+
+    // ONE tree, judged by both shipped checks. Each had its own fixtures, so when they disagreed
+    // about the canonical private-server consumer of a neutral surface — this check counting it as
+    // the server side while the boundary rule called the same import a `privateServerBackedge` —
+    // nothing noticed, and the advertised green floor was unreachable for a pattern the contract
+    // explicitly permits. The sandbox holds deliberately bad neutral surfaces too, so this asserts
+    // on the well-formed one by name rather than on the exit code.
+    const neutralResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(NEUTRAL_CHECK))], {
+      cwd: nestedCwd,
+      encoding: 'utf8',
+    })
+    const neutralOutput = `${neutralResult.stdout}${neutralResult.stderr}`
+    if (/work-items\/query-cache\.ts/.test(neutralOutput)) {
+      errors.push(
+        `the two checks disagree: eslint accepts the work-items neutral surface and its consumers, the neutral check does not — ${neutralOutput.trim().slice(0, 240)}`
+      )
+    }
 
     for (const [file, messageId] of expectedBase) {
       const messages = baseResults.get(file) ?? []
@@ -464,6 +509,7 @@ if (ESLint) {
 
     fs.rmSync(path.join(sandbox, 'src/modules/graph-b/server/use-a.ts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-b/server.ts'))
+    fs.rmSync(path.join(sandbox, 'src/modules/cycle-mts-b/server.mts'))
     const cleanGraphResult = spawnSync(
       process.execPath,
       [path.join(sandbox, path.basename(CYCLES))],
@@ -851,6 +897,63 @@ expectCheck(
   '1 admitted'
 )
 
+// ─── one extension inventory, or the check disagrees with itself ───
+// Each list in the script was written out by hand and they drifted apart. Every drift is the same
+// defect: a file the check does not recognise as what it is gets judged as something else, and the
+// judgement is advice to delete or move live code.
+const admitted = {
+  'src/shared/kernel/money.ts': 'export const money = 1\n',
+  'src/modules/orders/server/a.ts': "import { money } from '~/shared/kernel/money'\nexport const a = money\n",
+}
+expectCheck(
+  ADMISSION,
+  'a repository-root .js importer is an importer',
+  { ...admitted, 'instrumentation.js': "import { money } from '~/shared/kernel/money'\nexport const wired = money\n" },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+expectCheck(
+  ADMISSION,
+  'a .test.js is a test, not a second owner',
+  { ...admitted, 'src/modules/billing/server/b.test.js': "import { money } from '~/shared/kernel/money'\nexport const b = money\n" },
+  FLOOR_CONTRACT,
+  1,
+  'is used only by the "orders" capability'
+)
+expectCheck(
+  ADMISSION,
+  'a .stories.js is a story, not a deletable file',
+  {
+    ...admitted,
+    'src/modules/billing/server/b.ts': "import { money } from '~/shared/kernel/money'\nexport const b = money\n",
+    'src/shared/kernel/button.stories.js': "export const Default = () => null\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  '1 admitted'
+)
+
+// ─── an owner the contract cannot name decides nothing ───
+expectCheck(
+  ADMISSION,
+  'one capability plus one unattributable importer is not a demote',
+  { ...admitted, 'src/legacy/wire.ts': "import { money } from '~/shared/kernel/money'\nexport const w = money\n" },
+  FLOOR_CONTRACT,
+  0,
+  'could not be judged'
+)
+// A capability is a DIRECTORY under moduleRoot. A file sitting directly there was answered with its
+// own filename, and that string counted as a second owner.
+expectCheck(
+  ADMISSION,
+  'a file directly under moduleRoot is not a capability',
+  { ...admitted, 'src/modules/index.ts': "import { money } from '~/shared/kernel/money'\nexport const all = money\n" },
+  FLOOR_CONTRACT,
+  0,
+  'could not be judged'
+)
+
 // An exemption is a claim that the rule cannot apply, and the failure message has always demanded a
 // reason for it — while the value was read as a bare list of paths, so there was nowhere to put one.
 {
@@ -1021,6 +1124,82 @@ expectCheck(
   FLOOR_CONTRACT,
   0,
   'neutral surfaces ok'
+)
+
+// FALSE FAILURE: a file can be on BOTH sides, and answering with one let client win. A view a page
+// renders and a Client Component also imports is in both graphs; reported as browser-only, the
+// surface it consumes was declared to have no server side.
+expectCheck(
+  NEUTRAL,
+  'a consumer reached from both a page and a client boundary contributes both sides',
+  {
+    'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
+    'src/modules/orders/ui/list.tsx': `${importsKey('~/modules/orders/query-cache')}export const List = () => key\n`,
+    'src/app/orders/page.tsx': "import { List } from '~/modules/orders/ui/list'\nexport default List\n",
+    'src/modules/orders/client/hook.tsx': "'use client'\nimport { List } from '~/modules/orders/ui/list'\nexport const H = () => List()\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  'neutral surfaces ok'
+)
+
+// FALSE FAILURES: edge forms the graph did not see. The check scans `.cjs`/`.cts`, so it has to
+// read the syntax those files are written in, and `export *` is as real an edge as a named one.
+for (const [label, file, body] of [
+  [
+    'a require() client consumer is a consumer',
+    'src/modules/orders/client/hook.cjs',
+    "'use client'\nconst { key } = require('~/modules/orders/query-cache')\nmodule.exports = key\n",
+  ],
+  [
+    'an import-equals client consumer is a consumer',
+    'src/modules/orders/client/hook.cts',
+    "'use client'\nimport keys = require('~/modules/orders/query-cache')\nexport const k = keys\n",
+  ],
+  [
+    'export * is an edge',
+    'src/modules/orders/client/all.ts',
+    "'use client'\nexport * from '~/modules/orders/query-cache'\n",
+  ],
+]) {
+  expectCheck(NEUTRAL, label, { ...serverOnly, [file]: body }, FLOOR_CONTRACT, 0, 'neutral surfaces ok')
+}
+
+// FALSE PASSES: artifacts that ship on no runtime, and a channel identified by its directive. Each
+// is added to the tree that is missing the OTHER side, so inventing a side is the only way to pass.
+expectCheck(
+  NEUTRAL,
+  'a client story is not a client consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/hook.stories.tsx': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const Default = () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+expectCheck(
+  NEUTRAL,
+  'a declaration file is not a runtime consumer',
+  {
+    ...clientOnly,
+    'src/app/orders/keys.d.ts': "import { key } from '~/modules/orders/query-cache'\nexport declare const k: typeof key\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
+)
+// An action module is its own channel whatever it is called; the directive is what makes it one.
+expectCheck(
+  NEUTRAL,
+  "an app file with a 'use server' prologue is not route composition",
+  {
+    ...clientOnly,
+    'src/app/orders/mutate.ts': `'use server'\n${importsKey('~/modules/orders/query-cache')}export const m = async () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found client'
 )
 
 // FALSE FAILURE 3: a helper with no directive of its own that only Client Components import IS in

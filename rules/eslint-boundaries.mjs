@@ -17,6 +17,7 @@ import {
   relativeParts,
   resolveProjectImport,
   sourceFilesPattern,
+  SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
@@ -54,7 +55,9 @@ function moduleLocation(absolute) {
     tail.length === 1 &&
     SEGMENTS.has(rootName) &&
     !SOURCE_EXT.test(tail[0]) &&
-    !['.js', '.jsx', '.ts', '.tsx'].some((extension) => fs.existsSync(`${absolute}${extension}`))
+    // Derived from the one exported list: written out by hand it omitted the NodeNext extensions,
+    // so a segment directory shadowed by a `.mts` file was not recognised as shadowed.
+    !SOURCE_EXTENSIONS.some((extension) => fs.existsSync(`${absolute}.${extension}`))
   return {
     capability: parts[0],
     tail,
@@ -313,11 +316,19 @@ const capabilityRule = {
         return
       }
 
+      // The runtime-neutral surface is exempt, and the contract says so in as many words:
+      // "Both server and browser paths may import `query-cache.ts`" (§ Dependency Direction, 9),
+      // which is the specific carve-out from 6's general "does not import its own root public
+      // surfaces". Without it the two shipped checks contradicted each other — check-neutral-
+      // surfaces.mjs counts a private server consumer as the server side of a neutral surface,
+      // this rule called that same import a backedge, and a repository could not satisfy both.
+      // § Sources Of Truth: a disagreement is a defect.
       if (
         sourceModule?.segment === 'server' &&
         targetModule?.capability === sourceModule.capability &&
         targetModule.surface &&
-        PUBLIC_SURFACES.has(targetModule.surface)
+        PUBLIC_SURFACES.has(targetModule.surface) &&
+        !NEUTRAL_SURFACES.has(targetModule.surface)
       ) {
         context.report({
           node,

@@ -33,7 +33,13 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { loadArchitecturePaths, isWithin, relativeParts, resolveToExistingFile } from './contract-paths.mjs'
+import {
+  loadArchitecturePaths,
+  isWithin,
+  relativeParts,
+  resolveToExistingFile,
+  SOURCE_EXTENSIONS,
+} from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot, sharedRoot } = paths
@@ -70,19 +76,24 @@ const reasonless = [...exempt].filter(
   (file) => !String((Array.isArray(exemptions) ? '' : exemptions[file]) ?? '').trim()
 )
 
-const isTest = (file) => /\.(test|spec)\.tsx?$/.test(file) || file.includes(`${path.sep}__tests__${path.sep}`)
+// Every extension inventory in this file comes from the one exported list. Written out by hand they
+// drifted apart, and each drift is the same defect wearing a different hat: the scan restricted to
+// `.ts`/`.tsx` did not narrow the check, it broke it — an importer the scan never opened is an
+// importer that does not exist, a file with no importers is `unused`, and `unused` prints as
+// "delete it". The exclusions drifted the other way: `.test.js` was not recognised as a test, so a
+// test counted as a real owner, and `button.stories.js` was not recognised as a story, so a file
+// nothing imports by design was judged deletable.
+const EXT = SOURCE_EXTENSIONS.join('|')
+const SOURCE = new RegExp(`\\.(${EXT})$`)
+const isTest = (file) =>
+  new RegExp(`\\.(test|spec)\\.(${EXT})$`).test(file) || file.includes(`${path.sep}__tests__${path.sep}`)
 
 /**
  * Stories are discovered by a glob, not imported, so "no importer" says nothing about them — but
  * they DO count as importers of what they render.
  */
-const isStory = (file) => /\.stories\.(tsx?|mdx)$/.test(file)
+const isStory = (file) => new RegExp(`\\.stories\\.(${EXT}|mdx)$`).test(file)
 
-// Every extension a project can import FROM. Restricting this to `.ts`/`.tsx` did not narrow the
-// check, it broke it: an importer the scan never opened is an importer that does not exist, a file
-// with no importers is `unused`, and `unused` prints as "delete it". Two live `.js` consumers were
-// enough to have a working helper recommended for deletion.
-const SOURCE = /\.[cm]?[jt]sx?$/
 function listSources(directory) {
   if (!fs.existsSync(directory)) return []
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -150,7 +161,12 @@ const capabilities = new Set(
  */
 function ownerOf(file) {
   const inModules = relativeParts(moduleRoot, file)
-  if (inModules) return inModules[0]
+  // A capability is a DIRECTORY under moduleRoot. A file sitting directly there — `src/modules/
+  // index.ts` — was answered with its own filename, and that string then counted as a distinct
+  // owner: paired with one real capability it satisfied the two-owner threshold on the strength of
+  // a file that belongs to no capability at all. It is a structurally invalid location, so the
+  // honest answer is that the contract names no owner for it.
+  if (inModules) return inModules.length > 1 && capabilities.has(inModules[0]) ? inModules[0] : null
   const inShared = relativeParts(sharedRoot, file)
   if (inShared) return `shared/${inShared[0]}`
   if (isWithin(appRoot, file)) return 'app'
@@ -166,7 +182,7 @@ function ownerOf(file) {
 function listOuterImporters() {
   const rootFiles = fs
     .readdirSync(projectRoot, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && /\.(tsx?|mts|mjs)$/.test(entry.name))
+    .filter((entry) => entry.isFile() && SOURCE.test(entry.name))
     .map((entry) => path.join(projectRoot, entry.name))
   return [...rootFiles, ...listSources(path.join(projectRoot, 'scripts'))]
 }
@@ -205,9 +221,13 @@ for (const file of listSources(sharedRoot)) {
   const named = external.filter((importer) => ownerOf(importer) !== null)
   const owners = new Set(named.map(ownerOf))
 
-  if (external.length > 0 && named.length === 0) {
-    // Every importer sits in the layout the contract does not describe. The rule is about owners,
-    // and there are none to count — reported as undecided rather than folded into either verdict.
+  // Fail closed on ANY importer the contract cannot attribute, not only when every importer is one.
+  // `named.length === 0` discarded the unattributable ones the moment a single named owner existed,
+  // so one capability plus one importer from the undescribed layout was reported `demote` — "used
+  // only by the X capability", which was not true, about a file the check could not see all of.
+  // Two proven owners is the threshold the rule states, so below it an unknown importer decides
+  // nothing; at or above it the verdict is `ok` on the named evidence alone.
+  if (external.length > named.length && owners.size < 2) {
     unattributable.push({ file: relative, importers: external.length })
   } else if (owners.size === 0) privateCount += 1
   else if (owners.size === 1 && capabilities.has([...owners][0])) {
