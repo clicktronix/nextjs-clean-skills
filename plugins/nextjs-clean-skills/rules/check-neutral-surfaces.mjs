@@ -11,13 +11,25 @@
  * sides. A neutral surface used by only one runtime is not neutral; it is that runtime's file
  * sitting in a public slot, and every later reader has to re-derive why it is there.
  *
- * Consumers are classified by runtime, never by folder alone:
- *   client  a `'use client'` directive, a client-side segment, or a client surface
- *   server  the capability's `rsc` surface, or route composition under appRoot that is not itself
- *           a route handler or an action module (those are their own channels, not prefetch sites)
+ * WHICH RUNTIME A CONSUMER IS ON IS A GRAPH QUESTION, NOT A FOLDER QUESTION. The first version of
+ * this check answered it from folder names and a directive scan, and every one of its shortcuts was
+ * wrong in a way that produced a verdict rather than an error:
  *
- * A surface with no consumer at all fails the same way: the check reports what it found rather than
- * assuming absence means "not wired up yet".
+ *   - `ui/**` was read as client, but the contract permits server-renderable views there, so an RSC
+ *     consumer plus a server-rendered view passed as "both runtimes" when both were the server;
+ *   - a private `server/prefetch.ts` — the canonical server side of a hydrated cache — was neither
+ *     client nor server, so a correctly wired surface failed;
+ *   - test-only and type-only imports counted as runtime consumers, and a type import is erased
+ *     before a module graph exists;
+ *   - `export { key } from './query-cache'` was not an edge at all, so a re-exporting consumer was
+ *     invisible;
+ *   - a `'use client'` string anywhere in the file counted, including prose about the directive;
+ *   - a helper with no directive of its own was never client, even when only Client Components
+ *     import it — which is exactly how Next.js puts it in the client bundle.
+ *
+ * So the client side is computed the way the framework computes it: a file is a Client Component if
+ * it declares the boundary in its directive prologue, or if something already in the client graph
+ * imports it. Everything else is evaluated for the server side by where it sits.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -30,11 +42,9 @@ const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { contract, projectRoot, sourceRoot, moduleRoot, appRoot } = paths
 
 const neutralSurfaces = new Set(contract.neutralSurfaces ?? [])
-const clientSurfaces = new Set(contract.clientSurfaces ?? [])
-// Segment names and surface names coincide for the browser-owned ones (`client`, `ui`), which is
-// what makes this derivable instead of a second hardcoded list.
-const clientSegments = new Set((contract.segments ?? []).filter((segment) => clientSurfaces.has(segment)))
 const SOURCE = /\.[cm]?[jt]sx?$/
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/
+const TEST_DIR = new Set(['__tests__', '__mocks__'])
 // Their own channels. A route handler or an action module that reads a neutral surface is using it
 // as a server module, not prefetching into a hydrated client cache, so it is not the second side.
 const OWN_CHANNELS = new Set(['route', 'actions'])
@@ -61,38 +71,50 @@ function moduleLocation(file) {
   }
 }
 
+// A test exercises both runtimes by design and ships on neither. Counted as a consumer, one client
+// test was enough to make a server-only surface look cross-runtime.
+function isTestFile(file) {
+  if (TEST_FILE.test(path.basename(file))) return true
+  return path.relative(projectRoot, file).split(path.sep).some((part) => TEST_DIR.has(part))
+}
+
 const parse = (file, source) => ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
 
-function hasUseClientDirective(parsed) {
-  return parsed.statements.some(
-    (statement) =>
-      ts.isExpressionStatement(statement) &&
-      ts.isStringLiteral(statement.expression) &&
-      statement.expression.text === 'use client'
-  )
-}
-
-function consumerSide(file, parsed) {
-  const module = moduleLocation(file)
-  if (
-    hasUseClientDirective(parsed) ||
-    clientSegments.has(module?.segment) ||
-    clientSurfaces.has(module?.surface)
-  ) {
-    return 'client'
+// Next.js reads `'use client'` from the DIRECTIVE PROLOGUE only: the run of leading string-literal
+// expression statements, ending at the first statement that is anything else. Scanning every
+// statement instead accepted a bare string further down the file, which the framework does not.
+function hasClientPrologue(parsed) {
+  for (const statement of parsed.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) return false
+    if (statement.expression.text === 'use client') return true
   }
-  if (module?.surface === 'rsc') return 'server'
-
-  const inApp = relativeParts(appRoot, file)
-  if (inApp && !OWN_CHANNELS.has(stem(file))) return 'server'
-  return null
+  return false
 }
 
-function importSpecifiers(parsed) {
+// Value edges only, and every form of them. A type-only import is erased before the module graph
+// exists, so it puts nothing on either runtime; a re-export is as real an edge as an import.
+function valueEdges(parsed) {
   const specifiers = []
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      specifiers.push(node.moduleSpecifier.text)
+      const clause = node.importClause
+      // No clause at all is `import './side-effect'`, which is a value edge by definition.
+      const typeOnly =
+        clause &&
+        (clause.isTypeOnly ||
+          (!clause.name &&
+            clause.namedBindings &&
+            ts.isNamedImports(clause.namedBindings) &&
+            clause.namedBindings.elements.every((element) => element.isTypeOnly)))
+      if (!typeOnly) specifiers.push(node.moduleSpecifier.text)
+    }
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      const typeOnly =
+        node.isTypeOnly ||
+        (node.exportClause &&
+          ts.isNamedExports(node.exportClause) &&
+          node.exportClause.elements.every((element) => element.isTypeOnly))
+      if (!typeOnly) specifiers.push(node.moduleSpecifier.text)
     }
     if (
       ts.isCallExpression(node) &&
@@ -108,7 +130,38 @@ function importSpecifiers(parsed) {
   return specifiers
 }
 
-const files = listSourceFiles(sourceRoot)
+const files = listSourceFiles(sourceRoot).filter((file) => !isTestFile(file))
+const parsed = new Map(files.map((file) => [file, parse(file, fs.readFileSync(file, 'utf8'))]))
+const edges = new Map(
+  files.map((file) => [
+    file,
+    valueEdges(parsed.get(file))
+      .map((specifier) => resolveToExistingFile(paths, file, specifier))
+      .filter((target) => target && parsed.has(target)),
+  ])
+)
+
+// The effective client graph: declared boundaries, then everything they pull in.
+const clientReachable = new Set(files.filter((file) => hasClientPrologue(parsed.get(file))))
+const queue = [...clientReachable]
+while (queue.length > 0) {
+  for (const target of edges.get(queue.pop()) ?? []) {
+    if (clientReachable.has(target)) continue
+    clientReachable.add(target)
+    queue.push(target)
+  }
+}
+
+function consumerSide(file) {
+  if (clientReachable.has(file)) return 'client'
+  const module = moduleLocation(file)
+  // Prefetch and hydration happen in the capability's RSC surface or in its private server segment.
+  if (module?.surface === 'rsc' || module?.segment === 'server') return 'server'
+  const inApp = relativeParts(appRoot, file)
+  if (inApp && !OWN_CHANNELS.has(stem(file))) return 'server'
+  return null
+}
+
 const usage = new Map()
 for (const file of files) {
   const location = moduleLocation(file)
@@ -116,13 +169,9 @@ for (const file of files) {
 }
 
 for (const file of files) {
-  const parsed = parse(file, fs.readFileSync(file, 'utf8'))
-  const side = consumerSide(file, parsed)
+  const side = consumerSide(file)
   if (!side) continue
-  for (const specifier of importSpecifiers(parsed)) {
-    const target = resolveToExistingFile(paths, file, specifier)
-    if (target && usage.has(target)) usage.get(target).add(side)
-  }
+  for (const target of edges.get(file) ?? []) if (usage.has(target)) usage.get(target).add(side)
 }
 
 const errors = []

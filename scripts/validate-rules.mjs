@@ -841,5 +841,111 @@ expectCheck(
   'found client'
 )
 
+// ─── which runtime a consumer is on is a graph question ───
+// Six verdicts the folder-and-directive version got wrong, each reproduced here in the direction it
+// failed. Three were false PASSES — the worst kind, because the surface stays and the next reader
+// believes a check confirmed it — and three were false failures, which cost a real design its
+// legitimacy. `~/` aliases throughout, as above, so none of this leans on the conventional `@/`.
+const importsKey = (from) => `import { key } from '${from}'\n`
+
+// FALSE PASS 1: `ui/**` was read as client by folder. A server-rendered view plus the RSC surface
+// is two server consumers, and the surface has no browser side at all.
+expectCheck(
+  NEUTRAL,
+  'a server-renderable ui view is not the client side',
+  {
+    ...serverOnly,
+    'src/modules/orders/ui/list.tsx': `${importsKey('~/modules/orders/query-cache')}export const List = () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+
+// FALSE PASS 2: a test importing the surface counted as a runtime consumer. It ships on neither.
+expectCheck(
+  NEUTRAL,
+  'a client test is not a client consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/hook.test.ts': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const t = key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+
+// FALSE PASS 3: a type-only import is erased before any module graph exists.
+expectCheck(
+  NEUTRAL,
+  'a type-only import is not a runtime consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/types.ts': "'use client'\nimport type { Key } from '~/modules/orders/query-cache'\nexport type K = Key\n",
+    'src/modules/orders/query-cache.ts': "export type Key = string[]\nexport const key = ['orders']\n",
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+
+// FALSE PASS 4: `'use client'` is a directive only in the prologue. Further down it is a string.
+expectCheck(
+  NEUTRAL,
+  'a non-prologue use client string is not a boundary',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/hook.ts': `${importsKey('~/modules/orders/query-cache')}'use client'\nexport const useOrders = () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  1,
+  'found server'
+)
+
+// FALSE FAILURE 1: the private server segment is where prefetch lives — the canonical server side.
+expectCheck(
+  NEUTRAL,
+  'a private server prefetch is the server side',
+  {
+    'src/modules/orders/query-cache.ts': "export const key = ['orders']\n",
+    'src/modules/orders/server/prefetch.ts': `${importsKey('~/modules/orders/query-cache')}export const prefetch = () => key\n`,
+    'src/modules/orders/client/hook.ts': `'use client'\n${importsKey('~/modules/orders/query-cache')}export const useOrders = () => key\n`,
+  },
+  FLOOR_CONTRACT,
+  0,
+  'neutral surfaces ok'
+)
+
+// FALSE FAILURE 2: `export { key } from '...'` is an edge. Ignoring it hid a real consumer.
+expectCheck(
+  NEUTRAL,
+  'a named re-export is a consumer',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/keys.ts': "'use client'\nexport { key } from '~/modules/orders/query-cache'\n",
+  },
+  FLOOR_CONTRACT,
+  0,
+  'neutral surfaces ok'
+)
+
+// FALSE FAILURE 3: a helper with no directive of its own that only Client Components import IS in
+// the client bundle — Next.js decides that by the graph, and so must this. The helper deliberately
+// sits in `domain/`, the one segment whose folder says nothing about runtime: in a client folder
+// the old check reached the same verdict for the wrong reason, and a fixture that passes either way
+// proves nothing.
+expectCheck(
+  NEUTRAL,
+  'a helper reached only from a client boundary is client',
+  {
+    ...serverOnly,
+    'src/modules/orders/client/hook.tsx': "'use client'\nimport { label } from '~/modules/orders/domain/label'\nexport const H = () => label()\n",
+    'src/modules/orders/domain/label.ts': `${importsKey('~/modules/orders/query-cache')}export const label = () => key.join('/')\n`,
+  },
+  FLOOR_CONTRACT,
+  0,
+  'neutral surfaces ok'
+)
+
 fail(errors)
 console.log(`rules ok (${sandboxSummary}, ${floorAssertions} admission/neutrality verdicts)`)

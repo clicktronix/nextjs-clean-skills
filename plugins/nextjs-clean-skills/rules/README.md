@@ -17,6 +17,14 @@ try to infer business meaning from path names.
 | `check-shared-admission.mjs` | the countable half of shared admission: how many real owners import a shared file |
 | `check-neutral-surfaces.mjs` | a runtime-neutral surface is consumed from both runtimes, not one |
 
+`check-neutral-surfaces.mjs` decides which runtime a consumer is on from the effective module graph,
+not from its folder: a file is client when it declares `'use client'` in its directive prologue or
+when something already in the client graph imports it. Folder alone cannot answer it — `ui/**` holds
+server-renderable views as well as client ones. Type-only edges and test files are excluded (neither
+ships on a runtime), and named re-exports count as edges. The server side is the capability's `rsc`
+surface, its private `server/**` segment, or route composition under the app root that is not itself
+a route handler or an action module.
+
 `sharedAdmissionBudget` and `sharedAdmissionExempt` are optional too: the first is the ratchet — counts
 that may fall and never rise, absent meaning zero on every count — and the second lists project-relative
 paths the rule cannot apply to, each admitted with its reason. Both live here rather than in the script
