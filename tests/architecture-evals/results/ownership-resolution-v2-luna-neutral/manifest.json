@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-30T18:29:13.515Z",
+  "repositoryHead": "ba0fe94b9eb9d8514732dfc1d39dcf55d4733788",
+  "candidateCommit": "8331f18b3f064ca03224d3dd1845365b8d9e3c71",
+  "candidateTreeHash": "23feee8a9e0f2a83efe67e53425fcbafc54fd12b05b2c7723b3ecceba200abcc",
+  "candidateWorktreeDirty": false,
+  "codexVersion": "codex-cli 0.151.0",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "pre-domain-order",
+    "capability-first"
+  ],
+  "scenarioArms": {
+    "ownership-resolution": [
+      "no-skill",
+      "v1.3.2",
+      "pre-domain-order",
+      "capability-first"
+    ]
+  },
+  "scenarios": [
+    "ownership-resolution"
+  ],
+  "repeats": 2,
+  "generationRuns": 2,
+  "blindJudgeRuns": 2,
+  "reusedControlRuns": 6,
+  "controlSource": "tests/architecture-evals/results/ownership-resolution-luna-neutral",
+  "controlSourceCommit": "ba0fe94b9eb9d8514732dfc1d39dcf55d4733788",
+  "controlRepositoryHead": "7f5c7056f25916f95387fb4fb91d9d33eefc8acf"
+}

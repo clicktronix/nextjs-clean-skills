@@ -1,0 +1,305 @@
+{
+  "task": "Design the ownership and concrete file placement for a new 'workspace template' feature in a Next.js 16 App Router product. In authentication and billing, workspace means a tenant organization identified by workspace_id. In the editor UI, users call a saved canvas layout a workspace. The feature saves a canvas layout and applies it to another canvas; access follows the destination canvas project's membership. It does not provision organizations, change subscriptions, or alter tenant lifecycle. Existing capabilities are organizations, projects, and canvases. Decide the product name and capability owner, explain how the overloaded term is resolved, and show the smallest concrete tree and call flow. Do not implement code.",
+  "rubric": {
+    "positive": [
+      "Resolves the word workspace into separate tenant-organization and saved-canvas-layout concepts before choosing a module.",
+      "Uses the feature lifecycle and destination-project authorization edge to keep ownership with canvases or a narrowly named canvas-template concept, not tenant organizations.",
+      "Chooses product vocabulary that does not reuse workspace for both concepts and states the rename or clarification explicitly.",
+      "Proposes only the files and public runtime surfaces required for save and apply flows, preserving existing project membership checks.",
+      "Explains why a generic workspaces capability would couple unrelated lifecycle, authorization, and change authority."
+    ],
+    "negative": [
+      "Creates one generic workspaces capability that owns tenant organizations and saved editor layouts.",
+      "Uses the brief's leading noun as the owner without testing lifecycle or authorization.",
+      "Moves project membership authority into the new feature instead of using the existing project-owned contract.",
+      "Adds speculative layers, ports, or public surfaces unrelated to the two requested flows."
+    ]
+  },
+  "scoring": "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. Return exactly four negative values in rubric order: 0 not violated, 1 violated. total = sum(positive) - sum(negative). fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
+  "candidates": [
+    {
+      "candidate": "candidate-1",
+      "response": {
+        "summary": "Name the feature “Canvas Templates.” Treat `workspace` exclusively as the tenant organization (`workspace_id`); never use it for saved layouts. Canvas Templates belong to the Canvases/editor capability, while Projects provide membership authorization. The feature snapshots a canvas layout and applies that snapshot to a destination canvas; it does not touch organizations, billing, subscriptions, or tenant lifecycle.",
+        "tree": [
+          {
+            "path": "app/(product)/projects/[projectId]/canvases/[canvasId]/templates/page.tsx",
+            "purpose": "Template library UI for the destination canvas"
+          },
+          {
+            "path": "app/(product)/projects/[projectId]/canvases/[canvasId]/templates/actions.ts",
+            "purpose": "Authenticated server actions for saving and applying templates"
+          },
+          {
+            "path": "src/features/canvas-templates/model.ts",
+            "purpose": "Template snapshot types, validation, and naming"
+          },
+          {
+            "path": "src/features/canvas-templates/service.ts",
+            "purpose": "Save/list/apply orchestration"
+          },
+          {
+            "path": "src/features/canvas-templates/repository.ts",
+            "purpose": "Persistence for template snapshots and metadata"
+          },
+          {
+            "path": "src/features/canvases/access.ts",
+            "purpose": "Checks destination project membership and canvas access"
+          },
+          {
+            "path": "db/migrations/*_create_canvas_templates.sql",
+            "purpose": "Stores template id, source canvas metadata, snapshot, creator, and timestamps"
+          }
+        ],
+        "flows": [
+          "Save: authenticated user -> `templates/actions.ts` -> source canvas access check -> `canvas-templates/service.ts` -> repository snapshot of layout -> `canvas_templates` record.",
+          "List: authenticated user -> destination canvas template page -> destination project membership check via `canvases/access.ts` -> service/repository -> templates visible to that authorized project context.",
+          "Apply: authenticated user -> server action -> destination project membership and canvas access check -> load immutable template snapshot -> validate/transform layout for destination canvas -> canvas service update -> revalidate destination canvas UI."
+        ],
+        "decisions": [
+          {
+            "topic": "Product name",
+            "choice": "Canvas Templates",
+            "rationale": "Describes a reusable saved layout without colliding with the tenant organization meaning of workspace."
+          },
+          {
+            "topic": "Capability owner",
+            "choice": "Canvases/editor",
+            "rationale": "The feature snapshots and mutates canvas layout; Projects remain the authorization boundary."
+          },
+          {
+            "topic": "Ownership and access",
+            "choice": "Template records retain source metadata, but use destination project membership for listing and application",
+            "rationale": "Matches the requirement that access follows the destination canvas project's membership while preserving provenance."
+          },
+          {
+            "topic": "Term resolution",
+            "choice": "Reserve `workspace` and `workspace_id` for organizations only; use `template`, `canvas`, `project`, and `organization` everywhere else",
+            "rationale": "Prevents UI terminology from leaking into authentication, billing, or tenant lifecycle concepts."
+          }
+        ],
+        "risks": [
+          "Applying a template can overwrite destination layout state; require explicit confirmation and transactional persistence.",
+          "Templates may contain incompatible canvas references; store a validated snapshot and reject or adapt unsupported elements during application.",
+          "If cross-project template visibility is intended, define an explicit sharing model; destination membership alone does not specify which templates are discoverable."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-2",
+      "response": {
+        "summary": "Name the feature “Canvas Templates,” owned by the `canvas-templates` capability. It is not an organization, project, or tenant-lifecycle feature; “workspace” is reserved for tenant organizations.",
+        "tree": [
+          {
+            "path": "src/modules/canvas-templates/domain/template.ts",
+            "purpose": "Template identity, layout invariants, and compatibility rules."
+          },
+          {
+            "path": "src/modules/canvas-templates/application/template-operations.ts",
+            "purpose": "Save/apply policy and coordination across template storage and canvas/project authorization."
+          },
+          {
+            "path": "src/modules/canvas-templates/server/template-store.ts",
+            "purpose": "Private persistence for saved canvas layouts, with destination-project membership predicates."
+          },
+          {
+            "path": "src/modules/canvas-templates/server.ts",
+            "purpose": "Explicit trusted server surface for RSC reads and server-side composition."
+          },
+          {
+            "path": "src/modules/canvas-templates/rsc.ts",
+            "purpose": "RSC-facing template reads used by canvas pages."
+          },
+          {
+            "path": "src/modules/canvas-templates/actions.ts",
+            "purpose": "UI mutation entry points for saving and applying templates; authenticates and validates input."
+          },
+          {
+            "path": "app/projects/[projectId]/canvases/[canvasId]/templates/page.tsx",
+            "purpose": "Route-private template picker/list UI."
+          }
+        ],
+        "flows": [
+          "Save: `app/.../templates` UI → `src/modules/canvas-templates/actions.ts` → authenticate user → validate source canvas/template input → `application/template-operations.ts` loads the source canvas through the canvases public server surface → `server/template-store.ts` persists the layout.",
+          "Apply: template picker → `actions.ts` → authenticate user → validate template ID, destination canvas ID, and layout compatibility → application operation verifies membership in the destination canvas’s project → loads the template → updates the destination canvas in one transaction through the canvases server surface/store.",
+          "Read: `templates/page.tsx` Server Component → `rsc.ts` → `server.ts` → template store, querying only templates visible for the destination project membership. No self-HTTP Route Handler is needed."
+        ],
+        "decisions": [
+          {
+            "topic": "Product name",
+            "choice": "Canvas Templates",
+            "rationale": "Describes the saved layout directly and removes the collision with tenant organizations called workspaces."
+          },
+          {
+            "topic": "Capability owner",
+            "choice": "New `canvas-templates` capability, adjacent to `canvases`",
+            "rationale": "Templates have their own saved-artifact lifecycle, while application is coordinated with canvases and project membership. Organizations remain uninvolved."
+          },
+          {
+            "topic": "Authorization",
+            "choice": "Authorize application against the destination canvas project",
+            "rationale": "The task explicitly makes destination-project membership the access boundary. Source-canvas access is checked when capturing a layout."
+          },
+          {
+            "topic": "Application layer",
+            "choice": "Use one application operation module",
+            "rationale": "Save/apply coordinate persistence, authorization consequences, compatibility policy, and canvas mutation; deleting the operation would leak that policy into actions and routes."
+          },
+          {
+            "topic": "Runtime channels",
+            "choice": "Server Actions for mutations and RSC surface for reads",
+            "rationale": "These are product UI interactions. No external HTTP consumer, callback, stream, or job is required."
+          }
+        ],
+        "risks": [
+          "The product must clarify whether templates are visible to every member of the destination project or only to their creator; the proposed boundary supports either policy without moving ownership to organizations."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-3",
+      "response": {
+        "summary": "Name the feature “Canvas Templates,” owned by the existing `canvases` capability. “Workspace” remains reserved for tenant organizations (`workspace_id`); the editor concept is explicitly renamed so it cannot be confused with organization or billing behavior.",
+        "tree": [
+          {
+            "path": "src/modules/canvases/application/apply-template.ts",
+            "purpose": "Coordinates loading a template, checking destination-project membership, and applying the layout to the destination canvas."
+          },
+          {
+            "path": "src/modules/canvases/server/templates.ts",
+            "purpose": "Private template persistence and canvas snapshot access."
+          },
+          {
+            "path": "src/modules/canvases/server.ts",
+            "purpose": "Explicit trusted server surface for canvas-template composition."
+          },
+          {
+            "path": "src/modules/canvases/actions.ts",
+            "purpose": "Authenticated Server Actions for saving and applying Canvas Templates."
+          },
+          {
+            "path": "src/modules/projects/server.ts",
+            "purpose": "Existing project-membership query used through a narrow public server contract."
+          },
+          {
+            "path": "app/(editor)/projects/[projectId]/canvases/[canvasId]/templates/actions.ts",
+            "purpose": "Route-local composition only; invokes the canvases action surface."
+          }
+        ],
+        "flows": [
+          "Save: editor UI → `app/(editor)/projects/[projectId]/canvases/[canvasId]/templates/actions.ts` → `src/modules/canvases/actions.ts` authenticates the actor and validates input → `src/modules/canvases/server/templates.ts` verifies source-canvas access and stores a layout snapshot.",
+          "Apply: editor UI → `src/modules/canvases/actions.ts` authenticates and validates → `src/modules/canvases/application/apply-template.ts` loads the template, asks `src/modules/projects/server.ts` whether the actor belongs to the destination canvas’s project, loads the destination canvas, applies the snapshot, and persists the result.",
+          "Authorization: every protected channel establishes identity; the application policy checks destination-project membership; the canvas/template store enforces the applicable project/canvas ownership predicates."
+        ],
+        "decisions": [
+          {
+            "topic": "Product name",
+            "choice": "Canvas Templates",
+            "rationale": "The saved object is a reusable canvas layout. The name avoids the overloaded “workspace” term."
+          },
+          {
+            "topic": "Capability owner",
+            "choice": "`canvases`",
+            "rationale": "Template contents, snapshot semantics, and applying a layout are canvas behavior. Organizations and billing do not change."
+          },
+          {
+            "topic": "Overloaded terminology",
+            "choice": "Use “workspace” only for tenant organizations; use “Canvas Template” in editor UI, APIs, and persistence vocabulary.",
+            "rationale": "This preserves the existing `workspace_id` tenant meaning and prevents template operations from implying organization lifecycle or subscription behavior."
+          },
+          {
+            "topic": "Application operation",
+            "choice": "Use `application/apply-template.ts`; keep save persistence private in `server/templates.ts`.",
+            "rationale": "Apply coordinates multiple effects and an authorization-sensitive destination lookup. Save is a direct canvas-owned store operation."
+          },
+          {
+            "topic": "Runtime channels",
+            "choice": "Use Server Actions for editor mutations; use the canvases `server.ts` surface for trusted composition.",
+            "rationale": "These are authenticated UI mutations, with no stated external HTTP, streaming, or job consumer."
+          }
+        ],
+        "risks": [
+          "Applying a template should define conflict behavior for destination changes made after the template was created; the proposal assumes replacement of the relevant layout snapshot, subject to the existing canvas transaction/concurrency rules."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-4",
+      "response": {
+        "summary": "Name the feature “Canvas Templates.” Make it a child capability of Canvases/Editor, not Organizations, Projects, Authentication, or Billing. A template is a reusable snapshot of canvas layout data; applying it is authorized by membership in the destination canvas’s project.",
+        "tree": [
+          {
+            "path": "src/domain/canvas-templates/",
+            "purpose": "Template schema, identifiers, layout snapshot type, and pure invariants."
+          },
+          {
+            "path": "src/use-cases/canvas-templates/",
+            "purpose": "Save-template, list-available-templates, and apply-template use-cases plus ports for canvas access, templates, and layout updates."
+          },
+          {
+            "path": "src/adapters/outbound/supabase/canvas-templates/",
+            "purpose": "Supabase implementations of template persistence and scoped canvas-layout operations."
+          },
+          {
+            "path": "src/adapters/inbound/next/actions/canvas-templates.ts",
+            "purpose": "Server Actions for save and apply commands; parses input and composes dependencies."
+          },
+          {
+            "path": "src/dal/canvas-templates.ts",
+            "purpose": "Server-only authenticated read entrypoints for template lists/details, returning DTOs rather than raw rows."
+          },
+          {
+            "path": "src/app/projects/[projectId]/canvases/[canvasId]/templates/",
+            "purpose": "RSC route for the template picker and management UI."
+          },
+          {
+            "path": "src/ui/canvas-templates/",
+            "purpose": "Template picker, save-template dialog, and apply-template interactions."
+          },
+          {
+            "path": "supabase/migrations/*_canvas_templates.sql",
+            "purpose": "Template table, explicit layout columns, indexes, RLS policies, and scoped update/RPC support."
+          }
+        ],
+        "flows": [
+          "Save: canvas UI -> saveCanvasTemplate Server Action -> parse domain input -> verify actor and source canvas project membership -> save-template use-case -> CanvasTemplatesRepository port -> Supabase adapter -> invalidate the source project/canvas template read tag.",
+          "List: templates RSC page -> server-only DAL -> verify session and project membership -> list-available-templates use-case -> repository port -> Supabase adapter -> serializable template DTOs -> template picker.",
+          "Apply: template picker -> applyCanvasTemplate Server Action with templateId and destinationCanvasId -> parse input -> verify actor’s membership in the destination canvas’s project -> apply-template use-case -> load template snapshot and destination canvas through scoped ports -> atomically update destination layout -> invalidate destination canvas/project reads."
+        ],
+        "decisions": [
+          {
+            "topic": "Product name",
+            "choice": "Canvas Templates",
+            "rationale": "It describes the actual reusable artifact and removes the overloaded “workspace” term from the product contract."
+          },
+          {
+            "topic": "Capability owner",
+            "choice": "Canvases/Editor",
+            "rationale": "The feature snapshots and mutates canvas layout. Projects provide authorization scope; Organizations and Billing remain unaffected."
+          },
+          {
+            "topic": "Ownership model",
+            "choice": "Template owns an immutable layout snapshot; destination canvas owns the applied result",
+            "rationale": "Applying a template should not retain a live dependency on the source canvas or alter project/tenant lifecycle."
+          },
+          {
+            "topic": "Authorization",
+            "choice": "Destination project membership is checked in the Server Action/DAL and enforced again by scoped persistence/RLS",
+            "rationale": "Client state, route protection, and hidden fields cannot establish authority."
+          },
+          {
+            "topic": "Read and cache ownership",
+            "choice": "RSC plus server-only DAL for template lists; Server Actions for mutations",
+            "rationale": "This is a read-heavy picker with same-app UI commands, so TanStack Query is unnecessary unless realtime or optimistic behavior is later introduced."
+          }
+        ],
+        "risks": [
+          "The product must define whether templates are globally reusable or limited to a project; if global reuse is intended, the template read must still be evaluated in the destination-project authorization context.",
+          "Layout snapshots require versioning or migration handling when the canvas schema changes.",
+          "Apply should use one scoped transactional persistence boundary to avoid partially applying a layout.",
+          "Cache tags must include project and canvas identifiers so one project’s templates or layouts cannot leak into another."
+        ]
+      }
+    }
+  ]
+}

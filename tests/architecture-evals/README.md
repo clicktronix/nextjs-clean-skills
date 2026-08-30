@@ -51,6 +51,9 @@ pre-change skill snapshot as `pre-domain-order`. It is outside the frozen releas
 node scripts/run-architecture-eval.mjs --smoke --scenarios ownership-resolution --output <dir>
 ```
 
+Its first result and one correction replay are recorded in
+[`OWNERSHIP_RESOLUTION_RESULTS.md`](OWNERSHIP_RESOLUTION_RESULTS.md).
+
 The frozen two-tier, two-framing release protocol and acceptance thresholds are in
 [`RELEASE_GATE.md`](RELEASE_GATE.md). Its first completed result is recorded in
 [`RELEASE_RESULTS.md`](RELEASE_RESULTS.md). Candidate v3 uses the frozen replay protocol in

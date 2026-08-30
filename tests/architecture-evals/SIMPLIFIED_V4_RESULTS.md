@@ -29,8 +29,10 @@ linked references were available to the model and were not included in that hash
 partial. Later runs record a path-and-content `skillTreeHash`; `candidateCommit` remains provenance,
 not the identity of worktree text.
 
-The shipped skill also adds the domain-ownership decision order after this focused replay. That
-decision-model change is not measured by the result above and needs its own focused comparison.
+The shipped skill also adds the domain-ownership decision order after this focused replay. Its
+separate comparison is recorded in
+[`OWNERSHIP_RESOLUTION_RESULTS.md`](OWNERSHIP_RESOLUTION_RESULTS.md); do not attribute that later
+evidence to the CRUD scores above.
 
 | Arm | Mean | Fatal |
 | --- | ---: | ---: |
