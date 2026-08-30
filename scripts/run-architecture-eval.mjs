@@ -15,6 +15,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { hashDirectory } from "./hash-directory.mjs";
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const evalRoot = join(root, "tests", "architecture-evals");
 const defaultOutput = join(evalRoot, "results", "smoke-2026-07-27");
@@ -22,8 +24,14 @@ const model = process.env.ARCH_EVAL_MODEL ?? "gpt-5.6-luna";
 const judgeModel = process.env.ARCH_EVAL_JUDGE_MODEL ?? "gpt-5.6-sol";
 const framing = process.env.ARCH_EVAL_FRAMING ?? "neutral";
 const timeoutMs = Number(process.env.ARCH_EVAL_TIMEOUT_MS ?? 300_000);
-const arms = ["no-skill", "v1.3.2", "layer-first", "capability-first"];
+const releaseArms = ["no-skill", "v1.3.2", "layer-first", "capability-first"];
+const ownershipArms = ["no-skill", "v1.3.2", "pre-domain-order", "capability-first"];
 const scenarioIds = ["simple-crud", "remote-stream", "cross-capability"];
+const knownScenarioIds = [...scenarioIds, "ownership-resolution"];
+
+function armsForScenario(scenarioId) {
+  return scenarioId === "ownership-resolution" ? ownershipArms : releaseArms;
+}
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -59,14 +67,14 @@ function parseArgs(argv) {
     !options.smoke &&
     !options.judgeOnly &&
     !options.summaryOnly &&
-    (!scenarioIds.includes(options.scenario) || !arms.includes(options.arm))
+    (!knownScenarioIds.includes(options.scenario) || !armsForScenario(options.scenario).includes(options.arm))
   ) {
     throw new Error("Single run requires a known --scenario and --arm.");
   }
-  if (options.judgeOnly && !scenarioIds.includes(options.scenario)) {
+  if (options.judgeOnly && !knownScenarioIds.includes(options.scenario)) {
     throw new Error("--judge-only requires a known --scenario.");
   }
-  if (options.scenarios.some((scenario) => !scenarioIds.includes(scenario))) {
+  if (options.scenarios.some((scenario) => !knownScenarioIds.includes(scenario))) {
     throw new Error("--scenarios contains an unknown scenario.");
   }
   if (!Number.isInteger(options.repeat) || options.repeat < 1) {
@@ -74,6 +82,9 @@ function parseArgs(argv) {
   }
   if (options.candidateOnly && (!options.smoke || !options.controlSource)) {
     throw new Error("--candidate-only requires --smoke and --control-source.");
+  }
+  if (options.candidateOnly && options.scenarios.some((scenario) => scenario === "ownership-resolution")) {
+    throw new Error("--candidate-only cannot reuse controls for ownership-resolution.");
   }
   return options;
 }
@@ -198,7 +209,7 @@ async function prepareCodexHome(base) {
 // with the working tree, or `git archive` finds nothing and the control arms silently ship an empty
 // skill directory. A new arm cut from HEAD needs the current name instead.
 async function prepareArm(arm, workspace) {
-  if (arm === "no-skill") return { instruction: "", hash: null };
+  if (arm === "no-skill") return { instruction: "", skillHash: null, skillTreeHash: null };
 
   const skillTarget = join(workspace, "skill");
   if (arm === "v1.3.2") {
@@ -213,6 +224,12 @@ async function prepareArm(arm, workspace) {
       "plugins/nextjs-clean-skills/skills/nextjs-architecture",
       skillTarget,
     );
+  } else if (arm === "pre-domain-order") {
+    await gitArchive(
+      "ad4ed112950f7c135cb0255f5d8f427d467d401a",
+      "plugins/nextjs-clean-skills/skills/designing-architecture",
+      skillTarget,
+    );
   } else {
     await cp(join(evalRoot, "candidate"), skillTarget, { recursive: true });
   }
@@ -222,7 +239,8 @@ async function prepareArm(arm, workspace) {
     instruction:
       "An architecture skill is available at ./skill/SKILL.md. Read it before answering. " +
       "Read only the linked references that are directly relevant to this task.",
-    hash: sha256(skill),
+    skillHash: sha256(skill),
+    skillTreeHash: await hashDirectory(skillTarget),
   };
 }
 
@@ -303,7 +321,8 @@ async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome, resume 
         model,
         framing,
         taskHash: sha256(scenarioTask),
-        skillHash: armInfo.hash,
+        skillHash: armInfo.skillHash,
+        skillTreeHash: armInfo.skillTreeHash,
         responseSchemaHash: sha256(await readFile(join(evalRoot, "response.schema.json"))),
       },
       null,
@@ -327,7 +346,7 @@ async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome, resume 
 }
 
 function shuffledCandidates(scenarioId, repeat) {
-  return arms
+  return armsForScenario(scenarioId)
     .map((arm) => ({ arm, key: sha256(`${scenarioId}:${repeat}:${arm}`).slice(0, 12) }))
     .sort((left, right) => left.key.localeCompare(right.key))
     .map((item, index) => ({ ...item, candidate: `candidate-${index + 1}` }));
@@ -403,7 +422,7 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume = 
 }
 
 async function reuseControlRuns({ scenarioId, repeat, outputRoot, controlSource, resume = false }) {
-  for (const arm of arms.filter((item) => item !== "capability-first")) {
+  for (const arm of armsForScenario(scenarioId).filter((item) => item !== "capability-first")) {
     const source = join(controlSource, "runs", scenarioId, `repeat-${repeat}`, arm);
     const target = join(outputRoot, "runs", scenarioId, `repeat-${repeat}`, arm);
     if (resume && (await fileExists(target))) {
@@ -460,7 +479,7 @@ async function writeSummary(outputRoot, selectedScenarios = scenarioIds) {
       for (const key of Object.keys(usage.judge)) {
         usage.judge[key] += judgeUsage[key] ?? 0;
       }
-      for (const arm of arms) {
+      for (const arm of armsForScenario(scenarioId)) {
         const runUsage = await readUsage(
           join(outputRoot, "runs", scenarioId, `repeat-${repeat}`, arm, "events.jsonl"),
         );
@@ -470,7 +489,8 @@ async function writeSummary(outputRoot, selectedScenarios = scenarioIds) {
       }
     }
   }
-  const aggregate = arms.map((arm) => {
+  const selectedArms = [...new Set(selectedScenarios.flatMap((scenario) => armsForScenario(scenario)))];
+  const aggregate = selectedArms.map((arm) => {
     const armRows = rows.filter((row) => row.arm === arm);
     const total = armRows.reduce((sum, row) => sum + row.total, 0);
     return {
@@ -500,8 +520,14 @@ async function writeManifest(outputRoot, options) {
       "-1",
       "--format=%H",
       "--",
-      "tests/architecture-evals/candidate/SKILL.md",
+      "tests/architecture-evals/candidate",
     ],
+    { cwd: root },
+  );
+  const candidatePath = join(evalRoot, "candidate");
+  const { stdout: candidateStatus } = await run(
+    "git",
+    ["status", "--porcelain", "--", relative(root, candidatePath)],
     { cwd: root },
   );
   const manifest = {
@@ -509,14 +535,21 @@ async function writeManifest(outputRoot, options) {
     createdAt: new Date().toISOString(),
     repositoryHead: head.trim(),
     candidateCommit: candidateCommit.trim(),
+    candidateTreeHash: await hashDirectory(candidatePath),
+    candidateWorktreeDirty: candidateStatus.trim() !== "",
     codexVersion: codexVersion.trim(),
     generationModel: model,
     judgeModel,
     framing,
-    arms,
+    arms: [...new Set(options.scenarios.flatMap((scenario) => armsForScenario(scenario)))],
+    scenarioArms: Object.fromEntries(
+      options.scenarios.map((scenario) => [scenario, armsForScenario(scenario)]),
+    ),
     scenarios: options.scenarios,
     repeats: 2,
-    generationRuns: options.scenarios.length * 2 * (options.candidateOnly ? 1 : arms.length),
+    generationRuns: options.candidateOnly
+      ? options.scenarios.length * 2
+      : options.scenarios.reduce((total, scenario) => total + armsForScenario(scenario).length * 2, 0),
     blindJudgeRuns: options.scenarios.length * 2,
   };
   if (options.candidateOnly) {
@@ -530,7 +563,10 @@ async function writeManifest(outputRoot, options) {
       { cwd: root },
     );
     Object.assign(manifest, {
-      reusedControlRuns: options.scenarios.length * 2 * (arms.length - 1),
+      reusedControlRuns: options.scenarios.reduce(
+        (total, scenario) => total + (armsForScenario(scenario).length - 1) * 2,
+        0,
+      ),
       controlSource: controlPath,
       controlSourceCommit: controlSourceCommit.trim(),
       controlRepositoryHead: controlManifest.repositoryHead,
@@ -594,7 +630,7 @@ async function main() {
             resume: options.resume,
           });
         } else {
-          for (const arm of arms) {
+          for (const arm of armsForScenario(scenarioId)) {
             await runCell({
               scenarioId,
               arm,

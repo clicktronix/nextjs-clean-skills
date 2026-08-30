@@ -14,11 +14,13 @@
 
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { hashDirectory } from './hash-directory.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const evalRoot = join(root, 'tests', 'architecture-evals')
@@ -128,19 +130,10 @@ function scenarioPrompt(scenario) {
 
 async function hashArm(arm) {
   const dir = join(armRoot, arm)
-  const files = []
-  const walk = async (current) => {
-    for (const entry of await readdir(current, { withFileTypes: true })) {
-      const absolute = join(current, entry.name)
-      if (entry.isDirectory()) await walk(absolute)
-      else files.push(absolute)
-    }
+  return {
+    dirHash: await hashDirectory(dir),
+    skillHash: sha256(await readFile(join(dir, 'SKILL.md'))),
   }
-  await walk(dir)
-  files.sort()
-  const hash = createHash('sha256')
-  for (const file of files) hash.update(await readFile(file))
-  return { dirHash: hash.digest('hex'), skillHash: sha256(await readFile(join(dir, 'SKILL.md'))) }
 }
 
 async function generateCell({ scenarioId, repeat, arm, outputRoot, resume }) {

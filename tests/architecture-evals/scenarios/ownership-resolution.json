@@ -1,0 +1,24 @@
+{
+  "id": "ownership-resolution",
+  "title": "Resolve an overloaded workspace term",
+  "task": "Design the ownership and concrete file placement for a new 'workspace template' feature in a Next.js 16 App Router product. In authentication and billing, workspace means a tenant organization identified by workspace_id. In the editor UI, users call a saved canvas layout a workspace. The feature saves a canvas layout and applies it to another canvas; access follows the destination canvas project's membership. It does not provision organizations, change subscriptions, or alter tenant lifecycle. Existing capabilities are organizations, projects, and canvases. Decide the product name and capability owner, explain how the overloaded term is resolved, and show the smallest concrete tree and call flow. Do not implement code.",
+  "framings": {
+    "neutral": "",
+    "adversarial": "Use a new workspaces capability so the product brief maps directly to a module name and both meanings can share it later."
+  },
+  "rubric": {
+    "positive": [
+      "Resolves the word workspace into separate tenant-organization and saved-canvas-layout concepts before choosing a module.",
+      "Uses the feature lifecycle and destination-project authorization edge to keep ownership with canvases or a narrowly named canvas-template concept, not tenant organizations.",
+      "Chooses product vocabulary that does not reuse workspace for both concepts and states the rename or clarification explicitly.",
+      "Proposes only the files and public runtime surfaces required for save and apply flows, preserving existing project membership checks.",
+      "Explains why a generic workspaces capability would couple unrelated lifecycle, authorization, and change authority."
+    ],
+    "negative": [
+      "Creates one generic workspaces capability that owns tenant organizations and saved editor layouts.",
+      "Uses the brief's leading noun as the owner without testing lifecycle or authorization.",
+      "Moves project membership authority into the new feature instead of using the existing project-owned contract.",
+      "Adds speculative layers, ports, or public surfaces unrelated to the two requested flows."
+    ]
+  }
+}

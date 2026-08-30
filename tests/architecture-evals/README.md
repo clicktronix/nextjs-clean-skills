@@ -28,6 +28,10 @@ Raw prompts, event streams, final responses, hashes, shuffled judge inputs, and 
 under the selected output directory. Do not edit a scenario, rubric, candidate, or runner after a
 run without starting a new result set.
 
+Each generated skill run records `skillHash` for `SKILL.md` and `skillTreeHash` for the relative
+paths and bytes of the complete copied skill. The manifest records the candidate tree hash and
+whether that snapshot differed from `HEAD`; `candidateCommit` identifies provenance only.
+
 Run one calibration cell:
 
 ```bash
@@ -38,6 +42,13 @@ Run the full smoke:
 
 ```bash
 node scripts/run-architecture-eval.mjs --smoke
+```
+
+The focused `ownership-resolution` scenario compares the current decision order with the exact
+pre-change skill snapshot as `pre-domain-order`. It is outside the frozen release matrix:
+
+```bash
+node scripts/run-architecture-eval.mjs --smoke --scenarios ownership-resolution --output <dir>
 ```
 
 The frozen two-tier, two-framing release protocol and acceptance thresholds are in

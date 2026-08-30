@@ -23,9 +23,14 @@ frozen control responses. Both candidate answers scored 10/10 with no negative o
 They used direct channel-to-private-store flows and explicitly rejected speculative operations and
 repository ports.
 
-These runs used a worktree candidate. The per-run `metadata.json` `skillHash` values above bind the
-actual prompt content; `manifest.json` `candidateCommit` names the last commit touching the snapshot
-and must not be read as the identity of uncommitted candidate text.
+These runs used a worktree candidate, but their per-run `skillHash` covers only `SKILL.md`. The
+linked references were available to the model and were not included in that hash; the recorded
+`candidateCommit` also predates their committed snapshot. Treat this result's prompt provenance as
+partial. Later runs record a path-and-content `skillTreeHash`; `candidateCommit` remains provenance,
+not the identity of worktree text.
+
+The shipped skill also adds the domain-ownership decision order after this focused replay. That
+decision-model change is not measured by the result above and needs its own focused comparison.
 
 | Arm | Mean | Fatal |
 | --- | ---: | ---: |
