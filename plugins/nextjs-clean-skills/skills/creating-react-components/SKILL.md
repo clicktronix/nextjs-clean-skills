@@ -25,6 +25,9 @@ Fetch current React and Next.js docs for exact APIs.
 - Pass React-serializable props from RSC to Client Components.
 - Use a dedicated top-level `'use server'` module for UI commands.
 
+For a non-obvious split, read [Server/Client Boundary](references/server-client-boundary.md) or
+[Component Structure](references/component-structure.md).
+
 ## State Placement
 
 | State | Owner |
@@ -42,21 +45,13 @@ Fetch current React and Next.js docs for exact APIs.
 Do not copy server-owned data into `useState`, Context, or an external store unless it is an
 explicit editable draft. Do not use a client cache in a Server Component.
 
+For state or browser cache ownership, read [State Placement](references/state-placement.md) or
+[Client Cache Lifecycle](../designing-architecture/references/caching/client-cache.md).
+
 ## Component Structure
 
-For a logic-bearing Client Component, call its Hook directly:
-
-```tsx
-'use client'
-
-export function WorkItems(props: WorkItemsProps) {
-  const viewProps = useWorkItemsProps(props)
-  return <WorkItemsView {...viewProps} />
-}
-```
-
-Do not pass Hooks as values or wrap them in higher-order Hooks. Call named Hooks directly so the
-Hooks linter and React can analyze them.
+Call named Hooks directly from named components or named custom Hooks. Do not pass Hooks as values
+or hide them in higher-order helpers; React and the Hooks linter must see the call.
 
 Extract `WorkItemsView` when independent rendering tests or server reuse justify it, and keep both
 in one file while that stays readable.
@@ -74,6 +69,10 @@ rerender requirement.
   server.
 - Successful writes update or invalidate affected read owners.
 
+For mutation mechanics, read [Forms And Actions](references/forms-and-actions.md). For failure
+ownership, read [Failure Ownership](../designing-architecture/references/errors/failure-at-the-boundary.md)
+or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.md).
+
 ## Pending And Failure Surfaces
 
 - A segment's `loading.tsx` streams a fallback for its page and children. A root-level one is coarse:
@@ -87,6 +86,8 @@ rerender requirement.
   are for unexpected exceptions.
 - Match a placeholder to the final layout's main geometry when that shape is known.
 
+For boundary details, read [Loading And Errors](references/loading-and-errors.md).
+
 ## Forms And Feedback
 
 - Client validation provides early feedback; server validation is authoritative.
@@ -97,19 +98,8 @@ rerender requirement.
 - Raw provider messages never become user copy.
 - Unexpected failures are reported once at the action or channel boundary.
 
-## Reference Map
-
-- [Server/Client Boundary](references/server-client-boundary.md)
-- [Component Structure](references/component-structure.md)
-- [Forms And Actions](references/forms-and-actions.md)
-- [State Placement](references/state-placement.md)
-- [Loading And Errors](references/loading-and-errors.md)
-- [Styling, Text, And Accessibility](references/styling-and-i18n.md)
-- [Notifications And Feedback](references/notifications-and-feedback.md)
-- [Component Testing](references/component-testing.md)
-- [Client Cache Lifecycle](../designing-architecture/references/caching/client-cache.md)
-- [Failure Ownership](../designing-architecture/references/errors/failure-at-the-boundary.md)
-- [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.md)
+For presentation details, read [Styling, Text, And Accessibility](references/styling-and-i18n.md) or
+[Notifications And Feedback](references/notifications-and-feedback.md).
 
 ## Decision Gate
 
@@ -128,19 +118,4 @@ verification:      type | lint | component | e2e | visual | accessibility
 If the answer is "Client because it is easier," name the event, Hook, ref, browser API, or client
 lifecycle that requires it.
 
-## Common Failure Modes
-
-- Adding `'use client'` above a subtree that could stay server-rendered.
-- Passing a Hook as a value through a generic composition helper.
-- Hiding server data in local state, Context, or a broad store.
-- Using Server Actions for browser reads.
-- Importing `server.ts`, `rsc.ts`, or `server/**` from browser code.
-- Promoting route-private UI before a real second consumer exists.
-- Creating broad barrel or interface files for one local type.
-- Trusting client validation, identity, or tenant values.
-- Hardcoding user-facing copy outside the project i18n system.
-- Adding memoization without a measured reason.
-- Wrapping a whole page in one pending boundary instead of the slow region.
-- Throwing an expected outcome at an error boundary, or reporting it a second time there.
-- Leaving an interactive element without an accessible name, or removing its focus indicator.
-- Selecting elements in tests by class or test id when a role or label already identifies them.
+For verification details, read [Component Testing](references/component-testing.md).

@@ -22,6 +22,10 @@ Always answer two questions:
 1. Which product capability owns the behavior?
 2. Which named consumers and runtime channels need it?
 
+Resolve ownership in this order: existing product language and code -> one concrete lifecycle or
+authorization edge case -> coherent product goal -> capability owner. If one term names different
+concepts, resolve its meaning before choosing the module boundary.
+
 Only answer the following when the change actually touches them:
 
 - **Policy:** would deleting an operation move meaningful branching, projection, transaction intent,
@@ -55,7 +59,7 @@ ui/           reusable capability UI
 Create only segments required by current behavior. Do not add forwarding operations, mirrored
 repository ports, empty folders, or broad barrels to make the tree look complete.
 
-For ownership, placement, granularity, and runtime separation details, read only the relevant one:
+Read only the reference needed for the current decision:
 [modules and imports](references/placement/modules-and-imports.md),
 [capability ownership](references/placement/capabilities-and-ownership.md),
 [granularity](references/placement/capability-granularity.md), or

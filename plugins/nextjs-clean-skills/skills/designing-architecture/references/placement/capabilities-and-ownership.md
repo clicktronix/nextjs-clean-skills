@@ -5,6 +5,10 @@
 Name the capability before creating files. A capability owns product vocabulary and policy, not a
 page, table, transport, or provider.
 
+Start from the terms already used by product docs, code, and the task. If one term names different
+concepts, distinguish them by observable behavior first. Test each candidate boundary with one
+concrete creation, change, deletion, authorization, or lifecycle scenario before fixing the owner.
+
 ```text
 src/modules/work-items/
 src/modules/labels/

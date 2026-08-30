@@ -29,4 +29,8 @@ only the role it uses. A one-method function type is valid when one operation ne
 
 Ports own application-facing types. External wire and provider types remain in the private adapter.
 
+A port includes every fact its caller must know: invariants, ordering, failures, configuration, and
+relevant performance limits, not only TypeScript types. A useful port keeps implementation changes
+local and gives callers more behavior than concepts they must learn.
+
 Reference: role interfaces and purposeful conversations at a capability seam.
