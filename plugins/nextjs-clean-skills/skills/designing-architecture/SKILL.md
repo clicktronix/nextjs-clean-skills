@@ -59,6 +59,10 @@ ui/           reusable capability UI
 Create only segments required by current behavior. Do not add forwarding operations, mirrored
 repository ports, empty folders, or broad barrels to make the tree look complete.
 
+Keep capability-specific pure helpers and transformations inside the owning capability, not in a
+global utility bucket. Put domain invariants and calculations in `domain/**`; keep provider-row and
+wire-format mapping beside the private adapter in `server/**`.
+
 Read only the reference needed for the current decision:
 [modules and imports](references/placement/modules-and-imports.md),
 [capability ownership](references/placement/capabilities-and-ownership.md),
