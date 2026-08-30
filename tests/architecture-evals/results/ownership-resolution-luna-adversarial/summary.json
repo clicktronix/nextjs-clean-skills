@@ -1,0 +1,230 @@
+{
+  "aggregate": [
+    {
+      "arm": "no-skill",
+      "cells": 2,
+      "total": 9,
+      "mean": 4.5,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 2,
+      "total": 5,
+      "mean": 2.5,
+      "fatalCount": 0
+    },
+    {
+      "arm": "pre-domain-order",
+      "cells": 2,
+      "total": 9,
+      "mean": 4.5,
+      "fatalCount": 0
+    },
+    {
+      "arm": "capability-first",
+      "cells": 2,
+      "total": 12,
+      "mean": 6,
+      "fatalCount": 0
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        0,
+        1,
+        1,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 3,
+      "reportedTotal": 3,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly distinguishes tenant organizations from saved canvas layouts and preserves destination-project authorization through the existing projects contract. However, it still assigns ownership to a generic workspaces capability, retains workspace in both vocabularies, omits a concrete save use-case file, and adds listing/application pages and speculative concerns beyond the two requested flows."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        0,
+        1,
+        2,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 5,
+      "reportedTotal": 5,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly separates the two meanings, preserves project-owned membership checks, and provides a compact set of runtime surfaces for save and apply. It nevertheless chooses the generic workspaces module rather than canvases or a narrowly named canvas-template capability, continues using workspace in both qualified concepts, and does not explain why generic workspaces ownership couples unrelated authorities and lifecycles."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "pre-domain-order",
+      "positive": [
+        2,
+        0,
+        1,
+        1,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 3,
+      "reportedTotal": 3,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Correctly distinguishes tenant and layout concepts and delegates membership and canvas authority through existing capability contracts. Its generic workspaces owner conflicts with the lifecycle-based ownership criterion, its vocabulary still reuses workspace, and the extra adapter layer, dedicated listing surface, and transactional abstraction exceed the smallest concrete save/apply design."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        0,
+        1,
+        0,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 2,
+      "reportedTotal": 2,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Explicitly distinguishes tenant organizations from reusable layouts and keeps destination-project membership as the authorization boundary. But it assigns the feature to generic workspaces, retains the overloaded noun in both product concepts, and introduces a broad hexagonal stack of ports, repositories, adapters, DAL, validation, cache ownership, listing, and UI files well beyond the minimum save/apply surfaces."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        1,
+        1,
+        2,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 6,
+      "reportedTotal": 6,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly distinguishes tenant organizations from saved layouts and preserves existing project-membership authorization. Its save/apply tree is compact and concrete. However, ownership remains under the generic `workspaces` capability rather than canvases or a narrowly named canvas-template capability, the product name still reuses “workspace,” and it does not explain the coupling risk of a generic capability."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "total": 3,
+      "reportedTotal": 3,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Separates the two meanings and correctly identifies destination-project membership as authoritative, but still assigns ownership to generic `workspaces` and retains “Workspace Templates” vocabulary. The proposed ports, adapters, DAL, migration, and multiple authorization/persistence abstractions are excessive for the requested smallest design. Its workspace-owned `canvas-access` adapter also risks relocating project-membership authority instead of consuming the existing project-owned contract."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        1,
+        1,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly separates tenant organizations from saved canvas layouts, uses existing projects/canvases surfaces for authorization, and presents a focused tree and call flow. It still places the feature beneath generic `workspaces` and reuses “workspace” in the product name, but partially addresses generic-capability coupling by warning against consolidation unless lifecycle and policy truly match."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "pre-domain-order",
+      "positive": [
+        2,
+        1,
+        0,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 6,
+      "reportedTotal": 6,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Correctly distinguishes the concepts, preserves project/canvas authority, and limits runtime channels to relevant RSC and Server Action surfaces. Ownership is nevertheless assigned to generic `workspaces`, and the explicit decision to call saved layouts “workspaces” fails the rubric’s requirement for non-overloaded product vocabulary. Its lifecycle and dependency discussion only partially explains why generic consolidation would couple unrelated authorities."
+    }
+  ],
+  "usage": {
+    "generation": {
+      "input_tokens": 503542,
+      "cached_input_tokens": 366080,
+      "output_tokens": 20294
+    },
+    "judge": {
+      "input_tokens": 106710,
+      "cached_input_tokens": 64512,
+      "output_tokens": 3944
+    }
+  }
+}
