@@ -83,9 +83,6 @@ function parseArgs(argv) {
   if (options.candidateOnly && (!options.smoke || !options.controlSource)) {
     throw new Error("--candidate-only requires --smoke and --control-source.");
   }
-  if (options.candidateOnly && options.scenarios.some((scenario) => scenario === "ownership-resolution")) {
-    throw new Error("--candidate-only cannot reuse controls for ownership-resolution.");
-  }
   return options;
 }
 

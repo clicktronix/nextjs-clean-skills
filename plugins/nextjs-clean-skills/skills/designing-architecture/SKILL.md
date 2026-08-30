@@ -22,8 +22,9 @@ Always answer two questions:
 2. Which named consumers and runtime channels need it?
 
 Resolve ownership in this order: existing product language and code -> one concrete lifecycle or
-authorization edge case -> coherent product goal -> capability owner. If one term names different
-concepts, resolve its meaning before choosing the module boundary.
+authorization edge case -> coherent product goal -> capability owner. A brief's leading noun is not
+an owner. When one term names concepts with different lifecycle, authorization, or change authority,
+name them separately before choosing the boundary; do not group them in one capability.
 
 Only answer the following when the change actually touches them:
 
