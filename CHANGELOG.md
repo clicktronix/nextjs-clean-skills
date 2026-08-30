@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Simplified `designing-architecture` around ownership, named consumers, runtime channels, and
+  conditional trust decisions. Ordinary component work preserves local architecture; detailed guidance
+  is loaded through direct topic references, while shared admission and `query-cache.ts` retain their
+  full model-visible gates.
+- Hardened the migration workflows around declared channel changes, operator-supplied ownership and
+  dependency decisions, real surface consumers, unmeasured agents, bounded fix-loop outcomes, and
+  adversarial review of the semantic properties static rules cannot prove.
+- Added optional `generatedRoot` enforcement: generated files may compose internally, external imports
+  stay inside capability-private `server/**`, and configured roots must remain inside `sourceRoot`.
+- Removed the shared-admission and runtime-neutral-consumer scripts whose path heuristics claimed to
+  prove semantic ownership and real runtime use. Their full gates now run in architecture review;
+  static rules retain only the import properties they can establish.
+- Moved the live migration summary from the workflow manual to `docs/evidence.md`.
+
 - **BREAKING**: renamed the architecture skill from `designing-nextjs-capabilities` to
   `designing-architecture`. The previous name repeated `nextjs`, which the plugin name already
   carries, and scoped the skill to capability placement when it also governs runtime boundaries,
@@ -13,111 +27,7 @@ All notable changes to this project are documented in this file.
   `/nextjs-clean-skills:designing-architecture` and `$designing-architecture`. Frozen eval artifacts
   keep their historical paths, which predate both renames.
 
-
-- Replaced the prescribed four-provider component recipe with state ownership first: keep
-  per-keystroke state in its smallest subtree and split Context only by real consumer sets or update
-  frequencies.
-- Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
-  keeping framework-specific rules out of portable references.
-- **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
-  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
-  `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
-  links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
-  the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
-  that predate the rename, and `tests/architecture-evals/candidate/` plus `opus5-gates/` are hashed
-  snapshots.
-- Scoped the `creating-react-components` decision gate to non-trivial changes so a one-line UI edit
-  does not require the full seven-field classification.
-- Linked failure ownership and error taxonomy directly from `creating-react-components`, which reached
-  them only through `loading-and-errors.md` and `notifications-and-feedback.md`. A reference behind a
-  reference gets previewed rather than read whole, so the routing path now stays one level deep.
-- Added what each skill does to its `description`, after the existing "Use when" trigger clause that
-  this repository requires, so routing metadata carries capability and trigger rather than trigger
-  alone.
-- Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
-  candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
-  `shared/server` root the contract admits, and generation runs on Codex models only.
-- Told `designing-architecture` to read its references directly rather than delegating a handful of
-  file reads to subagents, and to size a written proposal to the decision it serves.
-- Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
-  `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
-  `database-resource-ownership`, `external-backend-authority`, and `supabase-identity-modes`. The
-  original observations are retained under `green_check_invalidated` with the reason; the coverage
-  table now reports them as rerun-pending rather than GREEN. This is the content-hash guard working
-  as designed — the cells need a RED/GREEN rerun before release, not a hash refresh.
-
 ### Added
-
-- `fileOwners` answers the files a run reported as unplaceable, the way `dependencyDecisions` answers
-  unclassified packages. The first live run stopped on five unowned files in the pilot — the right
-  call — and the operator's only route forward was a second full pass: fourteen agents to settle a
-  question five strings would have settled. The blocker now carries the answer, names the files, and
-  points at `resumeFromRunId` so the retry replays the inventory from cache. Decisions are checked
-  against this run's unassigned list and against the capabilities the inventory actually found, so
-  neither a stale answer nor an invented capability can enter the manifest.
-- Phase 2 reports instruction files that still name paths it deleted. The adversarial reviewer found
-  this on the third round of the first live run — by luck, since it is not a property it is asked
-  about — and a human fixed it afterwards; until then every agent session in that repository read
-  rules describing a layout that no longer existed. Detection only: those files are how a team
-  instructs its agents, and the wording is theirs. The gate names file, line and dead path, and a
-  probe that could not run is reported as unchecked rather than as clean.
-- The report says WHY the fix loop stopped — `cap-reached`, `no-progress`, `converged` or
-  `not-entered`. `fixRounds: 2` cannot tell "the budget ran out, another round might finish it" from
-  "a round changed nothing an oracle can see", and those ask the operator for different things. The
-  first live run hit the cap with a must-fix outstanding and the report could not say so.
-
-
-- `generatedProviderLeak`: generated provider contracts may be imported only by private
-  `server`/`client` adapters or shared server/client runtime code. Let a generated row past the
-  adapter that translates it and every consumer downstream is coupled to a file a code generator
-  rewrites. The contract's new `generatedRoot` is optional — absent, the rule is inert, which states
-  "this project generates nothing" rather than leaving the property unchecked. Both halves are
-  covered: the private adapter's import is asserted clean, so the rule cannot only ever say no.
-- The plan declares **channel changes**, and the gate surfaces them. The architecture decides which
-  runtime channel a behaviour belongs on — browser-owned reads use `GET` or streams and never Server
-  Actions — so a capability sitting on the wrong channel *must* move, and moving it is still a
-  behaviour change. In the first live run the pilot's browser reads went from Server Actions to a GET
-  route, which altered the error shape, made 5xx retryable under the shared predicate, and turned one
-  store outage into one Sentry report per attempt. Typecheck, lint, 988 tests and the production build
-  all stayed green, because nothing tested report-once; only the adversarial reviewer caught it, and it
-  cost two fix rounds. The word "channel" did not appear anywhere in phase 2 before this change.
-- The pilot's human gate is written as instructions instead of a citation. It named the document and
-  asked for "accept, revise or reject"; the operator of the first live run said they did not
-  understand the sentence, which means the gate asked for a decision it had not equipped them to
-  make. It now states what the run did, what each verdict means, what to do next in each case, and
-  the name of the next capability to pass to the workflow.
-- The gate names the capabilities still on the old layout, and says that a repository holding both
-  layouts between capabilities is the intended state. The same operator saw `src/modules/work-items/`
-  beside an untouched `src/use-cases/labels/` and asked whether the migration had failed. It had not
-  — a pilot is one capability by design — but nothing in the output said so. `capabilities` is now
-  admitted by the manifest schema, which had been closed against a key phase 1 writes: the fourth
-  instance of that trap in this file.
-- Two checks the architecture stated and nothing enforced, ported from the downstream template and
-  made portable on the way:
-  - `check-shared-admission.mjs` decides the countable half of shared admission — how many
-    CAPABILITIES import a file under `sharedRoot`, which is the threshold the contract states in as
-    many words. `app`, other shared roots and repository-root wiring are scanned and named so a live
-    file is never called `unused`, but none of them is a capability and none can admit a file. Identical
-    meaning, lifecycle and coordination cost stay a review judgement, and the check says so rather
-    than claiming a semantic property is linted. Verdicts: `unused` (delete), `demote` (one
-    capability owns it, that is its home), `speculative` (one importer, written for a second
-    consumer that never arrived), `private` (its own root's detail, not governed).
-  - `check-neutral-surfaces.mjs` decides whether a runtime-neutral surface is consumed from both
-    runtimes. `eslint-boundaries.mjs` already constrained what such a surface may import; nothing
-    checked that it is actually shared. A `query-cache.ts` used by one runtime is that runtime's
-    module sitting in a public slot.
-- The ratchet and the exemptions live in `architecture-contract.json` (`sharedAdmissionBudget`,
-  `sharedAdmissionExempt`), not in the script. A vendored check carrying one repository's debt
-  numbers is a check the first adopter edits, which forks it from this source and ends re-sync —
-  which is exactly what happened to the copy this was ported from. Absent, the budget is zero.
-- Both checks resolve paths through `contract-paths.mjs`, so a repository whose alias is not `@/`
-  and whose source root is not `src` is judged correctly. The fixtures use `~/` deliberately: with
-  the conventional alias they would have proved nothing about portability.
-- Both phases run them. Phase 1 counts them in the census and states that, like the database check,
-  they are structurally red before anything moves. Phase 2's architecture oracle runs them against
-  the migrated capability, where a helper moved into `shared/**` or a surface created by the
-  migration is exactly what they exist to catch.
-
 
 - Migration workflows now ship **inside the plugin**, at
   `plugins/nextjs-clean-skills/workflows/`: `prepare-architecture-migration` inventories a target
@@ -144,6 +54,7 @@ All notable changes to this project are documented in this file.
   runtime throws on, and executes the pilot's destination, plan-screening and recommendation logic
   against tables. The workflows README is now covered by the docs link check.
 
+### Added
 
 - `dependencyDecisions` lets the operator answer the packages a run reported as undecided:
   `{ "dayjs": "runtime" }`. Phase 1 correctly refuses to classify a dependency the product has not
@@ -153,172 +64,15 @@ All notable changes to this project are documented in this file.
   rather than written into a new repository's contract, and they are recorded in the manifest and the
   run result so a later reader can tell an inference from a ruling.
 
-
-- Added the narrow runtime-neutral `query-cache.ts` surface for serializable TanStack Query keys
-  shared by server prefetch/hydration and browser queries. Server cache tags and one-sided keys stay
-  private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
-- Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
-  and stable contract rather than by tables or CRUD screens.
-- Added exhaustive direct dependency classification and a Supabase resource ownership canary for
-  undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
-- Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
-  from RLS, and added the external-authority profile for Next.js BFF modules.
-- Added focused loading/error ownership and component-testing references, including accessible
-  pending states, expected failure rendering, component-level test selection, and direct Hook calls.
-- Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
-  Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
-- Added a two-arm Claude Opus 5 A/B runner (`scripts/run-opus5-gate-eval.mjs`) that reuses the
-  frozen scenarios, rubric, response schema, blind-shuffle algorithm, and Codex judge. The frozen
-  four-arm runner and its result sets are untouched and still replay byte-for-byte.
-
 ### Fixed
-
-- The vacuous-baseline waiver is per counter. `capabilityTierBinds === false` suppressed EVERY
-  non-capability regression — including unresolved imports, database ownership and pre-existing lint
-  debt, none of which need `moduleRoot` to exist. Executing the decision function with those newly
-  non-zero returned `accept`. Phase 1 now names the counters whose zero meant "nothing to classify"
-  and phase 2 waives only those; an omitted set waives nothing, which is the safe direction.
-- Which capabilities are still on the old layout is read from the tree, not assumed. `REMAINING` was
-  every capability the manifest lists except the one being migrated — true only of the first run. On
-  the second it labelled the pilot the first run had migrated as old-layout; on the last it still
-  claimed a mixed tree and offered a finished capability as the next one to do. The manifest cannot
-  answer this, being written once before anything moves, so the load probe reports each capability's
-  current layout: migrated, old-layout, both at once (which the contract forbids and nothing had
-  named), or undetermined — and undetermined is counted as neither.
-- A dead agent no longer reads as a reporting one. `agent()` returns `null` when a subagent dies, and
-  `null` is falsy in exactly the places these guards read a boolean off it: a dead consumer mover was
-  ignored whenever phase 1 had recorded no consumer — the case where its whole-tree grep matters most
-  — and a missing behaviour or architecture probe read as RED, so fix agents spent the budget
-  repairing failures nobody had observed. The fix loop now runs only on oracles that reported, gains
-  an `unmeasured` exit for a probe that dies mid-loop, and a dead instruction probe or radius probe
-  says so in the gate instead of falling through the branch a clean result takes.
-- A surface consumer must be a file this run knows exists, and a surface cannot justify itself. The
-  screening admitted anything under the capability directory and anything deep enough under a
-  recorded app folder — prefix tests, which admit strings rather than files — so an invented path
-  kept a surface alive and the mover published a public surface no code imports. Admitted now: a
-  recorded consumer, an assigned file this plan does not delete, or a destination the script itself
-  computed. Surface-to-surface references are followed rather than trusted, and a surface is matched
-  by every name it has in the plan — its moving source, its computed destination, and its authored
-  path — so a surface naming itself, or two naming each other, reaches no real importer and is
-  rejected whichever spelling it uses.
-- Phase 2 reads the files phase 1 could not place. Phase 1 blocks only the unplaced files it
-  attributes to the pilot and tells the operator the rest "block their own capability later" — but
-  the handoff schema did not admit `unassigned`, so later never came: the run migrated the assigned
-  subset and left the rest at their old paths importing modules it had just moved, which is one
-  capability carrying both topologies. The rows are required, not merely admitted — omitted, they
-  read exactly like "phase 1 placed everything" — and the refusal happens before the planner and
-  before the empty-manifest return, so a capability whose files are ALL unplaced gets the
-  `fileOwners` answer rather than a dead end.
-- The two shipped checks agree about a private-server consumer of a neutral surface. The neutral
-  check counted it as the server side while `privateServerBackedge` called the same import a
-  violation, so the advertised green floor was unreachable for a pattern § Dependency Direction 9
-  permits in as many words: "Both server and browser paths may import `query-cache.ts`". One sandbox
-  tree is now judged by both.
-- `channelChanges` is a required plan field, and a malformed entry is rejected rather than dropped.
-  Optional, the key was absent both when the planner had assessed channels and found none and when it
-  had never looked, and the script defaulted both to an empty list. The adversarial reviewer is now
-  handed the declaration and asked to find transport changes the plan did not declare — nothing
-  compared the claim with the built code before.
-- One module-graph extractor for all three checks, reporting each edge's KIND. Every checker grew
-  its own and each missed something different — a no-substitution template, `module.require`, a
-  two-argument `import()`, an empty named-import list — and an edge the extractor cannot see is an
-  importer that does not exist, which this floor prints as "delete it". The runtime view (type edges
-  erased) belongs to the neutral check alone: admission counts a type consumer as a consumer, and a
-  type-only cycle is still a cycle.
-- The neutral check's server graph is seeded from the RSC surface and the App Router composition
-  entrypoints only. `server/**` is where prefetch lives, not where the graph starts: seeded as a
-  root, an action-only helper there — or a private file nothing imports at all — manufactured the
-  prefetch side on its own. A file convention is matched against the configured page extensions
-  exactly, so `page.helper.ts` is a helper rather than an entrypoint and `route.helper.ts` is not a
-  channel of its own.
-- `unattributable` is a ratchet count like the others. Recorded but left out of the budget, it
-  printed on the SUCCESS path, so a tree the check openly could not judge exited zero under the line
-  "shared admission ok".
-- `check-neutral-surfaces.mjs` classifies consumers by the effective module graph. Every folder
-  shortcut it used was wrong in a way that produced a verdict: `ui/**` was read as client though the
-  contract permits server-renderable views there, a private `server/prefetch.ts` was neither side,
-  test-only and type-only imports counted as runtime consumers, a named re-export was not an edge at
-  all, a `'use client'` string anywhere in the file counted as a directive, and a helper with no
-  directive was never client even when only Client Components import it.
-- Emitted specifiers resolve per extension, the way TypeScript resolves them: `./x.mjs` is `x.mts`,
-  never `x.ts`, and declaration files are candidates. One shared substitution list picked files the
-  compiler would not have picked and knew nothing about `.d.ts`, so a live import resolved to nothing
-  and its target read as unused. The ESLint glob covers the NodeNext extensions too — it and the
-  resolver disagreed about what the project contains, and the narrower one was the one that judges.
-- `sharedAdmissionExempt` maps each path to its reason. It was consumed as a bare list of paths while
-  the README and the failure message both required a rationale, so there was no value an author could
-  write that satisfied both — every exemption was reasonless by construction. A blank reason now
-  fails; an old bare-list contract still runs and is told what is missing.
-- The fix loop compares canonicalised state, and a rejection is reported as one. Counters in a
-  different key order or findings in a different order were treated as progress, and a post-fix
-  `reject` below the cap was labelled `converged` — "cleared what it was watching", printed directly
-  above a verdict saying the ownership model is wrong.
-- An unclassified dependency stops the run BEFORE anything is written to the target. The blocker was
-  computed after the phase that copies `rules/`, drafts the contract and amends the ESLint config —
-  so the target was already half-converted when the run announced it could not proceed. The refusal
-  carries the `dependencyDecisions` answer and `resumeFromRunId`, and the test asserts the installer
-  never ran, not merely that a blocker appears later.
-- `check-shared-admission.mjs` scans every source extension, not `.ts`/`.tsx` only, and counts
-  `require()` and `import x = require()` as imports. An importer the scan never opens is an importer
-  that does not exist; a file with no importers is `unused`; and `unused` prints as "delete it". Two
-  live `.js` consumers were enough to have a working helper recommended for deletion.
-- The same check counts OWNERS, not importing files. Two routes under one `app` owner were reported
-  admitted, though the rule it enforces reads "at least two real capabilities" — files belonging to
-  one owner are one consumer however many of them there are.
-- The root README said neither workflow had run against a live repository while the workflows README
-  documented both runs. § Sources Of Truth treats a disagreement between surfaces as a defect.
-- One import resolver, in `contract-paths.mjs`, used by both new checks. They had one each and each
-  was blind exactly where the other could see: the admission check resolved directory `index` files
-  but not `./x.js` meaning `x.ts`, the neutral-surface check the reverse. The admission blindness had
-  teeth — an unresolvable import is an import it does not count, a shared file with no counted
-  importer is reported `unused`, and `unused` means "delete it". Both cases are now fixtures.
-- The check that pins the `rules/` file count reads every surface that states it, not only the
-  workflow. That is precisely how the commit correcting the workflow to "nine" left `rules/README.md`
-  saying "seven": the guard against a stale number was looking at one of the two places it appears.
-- `check-shared-admission.mjs` no longer answers `app` for files the contract cannot place. Anything
-  under `sourceRoot` but outside `moduleRoot`, `appRoot` and `sharedRoot` belongs to a layout the
-  contract does not describe, and calling it `app` made two files in `src/lib/` look like a
-  legitimate consumer set — so a shared helper was reported *admitted* on the evidence of nothing.
-  That is the tree this check exists for: before migration almost every file is one of these. They
-  are now counted and printed as `unattributable`, which declines to judge rather than guessing.
-- `generatedRoot` is no longer shipped in the contract template. Declared there, every repository
-  adopting the floor would inherit a `src/generated` it never has — the opposite of the optional,
-  inert-when-absent behaviour intended. The sandbox declares it explicitly, and the absent case is
-  asserted: the rule must stay silent, not merely unchecked.
-- The operator's file-ownership answers are merged before anything is derived from the assignment
-  list. They were applied after `byCap` was built, so `capabilities[].files` undercounted by exactly
-  the files the operator had just placed. The injected rows now carry the shape the schema requires
-  and the planner reads, with `runtime` stated as unknown rather than invented.
-- A failed instruction-layer probe says so in the gate. It set `checked: false` in the payload but
-  emitted no gate line, which is indistinguishable from a clean layer on the surface the operator
-  actually reads.
-- The three verify oracles measure, so they take the read-only schema too. Only the radius probe had
-  been moved; the oracles whose own prompt says "Measure one oracle" still carried `filesTouched`.
-- The fix loop's `converged` exit gets its own gate line. `not-entered` stays silent deliberately: a
-  line about a loop that never had to start is noise in front of the decision.
-- Two stale counts in documentation: `rules/README.md` still said "seven non-README files" (nine) and
-  the workflows README still said 16 messageIds (17). The workflow's own copy instruction was updated
-  in the same commit that left the README behind, and the check that pins that number reads only the
-  workflow. Both optional contract keys the admission check reads are now documented beside
-  `generatedRoot`, which had been given both surfaces while they had neither.
-- The workflows README claimed phase 2 had never run against a live repository. It has.
-
-- The change-radius step is handed a read-only schema instead of the mover's. Offered `filesTouched`,
-  it filled it with a path it had only imagined — a migration file for the hypothetical change it was
-  asked to measure. Nothing consumed it, but a schema that gives a measurement the vocabulary of a
-  write invites exactly that.
-
 
 - The baseline census carries whether it could measure anything. On a repository that has not moved
   a file yet, `moduleRoot` does not exist, so every capability, segment and surface rule reports zero
   for want of anything to classify — a structural vacuum, not a clean bill of health. Phase 2
   compared its post-migration counts against those zeros, so the first correct pilot read as a
   repo-wide regression and would have been told to revise. Phase 1 now records
-  `capabilityTierBinds` and warns when it is false; the pilot capability must still reach zero, which
-  never depended on the baseline. The waiver this entry originally described — suppressing the whole
-  regression arm on such a baseline — was replaced before release by the per-counter waiver above:
-  it also suppressed counters that never needed `moduleRoot`. Release notes describe the per-counter
-  behaviour; this entry stands only for the census flag.
+  `capabilityTierBinds`, warns when it is false, and phase 2 waives only the regression arm on such
+  a baseline; the pilot capability must still reach zero, which never depended on the baseline.
 - Phase 1 adds `migration-manifest.json` to the target's formatter ignore list alongside `rules/`.
   It writes that file itself in a later phase, and it failed the target's `format:check` for exactly
   the reason the vendored files did — the first fix covered the directory and missed the file.
@@ -448,6 +202,25 @@ All notable changes to this project are documented in this file.
   unverified enforcement point is the same trade that turned `additionalProperties` into a ban on
   upgrades. If these skills are ever uploaded through the Skills API, the check belongs there.
 
+### Added
+
+- Added the narrow runtime-neutral `query-cache.ts` surface for serializable TanStack Query keys
+  shared by server prefetch/hydration and browser queries. Server cache tags and one-sided keys stay
+  private, and static plus whole-fixture checks prevent the surface from becoming a generic bucket.
+- Defined capability granularity by product goal, vocabulary, policy, lifecycle, change authority,
+  and stable contract rather than by tables or CRUD screens.
+- Added exhaustive direct dependency classification and a Supabase resource ownership canary for
+  undeclared, dynamic, or cross-capability `.from()`/`.rpc()` calls.
+- Distinguished Supabase user-scoped and privileged identity modes, documented grants separately
+  from RLS, and added the external-authority profile for Next.js BFF modules.
+- Added focused loading/error ownership and component-testing references, including accessible
+  pending states, expected failure rendering, component-level test selection, and direct Hook calls.
+- Recorded current RED-to-GREEN evidence for explicit mode variants, direct Hook calls, and the
+  Next.js 16.2 App Router retry signature; scenarios whose RED did not reproduce remain hypotheses.
+- Added a two-arm Claude Opus 5 A/B runner (`scripts/run-opus5-gate-eval.mjs`) that reuses the
+  frozen scenarios, rubric, response schema, blind-shuffle algorithm, and Codex judge. The frozen
+  four-arm runner and its result sets are untouched and still replay byte-for-byte.
+
 ### Removed
 
 - Removed the withdrawn layer-first design journal from the release changelog. Its exact state
@@ -458,6 +231,40 @@ All notable changes to this project are documented in this file.
   `creating-react-components` — so the third copy of each rule spent always-on context and pushed
   models that already self-verify into re-checking. The two items with content of their own moved to
   the sections that own them. `validate-skill-frontmatter.mjs` no longer recommends the heading.
+
+### Changed
+
+- Replaced the prescribed four-provider component recipe with state ownership first: keep
+  per-keystroke state in its smallest subtree and split Context only by real consumer sets or update
+  frequencies.
+- Tightened forms, feedback, styling, accessibility, and Server/Client boundary guidance while
+  keeping framework-specific rules out of portable references.
+- **Breaking.** Renamed both skills to the gerund form the skill-authoring guidance recommends:
+  `nextjs-architecture` to `designing-nextjs-capabilities`, `react-component-creator` to
+  `creating-react-components`. Skill directories, frontmatter names, scenario directories, docs
+  links, the frontmatter schema, and the validators moved with them. Frozen eval artifacts keep
+  the old names on purpose: `run-architecture-eval.mjs` archives control arms from tags and commits
+  that predate the rename, and `tests/architecture-evals/candidate/` plus `opus5-gates/` are hashed
+  snapshots.
+- Scoped the `creating-react-components` decision gate to non-trivial changes so a one-line UI edit
+  does not require the full seven-field classification.
+- Linked failure ownership and error taxonomy directly from `creating-react-components`, which reached
+  them only through `loading-and-errors.md` and `notifications-and-feedback.md`. A reference behind a
+  reference gets previewed rather than read whole, so the routing path now stays one level deep.
+- Added what each skill does to its `description`, after the existing "Use when" trigger clause that
+  this repository requires, so routing metadata carries capability and trigger rather than trigger
+  alone.
+- Recorded the frozen matrix's known limitations in `tests/architecture-evals/README.md`: the
+  candidate arm is a v3 snapshot shipped without references, negative rubric item 4 fires on the
+  `shared/server` root the contract admits, and generation runs on Codex models only.
+- Told `designing-architecture` to read its references directly rather than delegating a handful of
+  file reads to subagents, and to size a written proposal to the decision it serves.
+- Invalidated six recorded GREEN scenario cells that the gate removal and rename put out of date:
+  `explicit-variants-over-mode`, `next16-error-retry-callback`, `static-hook-calls`,
+  `database-resource-ownership`, `external-backend-authority`, and `supabase-identity-modes`. The
+  original observations are retained under `green_check_invalidated` with the reason; the coverage
+  table now reports them as rerun-pending rather than GREEN. This is the content-hash guard working
+  as designed — the cells need a RED/GREEN rerun before release, not a hash refresh.
 
 ## [2.0.0] - 2026-07-28
 

@@ -176,8 +176,8 @@ Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } 
 workflows loaded.
 
 Phase 1 is not read-only — it writes into the target — so run it on a branch you can throw away.
-Both workflows have now been run end to end against a live repository; the workflows README records
-what each run exposed.
+Both workflows have now been run end to end against a live repository; [the evidence record](docs/evidence.md#live-migration-workflow)
+summarizes what the runs exposed.
 
 ## Versioning
 

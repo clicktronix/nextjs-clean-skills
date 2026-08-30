@@ -91,8 +91,8 @@ ownership, action and HTTP outcomes, stream commit/cancellation/deadline behavio
 report-once behavior, and cross-capability policy.
 
 The original acceptance pilots encode six architecture properties as ten historical mutations.
-Current portable tooling expands the seven-property enforcement floor into 13 mutation-covered
-rule codes with 22 capability mutations, plus 25 boundary mutations and seven
+Current portable tooling expands the seven-property enforcement floor into 12 mutation-covered
+rule codes with 19 capability mutations, plus 29 boundary mutations and nine
 resolver/cycle/portability canaries. These are coverage counts, not competing architecture
 taxonomies. A real Next.js 16.2.10 pilot at `fullstack-ai-template@0a3eeca` passes its production
 build and 990 tests. A deliberate Client Component import of `server.ts` fails that build through
@@ -109,6 +109,20 @@ Change comparison:
 
 The provider comparison is valid only after adding a production composition surface. The original
 one-file result selected its provider in the test harness and is retained as superseded evidence.
+
+### Live Migration Workflow
+
+Both migration phases were run end to end against a layer-first Next.js repository with 321 source
+files. Phase 1 installed the floor without changing `src/**`. Phase 2 migrated one capability with
+five moves, removed nine obsolete paths, authored five surfaces for named consumers, ran two fix
+rounds, and stopped at `revise` with one must-fix still open.
+
+The run exposed defects that static reading had missed: JSON-string arguments, a write outside the
+workflow's permission, enforcement requested where it could not bind, structural zeros read as a
+clean baseline, unanswered ownership and dependency questions with no resume path, one capability
+left in two topologies, a channel change that duplicated failure reporting, and instructions that
+still named deleted paths. These observations motivated workflow fixes; they do not make one pilot a
+general proof of the migration program.
 
 Full details are in
 [`tests/architecture-pilots/RESULTS.md`](../tests/architecture-pilots/RESULTS.md) and
@@ -148,6 +162,12 @@ Manual review still found:
 These are release regressions in the canonical contract. Blind score is not architecture proof.
 See
 [`RELEASE_V3_RESULTS.md`](../tests/architecture-evals/RELEASE_V3_RESULTS.md).
+
+A later simplification smoke found one regression the aggregate score hid: both simple-CRUD answers
+added forwarding application operations. After the direct local-store default was restored to the
+model-visible skill, both focused repeats scored 10/10 without operations or speculative ports. The
+one-model, one-framing result is targeted evidence rather than a new release gate; see
+[`SIMPLIFIED_V4_RESULTS.md`](../tests/architecture-evals/SIMPLIFIED_V4_RESULTS.md).
 
 ## Project Judgement
 

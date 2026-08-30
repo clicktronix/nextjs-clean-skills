@@ -19,7 +19,9 @@ Fetch current React and Next.js docs for exact APIs.
 - Call Hooks directly from named components or named custom Hooks.
 - Keep route-private UI under `app/<route>/_components`.
 - Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
-- Promote capability-neutral UI to `shared/ui` only after the shared-admission gate passes.
+- Promote capability-neutral UI to `shared/ui` only when at least two capabilities need identical
+  meaning and lifecycle, no capability naturally owns it, coordination is cheaper than duplication,
+  and a maintainer plus demotion condition are named.
 - Pass React-serializable props from RSC to Client Components.
 - Use a dedicated top-level `'use server'` module for UI commands.
 

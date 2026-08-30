@@ -1,174 +1,144 @@
 ---
-name: nextjs-architecture-candidate
-description: Use when placing or reviewing full-stack product behavior in a Next.js 16 App Router application, including module ownership, Server Components, Server Actions, Route Handlers, streaming, persistence, providers, caching, auth, and cross-capability workflows.
+name: designing-architecture
+description: >-
+  Use when a Next.js 16 App Router task requires deciding product capability ownership, module
+  placement, runtime channels or trust boundaries, public surfaces, or cross-capability dependency
+  direction. Keeps product behavior capability-owned without imposing a new architecture on routine
+  component work.
 ---
 
-# Next.js Capability Architecture
+# Designing Architecture
 
-Design around product capabilities. Keep framework routes in `app/**`, colocate behavior under one
-capability root, and add internal segments only when the behavior needs them.
+Use this skill for architecture decisions, not ordinary component implementation. For component
+structure, local state, forms, loading, styling, or accessibility, use `creating-react-components`.
 
-## Decide Before Adding Files
+Preserve the project's stack, paths, and established architecture unless adoption or migration was
+requested. Fetch current Next.js documentation before relying on framework-specific behavior.
 
-For the requested change, identify:
+## Decision Gate
 
-1. the capability that owns the behavior;
-2. each runtime channel: RSC, Server Action, HTTP, stream, job, or browser;
-3. whether application policy survives the deletion test;
-4. which dependencies need capability-shaped ports;
-5. the public surface each external consumer needs;
-6. where authentication, business authorization, and store authorization run.
+Always answer two questions:
 
-Classify only behavior the task or existing product actually requires. Do not invent future policy,
-alternate providers, reuse, or coordination to justify an abstraction.
+1. Which product capability owns the behavior?
+2. Which named consumers and runtime channels need it?
 
-Preserve an existing project's stack unless migration is requested. Fetch current framework docs
-for API details.
+Only answer the following when the change actually touches them:
 
-## Physical Model
+- **Policy:** would deleting an operation move meaningful branching, projection, transaction intent,
+  or coordination into callers?
+- **Dependency:** must application behavior name a dependency independently of its technology?
+- **Coordination:** does cross-capability policy need an owning orchestrator?
+- **Trust:** is input untrusted or the channel protected, and where do authentication,
+  authorization, validation, and store predicates apply?
+- **Authority:** is Next.js authoritative, or a BFF for an external backend?
+- **Sharing:** do at least two real capabilities share identical meaning and lifecycle with no
+  natural owner; who maintains the narrow contract; when should it be demoted; and is coordination
+  now cheaper than duplication?
 
-Product behavior lives under:
+Do not publish a full questionnaire when most answers are not applicable. Report the decisions that
+change the implementation and any unresolved trade-off.
 
-```text
-src/modules/<capability>/
-```
+## Place The Behavior
 
-A module may contain these reserved, optional segments:
+Keep framework composition that belongs only to a route under `app/**`. Put reusable product
+behavior under the owning capability, using the project's configured module root. A typical private
+shape is:
 
 ```text
 domain/       pure invariants and calculations
-application/  policy, orchestration, projections, and owned ports
-server/       private server adapters, stores, providers, and cache wiring
-client/       browser async lifecycle, realtime, and optimistic state
+application/  policy, orchestration, and owned ports
+server/       persistence, providers, and server adapters
+client/       browser-owned async lifecycle
 ui/           reusable capability UI
 ```
 
-Do not create an empty segment. Route-private presentation and composition stay under `app/**`.
-Promote UI into a module only when it is reused or is part of the capability's public contract.
+Create only segments required by current behavior. Do not add forwarding operations, mirrored
+repository ports, empty folders, or broad barrels to make the tree look complete.
 
-Cross-module consumers import runtime-specific root surfaces, never internal directories:
+For ownership, placement, granularity, and runtime separation details, read only the relevant one:
+[modules and imports](references/placement/modules-and-imports.md),
+[capability ownership](references/placement/capabilities-and-ownership.md),
+[granularity](references/placement/capability-granularity.md), or
+[runtime separation](references/placement/runtime-vs-compile-time.md).
 
-```text
-server.ts   trusted server API
-rsc.ts      current-request RSC API
-actions.ts  top-level 'use server'; async mutations only
-client.ts   browser-safe API
-ui.ts       reusable capability UI
-stream.ts   streaming contract
-job.ts      worker contract
-```
+Publish a root surface only for a named external consumer. Use the project's admitted vocabulary;
+the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.ts`,
+`query-cache.ts`, `stream.ts`, and `job.ts`. Keep implementations private and exports explicit.
 
-Only create surfaces that have real consumers. A surface must narrow internals, strengthen a
-contract, or establish a runtime boundary. A one-to-one rename or re-export is not an abstraction.
+Create `query-cache.ts` only when the same serializable key identity has both a server
+prefetch/hydration consumer and a browser query consumer. Otherwise keep the key private to its
+runtime owner.
 
-## Dependency Rules
+Use an application operation, port, or orchestrator only when its deletion test identifies policy
+that otherwise leaks into callers. Adapter count, test mocks, and possible future providers are
+evidence, not gates.
 
-- `app/**` composes module public surfaces.
-- A module never imports another module's internal path.
-- `domain/**` is pure and framework/provider independent.
-- `application/**` imports its domain, pure helpers, and capability-owned ports only.
-- `server/**` implements driving or driven adapters for its own capability.
-- `client/**` imports browser-safe contracts and the exact `actions.ts` mutations it needs.
-- `ui/**` imports its own domain/client surfaces, not server internals.
-- Browser code never imports `server.ts`, `rsc.ts`, or `server/**`.
-- Module dependencies are acyclic.
+For CRUD against one local store, start with the channel entry calling a private server data module.
+Authentication, input validation, row mapping, cache invalidation, failure translation, and the names
+`list`, `create`, or `rename` do not by themselves justify `application/` or one wrapper per action.
+Add an operation only when it owns product policy or coordination beyond that direct flow.
 
-Use `server-only` and `client-only` markers in addition to path rules. A production build must fail
-when a Client Component imports a server surface.
+For a non-obvious operation or dependency seam, read only the relevant reference:
+[operation gate](references/use-cases/when-a-use-case-exists.md),
+[channel boundary](references/use-cases/channel-boundaries.md),
+[validation](references/use-cases/validation-once.md),
+[dependency category](references/seams/dependency-categories.md),
+[port shape](references/seams/port-shape.md), or
+[composition](references/seams/composition-without-di.md).
 
-## Application Behavior And Ports
+## Choose The Channel
 
-Create an application operation only when deleting it moves meaningful policy, branching,
-projection, transaction intent, or coordination into callers. Simple store-backed CRUD can be:
+- Server Component reads call server-owned capability code directly; do not fetch the app's own
+  Route Handler.
+- Server Actions are for UI mutations, not browser-owned reads.
+- Route Handlers own HTTP contracts, external callers, browser `GET` reads, callbacks, and streams.
+- Streams own commit state, cancellation, timeout, resume, and post-commit failures.
+- Jobs own retry, deadline, idempotency, and dead-letter behavior.
 
-```text
-channel boundary -> capability server service -> private store adapter
-```
+For an HTTP, stream, or failure boundary, read only the relevant reference:
+[Route Handlers](references/inbound/route-handlers.md),
+[streaming](references/inbound/streaming.md),
+[capture ownership](references/errors/failure-at-the-boundary.md), or
+[error taxonomy](references/errors/error-taxonomy.md).
 
-Do not add a forwarding operation or mirrored repository port to satisfy a folder template.
-Input validation, authentication, row mapping, provider-error mapping, cache invalidation, and an
-ordinary store uniqueness conflict do not by themselves justify an application operation.
+For protected channels, authenticate at entry, authorize product behavior in policy, and enforce
+applicable ownership or tenant predicates at the store boundary. Validate untrusted input at trust
+entry and provider output when it becomes trusted. Public channels may mark these concerns `N/A`.
 
-When application behavior is real:
+Return expected product outcomes as typed values. Let unexpected failures reach one outer capture
+owner. Keep redirect and not-found control flow outside generic catches.
 
-```text
-channel boundary -> application operation -> explicit dependency
-```
+When Next.js is a BFF for an authoritative backend, keep remote policy authoritative instead of
+rebuilding its domain and application layers locally.
 
-An operation is framework-neutral, reports nothing, and receives the smallest dependency object it
-uses.
+For data, provider, or security boundaries, read only the relevant reference:
+[authority and transactions](references/outbound/authority-and-transactions.md),
+[row mapping](references/outbound/row-vs-domain-types.md),
+[database resources](references/outbound/database-resource-ownership.md),
+[service transport](references/outbound/service-transport.md), [auth](references/security/dal-and-auth.md),
+[environment validation](references/security/env-validation.md), or
+[RLS](references/outbound/supabase-rls.md).
 
-A port belongs to the application behavior that needs it. Add one only when the core must name a
-capability independently of technology, in application language, for a production consumer.
-Adapter count, locality, and test mocks are evidence, not gates.
+## Adoption Boundary
 
-An outer composition root may wire public surfaces, but it does not own meaningful product policy.
-When deleting cross-capability code would move filtering, grouping, authorization consequences,
-projection, transaction intent, or coordination into a route, create an orchestrating capability
-even when it has one current consumer. Its operation owns dependencies in its own language; private
-adapters call other capabilities' narrow public surfaces and do not import internals.
+Apply the full capability-first enforcement floor only when the repository already adopted it or the
+task explicitly requests migration. That floor includes contract roots, dependency classification,
+cycle and boundary checks, optional database-resource ownership, and production build proof.
 
-Sequence calls when a later call needs IDs or other data from an earlier result. Do not claim
-parallelism and then constrain a later query with values from the earlier result. The orchestrating
-channel reports an unexpected failure once; inner operations and capability adapters do not report
-it again.
-
-## Runtime Channels
-
-- RSC reads call a server-only RSC/server surface directly.
-- Server Actions are top-level `'use server'` mutation boundaries with serializable inputs.
-- Browser-owned reads use `GET` Route Handlers or streams, not Server Actions.
-- Route Handlers own HTTP status, headers, and public response shapes.
-- Streams own commit state, cancellation, idle timeout, and in-band failures after headers commit.
-- Jobs own retry, deadline, and dead-letter decisions.
-
-Do not force every channel into one result wrapper. Share safe failure codes, reporter context,
-redaction, and provider-error mapping; keep channel-native behavior outside.
-
-Expected application outcomes are typed values. Unexpected defects or outages are exceptions.
-Framework control flow such as redirect/not-found stays outside generic catches.
-
-## Identity, Effects, Validation, And Cache
-
-Request identity contains actor, roles, tenant/ownership scope, request ID, and trace ID. Database
-clients, provider clients, reporter, clock, and other effects are explicit dependencies.
-
-- Authenticate at the channel/server boundary.
-- Enforce business authorization in domain/application policy.
-- Enforce ownership and tenant predicates in the store/RLS boundary.
-- Validate untrusted input at the channel boundary.
-- Validate provider/database data when it enters trusted code.
-- Validate serialized output at an external contract.
-- Do not re-parse a typed internal value because it crossed a directory.
-
-Keep provider rows distinct from domain/public values when names or semantics differ. Map them in
-the private adapter.
-
-Portable operations return cache ownership metadata at most. Runtime channels map it to current
-Next.js invalidation APIs.
-
-## Shared Admission
-
-Allowed shared roots are runtime-specific: `shared/kernel`, `shared/server`, `shared/client`, and
-`shared/ui`.
-
-Promote code only when at least two real capabilities share identical meaning and lifecycle, no
-capability is the natural owner, a named owner exists, and copying is now more expensive than
-coordinating the contract. Similar names are insufficient for `shared/kernel`; invariants and
-change cadence must also match.
-
-Demote shared code when consumers diverge or one capability becomes its owner. Do not create broad
-`utils`, `services`, or migration buckets.
+For an ordinary change in another architecture, preserve local conventions. Improve the specific
+ownership or runtime boundary at issue without installing this plugin's topology, registries, or
+migration tooling.
 
 ## Verification
 
-Before finishing:
+For a proposal or review, explain the relevant owner, consumers, channels, and trade-offs; do not
+claim runtime proof without a candidate. For an implementation, run the project's focused tests and
+static checks. Run a production build when server/client separation or another build-time boundary
+changed.
 
-1. Every product behavior is discoverable under one capability root.
-2. Optional segments correspond to real behavior; simple CRUD has no forwarding operation.
-3. Cross-module imports use narrow public surfaces and the module graph is acyclic.
-4. RSC, action, HTTP, stream, job, and browser paths preserve their native semantics.
-5. Auth is enforced at channel, policy, and store boundaries.
-6. No provider row leaks unintentionally into domain or public contracts.
-7. Server/client poisoning and a production build protect runtime separation.
-8. Tests assert outcomes and failure/report-once behavior, not incidental calls.
+For cache or verification details, read only the relevant reference:
+[cache tiers](references/caching/cache-tiers.md),
+[client cache](references/caching/client-cache.md),
+[testing](references/quality/testing-by-capability.md),
+[observability](references/quality/observability-and-sentry.md), or the
+[glossary](references/glossary.md).

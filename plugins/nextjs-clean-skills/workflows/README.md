@@ -14,23 +14,9 @@ The **target** still needs three packages, because the rules installed into it i
 whatever package manager the target's lockfile names, before it writes anything — a rules copy that
 cannot run leaves the target half-converted and the census unmeasurable.
 
-**Both phases have now been run end to end against a live repository.** A layer-first Next.js app of
-321 source files (`domain / use-cases / adapters / infrastructure / ui`). Phase 1 installed the floor
-without touching a file under `src/`. Phase 2 migrated one capability: five real moves, nine obsolete
-paths deleted in the same change, five public surfaces authored for named consumers, two fix rounds,
-and it stopped at `revise` on one outstanding must-fix rather than declaring success.
-
-Those runs are where most of what follows was learned. Between them they exposed nine defects that
-reading had not: `args` arriving as a JSON string, an ignore-file write the phase was not permitted
-to make, enforcement property 7 demanded where it cannot hold, a census of structural zeros mistaken
-for a clean baseline, two dead ends where the workflow refused to guess and left the operator nowhere
-to answer, a capability left carrying both topologies at its HTTP boundary, a forced channel change
-that altered error reporting while every test stayed green, and an instruction layer still naming
-deleted files. All are fixed.
-
-The rest below comes from reading the scripts and from `npm run validate`, which parses them the way
-the runtime does and executes their decision logic against tables. That proves the logic, not the
-outcome. Read every gate.
+The workflows have been exercised against a live migration; measurements and observed failures live
+in [`docs/evidence.md`](../docs/evidence.md). The rest below documents how to run and interpret the
+current program. Its tests prove decision logic, not a target repository's outcome; read every gate.
 
 ## Setup
 
@@ -202,7 +188,8 @@ disagreement between surfaces is a defect — so these are open items, not settl
   because a pilot-scoped check cannot produce the census the burndown is measured against. Needs a
   decision on the document, not a quiet exception.
 - **Files assigned `placement: "shared"` are migrated by neither workflow.** Phase 2 is
-  capability-scoped and its role vocabulary has no shared role; shared admission is a separate gate.
+  capability-scoped and its role vocabulary has no shared role; shared admission remains an explicit
+  review gate.
 - **Neither phase runs the capability's real user workflow** (step 8) or compares runtime behaviour
   beyond the behaviour oracle's verdict. The pilot states both in its output.
 - **Enforcement property 7 cannot be green at baseline.** `check-database-resources.mjs` attributes an

@@ -27,6 +27,7 @@ const {
   moduleRoot: MODULE_ROOT,
   appRoot: APP_ROOT,
   sharedRoot: SHARED_ROOT,
+  generatedRoot: GENERATED_ROOT,
 } = paths
 const SEGMENTS = new Set(contract.segments)
 const PUBLIC_SURFACES = new Set(contract.publicSurfaces)
@@ -34,9 +35,8 @@ const SERVER_SURFACES = new Set(contract.serverSurfaces)
 const SERVER_EXECUTION_SURFACES = new Set(contract.serverExecutionSurfaces)
 const CLIENT_SURFACES = new Set(contract.clientSurfaces)
 const NEUTRAL_SURFACES = new Set(contract.neutralSurfaces ?? [])
-// Optional. A repository with no generated provider contracts simply does not declare it, and the
-// rule below is then inert rather than broken — absent is "this project has none", not "unchecked".
-const GENERATED_ROOT = contract.generatedRoot ? path.join(PROJECT_ROOT, contract.generatedRoot) : null
+// Optional and validated by contract-paths. A repository with no generated provider contracts
+// simply does not declare it; absent means "this project has none", not "unchecked".
 const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATED_ROOT, absolute)
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
@@ -140,7 +140,7 @@ const capabilityRule = {
       privateServerBackedge:
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
       generatedProviderLeak:
-        'Generated provider contracts may be imported only by private server/client adapters or shared server/client runtime code.',
+        'Generated provider contracts must stay inside generatedRoot or a capability private server segment.',
       neutralDirection:
         'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
@@ -214,8 +214,8 @@ const capabilityRule = {
       // target is, not about which root it sits in.
       if (
         isGeneratedFile(targetPath) &&
-        !['server', 'client'].includes(sourceModule?.segment) &&
-        !['server', 'client'].includes(sourceShared?.root)
+        !isGeneratedFile(filename) &&
+        sourceModule?.segment !== 'server'
       ) {
         context.report({ node, messageId: 'generatedProviderLeak' })
         return
@@ -316,13 +316,7 @@ const capabilityRule = {
         return
       }
 
-      // The runtime-neutral surface is exempt, and the contract says so in as many words:
-      // "Both server and browser paths may import `query-cache.ts`" (§ Dependency Direction, 9),
-      // which is the specific carve-out from 6's general "does not import its own root public
-      // surfaces". Without it the two shipped checks contradicted each other — check-neutral-
-      // surfaces.mjs counts a private server consumer as the server side of a neutral surface,
-      // this rule called that same import a backedge, and a repository could not satisfy both.
-      // § Sources Of Truth: a disagreement is a defect.
+      // Runtime-neutral surfaces are the explicit exception to the private-server backedge rule.
       if (
         sourceModule?.segment === 'server' &&
         targetModule?.capability === sourceModule.capability &&

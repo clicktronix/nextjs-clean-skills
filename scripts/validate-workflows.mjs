@@ -1045,32 +1045,6 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
-  // The prompt hardcodes how many files to copy out of rules/. Nothing tied that literal to the
-  // directory, so adding a rule would have left the mover silently copying a subset.
-  {
-    const nonReadme = listFiles('rules', file => !file.endsWith('README.md')).length
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-    // Off the end of the table the check would grep for "undefined non-README files" — it still
-    // fails, but says nothing useful about why.
-    if (nonReadme >= words.length) {
-      check(false, `${BASELINE}: rules/ has ${nonReadme} non-README files, past the spelled-out range; extend words[] or write the count as a digit`)
-    } else {
-      // Every surface that states the count, not just the workflow. Pinning it here alone is how the
-      // commit that corrected the workflow to "nine" left rules/README.md saying "seven": the check
-      // that exists to catch a stale number was looking at one of the two places it appears.
-      for (const [label, text] of [
-        ['the copy instruction', baseSrc],
-        ['rules/README.md', readText('rules/README.md')],
-      ]) {
-        check(
-          !/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b non-README files/.test(text) ||
-            text.includes(`${words[nonReadme]} non-README files`),
-          `${BASELINE}: rules/ has ${nonReadme} non-README files but ${label} does not say "${words[nonReadme]}"`
-        )
-      }
-    }
-  }
-
   const manifest = {
     found: true,
     roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
@@ -1313,15 +1287,21 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
 
   // ─── a read-only probe must not be offered a writer's vocabulary ───
   {
-    const src = readText(`${DIR}/${PILOT}`)
-    const radiusCall = src.slice(src.indexOf("label: 'radius'"), src.indexOf("label: 'radius'") + 120)
+    const observed = await runBody(pilotSrc, {
+      args: pilotArgs,
+      overrides: {
+        ...base,
+        'load-manifest': { ...manifest, ordinaryChange: 'add a field', baselineRadius: 'two files' },
+      },
+    })
+    const radiusCall = observed.prompts.find(call => call.label === 'radius')
     check(
-      radiusCall.includes('PROBE_SCHEMA'),
-      `${PILOT}: the radius step measures and must not be handed the mover's schema — it filled filesTouched with a path it had only imagined`
+      radiusCall,
+      `${PILOT}: the radius step did not call an agent, so its schema was not observed`
     )
     check(
-      !/filesTouched/.test(src.slice(src.indexOf('const PROBE_SCHEMA'), src.indexOf('const STEP_SCHEMA'))),
-      `${PILOT}: PROBE_SCHEMA must not carry filesTouched, or it is STEP_SCHEMA under another name`
+      radiusCall && !Object.prototype.hasOwnProperty.call(radiusCall.schema?.properties || {}, 'filesTouched'),
+      `${PILOT}: the radius step measures and must not be handed filesTouched — it would report a path it only imagined`
     )
   }
 
@@ -1549,6 +1529,16 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       reviewCall && reviewCall.prompt.includes('browser list read: Server Action -> GET route handler'),
       `${PILOT}: the reviewer must be handed the actual declaration to check the code against`
+    )
+    check(
+      reviewCall && /at least two real capability consumers/.test(reviewCall.prompt) &&
+        /no natural capability owner/.test(reviewCall.prompt) && /duplication now costs more than coordination/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must enforce the semantic admission gate for shared code`
+    )
+    check(
+      reviewCall && /server prefetch\/hydration consumer/.test(reviewCall.prompt) &&
+        /browser query consumer/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must require both runtime consumers for query-cache`
     )
     const quietReview = quiet.prompts.find(p => p.label === 'verify:review')
     check(

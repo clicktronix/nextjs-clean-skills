@@ -21,7 +21,7 @@ export const meta = {
 //
 // The oracles are not invented here. They already exist in this repository:
 // behaviour = the target's own typecheck/tests/production build; architecture =
-// rules/ (16 named messageIds + the cycle, ownership and dependency checks);
+// rules/ (17 named messageIds + the cycle, ownership and dependency checks);
 // review = the properties docs/adoption-and-enforcement.md says static rules
 // cannot prove. A pilot is accepted only when all three agree.
 
@@ -973,8 +973,6 @@ const ARCH_PROBE =
   '## Run all of these and report faithfully\n' +
   '- ESLint with the installed boundary configs over the source root.\n' +
   '- `node rules/check-module-cycles.mjs`\n' +
-  '- `node rules/check-shared-admission.mjs` — a helper this migration moved into shared/** needs two real owners\n' +
-  '- `node rules/check-neutral-surfaces.mjs` — a query-cache surface this migration created needs both runtimes\n' +
   '- `node rules/check-dependency-classification.mjs`\n' +
   '- `node rules/check-database-resources.mjs` if the contract declares database resources.\n\n' +
   '## Report\n' +
@@ -1100,10 +1098,13 @@ async function verifyAll() {
         '- does each operation pass the deletion test?\n' +
         '- does each port speak application language rather than provider language?\n' +
         '- does each public surface actually NARROW, or is it a barrel with a new name?\n' +
-        '- are shared semantics genuinely identical wherever shared code is used?\n' +
+        '- for every file moved to `shared/**`, are there at least two real capability consumers, ' +
+        'genuinely identical meaning and lifecycle, no natural capability owner, a named maintainer ' +
+        'and narrow contract, and evidence that duplication now costs more than coordination?\n' +
         '- is auth policy correct at the new boundary?\n' +
         '- is one failure reported exactly once?\n' +
-        '- is cache ownership singular?\n' +
+        '- is cache ownership singular, and does every runtime-neutral `query-cache.ts` have both ' +
+        'a real server prefetch/hydration consumer and a real browser query consumer?\n' +
         '- do streams handle commit, cancellation and resume?\n\n' +
         '## Also check the migration rules themselves\n' +
         '- Does the capability carry BOTH topologies anywhere, or are obsolete old paths still present?\n' +

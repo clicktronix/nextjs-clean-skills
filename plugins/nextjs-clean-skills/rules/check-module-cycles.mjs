@@ -16,8 +16,7 @@ import {
 const paths = loadArchitecturePaths(import.meta.url)
 const { moduleRoot: modulesRoot } = paths
 
-// The same extension list and the same development-artifact predicate the other two checks use.
-// Three private copies is three chances to disagree about what the project contains.
+// One source inventory for cycle detection; project contracts may override development artifacts.
 const SOURCE = new RegExp(`\\.(${SOURCE_EXTENSIONS.join('|')})$`)
 const isDevArtifact = developmentArtifactPredicate(paths)
 function listSources(directory) {
@@ -35,7 +34,7 @@ function capabilityOf(absolute) {
 
 function importsFrom(file) {
   const source = fs.readFileSync(file, 'utf8')
-  // The shared extractor: a no-substitution template and `module.require` are edges too, and a
+  // The AST extractor includes no-substitution templates and `module.require`, so a
   // cycle hidden behind one of them is a cycle this canary reported as absent.
   return moduleSpecifiers(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true))
 }

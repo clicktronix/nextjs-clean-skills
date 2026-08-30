@@ -491,7 +491,7 @@ const enabled = await agent(
   'asked for and a dependency bump could remove. Install or promote the missing ones with the package manager this ' +
   'repository already uses (read its lockfile — bun, pnpm, yarn or npm) as devDependencies, and report what you changed. ' +
   'If you cannot install them, STOP and report that: writing the rules without them leaves the target half-converted and the census unmeasurable.\n' +
-  `1. Copy the nine non-README files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
+  `1. Copy the rule files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
   `2. Write ${REPO}/rules/architecture-contract.json: start from ${SRC}/rules/architecture-contract.json, then set sourceRoot/appRoot/moduleRoot/sharedRoot and importAliases to this repo's real values (alias prefixes MUST end with '/'), and fill purePackages / runtimePackages from the classification below. Leave databaseClientIdentifiers and databaseResources as the inventory found them (empty arrays are fine).\n` +
   `3. Spread the two ESLint configs after the existing flat configs, per ${SRC}/rules/README.md, in a way that does not disturb the existing config.\n` +
   '   Note for the record: the document scopes this to the pilot ("Enable module-boundary and server/client checks for the pilot"), while this installs them repo-wide so the violation census can be measured. That deviation is recorded in the manifest, not hidden.\n' +
@@ -570,8 +570,7 @@ const PROBES = [
     text:
       "Run the repo's own lint command ONCE and census the architecture violations from that same run, so later phases can prove they went down. " +
       'The capability-first boundary configs were just installed into it, so expect boundary violations — that is intended and is not a failure. ' +
-      'Also run `node rules/check-module-cycles.mjs`, `node rules/check-shared-admission.mjs`, `node rules/check-neutral-surfaces.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`.\n' +
-      'The admission and neutrality checks are expected to be RED before migration for the same structural reason the database check is: nothing lives under moduleRoot or sharedRoot yet. Count them, do not treat them as install failures.\n\n' +
+      'Also run `node rules/check-module-cycles.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`.\n\n' +
       'In `counts`, report one key per ESLint messageId (crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot, …) with its violation count, ' +
       'one key per non-ESLint tool with its violation count, and `preexisting` for errors from rules this repo already had before the install. ' +
       'List in `vacuousCounters` every counter whose zero means "nothing to classify" rather than "nothing found" — the capability, segment and surface messageIds when moduleRoot is empty, and nothing else. A counter that ran over real files and found none is NOT vacuous: phase 2 waives regressions only for the ones named here, and naming a counter that works hides a regression the migration caused.\n' +
@@ -679,8 +678,8 @@ const manifest = {
       step: 'Incremental Migration',
       says: 'old and new capabilities may coexist behind an explicit boundary',
       does: 'no workflow migrates files assigned placement="shared"; phase 2 is capability-scoped and its role vocabulary has no shared role',
-      why: 'shared admission is a separate gate with its own criteria',
-      needs: 'a shared-admission pass before those files move',
+      why: 'shared admission requires a semantic review of ownership, meaning, and lifecycle',
+      needs: 'an explicit shared-admission review before those files move',
     },
     {
       step: 'Adopt In An Existing Project, step 8',
