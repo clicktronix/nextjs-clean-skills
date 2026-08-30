@@ -904,15 +904,22 @@ function recommendation(o, census, vacuous = new Set(), radius = null, ordinaryC
     return { gate: 'inconclusive', unmeasured, reason: 'oracles that did not report: ' + unmeasured.join(', ') }
   }
   if (o.review.verdict === 'reject') return { gate: 'reject', unmeasured, reason: 'the review oracle rejected the ownership model' }
+  const mustFix = (o.review.findings || []).filter(f => f.severity === 'must-fix')
+  const arch = archRed(o.architecture, census, vacuous)
+  const observedRed = [
+    ...(!o.behaviour.ok ? ['behaviour'] : []),
+    ...(arch ? ['architecture'] : []),
+    ...(o.review.verdict === 'revise' || mustFix.length > 0 ? ['review'] : []),
+  ]
   if (!ordinaryChange || !radius || !radius.ok || !['shrunk', 'same', 'grew'].includes(radius.direction)) {
     return {
       gate: 'inconclusive',
       unmeasured: ['change-radius'],
-      reason: 'the change-radius quality oracle did not report a structured before/after result',
+      reason:
+        'the change-radius quality oracle did not report a structured before/after result' +
+        (observedRed.length > 0 ? '; already red: ' + observedRed.join(', ') : ''),
     }
   }
-  const mustFix = (o.review.findings || []).filter(f => f.severity === 'must-fix')
-  const arch = archRed(o.architecture, census, vacuous)
   if (!o.behaviour.ok) return { gate: 'revise', unmeasured, reason: 'behaviour oracle is red' }
   if (arch) return { gate: 'revise', unmeasured, reason: 'architecture oracle: ' + arch }
   if (mustFix.length > 0) return { gate: 'revise', unmeasured, reason: mustFix.length + ' must-fix review finding(s)' }
@@ -987,7 +994,7 @@ async function verifyAll() {
 phase('Verify')
 let oracles = await verifyAll()
 
-// ─── Fix: bounded rounds, only while the architectural oracle is red ───
+// ─── Fix: bounded rounds for measured architecture, behaviour, or must-fix failures ───
 let fixRounds = 0
 // Record why the bounded loop stopped; the round count alone is ambiguous.
 let fixLoopExit = 'not-entered'
@@ -1010,7 +1017,7 @@ const loopState = o => JSON.stringify({
 // A fix round cannot repair an oracle that never ran.
 const oraclesMeasured = o =>
   !!o.behaviour && !archUnmeasured(o.architecture, CENSUS) && !!(o.review && o.review.verdict)
-const oraclesRed = o =>
+const hasAutoFixableFailure = o =>
   archRed(o.architecture, CENSUS, VACUOUS) || !o.behaviour.ok ||
   (o.review.findings || []).some(f => f.severity === 'must-fix')
 while (
@@ -1018,7 +1025,7 @@ while (
   oraclesMeasured(oracles) &&
   // `reject` means the ownership model is wrong, so there is nothing here to repair.
   oracles.review.verdict !== 'reject' &&
-  oraclesRed(oracles)
+  hasAutoFixableFailure(oracles)
 ) {
   const nowState = loopState(oracles)
   if (fixRounds > 0 && nowState === lastState) {
@@ -1058,7 +1065,7 @@ if (fixLoopExit === 'not-entered' && fixRounds > 0) {
     ? 'unmeasured'
     : oracles.review.verdict === 'reject'
       ? 'rejected'
-      : fixRounds >= MAX_FIX && oraclesRed(oracles)
+      : fixRounds >= MAX_FIX && hasAutoFixableFailure(oracles)
         ? 'cap-reached'
         : 'converged'
 }

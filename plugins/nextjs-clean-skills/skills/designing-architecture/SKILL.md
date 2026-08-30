@@ -3,8 +3,7 @@ name: designing-architecture
 description: >-
   Use when a Next.js 16 App Router task requires deciding product capability ownership, module
   placement, runtime channels or trust boundaries, public surfaces, or cross-capability dependency
-  direction. Keeps product behavior capability-owned without imposing a new architecture on routine
-  component work.
+  direction. Do not use for routine component work that leaves those boundaries unchanged.
 ---
 
 # Designing Architecture

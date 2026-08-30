@@ -752,6 +752,26 @@ if (files.includes(PILOT)) {
       census
     )
     check(rejectWithoutRadius.gate === 'reject', 'recommendation(reject without radius): an explicit architecture rejection must dominate an incomplete quality measurement')
+    const redWithoutRadius = recommendation(
+      { behaviour: { ok: false }, architecture: green, review: { verdict: 'sound', findings: [] } },
+      census
+    )
+    check(
+      redWithoutRadius.gate === 'inconclusive' && redWithoutRadius.reason.includes('already red: behaviour'),
+      `recommendation(red without radius): must retain the observed failure in its diagnosis, got ${JSON.stringify(redWithoutRadius)}`
+    )
+    const reviewRedWithoutRadius = recommendation(
+      {
+        behaviour: { ok: true },
+        architecture: green,
+        review: { verdict: 'revise', findings: [{ severity: 'should-fix' }] },
+      },
+      census
+    )
+    check(
+      reviewRedWithoutRadius.gate === 'inconclusive' && reviewRedWithoutRadius.reason.includes('already red: review'),
+      `recommendation(review red without radius): must retain the observed review verdict, got ${JSON.stringify(reviewRedWithoutRadius)}`
+    )
     // Silence is never a verdict — asserted over CONSTRUCTED inputs, not by filtering
     // the table on a label substring. That filter was a source-text grep in disguise:
     // renaming a label to anything not ending in "died" silently removed the coverage

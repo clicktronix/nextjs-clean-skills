@@ -2,8 +2,7 @@
 name: creating-react-components
 description: >-
   Use when creating or refactoring Next.js 16 App Router UI: Server/Client boundaries, Hooks, state,
-  forms and actions, loading and errors, styling, i18n, feedback, accessibility, or tests. Chooses the
-  Server/Client split, state owner, mutation channel, and pending/failure surfaces.
+  forms and actions, loading and errors, styling, i18n, feedback, accessibility, or tests.
 ---
 
 # Creating React Components
