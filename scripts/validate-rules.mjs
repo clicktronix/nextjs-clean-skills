@@ -519,6 +519,42 @@ if (ESLint) {
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-b/server.ts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-mts-b/server.mts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-type-b/server.ts'))
+
+    // A development-directory word is allowed as the capability name. The filter starts below that
+    // boundary; applying it to the first segment makes a real production cycle disappear.
+    for (const capability of ['test', 'tests', 'mocks', 'fixtures']) {
+      const partner = `zz-${capability}-partner`
+      const capabilityFile = path.join(sandbox, 'src/modules', capability, 'server.ts')
+      const partnerFile = path.join(sandbox, 'src/modules', partner, 'server.ts')
+      fs.mkdirSync(path.dirname(capabilityFile), { recursive: true })
+      fs.mkdirSync(path.dirname(partnerFile), { recursive: true })
+      fs.writeFileSync(
+        capabilityFile,
+        `import { partner } from '../${partner}/server.js'\nexport const value = partner\n`
+      )
+      fs.writeFileSync(
+        partnerFile,
+        `import { value } from '../${capability}/server.js'\nexport const partner = value\n`
+      )
+
+      const namedCapabilityGraph = spawnSync(
+        process.execPath,
+        [path.join(sandbox, path.basename(CYCLES))],
+        { cwd: nestedCwd, encoding: 'utf8' }
+      )
+      const namedCapabilityOutput = `${namedCapabilityGraph.stdout}${namedCapabilityGraph.stderr}`
+      if (
+        namedCapabilityGraph.status === 0 ||
+        !namedCapabilityOutput.includes(`${capability} -> ${partner} -> ${capability}`)
+      ) {
+        errors.push(
+          `capability-name cycle canary failed for ${capability}: ${namedCapabilityOutput.trim() || `exit ${namedCapabilityGraph.status}`}`
+        )
+      }
+      fs.rmSync(path.join(sandbox, 'src/modules', capability), { recursive: true, force: true })
+      fs.rmSync(path.join(sandbox, 'src/modules', partner), { recursive: true, force: true })
+    }
+
     const cleanGraphResult = spawnSync(
       process.execPath,
       [path.join(sandbox, path.basename(CYCLES))],
@@ -655,7 +691,7 @@ if (ESLint) {
       )
     }
 
-    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 4} resolver/cycle/portability canaries`
+    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 8} resolver/cycle/portability canaries`
   } finally {
     process.chdir(previousCwd)
     fs.rmSync(sandbox, { recursive: true, force: true })

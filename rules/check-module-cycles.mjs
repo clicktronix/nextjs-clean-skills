@@ -9,22 +9,28 @@ import {
   relativeParts,
   resolveProjectImport,
   moduleSpecifiers,
-  developmentArtifactPredicate,
+  isDevelopmentArtifactDirectory,
+  isDevelopmentArtifactFile,
   SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
 const { moduleRoot: modulesRoot } = paths
 
-// One source inventory for cycle detection; project contracts may override development artifacts.
+// One source inventory for cycle detection. Immediate children of moduleRoot are capability names,
+// even when a product capability happens to be called `tests`, `mocks`, or `fixtures`; development
+// directory filtering starts only inside a capability.
 const SOURCE = new RegExp(`\\.(${SOURCE_EXTENSIONS.join('|')})$`)
-const isDevArtifact = developmentArtifactPredicate(paths)
-function listSources(directory) {
+function listSources(directory, insideCapability = false) {
   if (!fs.existsSync(directory)) return []
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name)
-    if (entry.isDirectory()) return isDevArtifact(absolute + path.sep) ? [] : listSources(absolute)
-    return SOURCE.test(entry.name) && !isDevArtifact(absolute) ? [absolute] : []
+    if (entry.isDirectory()) {
+      return insideCapability && isDevelopmentArtifactDirectory(entry.name)
+        ? []
+        : listSources(absolute, true)
+    }
+    return SOURCE.test(entry.name) && !isDevelopmentArtifactFile(entry.name) ? [absolute] : []
   })
 }
 

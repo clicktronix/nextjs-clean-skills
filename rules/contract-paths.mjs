@@ -212,16 +212,18 @@ export function moduleSpecifiers(parsed, { valueOnly = false } = {}) {
     .map((edge) => edge.specifier)
 }
 
-// Development artifacts do not participate in the production capability graph. Project conventions
-// may override the default suffixes and directories.
+// Development artifacts do not participate in the production capability graph. These fixed forms
+// are deliberately narrow: making them configurable can silently remove production files from the
+// graph when a pattern is misspelled or contains regular-expression syntax.
 const DEV_SUFFIXES = ['test', 'spec', 'stories', 'mock', 'mocks', 'fixture', 'fixtures']
 const DEV_DIRECTORIES = ['__tests__', '__mocks__', '__fixtures__', 'test', 'tests', 'mocks', 'fixtures']
 
-export function developmentArtifactPredicate({ contract, projectRoot }) {
-  const suffixes = contract.developmentArtifactSuffixes ?? DEV_SUFFIXES
-  const directories = new Set(contract.developmentArtifactDirectories ?? DEV_DIRECTORIES)
-  const suffixed = new RegExp(`\\.(${suffixes.join('|')})\\.(${SOURCE_EXTENSIONS.join('|')})$`)
-  return (file) =>
-    suffixed.test(path.basename(file)) ||
-    path.relative(projectRoot, file).split(path.sep).some((part) => directories.has(part))
+const DEV_FILE = new RegExp(`\\.(${DEV_SUFFIXES.join('|')})\\.(${SOURCE_EXTENSIONS.join('|')})$`)
+
+export function isDevelopmentArtifactFile(file) {
+  return DEV_FILE.test(path.basename(file))
+}
+
+export function isDevelopmentArtifactDirectory(name) {
+  return DEV_DIRECTORIES.includes(name)
 }

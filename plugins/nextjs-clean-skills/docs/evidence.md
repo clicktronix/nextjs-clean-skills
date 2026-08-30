@@ -94,7 +94,7 @@ report-once behavior, and cross-capability policy.
 
 The original acceptance pilots encode six architecture properties as ten historical mutations.
 Current portable tooling expands the seven-property enforcement floor into 12 mutation-covered
-rule codes with 19 capability mutations, plus 29 boundary mutations and nine
+rule codes with 19 capability mutations, plus 29 boundary mutations and 13
 resolver/cycle/portability canaries. These are coverage counts, not competing architecture
 taxonomies. A real Next.js 16.2.10 pilot at `fullstack-ai-template@0a3eeca` passes its production
 build and 990 tests. A deliberate Client Component import of `server.ts` fails that build through
