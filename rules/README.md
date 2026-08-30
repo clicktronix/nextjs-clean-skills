@@ -17,7 +17,9 @@ try to infer business meaning from path names.
 consumers may import them only from a capability's private `server/**` segment. Mapping provider
 values at the adapter boundary remains a review concern; the path rule does not infer which server
 file performs that mapping. Leave the root out and the rule is inert. Like every configured root, it
-must be project-relative and remain inside `sourceRoot`.
+must be project-relative, remain inside `sourceRoot`, and stay disjoint from `moduleRoot`, `appRoot`,
+and `sharedRoot`. A broad generated root would classify ordinary consumers as generated and
+silence the boundary it is meant to enforce.
 
 ## Install
 

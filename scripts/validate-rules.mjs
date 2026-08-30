@@ -665,6 +665,10 @@ if (ESLint) {
 for (const [generatedRoot, expected] of [
   ['../outside', 'generatedRoot must stay inside the project root'],
   ['generated', 'generatedRoot must stay inside sourceRoot'],
+  ['src', 'moduleRoot and generatedRoot must not overlap'],
+  ['src/modules', 'moduleRoot and generatedRoot must not overlap'],
+  ['src/app/generated', 'appRoot and generatedRoot must not overlap'],
+  ['src/shared/generated', 'sharedRoot and generatedRoot must not overlap'],
 ]) {
   const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'invalid-generated-root-')))
   try {

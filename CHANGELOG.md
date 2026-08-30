@@ -19,6 +19,12 @@ All notable changes to this project are documented in this file.
   prove semantic ownership and real runtime use. Their full gates now run in architecture review;
   static rules retain only the import properties they can establish.
 - Moved the live migration summary from the workflow manual to `docs/evidence.md`.
+- Made the migration handoff fail closed: phase 1 proves its source inventory is partitioned exactly
+  once, records the complete target profile before writing, and refuses undeliverable shared rows;
+  phase 2 rejects a `moduleRoot` override that disagrees with the target contract and includes change
+  radius in its recommendation.
+- Rejected `generatedRoot` values that overlap module, app, or shared ownership roots, where
+  ordinary consumers would otherwise be classified as generated and bypass the provider boundary.
 
 - **BREAKING**: renamed the architecture skill from `designing-nextjs-capabilities` to
   `designing-architecture`. The previous name repeated `nextjs`, which the plugin name already

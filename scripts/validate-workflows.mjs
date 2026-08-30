@@ -47,6 +47,13 @@ const DIR = 'plugins/nextjs-clean-skills/workflows'
 const errors = []
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const HOOKS = ['args', 'budget', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'workflow']
+const PROFILE_DECISIONS = {
+  libraries: 'keep the libraries already declared by the target',
+  storesAndProviders: 'keep current stores and provider ownership',
+  authAndTenancy: 'preserve the target auth and tenancy model',
+  uiConventions: 'preserve route-private and shared UI conventions',
+  migrationDebt: 'no accepted migration debt',
+}
 
 // Walks the line tracking quote state so `https://…` inside a string does not read as
 // the start of a comment.
@@ -733,12 +740,18 @@ if (files.includes(PILOT)) {
       ['nits only', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'nit' }] } }, 'accept'],
       ['all green', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'accept'],
     ]
+    const stableRadius = { ok: true, direction: 'same', detail: 'same affected set' }
     for (const [label, o, expected] of gateCases) {
-      const decided = recommendation(o, census)
+      const decided = recommendation(o, census, new Set(), stableRadius, 'add a field')
       check(decided.gate === expected, `recommendation(${label}): expected ${expected}, got ${decided.gate}`)
       // The report renders this instead of re-deriving the inputs and disagreeing.
       check(typeof decided.reason === 'string' && decided.reason.length > 0, `recommendation(${label}): must name its reason`)
     }
+    const rejectWithoutRadius = recommendation(
+      { behaviour: { ok: true }, architecture: green, review: { verdict: 'reject', findings: [] } },
+      census
+    )
+    check(rejectWithoutRadius.gate === 'reject', 'recommendation(reject without radius): an explicit architecture rejection must dominate an incomplete quality measurement')
     // Silence is never a verdict — asserted over CONSTRUCTED inputs, not by filtering
     // the table on a label substring. That filter was a source-text grep in disguise:
     // renaming a label to anything not ending in "died" silently removed the coverage
@@ -751,7 +764,7 @@ if (files.includes(PILOT)) {
       ['all three', { behaviour: null, architecture: null, review: null }],
     ]
     for (const [label, o] of silent) {
-      const decided = recommendation(o, census)
+      const decided = recommendation(o, census, new Set(), stableRadius, 'add a field')
       check(decided.gate === 'inconclusive', `silence(${label}): expected inconclusive, got ${decided.gate}`)
       check(decided.unmeasured.length > 0, `silence(${label}): must name which oracle did not report`)
     }
@@ -807,8 +820,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   // the first live run's stop was a dead end: the operator's only route forward was to
   // hand-edit the target's contract, which is the guess the stop existed to prevent.
   {
-    const ARGSD = { repo: '/t', ordinaryChange: 'add a field' }
-    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const ARGSD = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const withSrc = {
+      'resolve:contract-source': { ok: true, path: '/p', detail: '' },
+      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+    }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
       assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
@@ -869,8 +885,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   // The first live run blocked on five unplaceable pilot files and the only way forward was a second
   // full pass. Same dead end as the dependency decisions, and costlier.
   {
-    const ARGSO = { repo: '/t', ordinaryChange: 'add a field' }
-    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const ARGSO = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const withSrc = {
+      'resolve:contract-source': { ok: true, path: '/p', detail: '' },
+      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/orphan.ts'] },
+    }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
       assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', runtime: 'server' }],
@@ -905,7 +924,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     ]) {
       const out = await runBody(baseSrc, {
         args: ARGSO,
-        overrides: { ...withSrc, assign: { ...assigned, unassigned: [row] } },
+        overrides: {
+          ...withSrc,
+          'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', row.file] },
+          assign: { ...assigned, unassigned: [row] },
+        },
       })
       const text = ((out.result && out.result.blockers) || []).join(' ')
       check(
@@ -928,13 +951,17 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       },
     })
     check(
-      /no owner/.test(((blankFile.result && blankFile.result.blockers) || []).join(' ')),
-      `${BASELINE} (unplaced row with no file): must block, since no fileOwners answer can resolve it. blockers=${JSON.stringify(blankFile.result && blankFile.result.blockers)}`
+      blankFile.result && /source inventory|valid repo-relative path/i.test(blankFile.result.error || ''),
+      `${BASELINE} (unplaced row with no file): must fail because no fileOwners answer can resolve it. result=${JSON.stringify(blankFile.result)}`
     )
 
     const paddedPilot = await runBody(baseSrc, {
       args: ARGSO,
-      overrides: { ...withSrc, assign: { ...assigned, unassigned: [{ file: 'src/padded.ts', why: 'unclear', likelyCapability: ' work-items ' }] } },
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/padded.ts'] },
+        assign: { ...assigned, unassigned: [{ file: 'src/padded.ts', why: 'unclear', likelyCapability: ' work-items ' }] },
+      },
     })
     check(
       /no owner/.test(((paddedPilot.result && paddedPilot.result.blockers) || []).join(' ')),
@@ -946,6 +973,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGSO,
       overrides: {
         ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/later.ts'] },
         assign: {
           ...assigned,
           capabilities: [{ name: 'work-items' }, { name: 'labels' }],
@@ -982,7 +1010,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   // A missing lens and a failed manifest writer both reported success: the lens count
   // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".
   {
-    const ARGS1 = { repo: '/t', ordinaryChange: 'add a field' }
+    const ARGS1 = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
     const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
 
     const lensLabels = (await runBody(baseSrc, { args: ARGS1, overrides: withSrc })).calls.filter(c => typeof c === 'string' && c.startsWith('lens:'))
@@ -998,12 +1026,113 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       noManifest.result && (noManifest.result.blockers || []).some(b => /manifest/i.test(b)),
       `${BASELINE} (manifest writer failed): must be a blocker — phase 2 reads everything from it. blockers=${JSON.stringify(noManifest.result && noManifest.result.blockers)}`
     )
+
+    const completeProfile = await runBody(baseSrc, { args: ARGS1, overrides: withSrc })
+    const manifestPrompt = completeProfile.prompts.find(prompt => prompt.label === 'write-manifest')
+    const manifestMatch = manifestPrompt && manifestPrompt.prompt.match(/```json\n([\s\S]*?)\n```/)
+    const writtenManifest = manifestMatch ? JSON.parse(manifestMatch[1]) : null
+    check(
+      writtenManifest && JSON.stringify(writtenManifest.profile) === JSON.stringify({ decisions: PROFILE_DECISIONS }),
+      `${BASELINE} (complete profile): persist only the target decisions phase 2 consumes, got ${JSON.stringify(writtenManifest && writtenManifest.profile)}`
+    )
+
+    // The Assign agent's schema can be valid while omitting a file an inventory lens found. Phase 2
+    // can prove only that its plan covers the rows it receives, so phase 1 is the only place that can
+    // prove the manifest covers the repository's source inventory.
+    const omitted = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/b.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
+          assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      omitted.result && /source inventory/i.test(omitted.result.error || '') && !omitted.calls.includes('enable-rules'),
+      `${BASELINE} (assignment omitted an inventoried file): must stop before writing, got ${JSON.stringify(omitted.result && (omitted.result.error || omitted.result.blockers))}`
+    )
+
+    const invalidCapability = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        assign: {
+          capabilities: [{ name: 'Work Items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
+          assignments: [{ file: 'src/a.ts', capability: 'Work Items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      invalidCapability.result && /capability inventory/i.test(invalidCapability.result.error || '') && !invalidCapability.calls.includes('enable-rules'),
+      `${BASELINE} (invalid capability name): must stop before phase 2 receives a non-kebab identifier, got ${JSON.stringify(invalidCapability.result)}`
+    )
+
+    const duplicateAssignment = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 2, pilotScore: 10 }],
+          assignments: [
+            { file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' },
+            { file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'server', runtime: 'server-only' },
+          ],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      duplicateAssignment.result && /partitioned exactly once/i.test(duplicateAssignment.result.error || '') && !duplicateAssignment.calls.includes('enable-rules'),
+      `${BASELINE} (duplicate assignment): must stop before a file receives two owners, got ${JSON.stringify(duplicateAssignment.result)}`
+    )
+
+    // The target profile is an authority in docs/adoption-and-enforcement.md. A warning after writes
+    // is not a decision channel, and phase 2 cannot honour fields the operator never supplied.
+    const noProfile = await runBody(baseSrc, { args: { repo: '/t', ordinaryChange: 'add a field' }, overrides: withSrc })
+    check(
+      noProfile.result && /profile/i.test(noProfile.result.error || '') && !noProfile.calls.includes('enable-rules'),
+      `${BASELINE} (profile decisions absent): must stop before writing and name the decision channel, got ${JSON.stringify(noProfile.result && noProfile.result.error)}`
+    )
+
+    // No shipped workflow moves a file from an old generic location into sharedRoot. Accepting such
+    // a row makes a completed capability wave look complete while the file stays outside the floor.
+    const misplacedShared = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/lib/id.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 0, pilotScore: 10 }],
+          assignments: [{ file: 'src/lib/id.ts', placement: 'shared', sharedRoot: 'kernel', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      misplacedShared.result && /shared/i.test(misplacedShared.result.error || '') && !misplacedShared.calls.includes('enable-rules'),
+      `${BASELINE} (shared file outside sharedRoot): must stop before writes because no later workflow moves it, got ${JSON.stringify(misplacedShared.result && misplacedShared.result.error)}`
+    )
   }
 
   // ─── contractSource resolution ───
   // Deleting the whole resolution block left every check above green, because the required-args
   // loop stops before the probe runs and nothing downstream asserted where the path came from.
-  const ARGS = { repo: '/t', ordinaryChange: 'add a field' }
+  const ARGS = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
   const PROBE = 'resolve:contract-source'
 
   for (const [label, verdict] of [
@@ -1053,6 +1182,9 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     violationCensus: { crossCapabilityInternal: 2 },
     consumers: ['src/app/p.tsx'],
     assignments: [{ file: 'src/lib/calc.ts', segment: 'domain' }],
+    profile: { decisions: PROFILE_DECISIONS },
+    ordinaryChange: 'add a field to the list view',
+    baselineRadius: 'src/lib/calc.ts',
   }
   const goodPlan = { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces: [] }
   const pilotArgs = { repo: '/t', capability: 'work-items', maxFixRounds: 0 }
@@ -1066,6 +1198,28 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     'verify:review': { verdict: 'sound', findings: [] },
   }
   const pilot = over => runBody(pilotSrc, { args: pilotArgs, overrides: { ...base, ...over } })
+
+  // An explicit moduleRoot is an assertion, not a second authority. If it disagrees with the
+  // manifest/target contract, the mover and the installed rules judge different trees.
+  {
+    const mismatch = await runBody(pilotSrc, {
+      args: { ...pilotArgs, moduleRoot: 'src/elsewhere' },
+      overrides: base,
+    })
+    check(
+      mismatch.result && /moduleRoot.*disagree/i.test(mismatch.result.error || '') && !mismatch.calls.includes('plan:work-items'),
+      `${PILOT} (moduleRoot override disagrees with contract): must stop before planning, got ${JSON.stringify(mismatch.result && (mismatch.result.error || mismatch.result.recommendation))}`
+    )
+
+    const missingRecordedRoot = await runBody(pilotSrc, {
+      args: { ...pilotArgs, moduleRoot: 'src/modules' },
+      overrides: { ...base, 'load-manifest': { ...manifest, roots: { sourceRoot: 'src', appRoot: 'src/app', sharedRoot: 'src/shared' } } },
+    })
+    check(
+      missingRecordedRoot.result && typeof missingRecordedRoot.result.error === 'string' && !missingRecordedRoot.calls.includes('plan:work-items'),
+      `${PILOT} (moduleRoot absent from manifest): an argument must not become a second authority, got ${JSON.stringify(missingRecordedRoot.result)}`
+    )
+  }
 
   // ─── the gate must name what is left and what to do ───
   // The operator of the first live run did not understand the sentence asking them to decide, and
@@ -1470,6 +1624,33 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       typeof radiusText === 'string' && /did not report/.test(radiusText) && !/recorded no ordinaryChange/.test(radiusText),
       `${PILOT}: a dead radius probe must be reported as a dead probe, not as a missing baseline, got ${JSON.stringify(radiusText)}`
+    )
+    check(
+      radiusDead.result && radiusDead.result.recommendation === 'inconclusive' &&
+        ((radiusDead.result.humanGate || '').includes('CHANGE-RADIUS') || (radiusDead.result.humanGate || '').includes('change-radius')),
+      `${PILOT}: a dead quality oracle must block acceptance and be visible in the human gate, got ${JSON.stringify(radiusDead.result && [radiusDead.result.recommendation, radiusDead.result.humanGate])}`
+    )
+
+    const radiusGrew = await pilot({
+      radius: { ok: true, direction: 'grew', detail: 'grew from one file to five' },
+    })
+    check(
+      radiusGrew.result && radiusGrew.result.recommendation === 'revise' &&
+        radiusGrew.result.changeRadius && radiusGrew.result.changeRadius.direction === 'grew' &&
+        /grew from one file to five/.test(radiusGrew.result.humanGate || ''),
+      `${PILOT}: a larger change radius must recommend revision and reach the human gate, got ${JSON.stringify(radiusGrew.result && [radiusGrew.result.recommendation, radiusGrew.result.humanGate])}`
+    )
+  }
+
+  // The target profile is a normative input, not archival manifest prose. Both the planner and the
+  // semantic reviewer need the decisions phase 1 required from the operator.
+  {
+    const profiled = await pilot({})
+    const planCall = profiled.prompts.find(p => p.label === 'plan:work-items')
+    const reviewCall = profiled.prompts.find(p => p.label === 'verify:review')
+    check(
+      planCall && planCall.prompt.includes('authAndTenancy') && reviewCall && reviewCall.prompt.includes('authAndTenancy'),
+      `${PILOT}: profile decisions must reach both planning and review prompts`
     )
   }
 

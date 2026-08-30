@@ -50,6 +50,13 @@ Run in order. Each is a separate `Workflow` call so a human reads the result bef
 Workflow({ name: 'prepare-architecture-migration', args: {
   repo: '/abs/path/to/target',
   ordinaryChange: 'add an optional field to a work item and show it in the list',
+  profileDecisions: {
+    libraries: 'keep Zod, React Hook Form, TanStack Query, and the existing notification layer',
+    storesAndProviders: 'Supabase owns persistence; Stripe owns billing state',
+    authAndTenancy: 'server-derived user and tenant; RLS is mandatory',
+    uiConventions: 'route-private UI stays in app; shared UI follows the existing design system',
+    migrationDebt: 'none accepted',
+  },
 }})
 
 Workflow({ name: 'migrate-capability', args: {
@@ -59,11 +66,16 @@ Workflow({ name: 'migrate-capability', args: {
 }})
 ```
 
-Both phase-1 arguments are required. `ordinaryChange` is a blocker rather than a nicety: without it
+All three phase-1 arguments are required. `ordinaryChange` is a blocker rather than a nicety: without it
 there is no before-set, so the change-radius comparison — the only oracle that measures whether the
 architecture actually helped — cannot run, and steps 4 and 9 of the procedure are skipped.
 
-Three arguments are optional. `contractSource`, omitted, costs a single probe agent that locates the
+`profileDecisions` records the target-owned facts inventory cannot decide: installed library choices,
+store/provider authority, auth and tenancy, UI conventions, and accepted migration debt. Missing
+decisions stop before the workflow writes anything; both the phase-2 planner and reviewer receive the
+recorded values.
+
+Three phase-1 arguments are optional. `contractSource`, omitted, costs a single probe agent that locates the
 plugin root — `$CLAUDE_PLUGIN_ROOT`, then the plugin cache, then the surrounding checkout — accepting
 a candidate only when all four normative sources exist under it. It resolves once rather than in each
 of the fifteen agents that need it, because independent resolutions can disagree and a subset reading
@@ -77,7 +89,8 @@ guess was a dead end whose only exit was a second full pass.
 
 `migrate-capability` needs `moduleRoot`. It takes it from the manifest or the target's contract and
 **refuses to guess**: every destination path is computed from it, so a default would move a whole
-capability into a directory the contract does not name.
+capability into a directory the contract does not name. An explicit override must equal the recorded
+value; it cannot create a second layout authority.
 
 There is deliberately no wave workflow yet. The document requires accepting, revising or
 rejecting the architecture after the pilot, and a wave workflow written before that decision would
@@ -181,15 +194,12 @@ public surface no code imports.
 
 ## Known deviations and gaps
 
-Recorded here and, in the same five entries, in the manifest's `deviations`, because § Sources Of Truth says a
+Recorded here and, in the same three entries, in the manifest's `deviations`, because § Sources Of Truth says a
 disagreement between surfaces is a defect — so these are open items, not settled choices:
 
 - **Step 7 says "for the pilot"; phase 1 enables the checks repo-wide** and before the pilot moves,
   because a pilot-scoped check cannot produce the census the burndown is measured against. Needs a
   decision on the document, not a quiet exception.
-- **Files assigned `placement: "shared"` are migrated by neither workflow.** Phase 2 is
-  capability-scoped and its role vocabulary has no shared role; shared admission remains an explicit
-  review gate.
 - **Neither phase runs the capability's real user workflow** (step 8) or compares runtime behaviour
   beyond the behaviour oracle's verdict. The pilot states both in its output.
 - **Enforcement property 7 cannot be green at baseline.** `check-database-resources.mjs` attributes an
@@ -198,10 +208,10 @@ disagreement between surfaces is a defect — so these are open items, not settl
   the check as red rather than requiring it to pass, and refuses the one thing that would force it
   green — declaring roots that describe a layout the repository does not have. It must go green during
   the pilot; if it does not, the roots or the ownership map are wrong.
-- **The Product Profile is partially recorded.** The manifest keeps the six lenses' findings and
-  lists what remains: schema/form/cache/notification libraries, store and remote-provider ownership,
-  the auth and tenancy model, route-private and shared UI conventions, and accepted migration debt
-  with owner and removal condition.
+
+Phase 1 refuses a `placement: "shared"` row outside the configured `sharedRoot`: phase 2 is
+capability-scoped and cannot move it. Move such code in a separate reviewed change or assign it to its
+natural capability before starting the pilot; the workflow will not report a complete wave around it.
 
 ## Notes on the runtime
 

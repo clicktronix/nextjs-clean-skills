@@ -88,6 +88,7 @@ export function loadArchitecturePaths(metaUrl, rootOverride) {
     ['moduleRoot', moduleRoot],
     ['appRoot', appRoot],
     ['sharedRoot', sharedRoot],
+    ...(generatedRoot ? [['generatedRoot', generatedRoot]] : []),
   ]
   for (let leftIndex = 0; leftIndex < ownedRoots.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < ownedRoots.length; rightIndex += 1) {

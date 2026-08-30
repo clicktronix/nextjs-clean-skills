@@ -168,7 +168,7 @@ second one. They require dynamic workflows to be enabled, and they are part of t
 it is all the setup a target repository needs:
 
 ```text
-Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange } })
+Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange, profileDecisions } })
 Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } })
 ```
 
