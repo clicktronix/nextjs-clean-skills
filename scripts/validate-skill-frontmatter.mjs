@@ -130,8 +130,6 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     checkLink(`${skillName}/SKILL.md`, skillDir, linkPath, match[2], errors)
   }
 
-  // Recurse: references are grouped into subdirectories by the decision they serve, and an
-  // unlinked reference is dead weight — it ships in the plugin but no routing path reaches it.
   const referenceDir = path.join(skillDir, 'references')
   if (fs.existsSync(referenceDir)) {
     const walk = (dir) =>
@@ -160,7 +158,7 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
   // A closing verification gate is deliberately not recommended: it restated the rule sections
   // almost item for item, and current models self-verify, so the third copy bought over-verification
   // rather than coverage.
-  for (const requiredHeading of ['## Decision Gate', '## Common Failure Modes']) {
+  for (const requiredHeading of ['## Decision Gate']) {
     if (!text.includes(requiredHeading)) {
       warnings.push(`${skillName}/SKILL.md is missing recommended ${requiredHeading}`)
     }

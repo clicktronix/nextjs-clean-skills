@@ -60,10 +60,13 @@ Review and focused tests still decide:
 - whether an operation passes the deletion test;
 - whether a port speaks application language;
 - whether a public surface actually narrows;
-- whether shared semantics are identical;
+- whether shared code has at least two real capability consumers, identical semantics and
+  lifecycle, no natural capability owner, a named maintainer, and a lower coordination cost than
+  duplication;
 - whether auth policy is correct;
 - whether one failure is reported once;
-- whether cache ownership is singular;
+- whether cache ownership is singular and a runtime-neutral query cache has both a server
+  prefetch/hydration consumer and a browser query consumer;
 - whether a stream handles commit, cancellation, and resume correctly.
 
 Do not add a syntactic proxy merely to claim these properties are linted.

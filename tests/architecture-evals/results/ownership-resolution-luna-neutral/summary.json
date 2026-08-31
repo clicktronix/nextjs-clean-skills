@@ -1,0 +1,230 @@
+{
+  "aggregate": [
+    {
+      "arm": "no-skill",
+      "cells": 2,
+      "total": 14,
+      "mean": 7,
+      "fatalCount": 0
+    },
+    {
+      "arm": "v1.3.2",
+      "cells": 2,
+      "total": 12,
+      "mean": 6,
+      "fatalCount": 0
+    },
+    {
+      "arm": "pre-domain-order",
+      "cells": 2,
+      "total": 16,
+      "mean": 8,
+      "fatalCount": 0
+    },
+    {
+      "arm": "capability-first",
+      "cells": 2,
+      "total": 17,
+      "mean": 8.5,
+      "fatalCount": 0
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly separates tenant workspaces from Canvas Templates, assigns canvas lifecycle ownership, and renames the editor concept. The tree is mostly focused, though list/UI scope exceeds the two requested flows. It says Projects own authorization but places membership checking in canvases/access.ts rather than clearly consuming an existing project-owned contract. Generic-workspaces coupling is addressed only indirectly. Arithmetic: 8 - 1 = 7."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "total": 8,
+      "reportedTotal": 8,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clear terminology, canvas ownership, destination-project authorization, and a compact Next.js call surface. However, the private canvas-template implementation performs project-membership checks without identifying an existing project-owned authorization contract, shifting that authority into canvases. The generic-workspaces coupling rationale is implicit rather than fully explained. Arithmetic: 9 - 1 = 8."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "pre-domain-order",
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Correctly renames the concept, keeps ownership in canvases, and explicitly consumes the existing project membership contract. The additional application layer and two action surfaces are more structure than the smallest save/apply design requires. It only indirectly explains the coupling caused by a generic workspaces capability. Arithmetic: 8 - 1 = 7."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 1,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        0,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "total": 5,
+      "reportedTotal": 5,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Terminology, lifecycle ownership, and destination authorization are conceptually correct. The proposal adds speculative domain, use-case, port, adapter, DAL, RLS/RPC, list/detail, cache, and UI layers beyond the two flows. Its new feature-specific membership ports/checks do not preserve a clearly existing project-owned contract. Generic-workspaces coupling is only implicit. Arithmetic: 7 - 2 = 5."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "no-skill",
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Clearly separates tenant workspaces from Canvas Templates, assigns ownership to Canvas/Editor, and follows destination-project authorization. The tree is larger than the smallest required shape, adding separate list, policy, repository, audit, and provenance concerns. It only partially explains the architectural coupling caused by a generic workspaces capability."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "v1.3.2",
+      "positive": [
+        2,
+        2,
+        2,
+        1,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "total": 7,
+      "reportedTotal": 7,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Correctly names and owns the feature and preserves source/destination project membership checks. However, ports, multiple adapters, a separate DAL, cache-invalidation concerns, and other layers exceed the smallest concrete design requested. The rejection of a generic workspaces capability is present but not fully explained in terms of lifecycle, authorization, and change authority."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "capability-first",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Cleanly reserves workspace for tenant organizations, places Canvas Templates in the existing canvases capability, and explicitly consumes the existing project-owned membership contract. Its runtime surfaces and call flows are focused on the requested feature. The generic-workspaces coupling argument is coherent but does not fully articulate all three dimensions of lifecycle, authorization, and change authority."
+    },
+    {
+      "scenario": "ownership-resolution",
+      "repeat": 2,
+      "arm": "pre-domain-order",
+      "positive": [
+        2,
+        2,
+        2,
+        2,
+        1
+      ],
+      "negative": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "total": 9,
+      "reportedTotal": 9,
+      "arithmeticMatches": true,
+      "fatal": false,
+      "explanation": "Provides the smallest focused tree, explicit vocabulary separation, canvas ownership, and correct source/destination project membership checks. It avoids unnecessary public HTTP surfaces and keeps workspace_id as internal tenant scope. It explains why organizations and billing are not owners, but only partially states why a generic workspaces capability would couple unrelated change authority and authorization."
+    }
+  ],
+  "usage": {
+    "generation": {
+      "input_tokens": 442042,
+      "cached_input_tokens": 299776,
+      "output_tokens": 17054
+    },
+    "judge": {
+      "input_tokens": 105805,
+      "cached_input_tokens": 64512,
+      "output_tokens": 3250
+    }
+  }
+}

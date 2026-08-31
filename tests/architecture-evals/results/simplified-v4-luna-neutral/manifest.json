@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-29T20:39:07.868Z",
+  "repositoryHead": "2857c08a0a3fe5191d02a32f91177627d913a30c",
+  "candidateCommit": "e1dd2eef552aff184a05d571a18ea2f7fea134cc",
+  "codexVersion": "codex-cli 0.150.1",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "layer-first",
+    "capability-first"
+  ],
+  "scenarios": [
+    "simple-crud",
+    "remote-stream",
+    "cross-capability"
+  ],
+  "repeats": 2,
+  "generationRuns": 6,
+  "blindJudgeRuns": 6,
+  "reusedControlRuns": 18,
+  "controlSource": "tests/architecture-evals/results/release-v3-luna-neutral",
+  "controlSourceCommit": "e1dd2eef552aff184a05d571a18ea2f7fea134cc",
+  "controlRepositoryHead": "10eced2684d8008f030d9bba116d32e94fe97d65"
+}

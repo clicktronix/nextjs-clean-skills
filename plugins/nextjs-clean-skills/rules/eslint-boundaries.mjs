@@ -11,11 +11,13 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
+  isWithin,
   loadArchitecturePaths,
   posix,
   relativeParts,
   resolveProjectImport,
   sourceFilesPattern,
+  SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
@@ -25,6 +27,7 @@ const {
   moduleRoot: MODULE_ROOT,
   appRoot: APP_ROOT,
   sharedRoot: SHARED_ROOT,
+  generatedRoot: GENERATED_ROOT,
 } = paths
 const SEGMENTS = new Set(contract.segments)
 const PUBLIC_SURFACES = new Set(contract.publicSurfaces)
@@ -32,6 +35,9 @@ const SERVER_SURFACES = new Set(contract.serverSurfaces)
 const SERVER_EXECUTION_SURFACES = new Set(contract.serverExecutionSurfaces)
 const CLIENT_SURFACES = new Set(contract.clientSurfaces)
 const NEUTRAL_SURFACES = new Set(contract.neutralSurfaces ?? [])
+// Optional and validated by contract-paths. A repository with no generated provider contracts
+// simply does not declare it; absent means "this project has none", not "unchecked".
+const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATED_ROOT, absolute)
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
@@ -49,7 +55,9 @@ function moduleLocation(absolute) {
     tail.length === 1 &&
     SEGMENTS.has(rootName) &&
     !SOURCE_EXT.test(tail[0]) &&
-    !['.js', '.jsx', '.ts', '.tsx'].some((extension) => fs.existsSync(`${absolute}${extension}`))
+    // Derived from the one exported list: written out by hand it omitted the NodeNext extensions,
+    // so a segment directory shadowed by a `.mts` file was not recognised as shadowed.
+    !SOURCE_EXTENSIONS.some((extension) => fs.existsSync(`${absolute}.${extension}`))
   return {
     capability: parts[0],
     tail,
@@ -131,6 +139,8 @@ const capabilityRule = {
         'Server capability code must not import the browser surface {{target}}.',
       privateServerBackedge:
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
+      generatedProviderLeak:
+        'Generated provider contracts must stay inside generatedRoot or a capability private server segment.',
       neutralDirection:
         'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
@@ -196,6 +206,19 @@ const capabilityRule = {
           context.report({ node, messageId: 'neutralDirection' })
           return
         }
+      }
+
+      // A generated provider row is the provider's shape, not the product's. Let it past the private
+      // adapter that translates it and every consumer downstream is coupled to a file a code
+      // generator rewrites. Checked before the shared/module rules because it is about WHAT the
+      // target is, not about which root it sits in.
+      if (
+        isGeneratedFile(targetPath) &&
+        !isGeneratedFile(filename) &&
+        sourceModule?.segment !== 'server'
+      ) {
+        context.report({ node, messageId: 'generatedProviderLeak' })
+        return
       }
 
       if (sourceShared && targetModule) {
@@ -293,11 +316,13 @@ const capabilityRule = {
         return
       }
 
+      // Runtime-neutral surfaces are the explicit exception to the private-server backedge rule.
       if (
         sourceModule?.segment === 'server' &&
         targetModule?.capability === sourceModule.capability &&
         targetModule.surface &&
-        PUBLIC_SURFACES.has(targetModule.surface)
+        PUBLIC_SURFACES.has(targetModule.surface) &&
+        !NEUTRAL_SURFACES.has(targetModule.surface)
       ) {
         context.report({
           node,

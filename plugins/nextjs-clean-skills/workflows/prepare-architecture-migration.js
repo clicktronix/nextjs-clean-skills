@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Phase 1 of capability-first adoption: inventory a target repo, assign every source file an owner and role, classify direct dependencies, then INSTALL rules/ and a drafted architecture-contract.json into the target and amend its ESLint config, capture the behavioural baseline and the violation census, and write migration-manifest.json. Moves no product code.',
   whenToUse:
-    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", contractSource?: "/abs/path/to/the/plugin/root", dependencyDecisions?: { "pkg": "pure|runtime" } }. contractSource is resolved from the installed plugin when omitted; dependencyDecisions answers the packages a previous run reported as undecided.',
+    'Run once against a Next.js repo that is adopting the capability-first architecture, before any file moves. It writes rules/, a contract and an ESLint config change into the target, so run it on a throwaway branch. args: { repo: "/abs/path", ordinaryChange: "a one-line description of a typical follow-up change", profileDecisions: { libraries, storesAndProviders, authAndTenancy, uiConventions, migrationDebt }, contractSource?: "/abs/path/to/the/plugin/root", dependencyDecisions?: { "pkg": "pure|runtime" }, fileOwners?: { "src/x.ts": "capability" } }. contractSource is resolved from the installed plugin when omitted; the decision maps answer facts inventory cannot settle.',
   phases: [
     { title: 'Inventory', detail: 'six read-only lenses over routes, capabilities, runtime boundaries, data access, deps, roots' },
     { title: 'Assign', detail: 'single owner + role + runtime class for every source file (barrier: assignment needs the whole set)' },
@@ -19,11 +19,7 @@ export const meta = {
 // later per-capability agent reads its own rows instead of re-deriving ownership
 // (the analysis a single-capability agent cannot do correctly on its own).
 
-// `args` does not always arrive as an object. Several invocation paths hand the script
-// the JSON *string* instead, and every field then reads as undefined — so a run with a
-// perfectly good `repo` failed with "args.repo is required", blaming the caller for the
-// one thing they had got right. Parsed here, once, so the rest of the file can assume a
-// plain object. A string that is not JSON still fails, but says so.
+// Normalise the two invocation shapes once; the rest of the workflow expects an object.
 let ARGS = args || {}
 if (typeof args === 'string') {
   try {
@@ -35,19 +31,13 @@ if (typeof args === 'string') {
 if (!ARGS || typeof ARGS !== 'object') return { error: 'args must be an object, got ' + typeof ARGS }
 
 const REPO = ARGS.repo || ''
-// The plugin root, which carries docs/, rules/ and skills/ side by side. Resolved
-// below when the caller does not pass it. No home-directory fallback and no guess:
-// hardcoding the author's checkout meant that on any other machine every agent
-// silently received paths to normative documents that do not exist, and proceeded
-// from memory instead of from the contract.
+// Resolve the plugin root; never guess a maintainer checkout path.
 let SRC = ARGS.contractSource || ''
 const ORDINARY = ARGS.ordinaryChange || ''
 const MANIFEST = REPO + '/migration-manifest.json'
 
 if (!REPO) return { error: 'args.repo is required (absolute path to the target repository)' }
-// Required UP FRONT, not reported as a blocker afterwards. Steps 4 and 9 of the
-// adoption procedure are the change-radius measurement, so without it the whole
-// paid program runs and only then says it was incomplete.
+// Required before paid work because both radius measurements depend on it.
 if (!ORDINARY) {
   return {
     error: 'args.ordinaryChange is required',
@@ -139,6 +129,14 @@ const LENS_SCHEMA = {
     files: { type: 'array', items: { type: 'string' }, description: 'repo-relative paths this lens is authoritative about' },
     notes: { type: 'string' },
   },
+}
+
+// The roots lens already has to discover sourceRoot. Its file list is the one canonical inventory
+// that the Assign result is checked against; the other lenses remain free to report only the files
+// relevant to their own question.
+const SOURCE_LENS_SCHEMA = {
+  ...LENS_SCHEMA,
+  required: ['lens', 'findings', 'files'],
 }
 
 const ASSIGN_SCHEMA = {
@@ -233,9 +231,14 @@ const BASELINE_SCHEMA = {
     ok: { type: 'boolean' },
     command: { type: 'string' },
     counts: { type: 'object', additionalProperties: { type: 'integer' }, description: 'for the census: violations keyed by ESLint messageId or tool name' },
-    // The capability-tier rules key off positions under moduleRoot/sharedRoot. Before the
-    // first move those directories do not exist, so every one of them reports zero — a
-    // structural vacuum, not a clean bill of health. Phase 2 has to know which it got.
+    // Name exactly the counters whose zero came from having nothing to classify.
+    vacuousCounters: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'counters that reported zero only because there was nothing under moduleRoot/sharedRoot to classify; ' +
+        'a counter that genuinely found nothing does NOT belong here',
+    },
     capabilityTierBinds: { type: 'boolean', description: 'for the census: true only when moduleRoot exists in the target AND contains at least one source file, so the capability-tier rules had something to classify' },
     detail: { type: 'string' },
   },
@@ -250,7 +253,12 @@ const LENSES = [
   { key: 'runtime', text: "Map the server/client boundary as it exists today: every 'use client' and 'use server' directive, every server-only import (node builtins, secrets, DB clients, server-only), and every place browser code reaches server code. Name each crossing and whether it is currently safe." },
   { key: 'data', text: 'Map data access and outbound effects: database clients and the identifiers they are bound to, every literal table/rpc/collection name and the file that touches it, plus cache wiring, queues, and third-party providers. Note where the same table is touched from more than one area.' },
   { key: 'deps', text: 'Read package.json. For every DIRECT dependency decide whether it is pure (no runtime, no I/O, safe in domain code) or runtime-bound (framework, I/O, provider, telemetry). Say which ones you cannot decide from the package alone — do not guess.' },
-  { key: 'roots', text: 'Read tsconfig.json, next.config.*, and any eslint config. Report the current source root, app root, path aliases (exact prefixes), and any existing boundary tooling already in place.' },
+  {
+    key: 'roots',
+    text:
+      'Read tsconfig.json, next.config.*, and any eslint config. Report the current source root, app root, path aliases (exact prefixes), and any existing boundary tooling already in place. ' +
+      'In `files`, enumerate every repo-relative JavaScript or TypeScript source file under sourceRoot (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), including tests and generated source but excluding dependency, build-output and coverage directories. This list is the canonical inventory checked against Assign; do not summarise directories or omit files that look unimportant.',
+  },
 ]
 
 const lensRaw = await parallel(LENSES.map(l => () =>
@@ -262,22 +270,16 @@ const lensRaw = await parallel(LENSES.map(l => () =>
     'Read and Grep only. Do NOT write, edit, move, or delete anything. Do NOT run builds, installs, or git commands.\n' +
     'Cite a repo-relative path or a command output for every finding. Report absence explicitly rather than assuming.\n\n' +
     'Structured output only.',
-    { label: 'lens:' + l.key, phase: 'Inventory', schema: LENS_SCHEMA }
+    { label: 'lens:' + l.key, phase: 'Inventory', schema: l.key === 'roots' ? SOURCE_LENS_SCHEMA : LENS_SCHEMA }
   )
 ))
-// Keyed POSITIONALLY, like the baseline probes below. `lensByKey[o.lens]` trusted a
-// free-string the schema never constrained and the prompt never demanded verbatim, so
-// a data lens answering "data access and outbound effects" made dataLens undefined —
-// and the Enable step then shipped empty databaseResources with floor property 7
-// unenforced. `.filter(Boolean)` before this would destroy the index alignment.
+// Key position is authoritative; `lens` is descriptive free text.
 const lensOuts = lensRaw
   .map((r, i) => (r ? { ...r, key: LENSES[i].key } : null))
   .filter(Boolean)
 
 log('Inventory: ' + lensOuts.length + '/' + LENSES.length + ' lenses returned')
-// A missing lens is a hole in the census, not a smaller census. Each one is the only
-// authority over its slice of the tree, so a run built on four of six assigns owners
-// from evidence nobody gathered — and the log line above was the only trace of it.
+// A missing lens is a hole in the inventory, not an empty result.
 if (lensOuts.length < LENSES.length) {
   const missing = LENSES.filter((l, i) => !lensRaw[i]).map(l => l.key)
   return {
@@ -292,15 +294,31 @@ if (lensOuts.length === 0) return { error: 'every inventory lens failed — noth
 const lensByKey = Object.create(null)
 for (const o of lensOuts) lensByKey[o.key] = o
 const dataLens = lensByKey.data
+const sourceLens = lensByKey.roots
+const sourceInventory = ((sourceLens && sourceLens.files) || []).map(file => String(file).trim())
+const invalidInventoryFiles = sourceInventory.filter(
+  file => file === '' || file[0] === '/' || /(^|\/)\.\.(\/|$)/.test(file)
+)
+const inventorySeen = new Set()
+const duplicateInventoryFiles = sourceInventory.filter(file => {
+  if (inventorySeen.has(file)) return true
+  inventorySeen.add(file)
+  return false
+})
+if (invalidInventoryFiles.length > 0 || duplicateInventoryFiles.length > 0) {
+  return {
+    error: 'source inventory is not a unique set of safe repo-relative files',
+    invalid: [...new Set(invalidInventoryFiles)],
+    duplicates: [...new Set(duplicateInventoryFiles)],
+  }
+}
 
 const LENS_BLOCK = lensOuts
   .map(o =>
     '### ' + o.key + '\n' +
     (o.findings || []).map(f => '- ' + f).join('\n') +
     (o.notes ? '\n' + o.notes : '') +
-    // Each lens is asked which files it is authoritative about; the Assign agent is
-    // the one consumer that benefits from knowing which lens claims which file.
-    // Previously six agents compiled this list and nothing ever read it.
+    // Assign uses each lens's authoritative file set as evidence.
     ((o.files || []).length > 0 ? '\nfiles this lens is authoritative about: ' + o.files.join(', ') : '')
   )
   .join('\n\n')
@@ -311,7 +329,7 @@ const LENS_BLOCK = lensOuts
 // produces contested files and duplicate capabilities.
 phase('Assign')
 
-const assignment = await agent(
+let assignment = await agent(
   `Assign a single owner and role to every source file in ${REPO}.\n\n` +
   '## Inventory from six independent lenses\n' + LENS_BLOCK + '\n\n' +
   CONTRACT_DOCS + '\n\n' +
@@ -333,23 +351,127 @@ const assignment = await agent(
 
 if (!assignment) return { error: 'assignment agent returned no result' }
 
-const caps = (assignment.capabilities || []).slice().sort((a, b) => (b.pilotScore || 0) - (a.pilotScore || 0))
+// ASSIGN_SCHEMA validates row shape, not the handoff as a set. Phase 2 can prove only that a plan
+// covers the manifest rows it receives, so omissions and duplicates have to stop here.
+const capabilityRows = assignment.capabilities || []
+const capabilityNamesRaw = capabilityRows.map(capability => capability && capability.name)
+const invalidCapabilityNames = capabilityNamesRaw.filter(
+  name => typeof name !== 'string' || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)
+)
+const capabilitySeen = new Set()
+const duplicateCapabilityNames = capabilityNamesRaw.filter(name => {
+  if (capabilitySeen.has(name)) return true
+  capabilitySeen.add(name)
+  return false
+})
+const unknownDependencyNames = capabilityRows.flatMap(capability =>
+  (capability.dependsOn || []).filter(name => !capabilitySeen.has(name)).map(name => ({ capability: capability.name, dependsOn: name }))
+)
+if (invalidCapabilityNames.length > 0 || duplicateCapabilityNames.length > 0 || unknownDependencyNames.length > 0) {
+  return {
+    error: 'capability inventory is not executable by phase 2',
+    invalidNames: [...new Set(invalidCapabilityNames)],
+    duplicateNames: [...new Set(duplicateCapabilityNames)],
+    unknownDependencies: unknownDependencyNames,
+    detail: 'Capability names must be unique kebab-case values and dependsOn may name only capabilities in this run.',
+  }
+}
+
+const assignmentRows = assignment.assignments || []
+const unassignedRows = assignment.unassigned || []
+const partitionRows = assignmentRows.concat(unassignedRows)
+const rowFiles = partitionRows.map(row => row && typeof row.file === 'string' ? row.file.trim() : '')
+const rowSeen = new Set()
+const duplicateRows = rowFiles.filter(file => {
+  if (rowSeen.has(file)) return true
+  rowSeen.add(file)
+  return false
+})
+const missingRows = sourceInventory.filter(file => !rowSeen.has(file))
+const extraRows = rowFiles.filter(file => !inventorySeen.has(file))
+const unknownAssignmentCapabilities = assignmentRows
+  .filter(row => row && row.placement === 'capability' && !capabilitySeen.has(row.capability))
+  .map(row => ({ file: row.file, capability: row.capability || null }))
+if (duplicateRows.length > 0 || missingRows.length > 0 || extraRows.length > 0 || unknownAssignmentCapabilities.length > 0) {
+  return {
+    error: 'source inventory is not partitioned exactly once between assignments and unassigned',
+    missing: [...new Set(missingRows)],
+    extra: [...new Set(extraRows)],
+    duplicates: [...new Set(duplicateRows)],
+    unknownAssignmentCapabilities,
+    detail: 'Every file from the roots lens must appear exactly once, and a capability placement must name a capability this run found. Nothing has been written.',
+  }
+}
+
+// ─── Human decisions on the files nobody could place ───
+// Human answers resolve the exact unassigned rows from this run.
+const OWNERS = ARGS.fileOwners || {}
+const ownedByHuman = []
+if (Object.keys(OWNERS).length > 0) {
+  const open = (assignment.unassigned || []).map(u => u && u.file).filter(Boolean)
+  const capabilityNames = new Set((assignment.capabilities || []).map(c => c && c.name).filter(Boolean))
+  const unknownFiles = Object.keys(OWNERS).filter(f => open.indexOf(f) === -1)
+  if (unknownFiles.length > 0) {
+    return {
+      error: 'args.fileOwners names files this run did not report as unassigned',
+      offending: unknownFiles,
+      unassigned: open,
+      detail: 'Ownership decisions answer THIS run\'s question. A stale answer would place a file by a ' +
+        'judgement made about a different tree.',
+    }
+  }
+  // The capability has to exist. Inventing one here would create a module root nothing else knows
+  // about, and phase 2 computes every destination from a capability name.
+  const unknownCaps = [...new Set(Object.values(OWNERS))].filter(c => !capabilityNames.has(c))
+  if (unknownCaps.length > 0) {
+    return {
+      error: 'args.fileOwners names capabilities this run did not find',
+      offending: unknownCaps,
+      capabilities: [...capabilityNames],
+      detail: 'Assign the file to a capability the inventory found, or re-run so the inventory can find the new one.',
+    }
+  }
+  // Build a new assignment so replayed cached results remain immutable.
+  const placed = []
+  for (const file of open) {
+    const capability = OWNERS[file]
+    if (!capability) continue
+    // Same shape ASSIGN_SCHEMA requires and phase 2's file table reads. `runtime` is genuinely
+    // unknown here — the operator answered ownership, not runtime — and saying so beats inventing a
+    // hint the planner would treat as evidence.
+    placed.push({
+      file,
+      capability,
+      placement: 'capability',
+      runtime: 'unclear',
+      evidence: 'placed by the operator; runtime and segment were not inferred',
+    })
+    ownedByHuman.push({ file, capability })
+  }
+  assignment = {
+    ...assignment,
+    assignments: (assignment.assignments || []).concat(placed),
+    unassigned: (assignment.unassigned || []).filter(u => !OWNERS[u && u.file]),
+  }
+  log('Ownership decisions applied: ' + ownedByHuman.map(o => o.file + '→' + o.capability).join(', ') +
+    ((assignment.unassigned || []).length > 0 ? ' · ' + assignment.unassigned.length + ' still unplaced' : ''))
+}
+
 const byCap = Object.create(null)
 for (const a of assignment.assignments || []) {
   if (a.placement === 'capability' && a.capability) (byCap[a.capability] ||= []).push(a)
 }
+// fileCount is derived from the rows phase 2 will actually receive, not trusted from agent prose.
+const caps = capabilityRows
+  .map(capability => ({ ...capability, fileCount: (byCap[capability.name] || []).length }))
+  .sort((a, b) => (b.pilotScore || 0) - (a.pilotScore || 0))
 log(
   'Assign: ' + caps.length + ' capabilities, ' + (assignment.assignments || []).length + ' files placed, ' +
   (assignment.unassigned || []).length + ' unassigned, ' + ((assignment.deps && assignment.deps.undecided) || []).length + ' undecided deps'
 )
 
 // ─── Human decisions on the undecided dependencies ───
-// Refusing to guess is only half a design. The first live run stopped on one unclassified
-// package — correctly — and left the operator nowhere to put the answer: the only way
-// forward was to hand-edit the target's contract, which is exactly the guess the stop
-// existed to prevent, made by hand and unrecorded. `dependencyDecisions` is that channel.
-// Applied here rather than in the Enable prompt so the classification the agent is handed
-// is already complete, and so the manifest can record who decided what.
+// Apply explicit dependency decisions before Enable and record their authority in the manifest.
 const DECISIONS = ARGS.dependencyDecisions || {}
 const deps = assignment.deps || {}
 const decidedByHuman = []
@@ -361,9 +483,7 @@ if (Object.keys(DECISIONS).length > 0) {
       offending: bad.map(k => k + ': ' + JSON.stringify(DECISIONS[k])),
     }
   }
-  // Only the ones this run actually reported as undecided. A decision about a package the
-  // inventory never raised is a stale copy of a previous run's question, and silently
-  // classifying on it would put the operator's old answer into a new repository's contract.
+  // Decisions answer only the undecided packages reported by this run.
   const open = deps.undecided || []
   const unknown = Object.keys(DECISIONS).filter(k => open.indexOf(k) === -1)
   if (unknown.length > 0) {
@@ -385,10 +505,73 @@ if (Object.keys(DECISIONS).length > 0) {
     (deps.undecided.length > 0 ? ' · ' + deps.undecided.length + ' still undecided' : ''))
 }
 
+// ─── Product profile: target-owned decisions, before the first write ───
+const PROFILE_FIELDS = {
+  libraries: 'schema, form, cache and notification libraries',
+  storesAndProviders: 'store and remote-provider ownership',
+  authAndTenancy: 'auth and tenancy model',
+  uiConventions: 'route-private and shared UI conventions',
+  migrationDebt: 'accepted migration debt with owner and removal condition',
+}
+const PROFILE = ARGS.profileDecisions || {}
+const unknownProfileKeys = Object.keys(PROFILE).filter(key => !Object.prototype.hasOwnProperty.call(PROFILE_FIELDS, key))
+const invalidProfileValues = Object.keys(PROFILE).filter(
+  key => typeof PROFILE[key] !== 'string' || PROFILE[key].trim() === ''
+)
+if (unknownProfileKeys.length > 0 || invalidProfileValues.length > 0) {
+  return {
+    error: 'args.profileDecisions contains unknown keys or empty decisions',
+    unknown: unknownProfileKeys,
+    empty: invalidProfileValues,
+    admitted: Object.keys(PROFILE_FIELDS),
+  }
+}
+const pendingProfile = Object.keys(PROFILE_FIELDS).filter(key => !Object.prototype.hasOwnProperty.call(PROFILE, key))
+if (pendingProfile.length > 0) {
+  return {
+    error: 'target profile decisions are required before the architecture floor writes to the repository',
+    pending: pendingProfile.map(key => ({ key, question: PROFILE_FIELDS[key] })),
+    evidence: lensOuts.map(output => ({ lens: output.key, findings: output.findings || [] })),
+    fix: 'Re-run with args.profileDecisions containing one non-empty string for every pending key; add resumeFromRunId so inventory and assignment replay from cache.',
+  }
+}
+const profile = {
+  decisions: Object.fromEntries(Object.keys(PROFILE_FIELDS).map(key => [key, PROFILE[key].trim()])),
+}
+
+// Phase 2 is capability-scoped and has no shared-file mover. A file already under sharedRoot needs
+// no migration; one outside it would otherwise remain outside the enforcement floor after every
+// capability reported complete.
+const configuredSharedRoot = ((assignment.roots || {}).sharedRoot || '').replace(/\/$/, '')
+const misplacedShared = assignmentRows.filter(row =>
+  row && row.placement === 'shared' &&
+  (!configuredSharedRoot || !(row.file === configuredSharedRoot || row.file.startsWith(configuredSharedRoot + '/')))
+)
+if (misplacedShared.length > 0) {
+  return {
+    error: 'shared placements outside sharedRoot are not supported by the capability migration workflow',
+    files: misplacedShared.map(row => row.file),
+    sharedRoot: configuredSharedRoot || null,
+    detail: 'No later workflow moves these rows. Place them under the configured sharedRoot in a separate reviewed change, or assign them to a capability, then re-run. Nothing has been written.',
+  }
+}
+
 // ─── Enable: install the executable floor, then census ───
 // Order matters and is not ours to choose: rules/README.md requires every direct
 // dependency classified BEFORE the rules are enabled, because a newly installed
 // package fails closed.
+// Everything past this point writes; unresolved dependency ownership must stop before it.
+if (((assignment.deps || {}).undecided || []).length > 0) {
+  return {
+    error: 'undecided dependencies must be classified before anything is written to the target',
+    undecided: assignment.deps.undecided,
+    detail: 'The architecture floor cannot pass with an unclassified direct dependency, and this phase writes ' +
+      'rules/, a contract and an ESLint change into ' + REPO + '. Nothing has been written.',
+    fix: 'Re-run with args.dependencyDecisions { "<package>": "pure" | "runtime" } for each package above — ' +
+      'add resumeFromRunId so the inventory and assignment replay from cache instead of costing a second full pass.',
+  }
+}
+
 phase('Enable')
 
 const enabled = await agent(
@@ -405,7 +588,7 @@ const enabled = await agent(
   'asked for and a dependency bump could remove. Install or promote the missing ones with the package manager this ' +
   'repository already uses (read its lockfile — bun, pnpm, yarn or npm) as devDependencies, and report what you changed. ' +
   'If you cannot install them, STOP and report that: writing the rules without them leaves the target half-converted and the census unmeasurable.\n' +
-  `1. Copy the seven non-README files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
+  `1. Copy the rule files from ${SRC}/rules/ into ${REPO}/rules/.\n` +
   `2. Write ${REPO}/rules/architecture-contract.json: start from ${SRC}/rules/architecture-contract.json, then set sourceRoot/appRoot/moduleRoot/sharedRoot and importAliases to this repo's real values (alias prefixes MUST end with '/'), and fill purePackages / runtimePackages from the classification below. Leave databaseClientIdentifiers and databaseResources as the inventory found them (empty arrays are fine).\n` +
   `3. Spread the two ESLint configs after the existing flat configs, per ${SRC}/rules/README.md, in a way that does not disturb the existing config.\n` +
   '   Note for the record: the document scopes this to the pilot ("Enable module-boundary and server/client checks for the pilot"), while this installs them repo-wide so the violation census can be measured. That deviation is recorded in the manifest, not hidden.\n' +
@@ -471,10 +654,7 @@ if (!enabled || !enabled.ok) {
 // ─── Baseline: the three oracles, recorded before anything moves ───
 phase('Baseline')
 
-// One ESLint pass, not two. The `lint` and `census` probes each ran a full pass over
-// the same tree with the same configs and produced two boundary totals that nothing
-// reconciled — and phase 2's burndown is measured against one of them with no
-// indication which is authoritative.
+// One ESLint pass is the single authoritative boundary census.
 const PROBES = [
   { key: 'typecheck', text: "Run the repo's TypeScript check (tsc --noEmit, or the package script that does it). Report pass/fail and the error count." },
   { key: 'tests', text: "Run the repo's test suite. Report pass/fail, the passed and failed counts, and the exact command." },
@@ -487,7 +667,8 @@ const PROBES = [
       'Also run `node rules/check-module-cycles.mjs` and, if the contract declares database resources, `node rules/check-database-resources.mjs`.\n\n' +
       'In `counts`, report one key per ESLint messageId (crossCapabilityInternal, domainDirection, serverClient, invalidSharedRoot, …) with its violation count, ' +
       'one key per non-ESLint tool with its violation count, and `preexisting` for errors from rules this repo already had before the install. ' +
-      'Also set `capabilityTierBinds`: true only if moduleRoot (from the contract you just wrote) exists in the target AND holds at least one source file. If it does not, every capability, segment and surface messageId will report zero because there is nothing under those roots to classify — say so plainly in `detail` rather than presenting the zeros as a clean result.\n' +
+      'List in `vacuousCounters` every counter whose zero means "nothing to classify" rather than "nothing found" — the capability, segment and surface messageIds when moduleRoot is empty, and nothing else. A counter that ran over real files and found none is NOT vacuous: phase 2 waives regressions only for the ones named here, and naming a counter that works hides a regression the migration caused.\n' +
+  'Also set `capabilityTierBinds`: true only if moduleRoot (from the contract you just wrote) exists in the target AND holds at least one source file. If it does not, every capability, segment and surface messageId will report zero because there is nothing under those roots to classify — say so plainly in `detail` rather than presenting the zeros as a clean result.\n' +
   'Set ok=true when the tools RAN — a high violation count is the expected starting point. Set ok=false only if a tool could not run at all, ' +
       'or if `preexisting` is non-zero: pre-existing lint debt is a red baseline, and step 8 of the adoption procedure names lint alongside type, test and build.',
   },
@@ -508,18 +689,7 @@ PROBES.push({
     'propose a change that does — a radius comparison over work the pilot never touches measures nothing.',
 })
 
-// Keyed POSITIONALLY, not by the agent-authored `label`. parallel() guarantees the
-// order, so this cannot drift; matching on a label the prompt never specified meant
-// a census returned as "ESLint boundary violations" was never found, the manifest
-// shipped an empty census, and phase 2 then read every non-zero count as a
-// regression and could only ever say `revise`.
-// SEQUENTIAL, deliberately — not parallel and not pipeline, both of which would run
-// these concurrently. tsc, the production build, the test run and ESLint all write
-// into the same working tree (.next/, *.tsbuildinfo, coverage), so running them at
-// once makes the baseline a concurrency artifact: a contended build fails, the run
-// reports "baseline build is not green", and the operator is sent to fix a
-// repository that is fine. The baseline is the thing every later verdict is measured
-// against, so it is worth the wall-clock.
+// Key probes by position and run them sequentially because their tools share build artifacts.
 const baseline = []
 for (const p of PROBES) {
   const r = await agent(
@@ -536,13 +706,11 @@ for (const p of PROBES) {
 
 const census = baseline.find(b => b.key === 'census')
 const violations = (census && census.counts) || {}
-// Whether the capability-tier rules had anything to bind to when this census was taken.
-// On a repository that has not moved a file yet they do not: moduleRoot does not exist, so
-// every capability, segment and surface messageId reports zero. Phase 2 compares its
-// post-migration counts against this census, and against a vacuum ANY count reads as a
-// regression — so a correct pilot would be told to revise. The flag travels with the
-// numbers because the numbers alone cannot say which kind of zero they are.
+// Carry whether capability-tier zero meant clean or nothing-to-classify.
 const capabilityTierBinds = !!(census && census.capabilityTierBinds)
+// Named counters, not a global switch. Empty when the tier bound, which is the same thing as
+// "waive nothing".
+const vacuousCounters = (census && census.vacuousCounters) || []
 const totalViolations = Object.keys(violations).reduce((n, k) => n + (violations[k] || 0), 0)
 log('Baseline: ' + baseline.filter(b => b.ok).length + '/' + baseline.length + ' probes ok, ' + totalViolations + ' violations censused')
 
@@ -554,26 +722,13 @@ const manifest = {
   contractSource: SRC,
   roots: assignment.roots || {},
   capabilities: caps,
-  // § Product Profile requires a consuming repository to record more than roots and
-  // capabilities. The six lenses already gathered most of it; discarding their
-  // findings after the Assign prompt threw away the expensive half of this phase and
-  // left the profile unrecorded. Kept verbatim, as evidence rather than conclusions.
-  profile: {
-    lenses: lensOuts.map(o => ({ lens: o.key, findings: o.findings || [], notes: o.notes || null })),
-    // Named explicitly so a gap is visible rather than merely absent. What the lenses
-    // cannot answer is a product decision, and the document says the profile records it.
-    pending: [
-      'schema, form, cache and notification libraries',
-      'store and remote-provider ownership',
-      'auth and tenancy model',
-      'route-private and shared UI conventions',
-      'accepted migration debt with owner and removal condition',
-    ],
-  },
+  // Persist only target-owned decisions; lens evidence is phase-1 working data.
+  profile,
   // Who decided what, and by what authority. A contract saying `dayjs` is a runtime
   // package does not say whether static analysis inferred that or a human ruled on it,
   // and only the second is something a later reader can go back and question.
   dependencyDecisions: decidedByHuman,
+  fileOwners: ownedByHuman,
   // Deviations from the written procedure, recorded rather than defended silently.
   deviations: [
     {
@@ -582,13 +737,6 @@ const manifest = {
       does: 'enables them repo-wide, before the pilot moves, so the violation census can be measured',
       why: 'the census is the burndown baseline; a pilot-scoped check cannot produce it',
       needs: 'a decision on docs/adoption-and-enforcement.md — § Sources Of Truth says a disagreement is a defect',
-    },
-    {
-      step: 'Incremental Migration',
-      says: 'old and new capabilities may coexist behind an explicit boundary',
-      does: 'no workflow migrates files assigned placement="shared"; phase 2 is capability-scoped and its role vocabulary has no shared role',
-      why: 'shared admission is a separate gate with its own criteria',
-      needs: 'a shared-admission pass before those files move',
     },
     {
       step: 'Adopt In An Existing Project, step 8',
@@ -606,13 +754,6 @@ const manifest = {
         'way to force it green is to declare roots describing a layout the repository does not have',
       needs: 'it to go green during the pilot; if it does not, the roots or the ownership map are wrong',
     },
-    {
-      step: 'Product Profile',
-      says: 'record the profile before migrating',
-      does: 'records the six lenses\' findings and lists the fields still outstanding under profile.pending',
-      why: 'the remaining fields are product decisions no inventory agent can settle by reading the tree',
-      needs: 'a human to fill profile.pending, or an explicit decision that the defaults stand',
-    },
   ],
   pilotCandidate: caps.length > 0 ? caps[0].name : null,
   assignments: assignment.assignments || [],
@@ -621,16 +762,12 @@ const manifest = {
   baseline: baseline,
   violationCensus: violations,
   capabilityTierBinds,
+  vacuousCounters,
   ordinaryChange: ORDINARY || null,
   rulesInstalled: !!(enabled && enabled.ok),
 }
 
-// The agent is NOT asked to retype the manifest. Pasting the whole object into a
-// prompt for verbatim reproduction does not survive a real repository: on a
-// 2000-file target that is hundreds of KB, the agent truncates mid-array, and phase 2
-// then migrates part of a capability and passes every oracle. It writes the payload
-// it is given in one shot and reads it back to prove it parses; the payload is built
-// here, in code.
+// Code builds the manifest; the writer persists and parses the exact payload without re-authoring it.
 const written = await agent(
   `Write the JSON below to ${MANIFEST} exactly as given, then read the file back and confirm it parses ` +
   'and that its `assignments` array has ' + (assignment.assignments || []).length + ' entries.\n\n' +
@@ -644,16 +781,29 @@ const written = await agent(
 
 const blockers = []
 if (!(enabled && enabled.ok)) blockers.push('rules are not enabled — the architectural oracle is unavailable')
-if (((assignment.deps || {}).undecided || []).length > 0) blockers.push('undecided dependencies need a product decision before the rules can pass')
 if (!(assignment.roots || {}).moduleRoot) blockers.push('moduleRoot was not decided — phase 2 computes every destination from it and will refuse to guess')
-// Unassigned files block the PILOT only when they belong to the pilot capability.
-// The procedure asks to inventory the repo (step 1) and pick one capability (step 3);
-// gating the pilot on having placed every file in the target was our own addition.
+// Only pilot-owned and unrouteable unassigned rows block the pilot.
 const pilotName = caps.length > 0 ? caps[0].name : null
 const unassigned = assignment.unassigned || []
-const unassignedInPilot = pilotName ? unassigned.filter(u => u.likelyCapability === pilotName) : []
-if (unassignedInPilot.length > 0) {
-  blockers.push(unassignedInPilot.length + ' file(s) in the pilot capability have no owner')
+const unassignedInPilot = pilotName
+  ? unassigned.filter(u => typeof u.likelyCapability === 'string' && u.likelyCapability.trim() === pilotName)
+  : []
+// A row with no known likely capability has no later run that can own its refusal.
+const found = new Set(caps.map(c => c.name))
+// Blank paths are unanswerable because fileOwners is keyed by path.
+const unrouteable = unassigned.filter(u => {
+  if (typeof u.file !== 'string' || u.file.trim() === '') return true
+  const named = typeof u.likelyCapability === 'string' ? u.likelyCapability.trim() : ''
+  return named === '' || !found.has(named)
+})
+const stuck = unassignedInPilot.concat(unrouteable.filter(u => unassignedInPilot.indexOf(u) === -1))
+if (stuck.length > 0) {
+  blockers.push(
+    stuck.length + ' file(s) have no owner and cannot wait for a later capability: ' +
+      stuck.map(u => u.file + (u.likelyCapability ? ' (guessed: ' + u.likelyCapability + ')' : ' (no capability guessed)')).join(', ') +
+      '. Answer with args.fileOwners { "<file>": "<capability>" } and re-run — add resumeFromRunId so the ' +
+      'inventory and assignment replay from cache instead of costing a second full pass.'
+  )
 }
 const warnings = []
 if (!capabilityTierBinds) {
@@ -661,23 +811,17 @@ if (!capabilityTierBinds) {
     'capability, segment and surface rule reported zero because it had nothing to classify. Those zeros are not a ' +
     'clean baseline, and phase 2 must not read the counts that appear after the first move as regressions above it.')
 }
-if (unassigned.length > unassignedInPilot.length) {
-  warnings.push((unassigned.length - unassignedInPilot.length) + ' file(s) outside the pilot have no owner — fine for now, they block their own capability later')
+if (unassigned.length > stuck.length) {
+  warnings.push((unassigned.length - stuck.length) + ' file(s) outside the pilot have no owner but DO name a capability this inventory found — they block that capability when its own run reads them')
 }
-// No exemption. A red census (many violations) is the expected starting point and is
-// reported as ok=true by the probe; ok=false means the tools could not RUN. Skipping
-// the census by key meant the one probe whose absence poisons phase 2 was the one
-// that could fail silently: an empty census makes every later count read as a
-// regression, so the pilot can only ever return `revise`.
+// A red measured census is valid; a missing census makes every later comparison meaningless.
 for (const b of baseline) if (!b.ok) blockers.push('baseline ' + b.key + ' did not complete: ' + b.detail)
 if (Object.keys(violations).length === 0) {
   blockers.push('the violation census is empty — phase 2 measures its burndown against it and would read every count as a regression')
 }
 const radiusProbe = baseline.find(b => b.key === 'change-radius')
 if (radiusProbe && !radiusProbe.ok) blockers.push('the change-radius before-set was not established: ' + radiusProbe.detail)
-// The manifest IS the handoff. Without it phase 2 has no assignments, no census and no
-// contract path — yet `manifestPath: null` shipped alongside "no blockers, pilot can
-// start", which is an invitation to run phase 2 against nothing.
+// The manifest is the executable handoff to phase 2.
 if (!written || !written.ok) {
   blockers.push('migration-manifest.json was not written: ' + ((written && written.detail) || 'the writer agent returned nothing') +
     ' — phase 2 reads every assignment, the census and the contract path from it')
@@ -701,10 +845,11 @@ return {
   // the contract the operator supplied rather than the analysis inferred, and the run
   // report is what they actually read.
   dependencyDecisions: decidedByHuman,
+  fileOwners: ownedByHuman,
   deviations: manifest.deviations,
-  profilePending: manifest.profile.pending,
+  profile: manifest.profile.decisions,
   nextStep: blockers.length === 0
     ? 'Run migrate-capability with args { repo, capability: "' + manifest.pilotCandidate + '", manifestPath }. ' +
-      'Read `deviations` and `profilePending` first — both are things this phase could not settle for you.'
+      'Read `deviations` first — they name the remaining limits this phase cannot settle for you.'
     : 'Clear the blockers above first — a pilot measured against a red baseline proves nothing',
 }

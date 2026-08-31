@@ -14,17 +14,9 @@ The **target** still needs three packages, because the rules installed into it i
 whatever package manager the target's lockfile names, before it writes anything — a rules copy that
 cannot run leaves the target half-converted and the census unmeasurable.
 
-**Phase 1 has been run once against a live repository; phase 2 never has.** The run was a layer-first
-Next.js app of 321 source files (`domain / use-cases / adapters / infrastructure / ui`). It installed
-the floor, left every file under `src/` untouched, kept the target's own typecheck, tests and ESLint
-green, and then stopped at the Enable gate because one direct dependency was unclassified — refusing
-to guess, which is the behaviour it is supposed to have. Three defects surfaced that no amount of
-reading had found: `args` arriving as a JSON string, an ignore-file write the phase was not permitted
-to make, and property 7 being demanded at a point where it cannot hold. All three are fixed.
-
-Everything else below still comes from reading the scripts and from `npm run validate`, which parses
-them the way the runtime does and executes their decision logic against tables. That proves the
-logic, not the outcome. Read every gate.
+The workflows have been exercised against a live migration; measurements and observed failures live
+in [`docs/evidence.md`](../docs/evidence.md). The rest below documents how to run and interpret the
+current program. Its tests prove decision logic, not a target repository's outcome; read every gate.
 
 ## Setup
 
@@ -58,6 +50,13 @@ Run in order. Each is a separate `Workflow` call so a human reads the result bef
 Workflow({ name: 'prepare-architecture-migration', args: {
   repo: '/abs/path/to/target',
   ordinaryChange: 'add an optional field to a work item and show it in the list',
+  profileDecisions: {
+    libraries: 'keep Zod, React Hook Form, TanStack Query, and the existing notification layer',
+    storesAndProviders: 'Supabase owns persistence; Stripe owns billing state',
+    authAndTenancy: 'server-derived user and tenant; RLS is mandatory',
+    uiConventions: 'route-private UI stays in app; shared UI follows the existing design system',
+    migrationDebt: 'none accepted',
+  },
 }})
 
 Workflow({ name: 'migrate-capability', args: {
@@ -67,20 +66,31 @@ Workflow({ name: 'migrate-capability', args: {
 }})
 ```
 
-Both phase-1 arguments are required. `ordinaryChange` is a blocker rather than a nicety: without it
+All three phase-1 arguments are required. `ordinaryChange` is a blocker rather than a nicety: without it
 there is no before-set, so the change-radius comparison — the only oracle that measures whether the
 architecture actually helped — cannot run, and steps 4 and 9 of the procedure are skipped.
 
-`contractSource` is the one optional argument. Omitted, phase 1 spends a single probe agent to
-locate the plugin root — `$CLAUDE_PLUGIN_ROOT`, then the plugin cache, then the surrounding checkout
-— and accepts a candidate only when all four normative sources exist under it. Pass it explicitly to
-override. It is resolved once rather than in each of the fifteen agents that need it, because
-independent resolutions can disagree and a subset reading a stale cached version is a split brain
-nobody notices until the census is wrong.
+`profileDecisions` records the target-owned facts inventory cannot decide: installed library choices,
+store/provider authority, auth and tenancy, UI conventions, and accepted migration debt. Missing
+decisions stop before the workflow writes anything; both the phase-2 planner and reviewer receive the
+recorded values.
+
+Three phase-1 arguments are optional. `contractSource`, omitted, costs a single probe agent that locates the
+plugin root — `$CLAUDE_PLUGIN_ROOT`, then the plugin cache, then the surrounding checkout — accepting
+a candidate only when all four normative sources exist under it. It resolves once rather than in each
+of the fifteen agents that need it, because independent resolutions can disagree and a subset reading
+a stale cached version is a split brain nobody notices until the census is wrong.
+
+`dependencyDecisions` and `fileOwners` answer the two questions a run can raise and cannot settle
+itself: which side an unclassified package belongs on, and which capability owns a file nothing could
+place. Both are checked against *this* run's open list, so a stale answer to an older question is
+refused rather than written into a new repository's contract. Without them the correct refusal to
+guess was a dead end whose only exit was a second full pass.
 
 `migrate-capability` needs `moduleRoot`. It takes it from the manifest or the target's contract and
 **refuses to guess**: every destination path is computed from it, so a default would move a whole
-capability into a directory the contract does not name.
+capability into a directory the contract does not name. An explicit override must equal the recorded
+value; it cannot create a second layout authority.
 
 There is deliberately no wave workflow yet. The document requires accepting, revising or
 rejecting the architecture after the pilot, and a wave workflow written before that decision would
@@ -94,7 +104,7 @@ produced it. All three of these already existed in this repository before the wo
 | Oracle | What it is | Must |
 | --- | --- | --- |
 | Behaviour | the target's own typecheck, lint, tests, **production build** | stay green |
-| Architecture | `rules/` — 16 named ESLint messageIds, cycle, ownership, dependency checks | capability at 0, no total above baseline |
+| Architecture | `rules/` — 17 named ESLint messageIds, cycle, ownership, dependency checks | capability at 0, no total above baseline |
 | Review | the properties [the document says static rules cannot prove](../docs/adoption-and-enforcement.md) | no must-fix |
 
 Phase 1 records the first two **before** anything moves — behaviour green, violations censused. The
@@ -161,6 +171,13 @@ the file — not argued about by an agent. Conversely a surface that *has* consu
 file to repurpose is authored fresh, because announcing a surface to the consumer agent without
 anything creating it is how "the surfaces that now exist" became a lie.
 
+The named consumer has to be a file this run knows exists: one the load probe recorded (it completes
+phase 1's page-level list by grepping the code for every importer), one the manifest assigned to this
+capability, or a destination the script itself computed. Earlier the check admitted anything under
+the capability directory and anything deep enough under a recorded app folder — prefix tests, which
+admit strings rather than files, so an invented path kept a surface alive and the mover published a
+public surface no code imports.
+
 ## Constraints the scripts enforce because the document requires them
 
 - No framework or library migration rides along; existing schema, form, UI, cache and provider
@@ -177,14 +194,12 @@ anything creating it is how "the surfaces that now exist" became a lie.
 
 ## Known deviations and gaps
 
-Recorded here and, in the same five entries, in the manifest's `deviations`, because § Sources Of Truth says a
+Recorded here and, in the same three entries, in the manifest's `deviations`, because § Sources Of Truth says a
 disagreement between surfaces is a defect — so these are open items, not settled choices:
 
 - **Step 7 says "for the pilot"; phase 1 enables the checks repo-wide** and before the pilot moves,
   because a pilot-scoped check cannot produce the census the burndown is measured against. Needs a
   decision on the document, not a quiet exception.
-- **Files assigned `placement: "shared"` are migrated by neither workflow.** Phase 2 is
-  capability-scoped and its role vocabulary has no shared role; shared admission is a separate gate.
 - **Neither phase runs the capability's real user workflow** (step 8) or compares runtime behaviour
   beyond the behaviour oracle's verdict. The pilot states both in its output.
 - **Enforcement property 7 cannot be green at baseline.** `check-database-resources.mjs` attributes an
@@ -193,10 +208,10 @@ disagreement between surfaces is a defect — so these are open items, not settl
   the check as red rather than requiring it to pass, and refuses the one thing that would force it
   green — declaring roots that describe a layout the repository does not have. It must go green during
   the pilot; if it does not, the roots or the ownership map are wrong.
-- **The Product Profile is partially recorded.** The manifest keeps the six lenses' findings and
-  lists what remains: schema/form/cache/notification libraries, store and remote-provider ownership,
-  the auth and tenancy model, route-private and shared UI conventions, and accepted migration debt
-  with owner and removal condition.
+
+Phase 1 refuses a `placement: "shared"` row outside the configured `sharedRoot`: phase 2 is
+capability-scoped and cannot move it. Move such code in a separate reviewed change or assign it to its
+natural capability before starting the pilot; the workflow will not report a complete wave around it.
 
 ## Notes on the runtime
 

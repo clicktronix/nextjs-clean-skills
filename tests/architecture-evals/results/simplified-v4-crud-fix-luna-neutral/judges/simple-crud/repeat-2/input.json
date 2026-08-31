@@ -1,0 +1,476 @@
+{
+  "task": "Design the file placement and call flows for a new labels capability in a Next.js 16 App Router application. The product needs an authenticated RSC page that lists labels, a small Client Component that can refresh and filter the list without navigating, and create/rename mutations from forms. Browser reads must be cacheable HTTP GET requests. Data is stored in the application's existing Supabase/Postgres database and there is no planned alternative provider. Stored rows use snake_case while product types use camelCase. Explain auth, validation, mapping, caching, and failure ownership. Give the concrete proposed tree and flows, but do not implement code.",
+  "rubric": {
+    "positive": [
+      "Capability behavior is colocated under one labels root while route-private glue remains in app.",
+      "Simple local-store CRUD does not gain a forwarding application operation or speculative repository port.",
+      "RSC reads use a server-only surface directly, browser reads use a GET Route Handler, and writes use top-level Server Actions.",
+      "Authentication is derived server-side and authorization is enforced at channel/policy/store boundaries.",
+      "Provider rows are mapped privately into product types and browser code cannot import server internals."
+    ],
+    "negative": [
+      "Mandatory empty architecture folders or one wrapper per operation.",
+      "Server Actions used as browser query transport.",
+      "Client-supplied identity, role, database client, or reporter.",
+      "A generic shared/lib bucket or a universal result wrapper."
+    ]
+  },
+  "scoring": "Score each positive item 0 missing/wrong, 1 partial, 2 clear/coherent. Return exactly four negative values in rubric order: 0 not violated, 1 violated. total = sum(positive) - sum(negative). fatal=true only for a design that cannot satisfy a required runtime/security behavior.",
+  "candidates": [
+    {
+      "candidate": "candidate-1",
+      "response": {
+        "summary": "The `labels` capability owns label policy, storage mapping, and read/write behavior. Use direct server access for the authenticated RSC page, a Route Handler for cacheable browser GETs, and Server Actions for create/rename forms. No application layer, repository port, shared server cache, or `query-cache.ts` is justified for this single local Supabase store.",
+        "tree": [
+          {
+            "path": "src/modules/labels/server.ts",
+            "purpose": "Explicit server-only capability surface: list, create, rename; accepts established actor/workspace identity and returns camelCase product values."
+          },
+          {
+            "path": "src/modules/labels/rsc.ts",
+            "purpose": "RSC-facing composition that authenticates the request and invokes labels server behavior for initial page data."
+          },
+          {
+            "path": "src/modules/labels/actions.ts",
+            "purpose": "Top-level use-server create and rename actions; authenticates, decodes FormData, validates, calls server.ts, and returns serializable action state."
+          },
+          {
+            "path": "src/modules/labels/client.ts",
+            "purpose": "Browser-safe GET client for `/api/labels`; owns refresh request lifecycle and local filtering inputs, without importing server code."
+          },
+          {
+            "path": "src/modules/labels/ui/labels-panel.tsx",
+            "purpose": "Small Client Component receiving initial labels and timestamp, applying local filtering, and refreshing through client.ts."
+          },
+          {
+            "path": "src/modules/labels/server/store.ts",
+            "purpose": "Private Supabase adapter; explicit snake_case select/insert/update, RLS-aware predicates, provider-output validation, and row-to-camelCase mapping."
+          },
+          {
+            "path": "src/modules/labels/server/auth.ts",
+            "purpose": "Server-only helper that creates the cookie-scoped Supabase client and verified actor/workspace scope together."
+          },
+          {
+            "path": "src/modules/labels/server/errors.ts",
+            "purpose": "Private translation of provider failures into stable semantic failures such as duplicate-name or unavailable-store."
+          },
+          {
+            "path": "app/(authenticated)/labels/page.tsx",
+            "purpose": "Authenticated route composition; calls labels/rsc.ts directly and renders the panel/forms. It does not fetch its own Route Handler."
+          },
+          {
+            "path": "app/api/labels/route.ts",
+            "purpose": "Browser GET HTTP boundary; authenticates, validates query parameters, calls labels/server.ts, and returns cacheable JSON with ETag/cache headers."
+          },
+          {
+            "path": "app/(authenticated)/labels/error.tsx",
+            "purpose": "RSC failure boundary for unexpected render failures and safe user-facing recovery."
+          }
+        ],
+        "flows": [
+          "Initial page: `app/(authenticated)/labels/page.tsx` → `src/modules/labels/rsc.ts` → `server/auth.ts` establishes actor and workspace scope → `labels/server.ts:list` → `server/store.ts` queries Supabase with the scope predicate → validates rows → maps `id`, `display_name`, `created_at` to `id`, `displayName`, `createdAt` → RSC renders `labels-panel.tsx` with the list and fetch timestamp.",
+          "Browser refresh/filter: `labels-panel.tsx` keeps filter text locally and filters the current list without navigation. Refresh calls `labels/client.ts` → `GET /api/labels?filter=...` with a conditional/no-cache revalidation request → `app/api/labels/route.ts` authenticates and validates the query → `labels/server.ts:list` → store → JSON response. The HTTP response is browser-cacheable but private to the authenticated scope.",
+          "Create/rename: form → exact function in `src/modules/labels/actions.ts` → authenticate actor/scope → decode FormData and validate name/label id at the action boundary → `labels/server.ts:create|rename` → `server/store.ts` performs scoped mutation and maps the result → action returns serializable success or field/business error state → client refreshes its browser-owned list if needed. Server Actions use POST-backed framework transport, while browser reads remain GETs. [Next.js forms guide](https://nextjs.org/docs/app/guides/forms)",
+          "HTTP GET failure: `app/api/labels/route.ts` maps expected semantic failures to safe status/body and reports unexpected failures once; provider text never reaches the browser. RSC failures reach `labels/error.tsx`; action failures become serializable action state. [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers)"
+        ],
+        "decisions": [
+          {
+            "topic": "Capability ownership",
+            "choice": "`src/modules/labels` owns label vocabulary and behavior; `app/**` owns route composition and HTTP/form presentation.",
+            "rationale": "The behavior is one product capability, not a page, table, or transport concern."
+          },
+          {
+            "topic": "Application layer",
+            "choice": "Omit `application/` and repository ports initially.",
+            "rationale": "This is CRUD against one existing Supabase/Postgres store with no alternative provider or cross-capability coordination."
+          },
+          {
+            "topic": "Authentication",
+            "choice": "Authenticate independently at RSC, Route Handler, and Server Action entrypoints; pass verified actor/workspace scope inward.",
+            "rationale": "Layouts and hidden UI are not authorization. Store queries also enforce the scope through Supabase RLS and explicit predicates."
+          },
+          {
+            "topic": "Validation",
+            "choice": "Validate untrusted FormData/query input at each channel boundary; validate provider rows in the store adapter; enforce semantic duplicate/name policy in server-owned behavior.",
+            "rationale": "Each channel is a separate trust boundary, while internal typed values are not reparsed."
+          },
+          {
+            "topic": "Mapping",
+            "choice": "Keep Supabase row types private and map snake_case rows to camelCase product values in `server/store.ts`.",
+            "rationale": "Storage and product contracts have independent reasons to change; explicit column selection prevents accidental payload widening."
+          },
+          {
+            "topic": "Caching",
+            "choice": "Use private HTTP caching for GET, with short freshness plus ETag/conditional revalidation; keep initial RSC data as render input and do not add a shared server cache or `query-cache.ts`.",
+            "rationale": "The browser owns refresh lifecycle, while the RSC owns initial render. Mutation success triggers client refresh/revalidation rather than relying on stale browser copies."
+          },
+          {
+            "topic": "Failure ownership",
+            "choice": "Adapters translate provider failures; each outer channel performs exactly one channel-specific translation/report.",
+            "rationale": "RSC, Server Actions, and HTTP require different failure carriers and must not expose raw provider exceptions."
+          }
+        ],
+        "risks": [
+          "The proposal assumes labels are scoped to a verified workspace or user identity; the exact scope predicate must follow the existing database/RLS model.",
+          "Private HTTP caching must include the authenticated scope in the cache key implicitly through browser isolation and must never use shared public caching for user-specific label data.",
+          "If labels later gain cross-capability coordination, transactions, or an alternative provider, introduce an owning application operation and narrow dependency port at that point."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-2",
+      "response": {
+        "summary": "Add a server-owned labels service shared by the authenticated RSC page, cacheable GET route, and form mutations. Keep Supabase access and snake_case mapping server-only; use a small Client Component for local filtering and in-place refresh.",
+        "tree": [
+          {
+            "path": "app/(authenticated)/labels/page.tsx",
+            "purpose": "Authenticated RSC entry point; loads labels through the server service and renders the client list/forms."
+          },
+          {
+            "path": "app/(authenticated)/labels/actions.ts",
+            "purpose": "Server Actions for create and rename form submissions; authenticates, validates, mutates, and revalidates labels."
+          },
+          {
+            "path": "app/(authenticated)/labels/LabelsClient.tsx",
+            "purpose": "Client Component receiving initial camelCase labels; filters locally and refreshes via HTTP GET without navigation."
+          },
+          {
+            "path": "app/api/labels/route.ts",
+            "purpose": "Authenticated browser GET endpoint returning JSON labels with private cache headers."
+          },
+          {
+            "path": "lib/labels/service.ts",
+            "purpose": "Server-only use-case layer for list, create, and rename operations; owns auth checks, validation orchestration, Supabase calls, and error classification."
+          },
+          {
+            "path": "lib/labels/repository.ts",
+            "purpose": "Supabase/Postgres persistence for labels; converts database snake_case rows to product camelCase models."
+          },
+          {
+            "path": "lib/labels/types.ts",
+            "purpose": "Product-facing camelCase types, database row/input types, and safe action/API result types."
+          },
+          {
+            "path": "lib/labels/validation.ts",
+            "purpose": "Shared label-name validation and normalization used by Server Actions and the GET/API boundary."
+          },
+          {
+            "path": "lib/supabase/server.ts",
+            "purpose": "Existing server Supabase client factory using the request/session context."
+          }
+        ],
+        "flows": [
+          "Initial page: GET /labels -> page.tsx -> service.listLabels() -> server Supabase auth check -> repository.listLabels() -> snake_case-to-camelCase mapping -> RSC renders LabelsClient with initial labels.",
+          "Browser refresh: LabelsClient calls GET /api/labels with normal browser caching -> route authenticates the session -> service.listLabels() -> repository -> mapping -> JSON response -> client replaces its list without route navigation.",
+          "Filtering: LabelsClient applies a normalized local text filter to its current camelCase list; no server request or navigation occurs.",
+          "Create: form submit -> labels/actions.ts createLabelAction(formData) -> validate/normalize name -> authenticate -> repository.insertLabel() -> map result -> revalidatePath('/labels') and invalidate the labels GET cache as applicable -> return success/error state -> client refreshes or updates the displayed list.",
+          "Rename: form submit with label id and name -> renameLabelAction(formData) -> authenticate and authorize -> validate id/name -> repository.updateLabel() -> map result -> revalidatePath('/labels') and invalidate the labels GET cache as applicable -> return success/error state.",
+          "Failure handling: service classifies unauthenticated requests as 401/redirect, invalid input as field errors, missing labels as 404/domain errors, and database failures as generic logged server errors; route translates these to HTTP responses, while Server Actions return form-safe error state."
+        ],
+        "decisions": [
+          {
+            "topic": "Authentication",
+            "choice": "Authenticate in the service boundary for every page, GET, and mutation call",
+            "rationale": "Prevents accidental unauthenticated repository access and keeps authorization consistent across RSC and browser flows."
+          },
+          {
+            "topic": "Read path",
+            "choice": "Use direct server-service calls for RSC and /api/labels for browser refresh",
+            "rationale": "Avoids server-to-self HTTP for rendering while providing the required cacheable browser GET."
+          },
+          {
+            "topic": "Caching",
+            "choice": "Return authenticated GET responses with private, short-lived HTTP caching and explicit invalidation after mutations",
+            "rationale": "Allows browser caching without sharing user-scoped data through a public cache."
+          },
+          {
+            "topic": "Validation",
+            "choice": "Normalize and validate names in a shared validation module, then enforce database constraints as a final guard",
+            "rationale": "Provides consistent form/API behavior while retaining persistence-level protection."
+          },
+          {
+            "topic": "Mapping",
+            "choice": "Perform snake_case-to-camelCase conversion in the repository boundary",
+            "rationale": "Keeps database naming out of product types, UI code, and action/API contracts."
+          },
+          {
+            "topic": "Mutation mechanism",
+            "choice": "Use Server Actions as the form targets",
+            "rationale": "Forms can submit without exposing database operations to the browser; revalidation keeps RSC data coherent."
+          },
+          {
+            "topic": "Failure ownership",
+            "choice": "Repository owns persistence errors, service owns domain/auth classification, and UI/API boundaries own presentation",
+            "rationale": "Each layer exposes failures at the abstraction level its caller can handle."
+          }
+        ],
+        "risks": [
+          "Short GET cache lifetimes can briefly show stale labels after a mutation; client-side refresh should use the mutation result or a cache-busting refresh when immediate consistency is required.",
+          "Concurrent renames require an optimistic-concurrency policy if last-write-wins is unacceptable.",
+          "Authorization rules beyond basic authentication must be enforced in the service/repository query, not only in the page or Client Component."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-3",
+      "response": {
+        "summary": "Add a vertical `labels` slice. Supabase/Postgres remains authoritative; the application validates and authorizes at each inbound boundary, while the data module owns row parsing and snake_case-to-camelCase mapping. No port or use-case operation is warranted for this single local store and pass-through CRUD behavior.",
+        "tree": [
+          {
+            "path": "src/domain/labels/types.ts",
+            "purpose": "Label product type using camelCase fields."
+          },
+          {
+            "path": "src/domain/labels/schemas.ts",
+            "purpose": "Valibot schemas for label output, list filters, create, and rename inputs."
+          },
+          {
+            "path": "src/data/labels/index.ts",
+            "purpose": "Server-only Supabase access; explicit row schema/selects, ownership predicates, RLS-compatible reads/writes, and row-to-domain mapping."
+          },
+          {
+            "path": "src/boundary/index.ts",
+            "purpose": "Shared application boundary declaration: validates input/output, normalizes failures, redacts fields, and reports once."
+          },
+          {
+            "path": "src/adapters/inbound/read/labels.ts",
+            "purpose": "Authenticated server-only RSC read entrypoint; verifies caller context and invokes the declared list boundary."
+          },
+          {
+            "path": "src/adapters/inbound/labels-actions.ts",
+            "purpose": "Authenticated Server Actions for create and rename; decodes FormData, invokes declared boundaries, and returns serializable action results."
+          },
+          {
+            "path": "src/app/api/labels/route.ts",
+            "purpose": "Authenticated HTTP GET for browser reads; translates results into stable JSON and private cache headers/ETag behavior."
+          },
+          {
+            "path": "src/client-cache/labels/keys.ts",
+            "purpose": "Labels cache key and client-owned refresh state."
+          },
+          {
+            "path": "src/client-cache/labels/queries.ts",
+            "purpose": "Browser fetcher for the cacheable GET endpoint; refreshes labels without navigation."
+          },
+          {
+            "path": "src/ui/labels/labels-client.tsx",
+            "purpose": "Small Client Component receiving initial RSC labels, applying local filtering, and triggering refresh."
+          },
+          {
+            "path": "src/ui/labels/label-forms.tsx",
+            "purpose": "Create and rename forms invoking Server Actions with pending/error states."
+          },
+          {
+            "path": "src/app/(authenticated)/labels/page.tsx",
+            "purpose": "Authenticated route; calls the server read entrypoint directly and passes plain labels to the client island."
+          },
+          {
+            "path": "supabase/migrations/*_labels.sql",
+            "purpose": "Labels table, constraints, indexes, RLS policies, and scoped mutation definitions if a transaction/function is needed."
+          }
+        ],
+        "flows": [
+          "RSC render: `app/(authenticated)/labels/page.tsx` -> `adapters/inbound/read/labels.ts` -> session/authz check -> `boundary` list declaration -> `data/labels` -> Supabase query under RLS -> parse `LabelRow` -> map `snake_case` row to camelCase `Label` -> page props.",
+          "Browser refresh: `labels-client.tsx` -> `client-cache/labels/queries.ts` -> `GET /api/labels` -> Route Handler auth check -> list boundary -> `data/labels` -> private cacheable JSON response -> replace the client cache value. Filtering is local over the cached domain-shaped list and does not navigate.",
+          "Create: form -> Server Action -> server-derived auth context -> FormData transport decoding -> create boundary validation -> `data/labels.create` -> scoped Supabase insert/RLS -> mapped `Label` -> serializable success or typed failure -> invalidate the client-owned labels cache and refresh the form/list state.",
+          "Rename: form -> Server Action -> server-derived auth context -> rename boundary validation -> `data/labels.rename` with label/user scope -> Supabase update/RLS -> mapped `Label` -> serializable result -> invalidate/refetch the labels cache.",
+          "Failure: domain/data layers throw typed failures; the boundary classifies and reports once; RSC translates to the route error surface, Server Actions return form-safe codes, and the GET handler returns a stable JSON envelope/status without provider text."
+        ],
+        "decisions": [
+          {
+            "topic": "Authority",
+            "choice": "Supabase/Postgres with RLS",
+            "rationale": "The task specifies the existing database and no alternative provider. SQL constraints/RLS own persistence integrity and access enforcement."
+          },
+          {
+            "topic": "Port",
+            "choice": "No port",
+            "rationale": "This is a locally runnable store dependency with one production implementation and no technology-independent business conversation."
+          },
+          {
+            "topic": "Use-case operation",
+            "choice": "Omit operations; use boundary declarations around data calls",
+            "rationale": "List, create, and rename contain no application orchestration or rule outside the store. Adding forwarding operations would fail the deletion test."
+          },
+          {
+            "topic": "Auth",
+            "choice": "Re-check server-side in every read/write inbound path",
+            "rationale": "`proxy.ts` or route protection is not an authorization boundary. RSC reads, Server Actions, and the GET handler each derive and verify the caller; Supabase RLS remains defense in depth."
+          },
+          {
+            "topic": "HTTP read caching",
+            "choice": "Private browser-cacheable GET",
+            "rationale": "Authenticated label data must not enter a shared public cache. Use scoped private cache headers and validators such as ETag; the client cache owns refresh invalidation."
+          },
+          {
+            "topic": "RSC read ownership",
+            "choice": "Server render owns initial page data",
+            "rationale": "The page reads directly through the server entrypoint, while the client island receives plain initial props and only owns its refreshable browser copy."
+          },
+          {
+            "topic": "Mapping",
+            "choice": "Map in `src/data/labels/index.ts`",
+            "rationale": "A parsed row schema owns explicit storage columns; one mapping prevents snake_case names from leaking into domain, form, or UI types."
+          },
+          {
+            "topic": "Validation",
+            "choice": "Transport decoding in inbound adapters; application schemas in boundary declarations; returned-row parsing in data",
+            "rationale": "Each trust boundary validates its own concern exactly once, with client validation treated only as feedback."
+          }
+        ],
+        "risks": [
+          "Private HTTP caching must include the correct authenticated scope; never use a shared cache key for user- or tenant-scoped labels.",
+          "RLS policies and mutation predicates must enforce the same user/tenant scope, including rename and any bulk operation.",
+          "Cache invalidation must be implemented by the owner of the client read; Server Actions should return a stale-safe result or trigger the client refresh path.",
+          "Use current Supabase SSR auth APIs and current Next.js cache-header APIs when implementing; this proposal intentionally does not prescribe syntax.",
+          "Test the data module against the real local Supabase/Postgres engine, plus boundary, inbound, client-cache, UI, and authenticated end-to-end outcomes."
+        ]
+      }
+    },
+    {
+      "candidate": "candidate-4",
+      "response": {
+        "summary": "Add labels as a vertical slice with domain types/schemas, pure use-cases, a Supabase outbound adapter, authenticated DAL reads, Server Action mutations, and a cacheable authenticated GET endpoint for the client island.",
+        "tree": [
+          {
+            "path": "src/domain/labels/label.ts",
+            "purpose": "CamelCase Label type, Valibot schemas, input constraints, and domain errors."
+          },
+          {
+            "path": "src/use-cases/labels/ports.ts",
+            "purpose": "LabelsRepository port for list, create, and rename operations."
+          },
+          {
+            "path": "src/use-cases/labels/list-labels.ts",
+            "purpose": "Pure list orchestration using the repository port."
+          },
+          {
+            "path": "src/use-cases/labels/create-label.ts",
+            "purpose": "Pure create validation/orchestration and duplicate-name policy."
+          },
+          {
+            "path": "src/use-cases/labels/rename-label.ts",
+            "purpose": "Pure rename validation/orchestration and ownership policy."
+          },
+          {
+            "path": "src/adapters/outbound/supabase/labels-repository.ts",
+            "purpose": "Supabase implementation of LabelsRepository; explicit snake_case columns, RLS-compatible predicates, and row-to-domain mapping."
+          },
+          {
+            "path": "src/infrastructure/supabase/server-client.ts",
+            "purpose": "Server-only Supabase client creation."
+          },
+          {
+            "path": "src/infrastructure/auth/verify-current-user.ts",
+            "purpose": "Server-side session/claims verification; not delegated solely to proxy.ts."
+          },
+          {
+            "path": "src/infrastructure/cache/label-tags.ts",
+            "purpose": "User/tenant-scoped cache tag construction."
+          },
+          {
+            "path": "src/adapters/inbound/next/labels-actions.ts",
+            "purpose": "Server Actions for create and rename; parse unknown input, authorize, invoke use-cases, map errors, and invalidate RSC tags."
+          },
+          {
+            "path": "src/adapters/inbound/next/labels-route.ts",
+            "purpose": "Authenticated GET Route Handler for browser reads, query parsing, response caching headers, and transport error mapping."
+          },
+          {
+            "path": "src/app/labels/page.tsx",
+            "purpose": "Authenticated RSC page that reads through the server-only DAL and passes serializable initial labels to the client island."
+          },
+          {
+            "path": "src/app/api/labels/route.ts",
+            "purpose": "Thin App Router route entrypoint delegating to the labels GET inbound adapter."
+          },
+          {
+            "path": "src/app/labels/_components/labels-client.tsx",
+            "purpose": "Small Client Component using the cacheable GET read for refresh/filter and invoking form actions for mutations."
+          },
+          {
+            "path": "src/app/labels/_components/create-label-form.tsx",
+            "purpose": "Create form bound to the create Server Action."
+          },
+          {
+            "path": "src/app/labels/_components/rename-label-form.tsx",
+            "purpose": "Rename form bound to the rename Server Action."
+          },
+          {
+            "path": "src/server/dal/labels.ts",
+            "purpose": "Server-only authenticated RSC read composition returning DTOs, never raw Supabase rows."
+          },
+          {
+            "path": "tests/domain/labels.test.ts",
+            "purpose": "Schema and pure rule tests."
+          },
+          {
+            "path": "tests/use-cases/labels.test.ts",
+            "purpose": "Use-case tests with an in-memory repository port."
+          },
+          {
+            "path": "tests/adapters/labels-repository.test.ts",
+            "purpose": "Row mapping, explicit selection, and persistence error mapping tests."
+          },
+          {
+            "path": "tests/inbound/labels-actions.test.ts",
+            "purpose": "Action auth, validation, mutation, and cache-invalidation tests."
+          },
+          {
+            "path": "tests/inbound/labels-route.test.ts",
+            "purpose": "GET auth, query parsing, cache headers, and error-envelope tests."
+          }
+        ],
+        "flows": [
+          "Initial page: GET /labels -> src/app/labels/page.tsx -> src/server/dal/labels.ts -> verify-current-user -> list-labels -> LabelsRepository -> Supabase adapter -> map snake_case rows to camelCase Label DTOs -> RSC props.",
+          "Browser refresh/filter: LabelsClient -> TanStack Query key ['labels', userScope, filter] -> GET /api/labels?query=... -> labels-route -> verify-current-user -> list-labels -> Supabase adapter -> JSON DTOs. The response uses private user-scoped HTTP caching and an ETag; no shared cache is used for authenticated data.",
+          "Create: create form -> createLabel Server Action -> parse Valibot schema -> verify current user -> create-label use-case -> repository insert scoped by actor/tenant -> map returned row -> updateTag for the scoped labels RSC tag -> action result returned to the client -> client query key invalidated/refetched.",
+          "Rename: rename form -> renameLabel Server Action -> parse Valibot schema -> verify current user -> rename-label use-case -> repository update constrained by label id plus actor/tenant scope -> map returned row -> invalidate the scoped RSC tag -> client query key invalidated/refetched.",
+          "Failure path: domain validation returns field errors; missing auth returns an authentication/authorization application error; duplicate names map to ConflictError; missing scoped rows map to NotFoundError; unexpected Supabase failures are logged server-side with request context and exposed only as a generic action/JSON error."
+        ],
+        "decisions": [
+          {
+            "topic": "Architecture boundary",
+            "choice": "Use Server Actions for create/rename and a GET Route Handler for browser reads",
+            "rationale": "Forms are same-app UI commands; browser refresh/filter requires a normal cacheable HTTP GET."
+          },
+          {
+            "topic": "Read ownership",
+            "choice": "RSC/DAL owns initial page data; TanStack Query plus GET owns the interactive client read",
+            "rationale": "The client island needs refresh/filter lifecycle without navigation. The initial RSC payload seeds the query rather than duplicating an independent read."
+          },
+          {
+            "topic": "Authentication",
+            "choice": "Recheck auth in the DAL, Server Actions, and GET handler",
+            "rationale": "proxy.ts may refresh or redirect but is not an authorization boundary. Every data path must derive the actor server-side."
+          },
+          {
+            "topic": "Validation",
+            "choice": "Valibot schemas in src/domain/labels and parsing at every inbound boundary",
+            "rationale": "Client validation is advisory; action and route payloads arrive as unknown and require runtime validation with length caps."
+          },
+          {
+            "topic": "Persistence mapping",
+            "choice": "Supabase remains an outbound implementation detail; repository maps snake_case rows to camelCase domain/DTO values",
+            "rationale": "Use-cases depend only on LabelsRepository and product types, preserving dependency direction and preventing raw rows from reaching UI."
+          },
+          {
+            "topic": "Caching",
+            "choice": "Use scoped RSC tags for page reads and private HTTP caching/ETags for GET /api/labels",
+            "rationale": "Authenticated responses must be browser-cacheable without becoming shared or cross-user cache entries. Mutations invalidate the RSC tag and client query key."
+          },
+          {
+            "topic": "Failure ownership",
+            "choice": "Use-cases define transport-neutral errors; inbound adapters own action results, JSON status codes, and safe public messages",
+            "rationale": "Provider errors and framework transport details must not leak into domain or use-case layers."
+          }
+        ],
+        "risks": [
+          "The exact Supabase SSR auth primitive and current Next.js cache API syntax should be verified against the project’s installed versions before implementation.",
+          "Filtering semantics must be chosen explicitly: server-side query filtering for large label sets, or client-side filtering only when the list-size cap is small.",
+          "RLS policies and database uniqueness constraints must enforce the same actor/tenant scope and normalized-name conflict policy as the application layer."
+        ]
+      }
+    }
+  ]
+}

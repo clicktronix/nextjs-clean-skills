@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-08-30T18:09:12.177Z",
+  "repositoryHead": "7f5c7056f25916f95387fb4fb91d9d33eefc8acf",
+  "candidateCommit": "7f5c7056f25916f95387fb4fb91d9d33eefc8acf",
+  "candidateTreeHash": "c8598ddb3dc3ad56330b6ca175e1a24d2029bec68ab90596df5f55c39eb35911",
+  "candidateWorktreeDirty": false,
+  "codexVersion": "codex-cli 0.151.0",
+  "generationModel": "gpt-5.6-luna",
+  "judgeModel": "gpt-5.6-sol",
+  "framing": "neutral",
+  "arms": [
+    "no-skill",
+    "v1.3.2",
+    "pre-domain-order",
+    "capability-first"
+  ],
+  "scenarioArms": {
+    "ownership-resolution": [
+      "no-skill",
+      "v1.3.2",
+      "pre-domain-order",
+      "capability-first"
+    ]
+  },
+  "scenarios": [
+    "ownership-resolution"
+  ],
+  "repeats": 2,
+  "generationRuns": 8,
+  "blindJudgeRuns": 2
+}

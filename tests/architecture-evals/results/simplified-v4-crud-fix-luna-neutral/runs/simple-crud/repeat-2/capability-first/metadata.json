@@ -1,0 +1,10 @@
+{
+  "scenario": "simple-crud",
+  "arm": "capability-first",
+  "repeat": 2,
+  "model": "gpt-5.6-luna",
+  "framing": "neutral",
+  "taskHash": "6132936e6f4dc529640371d032df795ce8f23930351300fbe041c43447946c43",
+  "skillHash": "5d14b950305b860733fdbddad2b8016a242b8923447a7c4b68b7a5a44f5afd1a",
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}

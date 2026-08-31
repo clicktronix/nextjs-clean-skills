@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ts from 'typescript'
+
 const posix = (value) => value.split(path.sep).join('/')
 
 function findProjectRoot(start) {
@@ -67,11 +69,15 @@ export function loadArchitecturePaths(metaUrl, rootOverride) {
   const moduleRoot = projectPath(projectRoot, 'moduleRoot', contract.moduleRoot)
   const appRoot = projectPath(projectRoot, 'appRoot', contract.appRoot)
   const sharedRoot = projectPath(projectRoot, 'sharedRoot', contract.sharedRoot)
+  const generatedRoot = contract.generatedRoot
+    ? projectPath(projectRoot, 'generatedRoot', contract.generatedRoot)
+    : null
 
   for (const [name, root] of [
     ['moduleRoot', moduleRoot],
     ['appRoot', appRoot],
     ['sharedRoot', sharedRoot],
+    ...(generatedRoot ? [['generatedRoot', generatedRoot]] : []),
   ]) {
     if (!isWithin(sourceRoot, root)) {
       throw new Error(`${name} must stay inside sourceRoot`)
@@ -82,6 +88,7 @@ export function loadArchitecturePaths(metaUrl, rootOverride) {
     ['moduleRoot', moduleRoot],
     ['appRoot', appRoot],
     ['sharedRoot', sharedRoot],
+    ...(generatedRoot ? [['generatedRoot', generatedRoot]] : []),
   ]
   for (let leftIndex = 0; leftIndex < ownedRoots.length; leftIndex += 1) {
     for (let rightIndex = leftIndex + 1; rightIndex < ownedRoots.length; rightIndex += 1) {
@@ -100,6 +107,7 @@ export function loadArchitecturePaths(metaUrl, rootOverride) {
     moduleRoot,
     appRoot,
     sharedRoot,
+    generatedRoot,
     importAliases: aliases(projectRoot, contract.importAliases),
   }
 }
@@ -124,9 +132,98 @@ export function resolveProjectImport(paths, importer, specifier) {
   return path.resolve(alias[1], specifier.slice(alias[0].length))
 }
 
+// Every extension a project source file can carry. ESLint and cycle detection share this inventory.
+export const SOURCE_EXTENSIONS = ['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts']
+
 export function sourceFilesPattern(paths) {
   const relative = posix(path.relative(paths.projectRoot, paths.sourceRoot))
-  return `${relative ? `${relative}/` : ''}**/*.{js,jsx,ts,tsx}`
+  return `${relative ? `${relative}/` : ''}**/*.{${SOURCE_EXTENSIONS.join(',')}}`
 }
 
 export { posix }
+
+/**
+ * Every static module-loading form, with its kind. Callers decide whether type-only edges matter;
+ * cycle detection keeps them because the contract requires an acyclic module graph.
+ */
+export function moduleEdges(parsed) {
+  const edges = []
+  const literal = (node) => (node && ts.isStringLiteralLike(node) ? node.text : null)
+  const push = (node, typeOnly) => {
+    const specifier = literal(node)
+    if (specifier !== null) edges.push({ specifier, typeOnly })
+  }
+  // `require` and `module.require` / `module['require']`, and nothing else. Accepting any property
+  // access named `require` read `loader.require(name)` — an ordinary method call on somebody's
+  // object — as a module edge.
+  const isRequireTarget = (expression) => {
+    if (ts.isIdentifier(expression)) return expression.text === 'require'
+    const receiver = ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)
+    if (!receiver) return false
+    if (!ts.isIdentifier(expression.expression) || expression.expression.text !== 'module') return false
+    return ts.isPropertyAccessExpression(expression)
+      ? ts.isIdentifier(expression.name) && expression.name.text === 'require'
+      : literal(expression.argumentExpression) === 'require'
+  }
+  // `every()` on an empty list is true, so `import {} from './x'` and `export {} from './x'` were
+  // classified as entirely type-only and dropped. They import nothing by name and still load the
+  // module for its side effects, which is a value edge.
+  const allTypeOnly = (elements) => elements.length > 0 && elements.every((element) => element.isTypeOnly)
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node)) {
+      const clause = node.importClause
+      const bindings = clause?.namedBindings
+      const typeOnly = Boolean(
+        clause &&
+          (clause.isTypeOnly ||
+            (!clause.name && bindings && ts.isNamedImports(bindings) && allTypeOnly(bindings.elements)))
+      )
+      push(node.moduleSpecifier, typeOnly)
+    }
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
+      const clause = node.exportClause
+      const typeOnly = Boolean(
+        node.isTypeOnly || (clause && ts.isNamedExports(clause) && allTypeOnly(clause.elements))
+      )
+      push(node.moduleSpecifier, typeOnly)
+    }
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      push(node.moduleReference.expression, Boolean(node.isTypeOnly))
+    }
+    if (ts.isCallExpression(node)) {
+      // `import(specifier, options)` is a two-argument call in current TypeScript; requiring exactly
+      // one argument made the import-attributes form invisible.
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length >= 1) {
+        push(node.arguments[0], false)
+      } else if (isRequireTarget(node.expression) && node.arguments.length === 1) {
+        push(node.arguments[0], false)
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(parsed)
+  return edges
+}
+
+/** Specifier strings. `valueOnly` drops type-only edges, which is the runtime view. */
+export function moduleSpecifiers(parsed, { valueOnly = false } = {}) {
+  return moduleEdges(parsed)
+    .filter((edge) => !valueOnly || !edge.typeOnly)
+    .map((edge) => edge.specifier)
+}
+
+// Development artifacts do not participate in the production capability graph. These fixed forms
+// are deliberately narrow: making them configurable can silently remove production files from the
+// graph when a pattern is misspelled or contains regular-expression syntax.
+const DEV_SUFFIXES = ['test', 'spec', 'stories', 'mock', 'mocks', 'fixture', 'fixtures']
+const DEV_DIRECTORIES = ['__tests__', '__mocks__', '__fixtures__', 'test', 'tests', 'mocks', 'fixtures']
+
+const DEV_FILE = new RegExp(`\\.(${DEV_SUFFIXES.join('|')})\\.(${SOURCE_EXTENSIONS.join('|')})$`)
+
+export function isDevelopmentArtifactFile(file) {
+  return DEV_FILE.test(path.basename(file))
+}
+
+export function isDevelopmentArtifactDirectory(name) {
+  return DEV_DIRECTORIES.includes(name)
+}

@@ -8,19 +8,24 @@
 
 import importPlugin from 'eslint-plugin-import'
 
-import { loadArchitecturePaths, sourceFilesPattern } from './contract-paths.mjs'
+import { loadArchitecturePaths, sourceFilesPattern, SOURCE_EXTENSIONS } from './contract-paths.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
+
+const EXTENSIONS = SOURCE_EXTENSIONS.map((extension) => `.${extension}`)
 
 export default [
   {
     files: [sourceFilesPattern(paths)],
     plugins: { import: importPlugin },
     settings: {
-      'import/extensions': ['.js', '.jsx', '.ts', '.tsx'],
+      // From the one exported list. Written out by hand these omitted every NodeNext extension, so
+      // a same-capability `.mts` cycle written with `.mjs` specifiers resolved to nothing and passed
+      // the cycle canary — the resolver and the glob agreed about the project, and this did not.
+      'import/extensions': EXTENSIONS,
       'import/resolver': {
         typescript: { alwaysTryTypes: true },
-        node: { extensions: ['.js', '.jsx', '.ts', '.tsx'] },
+        node: { extensions: EXTENSIONS },
       },
     },
     rules: {
@@ -30,7 +35,7 @@ export default [
     },
   },
   {
-    files: ['**/__tests__/**/*', '**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    files: ['**/__tests__/**/*', `**/*.{test,spec}.{${SOURCE_EXTENSIONS.join(',')}}`],
     rules: {
       'import/no-cycle': 'off',
     },

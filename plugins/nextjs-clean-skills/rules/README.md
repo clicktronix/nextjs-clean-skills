@@ -15,9 +15,17 @@ try to infer business meaning from path names.
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
 
+`generatedRoot` is optional. Declare it and generated files may import one another, while external
+consumers may import them only from a capability's private `server/**` segment. Mapping provider
+values at the adapter boundary remains a review concern; the path rule does not infer which server
+file performs that mapping. Leave the root out and the rule is inert. Like every configured root, it
+must be project-relative, remain inside `sourceRoot`, and stay disjoint from `moduleRoot`, `appRoot`,
+and `sharedRoot`. A broad generated root would classify ordinary consumers as generated and
+silence the boundary it is meant to enforce.
+
 ## Install
 
-Copy the seven non-README files into the consuming repository, then spread both configs after the base flat
+Copy the rule files into the consuming repository, then spread both configs after the base flat
 ESLint configs:
 
 ```js
@@ -76,7 +84,7 @@ The portable floor has seven named properties:
    import browser surfaces, and `actions.ts` is the explicit browser-to-server mutation boundary.
 5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
    are allowed, `export *` is not, action values are local async functions, and `query-cache.ts`
-   remains runtime-neutral with consumers on both sides.
+   remains runtime-neutral.
 6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
@@ -91,12 +99,14 @@ Static imports cannot prove:
 
 - whether an application operation passes the deletion test;
 - whether a public surface narrows enough to justify itself;
+- whether shared code has two real capability consumers with identical meaning and lifecycle;
+- whether a runtime-neutral surface has real consumers on both runtimes;
 - authorization and defense-in-depth predicates;
 - validation exactly once per trust transition;
 - cache ownership, report-once behavior, or stream/job lifecycle semantics;
 - whether a package should be classified as pure or runtime-bound;
 - resource ownership hidden in raw SQL, ORM expressions, migrations, or provider wrappers;
-- whether code admitted to `shared/**` still has identical meaning for every consumer.
+- whether code admitted to `shared/**` should later be demoted as its consumers diverge.
 
 Review those against the human contract and test them at runtime. Adding a path rule that claims to
 prove one of these would create a false guarantee.

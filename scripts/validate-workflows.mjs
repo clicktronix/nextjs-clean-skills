@@ -47,6 +47,13 @@ const DIR = 'plugins/nextjs-clean-skills/workflows'
 const errors = []
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const HOOKS = ['args', 'budget', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'workflow']
+const PROFILE_DECISIONS = {
+  libraries: 'keep the libraries already declared by the target',
+  storesAndProviders: 'keep current stores and provider ownership',
+  authAndTenancy: 'preserve the target auth and tenancy model',
+  uiConventions: 'preserve route-private and shared UI conventions',
+  migrationDebt: 'no accepted migration debt',
+}
 
 // Walks the line tracking quote state so `https://…` inside a string does not read as
 // the start of a comment.
@@ -248,8 +255,16 @@ async function runBody(source, { args: argv, overrides = {} } = {}) {
     budget: { total: null, spent: () => 0, remaining: () => Infinity },
     agent: async (prompt, opts = {}) => {
       calls.push(opts.label)
-      prompts.push({ label: opts.label, prompt: String(prompt) })
-      if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) return overrides[opts.label]
+      // The schema as the call site actually passes it. Asserting on a schema literal read out of
+      // the source proves the literal; asserting on this one proves the agent was handed it.
+      prompts.push({ label: opts.label, prompt: String(prompt), schema: opts.schema })
+      if (Object.prototype.hasOwnProperty.call(overrides, opts.label)) {
+        const answer = overrides[opts.label]
+        // A function override answers per call, indexed from zero. A fixed value cannot express
+        // the state a fix loop actually produces: a probe that reported on the first pass and then
+        // died on the re-verify, leaving the tree edited and the oracle watching it gone.
+        return typeof answer === 'function' ? answer(calls.filter(c => c === opts.label).length - 1) : answer
+      }
       return stubValue(opts.schema)
     },
     parallel: thunks => Promise.all(thunks.map(t => t().catch(() => null))),
@@ -435,6 +450,189 @@ if (files.includes(PILOT)) {
         dropped && dropped.staying.some(r => r.file === 'src/lib/wi-client.ts'),
         'plan screening: a move dropped for an unconsumed surface must appear in the leave-in-place list'
       )
+
+      // ─── a consumer is a file, not a plausible string ───
+      // The two admission rules this replaces were prefix tests, and a prefix test admits strings.
+      // Anything under the capability directory passed, and so did any path deep enough under a
+      // recorded app folder — so an invented consumer kept a surface alive and the mover authored
+      // a public surface no code imports. `run()` derives CONSUMERS from the plan by default, so
+      // each case below passes its own recorded list and assigned files.
+      const FILES_IN = [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/keys.ts' }]
+      const RECORDED = ['src/app/(app)/work-items/page.tsx']
+      const withConsumer = c => ({
+        moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/keys.ts', role: 'client' }],
+        surfaces: [{ surface: 'query-cache', consumers: [c], exports: ['workItemKeys'] }],
+      })
+      const fabricated = [
+        ['a non-existent file under the capability root', 'src/modules/work-items/client/does-not-exist.ts'],
+        ['an invented path deep under a recorded app directory', 'src/app/(app)/work-items/_invented/hook.ts'],
+        ['a plausible path that is neither recorded nor assigned', 'src/features/work-items/api.ts'],
+      ]
+      for (const [label, consumer] of fabricated) {
+        const verdict = run(withConsumer(consumer), FILES_IN, RECORDED)
+        check(
+          verdict && typeof verdict.error === 'string' && (verdict.strayConsumers || []).length === 1,
+          `plan screening (${label}): a surface must not be authored for a consumer nothing shows to exist, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      // Controls: the three things that ARE real must still be admitted, or the guard is just a ban
+      // on internal consumers — and query-cache exists precisely to have them.
+      const admitted = [
+        ['a recorded consumer', RECORDED[0]],
+        ['a file the manifest assigned to this capability', 'src/lib/keys.ts'],
+        ['a destination this script computed', 'src/modules/work-items/client/keys.ts'],
+      ]
+      for (const [label, consumer] of admitted) {
+        const verdict = run(withConsumer(consumer), FILES_IN, RECORDED)
+        check(
+          verdict && !verdict.error,
+          `plan screening (${label}): must be admitted as a consumer, got ${JSON.stringify(verdict && verdict.strayConsumers)}`
+        )
+      }
+
+      // ─── a surface cannot justify itself ───
+      // The admitted set included the surfaces' own computed destinations, unqualified — so a
+      // surface naming its own destination as its sole consumer passed screening and started the
+      // mover, and two surfaces naming each other did the same with no real importer anywhere.
+      const surfacePlan = (surfaces) => ({ moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces })
+      const selfJustifying = [
+        [
+          'a surface naming its own destination',
+          [{ surface: 'query-cache', consumers: ['src/modules/work-items/query-cache.ts'], exports: ['keys'] }],
+        ],
+        [
+          'two surfaces naming each other',
+          [
+            { surface: 'query-cache', consumers: ['src/modules/work-items/rsc.ts'], exports: ['keys'] },
+            { surface: 'rsc', consumers: ['src/modules/work-items/query-cache.ts'], exports: ['read'] },
+          ],
+        ],
+      ]
+      for (const [label, surfaces] of selfJustifying) {
+        const verdict = run(surfacePlan(surfaces), [{ file: 'src/lib/calc.ts' }], [])
+        check(
+          verdict && typeof verdict.error === 'string',
+          `plan screening (${label}): a surface justified only by surfaces must be rejected, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      // A MOVED surface has three names — its source, its computed destination, and the authored
+      // path — and only the last was registered as a surface. The other two were classified as
+      // ordinary files first, so the same self-reference passed under a different spelling.
+      const movedAliases = [
+        [
+          'a moved surface naming its own source',
+          {
+            moves: [{ file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/lib/api.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/api.ts' }],
+        ],
+        [
+          'a moved surface naming its own destination',
+          {
+            moves: [{ file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/modules/work-items/rsc.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/api.ts' }],
+        ],
+        [
+          'two moved surfaces naming each other by source',
+          {
+            moves: [
+              { file: 'src/lib/api.ts', role: 'surface', surface: 'rsc' },
+              { file: 'src/lib/keys.ts', role: 'surface', surface: 'query-cache' },
+            ],
+            surfaces: [
+              { surface: 'rsc', consumers: ['src/lib/keys.ts'], exports: ['read'] },
+              { surface: 'query-cache', consumers: ['src/lib/api.ts'], exports: ['keys'] },
+            ],
+          },
+          [{ file: 'src/lib/api.ts' }, { file: 'src/lib/keys.ts' }],
+        ],
+      ]
+      for (const [label, plan, filesIn] of movedAliases) {
+        const verdict = run(plan, filesIn, [])
+        check(
+          verdict && typeof verdict.error === 'string',
+          `plan screening (${label}): must be rejected, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      // Control: a surface-to-surface reference is legitimate once the chain ends at a real consumer.
+      const chained = run(
+        surfacePlan([
+          { surface: 'query-cache', consumers: ['src/modules/work-items/rsc.ts'], exports: ['keys'] },
+          { surface: 'rsc', consumers: ['src/app/p.tsx'], exports: ['read'] },
+        ]),
+        [{ file: 'src/lib/calc.ts' }],
+        ['src/app/p.tsx']
+      )
+      check(!chained.error, `plan screening (a grounded surface chain): must be accepted, got ${JSON.stringify(chained.error)}`)
+      // A file this same plan deletes is not evidence that anything imports the surface.
+      // Both routes to the same claim: as an assigned file, and as a RECORDED consumer. The recorded
+      // list is where a stale path most easily survives — phase 1 wrote it before anything moved —
+      // and the deleted test used to sit on only one branch.
+      for (const [label, recorded] of [['as an assigned file', []], ['as a recorded consumer', ['src/lib/old.ts']]]) {
+        const viaDeleted = run(
+          {
+            moves: [{ file: 'src/lib/calc.ts', role: 'domain' }, { file: 'src/lib/old.ts', role: 'delete' }],
+            surfaces: [{ surface: 'rsc', consumers: ['src/lib/old.ts'], exports: ['read'] }],
+          },
+          [{ file: 'src/lib/calc.ts' }, { file: 'src/lib/old.ts' }],
+          recorded
+        )
+        check(
+          viaDeleted && typeof viaDeleted.error === 'string',
+          `plan screening (a consumer this plan deletes, ${label}): must be rejected, got ${JSON.stringify(viaDeleted && viaDeleted.error)}`
+        )
+      }
+
+      // The registration order must not decide the verdict. A role change puts one surface's future
+      // canonical path where another surface's file stands today; interleaved registration let the
+      // later destination overwrite that current-file identity, so the SAME valid plan was accepted
+      // in one move order and rejected in the other.
+      {
+        const roleChange = [
+          { file: 'src/modules/work-items/rsc.ts', role: 'surface', surface: 'query-cache' },
+          { file: 'src/lib/read.ts', role: 'surface', surface: 'rsc' },
+        ]
+        const filesIn = [{ file: 'src/modules/work-items/rsc.ts' }, { file: 'src/lib/read.ts' }]
+        // `rsc` names the path that TODAY holds the file becoming `query-cache`, so the correct
+        // reading is an edge rsc -> query-cache, and query-cache is grounded by a real consumer.
+        // Read the other way round it is `rsc` naming itself, which is a rejection.
+        const surfaces = [
+          { surface: 'query-cache', consumers: ['src/app/p.tsx'], exports: ['keys'] },
+          { surface: 'rsc', consumers: ['src/modules/work-items/rsc.ts'], exports: ['read'] },
+        ]
+        const orders = [roleChange, [...roleChange].reverse()]
+        const verdicts = orders.map(moves => run({ moves, surfaces }, filesIn, ['src/app/p.tsx']))
+        check(
+          verdicts.every(v => v && !v.error),
+          `plan screening (surface role change): the same plan must be judged the same in both move orders, got ${JSON.stringify(verdicts.map(v => v && v.error))}`
+        )
+      }
+
+      // ─── a declared channel change is rejected, not quietly dropped ───
+      // The old filter discarded a malformed entry, so a planner that reported a transport change
+      // with one blank field produced a gate that said nothing about it — the report ate the
+      // warning. A blank `behaviourRisk` passes the schema, because "" is a string.
+      const withChannel = ch => ({ ...clean, channelChanges: [ch] })
+      const badChannels = [
+        ['blank behaviourRisk', { what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: '   ' }],
+        ['missing behaviourRisk', { what: 'browser list read', from: 'Server Action', to: 'GET route handler' }],
+        ['missing to', { what: 'browser list read', from: 'Server Action', behaviourRisk: 'retryable 5xx per attempt' }],
+      ]
+      for (const [label, ch] of badChannels) {
+        const verdict = run(withChannel(ch), (clean.moves || []).map(mv => ({ file: mv.file })), ['src/app/p.tsx'])
+        check(
+          verdict && typeof verdict.error === 'string' && (verdict.malformedChannels || []).length === 1,
+          `plan screening (channel with ${label}): must be rejected, not silently dropped, got ${JSON.stringify(verdict && verdict.error)}`
+        )
+      }
+      const goodChannel = run(
+        withChannel({ what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: 'retryable 5xx now reported per attempt' }),
+        (clean.moves || []).map(mv => ({ file: mv.file })), ['src/app/p.tsx']
+      )
+      check(goodChannel && !goodChannel.error, `plan screening (well-formed channel change): must be accepted, got ${JSON.stringify(goodChannel && goodChannel.error)}`)
     }
   }
 
@@ -476,7 +674,7 @@ if (files.includes(PILOT)) {
     // archRed returns the REASON it is red ('' when green), so the gate and the report
     // cannot disagree about why. Assert truthiness, and that a red answer explains itself.
     for (const [label, a, expected] of archCases) {
-      const reason = archRed(a, census, true)
+      const reason = archRed(a, census, new Set())
       check(!!reason === expected, `archRed(${label}): expected red=${expected}, got ${JSON.stringify(reason)}`)
       if (expected) check(typeof reason === 'string' && reason.length > 0, `archRed(${label}): a red verdict must name its reason`)
     }
@@ -484,12 +682,28 @@ if (files.includes(PILOT)) {
     // so every capability-tier rule reported zero for want of anything to classify. Compared
     // against that vacuum, the first correct pilot looks like a repo-wide regression.
     check(
-      archRed({ ok: true, counts: { capability: 0, crossCapabilityInternal: 9, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) === '',
-      'archRed(vacuous baseline): counts appearing after the first move are not regressions above a baseline that measured nothing'
+      archRed(
+        { ok: true, counts: { capability: 0, crossCapabilityInternal: 9, domainDirection: 0 } },
+        { crossCapabilityInternal: 0, domainDirection: 0 },
+        new Set(['crossCapabilityInternal', 'domainDirection'])
+      ) === '',
+      'archRed(named vacuous counter): a counter whose baseline zero meant "nothing to classify" cannot be regressed against'
     )
-    // The capability's own arm does NOT depend on the baseline and must still fire.
+    // The waiver is per counter. Waiving the whole arm also waived counters that measured the
+    // repository as it already was — unresolved imports, database ownership, pre-existing debt —
+    // and a migration can genuinely regress those. Executing the gate with them newly non-zero
+    // returned `accept`.
     check(
-      archRed({ ok: true, counts: { capability: 3, crossCapabilityInternal: 0, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, false) !== '',
+      archRed(
+        { ok: true, counts: { capability: 0, crossCapabilityInternal: 0, domainDirection: 0, 'import/no-unresolved': 4 } },
+        { crossCapabilityInternal: 0, domainDirection: 0, 'import/no-unresolved': 0 },
+        new Set(['crossCapabilityInternal', 'domainDirection'])
+      ) !== '',
+      'archRed(counter outside the vacuous set): a real regression must not be waived with the vacuous ones'
+    )
+    // The capability's own arm never depended on the baseline.
+    check(
+      archRed({ ok: true, counts: { capability: 3, crossCapabilityInternal: 0, domainDirection: 0 } }, { crossCapabilityInternal: 0, domainDirection: 0 }, new Set(['crossCapabilityInternal'])) !== '',
       'archRed(vacuous baseline, capability dirty): the capability arm must not be waived with the regression arm'
     )
     check(archUnmeasured(undefined) === true, 'archUnmeasured(absent): must be unmeasured')
@@ -526,12 +740,38 @@ if (files.includes(PILOT)) {
       ['nits only', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [{ severity: 'nit' }] } }, 'accept'],
       ['all green', { behaviour: { ok: true }, architecture: green, review: { verdict: 'sound', findings: [] } }, 'accept'],
     ]
+    const stableRadius = { ok: true, direction: 'same', detail: 'same affected set' }
     for (const [label, o, expected] of gateCases) {
-      const decided = recommendation(o, census)
+      const decided = recommendation(o, census, new Set(), stableRadius, 'add a field')
       check(decided.gate === expected, `recommendation(${label}): expected ${expected}, got ${decided.gate}`)
       // The report renders this instead of re-deriving the inputs and disagreeing.
       check(typeof decided.reason === 'string' && decided.reason.length > 0, `recommendation(${label}): must name its reason`)
     }
+    const rejectWithoutRadius = recommendation(
+      { behaviour: { ok: true }, architecture: green, review: { verdict: 'reject', findings: [] } },
+      census
+    )
+    check(rejectWithoutRadius.gate === 'reject', 'recommendation(reject without radius): an explicit architecture rejection must dominate an incomplete quality measurement')
+    const redWithoutRadius = recommendation(
+      { behaviour: { ok: false }, architecture: green, review: { verdict: 'sound', findings: [] } },
+      census
+    )
+    check(
+      redWithoutRadius.gate === 'inconclusive' && redWithoutRadius.reason.includes('already red: behaviour'),
+      `recommendation(red without radius): must retain the observed failure in its diagnosis, got ${JSON.stringify(redWithoutRadius)}`
+    )
+    const reviewRedWithoutRadius = recommendation(
+      {
+        behaviour: { ok: true },
+        architecture: green,
+        review: { verdict: 'revise', findings: [{ severity: 'should-fix' }] },
+      },
+      census
+    )
+    check(
+      reviewRedWithoutRadius.gate === 'inconclusive' && reviewRedWithoutRadius.reason.includes('already red: review'),
+      `recommendation(review red without radius): must retain the observed review verdict, got ${JSON.stringify(reviewRedWithoutRadius)}`
+    )
     // Silence is never a verdict — asserted over CONSTRUCTED inputs, not by filtering
     // the table on a label substring. That filter was a source-text grep in disguise:
     // renaming a label to anything not ending in "died" silently removed the coverage
@@ -544,7 +784,7 @@ if (files.includes(PILOT)) {
       ['all three', { behaviour: null, architecture: null, review: null }],
     ]
     for (const [label, o] of silent) {
-      const decided = recommendation(o, census)
+      const decided = recommendation(o, census, new Set(), stableRadius, 'add a field')
       check(decided.gate === 'inconclusive', `silence(${label}): expected inconclusive, got ${decided.gate}`)
       check(decided.unmeasured.length > 0, `silence(${label}): must name which oracle did not report`)
     }
@@ -600,8 +840,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
   // the first live run's stop was a dead end: the operator's only route forward was to
   // hand-edit the target's contract, which is the guess the stop existed to prevent.
   {
-    const ARGSD = { repo: '/t', ordinaryChange: 'add a field' }
-    const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const ARGSD = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const withSrc = {
+      'resolve:contract-source': { ok: true, path: '/p', detail: '' },
+      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+    }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
       assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
@@ -610,10 +853,20 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     }
     const over = { ...withSrc, assign: assigned }
 
+    // Refused BEFORE the first write, not reported afterwards. Everything past phase('Enable') mutates
+    // the target, so a blocker in the final report meant a half-converted repository and a message.
     const stillOpen = await runBody(baseSrc, { args: ARGSD, overrides: over })
     check(
-      (stillOpen.result && (stillOpen.result.blockers || []).some(b => /undecided/.test(b))),
-      `${BASELINE} (undecided, no decision): must block. blockers=${JSON.stringify(stillOpen.result && stillOpen.result.blockers)}`
+      stillOpen.result && /must be classified before anything is written/.test(stillOpen.result.error || ''),
+      `${BASELINE} (undecided, no decision): must refuse before writing, got ${JSON.stringify(stillOpen.result && (stillOpen.result.error || stillOpen.result.blockers))}`
+    )
+    check(
+      !stillOpen.calls.includes('enable-rules'),
+      `${BASELINE} (undecided, no decision): the installer ran anyway — the target was mutated before the refusal`
+    )
+    check(
+      /dependencyDecisions/.test((stillOpen.result && stillOpen.result.fix) || ''),
+      `${BASELINE} (undecided, no decision): the refusal must carry the way to answer it`
     )
 
     const decided = await runBody(baseSrc, {
@@ -648,11 +901,136 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
+  // ─── ownership decisions on the files nobody could place ───
+  // The first live run blocked on five unplaceable pilot files and the only way forward was a second
+  // full pass. Same dead end as the dependency decisions, and costlier.
+  {
+    const ARGSO = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const withSrc = {
+      'resolve:contract-source': { ok: true, path: '/p', detail: '' },
+      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/orphan.ts'] },
+    }
+    const assigned = {
+      capabilities: [{ name: 'work-items' }],
+      assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', runtime: 'server' }],
+      unassigned: [{ file: 'src/orphan.ts', why: 'no clear owner', likelyCapability: 'work-items' }],
+      deps: { pure: [], runtime: [], undecided: [] },
+    }
+    const over = { ...withSrc, assign: assigned }
+
+    const blocked = await runBody(baseSrc, { args: ARGSO, overrides: over })
+    const blockerText = ((blocked.result && blocked.result.blockers) || []).join(' ')
+    check(/no owner/.test(blockerText), `${BASELINE} (unplaced pilot file): must block. blockers=${JSON.stringify(blocked.result && blocked.result.blockers)}`)
+    // The blocker has to carry the answer, not just the complaint — that is the whole defect.
+    check(/args\.fileOwners/.test(blockerText), `${BASELINE} (unplaced pilot file): the blocker must say how to answer it`)
+    check(/src\/orphan\.ts/.test(blockerText), `${BASELINE} (unplaced pilot file): the blocker must name the files`)
+
+    const answered = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/orphan.ts': 'work-items' } }, overrides: over })
+    check(
+      !/no owner/.test(((answered.result && answered.result.blockers) || []).join(' ')),
+      `${BASELINE} (ownership supplied): must clear the blocker. blockers=${JSON.stringify(answered.result && answered.result.blockers)}`
+    )
+    check(
+      (answered.result && answered.result.fileOwners || []).some(o => o.file === 'src/orphan.ts' && o.capability === 'work-items'),
+      `${BASELINE} (ownership supplied): the decision must be recorded as the operator's, not inferred`
+    )
+    // A row that names no capability, or one this inventory did not find, has no later run to block.
+    // The schema permits an omitted `likelyCapability` and the warning promised those rows would
+    // "block their own capability later" — so an unrouteable row was carried past every run instead.
+    for (const [label, row] of [
+      ['no likelyCapability', { file: 'src/nowhere.ts', why: 'unclear' }],
+      ['a blank likelyCapability', { file: 'src/nowhere.ts', why: 'unclear', likelyCapability: '  ' }],
+      ['a capability this inventory did not find', { file: 'src/nowhere.ts', why: 'unclear', likelyCapability: 'invented' }],
+    ]) {
+      const out = await runBody(baseSrc, {
+        args: ARGSO,
+        overrides: {
+          ...withSrc,
+          'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', row.file] },
+          assign: { ...assigned, unassigned: [row] },
+        },
+      })
+      const text = ((out.result && out.result.blockers) || []).join(' ')
+      check(
+        /no owner/.test(text) && /args\.fileOwners/.test(text),
+        `${BASELINE} (unplaced row with ${label}): must block here, since no later run can. blockers=${JSON.stringify(out.result && out.result.blockers)}`
+      )
+    }
+    // A row with no file is unanswerable, not merely unplaced: `fileOwners` is keyed by path, so
+    // there is nothing the operator could write. It names another FOUND capability deliberately, so
+    // only the blank-file rule can be what blocks it.
+    const blankFile = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: {
+        ...withSrc,
+        assign: {
+          ...assigned,
+          capabilities: [{ name: 'work-items' }, { name: 'labels' }],
+          unassigned: [{ file: '   ', why: 'unclear', likelyCapability: 'labels' }],
+        },
+      },
+    })
+    check(
+      blankFile.result && /source inventory|valid repo-relative path/i.test(blankFile.result.error || ''),
+      `${BASELINE} (unplaced row with no file): must fail because no fileOwners answer can resolve it. result=${JSON.stringify(blankFile.result)}`
+    )
+
+    const paddedPilot = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/padded.ts'] },
+        assign: { ...assigned, unassigned: [{ file: 'src/padded.ts', why: 'unclear', likelyCapability: ' work-items ' }] },
+      },
+    })
+    check(
+      /no owner/.test(((paddedPilot.result && paddedPilot.result.blockers) || []).join(' ')),
+      `${BASELINE} (padded pilot name): must be normalised once and block. blockers=${JSON.stringify(paddedPilot.result && paddedPilot.result.blockers)}`
+    )
+
+    // Control: a row naming a capability the inventory DID find waits for that capability's own run.
+    const later = await runBody(baseSrc, {
+      args: ARGSO,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/later.ts'] },
+        assign: {
+          ...assigned,
+          capabilities: [{ name: 'work-items' }, { name: 'labels' }],
+          unassigned: [{ file: 'src/later.ts', why: 'unclear', likelyCapability: 'labels' }],
+        },
+      },
+    })
+    check(
+      !/no owner/.test(((later.result && later.result.blockers) || []).join(' ')),
+      `${BASELINE} (routeable unplaced row): must not block the pilot. blockers=${JSON.stringify(later.result && later.result.blockers)}`
+    )
+    // The counts everything downstream reads are derived from `assignments`, so the merge has to
+    // happen before they are built. It did not: capabilities[].files undercounted by exactly the
+    // files the operator had just placed.
+    const counted = ((answered.result && answered.result.capabilities) || []).find(c => c.name === 'work-items')
+    check(
+      counted && counted.files === 2,
+      `${BASELINE} (ownership supplied): the placed file must be counted in its capability, got ${JSON.stringify(counted)}`
+    )
+    // A capability the inventory never found would create a module root nothing else knows about.
+    const invented = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/orphan.ts': 'invented' } }, overrides: over })
+    check(
+      invented.result && /capabilities this run did not find/.test(invented.result.error || ''),
+      `${BASELINE} (invented capability): must be refused, got ${JSON.stringify(invented.result && invented.result.error)}`
+    )
+    const stale = await runBody(baseSrc, { args: { ...ARGSO, fileOwners: { 'src/gone.ts': 'work-items' } }, overrides: over })
+    check(
+      stale.result && /did not report as unassigned/.test(stale.result.error || ''),
+      `${BASELINE} (stale ownership answer): must be refused, got ${JSON.stringify(stale.result && stale.result.error)}`
+    )
+  }
+
   // ─── phase 1 required handoffs ───
   // A missing lens and a failed manifest writer both reported success: the lens count
   // was a log line, and `manifestPath: null` shipped next to "no blockers, pilot can start".
   {
-    const ARGS1 = { repo: '/t', ordinaryChange: 'add a field' }
+    const ARGS1 = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
     const withSrc = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
 
     const lensLabels = (await runBody(baseSrc, { args: ARGS1, overrides: withSrc })).calls.filter(c => typeof c === 'string' && c.startsWith('lens:'))
@@ -668,12 +1046,113 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       noManifest.result && (noManifest.result.blockers || []).some(b => /manifest/i.test(b)),
       `${BASELINE} (manifest writer failed): must be a blocker — phase 2 reads everything from it. blockers=${JSON.stringify(noManifest.result && noManifest.result.blockers)}`
     )
+
+    const completeProfile = await runBody(baseSrc, { args: ARGS1, overrides: withSrc })
+    const manifestPrompt = completeProfile.prompts.find(prompt => prompt.label === 'write-manifest')
+    const manifestMatch = manifestPrompt && manifestPrompt.prompt.match(/```json\n([\s\S]*?)\n```/)
+    const writtenManifest = manifestMatch ? JSON.parse(manifestMatch[1]) : null
+    check(
+      writtenManifest && JSON.stringify(writtenManifest.profile) === JSON.stringify({ decisions: PROFILE_DECISIONS }),
+      `${BASELINE} (complete profile): persist only the target decisions phase 2 consumes, got ${JSON.stringify(writtenManifest && writtenManifest.profile)}`
+    )
+
+    // The Assign agent's schema can be valid while omitting a file an inventory lens found. Phase 2
+    // can prove only that its plan covers the rows it receives, so phase 1 is the only place that can
+    // prove the manifest covers the repository's source inventory.
+    const omitted = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/b.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
+          assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      omitted.result && /source inventory/i.test(omitted.result.error || '') && !omitted.calls.includes('enable-rules'),
+      `${BASELINE} (assignment omitted an inventoried file): must stop before writing, got ${JSON.stringify(omitted.result && (omitted.result.error || omitted.result.blockers))}`
+    )
+
+    const invalidCapability = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        assign: {
+          capabilities: [{ name: 'Work Items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
+          assignments: [{ file: 'src/a.ts', capability: 'Work Items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      invalidCapability.result && /capability inventory/i.test(invalidCapability.result.error || '') && !invalidCapability.calls.includes('enable-rules'),
+      `${BASELINE} (invalid capability name): must stop before phase 2 receives a non-kebab identifier, got ${JSON.stringify(invalidCapability.result)}`
+    )
+
+    const duplicateAssignment = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 2, pilotScore: 10 }],
+          assignments: [
+            { file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' },
+            { file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'server', runtime: 'server-only' },
+          ],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      duplicateAssignment.result && /partitioned exactly once/i.test(duplicateAssignment.result.error || '') && !duplicateAssignment.calls.includes('enable-rules'),
+      `${BASELINE} (duplicate assignment): must stop before a file receives two owners, got ${JSON.stringify(duplicateAssignment.result)}`
+    )
+
+    // The target profile is an authority in docs/adoption-and-enforcement.md. A warning after writes
+    // is not a decision channel, and phase 2 cannot honour fields the operator never supplied.
+    const noProfile = await runBody(baseSrc, { args: { repo: '/t', ordinaryChange: 'add a field' }, overrides: withSrc })
+    check(
+      noProfile.result && /profile/i.test(noProfile.result.error || '') && !noProfile.calls.includes('enable-rules'),
+      `${BASELINE} (profile decisions absent): must stop before writing and name the decision channel, got ${JSON.stringify(noProfile.result && noProfile.result.error)}`
+    )
+
+    // No shipped workflow moves a file from an old generic location into sharedRoot. Accepting such
+    // a row makes a completed capability wave look complete while the file stays outside the floor.
+    const misplacedShared = await runBody(baseSrc, {
+      args: ARGS1,
+      overrides: {
+        ...withSrc,
+        'lens:roots': { lens: 'roots', findings: [], files: ['src/lib/id.ts'] },
+        assign: {
+          capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 0, pilotScore: 10 }],
+          assignments: [{ file: 'src/lib/id.ts', placement: 'shared', sharedRoot: 'kernel', runtime: 'neutral' }],
+          unassigned: [],
+          deps: { pure: [], runtime: [], undecided: [] },
+          roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+        },
+      },
+    })
+    check(
+      misplacedShared.result && /shared/i.test(misplacedShared.result.error || '') && !misplacedShared.calls.includes('enable-rules'),
+      `${BASELINE} (shared file outside sharedRoot): must stop before writes because no later workflow moves it, got ${JSON.stringify(misplacedShared.result && misplacedShared.result.error)}`
+    )
   }
 
   // ─── contractSource resolution ───
   // Deleting the whole resolution block left every check above green, because the required-args
   // loop stops before the probe runs and nothing downstream asserted where the path came from.
-  const ARGS = { repo: '/t', ordinaryChange: 'add a field' }
+  const ARGS = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
   const PROBE = 'resolve:contract-source'
 
   for (const [label, verdict] of [
@@ -715,23 +1194,6 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     )
   }
 
-  // The prompt hardcodes how many files to copy out of rules/. Nothing tied that literal to the
-  // directory, so adding a rule would have left the mover silently copying a subset.
-  {
-    const nonReadme = listFiles('rules', file => !file.endsWith('README.md')).length
-    const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-    // Off the end of the table the check would grep for "undefined non-README files" — it still
-    // fails, but says nothing useful about why.
-    if (nonReadme >= words.length) {
-      check(false, `${BASELINE}: rules/ has ${nonReadme} non-README files, past the spelled-out range; extend words[] or write the count as a digit`)
-    } else {
-      check(
-        baseSrc.includes(`${words[nonReadme]} non-README files`),
-        `${BASELINE}: rules/ has ${nonReadme} non-README files but the copy instruction does not say "${words[nonReadme]}"`
-      )
-    }
-  }
-
   const manifest = {
     found: true,
     roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
@@ -740,6 +1202,9 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     violationCensus: { crossCapabilityInternal: 2 },
     consumers: ['src/app/p.tsx'],
     assignments: [{ file: 'src/lib/calc.ts', segment: 'domain' }],
+    profile: { decisions: PROFILE_DECISIONS },
+    ordinaryChange: 'add a field to the list view',
+    baselineRadius: 'src/lib/calc.ts',
   }
   const goodPlan = { moves: [{ file: 'src/lib/calc.ts', role: 'domain' }], surfaces: [] }
   const pilotArgs = { repo: '/t', capability: 'work-items', maxFixRounds: 0 }
@@ -753,6 +1218,535 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     'verify:review': { verdict: 'sound', findings: [] },
   }
   const pilot = over => runBody(pilotSrc, { args: pilotArgs, overrides: { ...base, ...over } })
+
+  // An explicit moduleRoot is an assertion, not a second authority. If it disagrees with the
+  // manifest/target contract, the mover and the installed rules judge different trees.
+  {
+    const mismatch = await runBody(pilotSrc, {
+      args: { ...pilotArgs, moduleRoot: 'src/elsewhere' },
+      overrides: base,
+    })
+    check(
+      mismatch.result && /moduleRoot.*disagree/i.test(mismatch.result.error || '') && !mismatch.calls.includes('plan:work-items'),
+      `${PILOT} (moduleRoot override disagrees with contract): must stop before planning, got ${JSON.stringify(mismatch.result && (mismatch.result.error || mismatch.result.recommendation))}`
+    )
+
+    const missingRecordedRoot = await runBody(pilotSrc, {
+      args: { ...pilotArgs, moduleRoot: 'src/modules' },
+      overrides: { ...base, 'load-manifest': { ...manifest, roots: { sourceRoot: 'src', appRoot: 'src/app', sharedRoot: 'src/shared' } } },
+    })
+    check(
+      missingRecordedRoot.result && typeof missingRecordedRoot.result.error === 'string' && !missingRecordedRoot.calls.includes('plan:work-items'),
+      `${PILOT} (moduleRoot absent from manifest): an argument must not become a second authority, got ${JSON.stringify(missingRecordedRoot.result)}`
+    )
+  }
+
+  // ─── the gate must name what is left and what to do ───
+  // The operator of the first live run did not understand the sentence asking them to decide, and
+  // separately asked why old directories were still there. Both are the same defect: the gate cited
+  // the procedure instead of instructing the reader.
+  {
+    const withCaps = {
+      ...manifest,
+      capabilities: [
+        { name: 'work-items', files: 28, status: 'migrated' },
+        { name: 'labels', files: 9, status: 'old-layout' },
+        { name: 'identity', files: 32, status: 'old-layout' },
+      ],
+    }
+    const out = await pilot({ 'load-manifest': withCaps })
+    const gateText = (out.result && out.result.humanGate) || ''
+    check(
+      (out.result && out.result.remainingCapabilities || []).join(',') === 'labels,identity',
+      `${PILOT}: the gate must list the capabilities still on the old layout, got ${JSON.stringify(out.result && out.result.remainingCapabilities)}`
+    )
+    // The instruction LINES, not the bare words: asserting `includes('ACCEPT')` passed on the
+    // incidental "BEFORE YOU ACCEPT" further down, so gutting the three instructions left the check
+    // green. A substring assertion is only as strong as the string is unique.
+    for (const phrase of ['BOTH layouts', '- ACCEPT:', '- REVISE:', '- REJECT:', 'REAL user path']) {
+      check(gateText.includes(phrase), `${PILOT}: humanGate must contain "${phrase}" — it is what the reader has to act on`)
+    }
+    check(gateText.includes('labels'), `${PILOT}: humanGate must name the next capability by name, not "<next>"`)
+    // A single-capability repository must not be told that other capabilities are waiting.
+    const solo = await pilot({ 'load-manifest': { ...manifest, capabilities: [{ name: 'work-items', files: 28 }] } })
+    check(
+      (solo.result.humanGate || '').includes('whole tree'),
+      `${PILOT}: with no other capability the gate must say so rather than implying a wave that does not exist`
+    )
+  }
+
+  // ─── phase 1's promise is kept here or nowhere ───
+  // Phase 1 blocks only the unplaced files it attributes to the pilot and tells the operator the
+  // rest "block their own capability later". Phase 2's schema did not admit `unassigned` at all, so
+  // later never came: the run migrated the assigned subset and left the rest at their old paths.
+  {
+    const withUnplaced = rows => ({ ...manifest, unassigned: rows })
+    const blocked = await pilot({ 'load-manifest': withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'work-items', why: 'two owners' }]) })
+    check(
+      blocked.result && /could not place/.test(blocked.result.error || '') &&
+        !blocked.calls.includes('plan:work-items'),
+      `${PILOT}: an unplaced file attributed to this capability must stop the run before planning, got ${JSON.stringify(blocked.result && blocked.result.error)}`
+    )
+    check(
+      /fileOwners/.test((blocked.result && blocked.result.fix) || ''),
+      `${PILOT}: the refusal must carry the answer, not just the objection`
+    )
+    // Another capability's unplaced file is not this run's business — provided the manifest actually
+    // names that capability, which is what makes the row routeable to a later run.
+    const elsewhere = await pilot({
+      'load-manifest': {
+        ...withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: 'labels' }]),
+        capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+      },
+    })
+    check(
+      elsewhere.result && elsewhere.result.recommendation === 'accept',
+      `${PILOT}: an unplaced file belonging to another capability must not block this one, got ${JSON.stringify(elsewhere.result && elsewhere.result.error)}`
+    )
+    // Padded, it passed the routeable test on the trimmed value and then failed every match on the
+    // untrimmed one — routed nowhere and blocked by nobody.
+    const padded = await pilot({
+      'load-manifest': {
+        ...withUnplaced([{ file: 'src/lib/orphan.ts', likelyCapability: ' work-items ' }]),
+        capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+      },
+    })
+    check(
+      padded.result && /could not place/.test(padded.result.error || '') && !padded.calls.includes('plan:work-items'),
+      `${PILOT}: a padded capability name must be normalised once and block this run, got ${JSON.stringify(padded.result && padded.result.error)}`
+    )
+    // The schema has to admit the key, or the probe cannot return what the gate depends on.
+    const loadCall = elsewhere.prompts.find(p => p.label === 'load-manifest')
+    check(
+      loadCall && loadCall.schema.properties.unassigned && /unassigned/.test(loadCall.prompt),
+      `${PILOT}: the load probe must be asked for the unassigned rows and be able to return them`
+    )
+    // Admitted is not enough. Optional, an agent may legally omit the rows the refusal depends on,
+    // and an omitted list reads exactly like "phase 1 placed everything".
+    check(
+      loadCall && Array.isArray(loadCall.schema.required) && loadCall.schema.required.includes('unassigned'),
+      `${PILOT}: unassigned must be required, or "none" and "not reported" are the same answer`
+    )
+    // A capability whose files are ALL unplaced hit the empty-assignment return first and got a
+    // dead end — the one case where the operator most needs the answer the refusal carries.
+    const allUnplaced = await pilot({
+      'load-manifest': { ...manifest, assignments: [], unassigned: [{ file: 'src/lib/a.ts', likelyCapability: 'work-items' }] },
+    })
+    check(
+      allUnplaced.result && /could not place/.test(allUnplaced.result.error || '') && /fileOwners/.test(allUnplaced.result.fix || ''),
+      `${PILOT}: an entirely unplaced capability must get the actionable refusal, not the empty-manifest dead end, got ${JSON.stringify(allUnplaced.result && allUnplaced.result.error)}`
+    )
+    // A row that names no capability, or one this manifest does not carry, has no later run to block.
+    // Phase 1 permits an omitted `likelyCapability` and then promises those rows "block their own
+    // capability later"; unrouteable, they were carried past every run of the wave instead.
+    for (const [label, row] of [
+      ['no likelyCapability at all', { file: 'src/lib/orphan.ts' }],
+      ['a blank likelyCapability', { file: 'src/lib/orphan.ts', likelyCapability: '   ' }],
+      ['a capability this manifest does not carry', { file: 'src/lib/orphan.ts', likelyCapability: 'invented' }],
+      ['no file to answer for', { file: '   ', likelyCapability: 'labels' }],
+    ]) {
+      const out = await pilot({
+        'load-manifest': {
+          ...withUnplaced([row]),
+          capabilities: [{ name: 'work-items', status: 'old-layout' }, { name: 'labels', status: 'old-layout' }],
+        },
+      })
+      check(
+        out.result && /could not place/.test(out.result.error || '') && !out.calls.includes('plan:work-items'),
+        `${PILOT}: an unplaced row with ${label} must block the first run that reads it, got ${JSON.stringify(out.result && out.result.error)}`
+      )
+    }
+
+    // The layout probe reads the same extensions rules/ judges. Narrowed to js/jsx/ts/tsx it called
+    // a capability written in NodeNext extensions `undetermined`, which the gate then reports as a
+    // layout nobody could read rather than as the migrated capability it is.
+    check(
+      loadCall && ['.mts', '.cts', '.mjs', '.cjs'].every(extension => loadCall.prompt.includes(extension)),
+      `${PILOT}: the layout probe must count every source extension, or a NodeNext capability reads as undetermined`
+    )
+  }
+
+  // ─── the wave has a position, not just a first step ───
+  // `every capability except this one` is only true of the FIRST run. Said on the second it labels
+  // the capability the first run migrated as old-layout; said on the last it still claims a mixed
+  // tree and offers a finished capability as the next one to do. The manifest cannot answer this —
+  // it is written once, before anything moves — so the layout is read from the tree per capability.
+  {
+    const caps = rows => ({ ...manifest, capabilities: rows })
+
+    // Mid-wave: one done, one to go. The done one must not be offered as next.
+    const mid = await pilot({ 'load-manifest': caps([
+      { name: 'work-items', status: 'old-layout' },
+      { name: 'labels', status: 'migrated' },
+      { name: 'identity', status: 'old-layout' },
+    ]) })
+    const midGate = (mid.result && mid.result.humanGate) || ''
+    check(
+      (mid.result && mid.result.remainingCapabilities || []).join(',') === 'identity',
+      `${PILOT}: a capability already on the new layout must not be reported as remaining, got ${JSON.stringify(mid.result && mid.result.remainingCapabilities)}`
+    )
+    check(
+      /capability: "<next>" \(e\.g\. "identity"\)/.test(midGate),
+      `${PILOT}: the ACCEPT line must offer a capability that is actually still on the old layout`
+    )
+    check(
+      midGate.includes('Already migrated by earlier runs: labels'),
+      `${PILOT}: the gate must say which capabilities earlier runs already finished, or the operator redoes them`
+    )
+
+    // Last run of the wave: nothing left, and no claim of a mixed tree.
+    const last = await pilot({ 'load-manifest': caps([
+      { name: 'work-items', status: 'migrated' },
+      { name: 'labels', status: 'migrated' },
+    ]) })
+    const lastGate = (last.result && last.result.humanGate) || ''
+    check(
+      (last.result && last.result.remainingCapabilities || []).length === 0 &&
+        !lastGate.includes('BOTH layouts') && lastGate.includes('completes the wave'),
+      `${PILOT}: when every other capability is migrated the gate must say the wave is complete, not that the tree is mixed`
+    )
+    check(
+      lastGate.includes('(none left'),
+      `${PILOT}: with nothing left the ACCEPT line must say so instead of naming a finished capability`
+    )
+
+    // Half-migrated is a defect the contract forbids, and it is invisible unless named.
+    const half = await pilot({ 'load-manifest': caps([{ name: 'labels', status: 'mixed' }]) })
+    check(
+      ((half.result && half.result.humanGate) || '').includes('HALF-MIGRATED: labels'),
+      `${PILOT}: a capability carrying both topologies must be named — that state is what the contract forbids`
+    )
+
+    // An older manifest read by an older prompt carries no status at all. Fail closed: an
+    // unclassified capability is neither counted as done nor asserted to be pending.
+    const unknown = await pilot({ 'load-manifest': caps([{ name: 'labels', files: 9 }]) })
+    const unknownGate = (unknown.result && unknown.result.humanGate) || ''
+    check(
+      (unknown.result && unknown.result.remainingCapabilities || []).length === 0 &&
+        (unknown.result && unknown.result.capabilityLayout || {}).undetermined.join(',') === 'labels',
+      `${PILOT}: a capability with no recorded status must be reported as undetermined, not silently counted either way`
+    )
+    check(
+      unknownGate.includes('LAYOUT NOT DETERMINED for labels') &&
+        unknownGate.includes('confirm it still needs migrating first'),
+      `${PILOT}: an undetermined layout must be stated as undetermined, and any suggestion built on it must carry the caveat`
+    )
+  }
+
+  // ─── why the fix loop stopped ───
+  // `fixRounds: 2` cannot distinguish "the budget ran out" from "a round changed nothing", and the
+  // two ask the operator for different things. The first live run hit the cap with a must-fix open.
+  {
+    const red = { 'verify:behaviour': { ok: false, detail: 'red' }, 'verify:review': { verdict: 'sound', findings: [{ severity: 'must-fix' }] } }
+    const capped = await runBody(pilotSrc, { args: { ...pilotArgs, maxFixRounds: 1 }, overrides: { ...base, ...red } })
+    check(capped.result && capped.result.fixLoopExit === 'cap-reached', `${PILOT}: exhausting maxFixRounds must be reported as cap-reached, got ${JSON.stringify(capped.result && capped.result.fixLoopExit)}`)
+    check(
+      (capped.result.humanGate || '').includes('RAN OUT OF ROUNDS'),
+      `${PILOT}: the gate must say the budget ran out — a verdict read as final would be read wrong`
+    )
+    const untouched = await pilot({})
+    check(untouched.result && untouched.result.fixLoopExit === 'not-entered', `${PILOT}: an all-green run never enters the loop, got ${JSON.stringify(untouched.result && untouched.result.fixLoopExit)}`)
+    // Converged is a state the operator acts on differently from a cap; it needs its own line.
+    const converged = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 3 },
+      overrides: { ...base, 'verify:behaviour': { ok: false, detail: 'red' } },
+    })
+    check(converged.result && converged.result.fixLoopExit === 'no-progress' || (converged.result || {}).fixLoopExit === 'converged',
+      `${PILOT}: a loop that ended on its own must be classified, got ${JSON.stringify(converged.result && converged.result.fixLoopExit)}`)
+    check(
+      !((untouched.result.humanGate || '').includes('RAN OUT OF ROUNDS')),
+      `${PILOT}: a run that never needed a fix round must not claim its budget ran out`
+    )
+  }
+
+  // ─── a read-only probe must not be offered a writer's vocabulary ───
+  {
+    const observed = await runBody(pilotSrc, {
+      args: pilotArgs,
+      overrides: {
+        ...base,
+        'load-manifest': { ...manifest, ordinaryChange: 'add a field', baselineRadius: 'two files' },
+      },
+    })
+    const radiusCall = observed.prompts.find(call => call.label === 'radius')
+    check(
+      radiusCall,
+      `${PILOT}: the radius step did not call an agent, so its schema was not observed`
+    )
+    check(
+      radiusCall && !Object.prototype.hasOwnProperty.call(radiusCall.schema?.properties || {}, 'filesTouched'),
+      `${PILOT}: the radius step measures and must not be handed filesTouched — it would report a path it only imagined`
+    )
+  }
+
+  // ─── the vacuous waiver is per counter, end to end ───
+  // A single boolean suppressed every non-capability regression. The table above proves archRed;
+  // this proves the SET actually reaches it from the manifest, which the table cannot.
+  {
+    const censusManifest = {
+      ...manifest,
+      violationCensus: { crossCapabilityInternal: 0, 'import/no-unresolved': 0 },
+      vacuousCounters: ['crossCapabilityInternal'],
+    }
+    const regressed = await pilot({
+      'load-manifest': censusManifest,
+      'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 5, 'import/no-unresolved': 3 }, detail: '' },
+    })
+    check(
+      regressed.result && regressed.result.recommendation === 'revise',
+      `${PILOT} (regression outside the vacuous set): expected revise, got ${JSON.stringify(regressed.result && regressed.result.recommendation)} — ${JSON.stringify(regressed.result && regressed.result.reason)}`
+    )
+    // Control: the vacuous counter alone rising is exactly what the waiver exists for.
+    const waived = await pilot({
+      'load-manifest': censusManifest,
+      'verify:architecture': { ok: true, counts: { capability: 0, crossCapabilityInternal: 5, 'import/no-unresolved': 0 }, detail: '' },
+    })
+    check(
+      waived.result && waived.result.recommendation === 'accept',
+      `${PILOT} (only the vacuous counter rose): expected accept, got ${JSON.stringify(waived.result && waived.result.recommendation)} — ${JSON.stringify(waived.result && waived.result.reason)}`
+    )
+  }
+
+  // ─── stale instruction files reach the human ───
+  {
+    const stale = await pilot({
+      'stale-instructions': { ok: true, detail: '', entries: [{ file: 'AGENTS.md', line: 70, deadPath: 'src/use-cases/work-items' }] },
+    })
+    const gateText = (stale.result && stale.result.humanGate) || ''
+    check(
+      (stale.result && stale.result.staleInstructions && stale.result.staleInstructions.entries || []).length === 1,
+      `${PILOT}: a stale instruction reference must reach the report`
+    )
+    check(gateText.includes('AGENTS.md:70'), `${PILOT}: the gate must name the file and line, not just a count`)
+    check(gateText.includes('src/use-cases/work-items'), `${PILOT}: the gate must name the dead path`)
+    // "could not run" is not "found nothing" — the report must be able to tell them apart.
+    const died = await pilot({ 'stale-instructions': { ok: false, detail: 'could not read', entries: [] } })
+    check(
+      died.result && died.result.staleInstructions && died.result.staleInstructions.checked === false,
+      `${PILOT}: a dead instruction probe must not read as a clean instruction layer`
+    )
+    // In the GATE, not only in the payload. Silence there is indistinguishable from a clean layer,
+    // and the gate is the surface the operator actually reads.
+    check(
+      ((died.result && died.result.humanGate) || '').includes('DID NOT RUN'),
+      `${PILOT}: a failed instruction probe must say so in the gate, not fall silent like a clean one`
+    )
+    const clean = await pilot({ 'stale-instructions': { ok: true, detail: '', entries: [] } })
+    check(
+      !((clean.result && clean.result.humanGate) || '').includes('DELETED PATHS'),
+      `${PILOT}: with nothing stale the gate must stay silent about it`
+    )
+  }
+
+  // ─── an agent that never reported is not an agent that reported success ───
+  // `agent()` returns null when the subagent dies or is skipped, and null is falsy in exactly the
+  // places these guards read a boolean off it. Each of the five below let a dead probe pass as a
+  // clean one, or as a red one — both of which are claims about something nobody measured.
+  {
+    // A dead consumer mover was ignored whenever phase 1 had recorded no consumer — the case where
+    // this agent matters most, since its own first step says the grep is authoritative.
+    const noneRecorded = { ...manifest, consumers: [] }
+    const dead = await pilot({ 'load-manifest': noneRecorded, 'move:consumers': null })
+    check(
+      dead.result && dead.result.recommendation === 'inconclusive',
+      `${PILOT}: a dead consumer mover must be inconclusive even with no recorded consumers, got ${JSON.stringify(dead.result && dead.result.recommendation)}`
+    )
+    // Control: an empty list plus a mover that DID run and legitimately touched nothing is fine.
+    const quiet = await pilot({ 'load-manifest': noneRecorded, 'move:consumers': { ok: true, filesTouched: [], detail: '' } })
+    check(
+      quiet.result && quiet.result.recommendation === 'accept',
+      `${PILOT}: a consumer mover that ran and needed no edit must not be treated as a failure, got ${JSON.stringify(quiet.result && quiet.result.reason)}`
+    )
+
+    // A dead verify probe read as red and sent fix agents to repair failures nobody observed.
+    const withFix = over => runBody(pilotSrc, { args: { ...pilotArgs, maxFixRounds: 2 }, overrides: { ...base, ...over } })
+    for (const probe of ['verify:behaviour', 'verify:architecture', 'verify:review']) {
+      const out = await withFix({ [probe]: null })
+      check(
+        !out.calls.includes('fix:round-1'),
+        `${PILOT}: a dead ${probe} must not start a fix round — no edit can repair a probe that did not run`
+      )
+      check(
+        out.result && out.result.recommendation === 'inconclusive',
+        `${PILOT}: a dead ${probe} must be inconclusive, got ${JSON.stringify(out.result && out.result.recommendation)}`
+      )
+    }
+    // Control: a probe that ran and reported red is exactly what the fix loop is for.
+    const red = await withFix({ 'verify:behaviour': { ok: false, detail: 'tests fail' } })
+    check(
+      red.calls.includes('fix:round-1'),
+      `${PILOT}: a measured red behaviour oracle must still enter the fix loop`
+    )
+    // And a probe that dies DURING the loop leaves it neither converged nor capped: red on the
+    // first pass, gone on the re-verify. `cap-reached` there tells the operator to raise the
+    // budget, which cannot help — nothing measured the tree the fix round just edited.
+    const diedMidLoop = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 1 },
+      overrides: { ...base, 'verify:behaviour': n => (n === 0 ? { ok: false, detail: 'red' } : null) },
+    })
+    check(
+      diedMidLoop.result && diedMidLoop.result.fixLoopExit === 'unmeasured',
+      `${PILOT}: a loop that stopped because an oracle stopped reporting is neither converged nor capped, got ${JSON.stringify(diedMidLoop.result && diedMidLoop.result.fixLoopExit)}`
+    )
+    check(
+      ((diedMidLoop.result && diedMidLoop.result.humanGate) || '').includes('AN ORACLE STOPPED REPORTING'),
+      `${PILOT}: the gate must say the tree was edited and then not measured`
+    )
+    // A post-fix `reject` leaves through the loop's own reject guard, and below the cap that read as
+    // `converged` — "cleared what it was watching", printed above a verdict saying the model is wrong.
+    const rejectedAfterFix = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 2 },
+      overrides: {
+        ...base,
+        'verify:review': n => (n === 0 ? { verdict: 'revise', findings: [{ severity: 'must-fix' }] } : { verdict: 'reject', findings: [] }),
+      },
+    })
+    check(
+      rejectedAfterFix.result && rejectedAfterFix.result.fixLoopExit === 'rejected' &&
+        (rejectedAfterFix.result.humanGate || '').includes('REJECTED THE OWNERSHIP MODEL'),
+      `${PILOT}: a loop that stopped on a rejection must not report that it cleared what it was watching, got ${JSON.stringify(rejectedAfterFix.result && rejectedAfterFix.result.fixLoopExit)}`
+    )
+    // `no-progress` compares a serialisation, so key and finding ORDER decided whether a round had
+    // moved anything. Same state, different order, twice — the loop must still call it stalled.
+    const shuffled = await runBody(pilotSrc, {
+      args: { ...pilotArgs, maxFixRounds: 4 },
+      overrides: {
+        ...base,
+        'verify:architecture': n => ({
+          ok: true,
+          counts: n % 2 === 0 ? { capability: 1, crossCapabilityInternal: 1 } : { crossCapabilityInternal: 1, capability: 1 },
+          detail: '',
+        }),
+        'verify:review': n => ({
+          verdict: 'revise',
+          findings: n % 2 === 0
+            ? [{ severity: 'must-fix', detail: 'a' }, { severity: 'must-fix', detail: 'b' }]
+            : [{ severity: 'must-fix', detail: 'b' }, { severity: 'must-fix', detail: 'a' }],
+        }),
+      },
+    })
+    check(
+      shuffled.result && shuffled.result.fixLoopExit === 'no-progress' && shuffled.result.fixRounds === 1,
+      `${PILOT}: reordered counters and findings are the same state — the loop must stop, got ${JSON.stringify(shuffled.result && [shuffled.result.fixLoopExit, shuffled.result.fixRounds])}`
+    )
+
+    // A dead instruction probe fell through the same branch as a clean instruction layer.
+    const staleDead = await pilot({ 'stale-instructions': null })
+    check(
+      ((staleDead.result && staleDead.result.humanGate) || '').includes('DID NOT RUN'),
+      `${PILOT}: an instruction probe that returned nothing must say so in the gate, like one that returned ok=false`
+    )
+
+    // A dead radius probe printed the message for a manifest that recorded no ordinary change,
+    // sending the reader to fix phase 1 over a phase 2 failure.
+    const radiusDead = await pilot({ 'load-manifest': { ...manifest, ordinaryChange: 'add a field to the list view' }, radius: null })
+    const radiusText = (radiusDead.result && radiusDead.result.changeRadius) || ''
+    check(
+      typeof radiusText === 'string' && /did not report/.test(radiusText) && !/recorded no ordinaryChange/.test(radiusText),
+      `${PILOT}: a dead radius probe must be reported as a dead probe, not as a missing baseline, got ${JSON.stringify(radiusText)}`
+    )
+    check(
+      radiusDead.result && radiusDead.result.recommendation === 'inconclusive' &&
+        ((radiusDead.result.humanGate || '').includes('CHANGE-RADIUS') || (radiusDead.result.humanGate || '').includes('change-radius')),
+      `${PILOT}: a dead quality oracle must block acceptance and be visible in the human gate, got ${JSON.stringify(radiusDead.result && [radiusDead.result.recommendation, radiusDead.result.humanGate])}`
+    )
+
+    const radiusGrew = await pilot({
+      radius: { ok: true, direction: 'grew', detail: 'grew from one file to five' },
+    })
+    check(
+      radiusGrew.result && radiusGrew.result.recommendation === 'revise' &&
+        radiusGrew.result.changeRadius && radiusGrew.result.changeRadius.direction === 'grew' &&
+        /grew from one file to five/.test(radiusGrew.result.humanGate || ''),
+      `${PILOT}: a larger change radius must recommend revision and reach the human gate, got ${JSON.stringify(radiusGrew.result && [radiusGrew.result.recommendation, radiusGrew.result.humanGate])}`
+    )
+  }
+
+  // The target profile is a normative input, not archival manifest prose. Both the planner and the
+  // semantic reviewer need the decisions phase 1 required from the operator.
+  {
+    const profiled = await pilot({})
+    const planCall = profiled.prompts.find(p => p.label === 'plan:work-items')
+    const reviewCall = profiled.prompts.find(p => p.label === 'verify:review')
+    check(
+      planCall && planCall.prompt.includes('authAndTenancy') && reviewCall && reviewCall.prompt.includes('authAndTenancy'),
+      `${PILOT}: profile decisions must reach both planning and review prompts`
+    )
+  }
+
+  // ─── declared channel changes reach the human ───
+  // The first live run moved browser reads off Server Actions onto a GET route because the contract
+  // requires it, which changed the error shape, the retry predicate and how often one outage reached
+  // Sentry. Typecheck, lint, 988 tests and the build stayed green. Only the reviewer caught it, twice.
+  {
+    const planWithChannel = {
+      ...goodPlan,
+      channelChanges: [
+        { what: 'browser list read', from: 'Server Action', to: 'GET route handler', behaviourRisk: 'retryable 5xx now reported per attempt' },
+      ],
+    }
+    const out = await pilot({ 'plan:work-items': planWithChannel })
+    const gateText = (out.result && out.result.humanGate) || ''
+    check(
+      (out.result && out.result.channelChanges || []).length === 1,
+      `${PILOT}: a declared channel change must reach the report, got ${JSON.stringify(out.result && out.result.channelChanges)}`
+    )
+    check(gateText.includes('CHANNEL CHANGES'), `${PILOT}: humanGate must surface channel changes — the suite does not test them`)
+    check(
+      gateText.includes('reported per attempt'),
+      `${PILOT}: humanGate must carry the declared behaviour risk, not just the fact that a channel moved`
+    )
+    // A migration that changes no channel must not manufacture a warning.
+    const quiet = await pilot({})
+    check(
+      !((quiet.result && quiet.result.humanGate) || '').includes('CHANNEL CHANGES'),
+      `${PILOT}: with no channel change the gate must stay silent about them`
+    )
+
+    // ─── the instruction and the audit are load-bearing ───
+    // Deleting the planner's whole channel-changes instruction left `npm run validate` green: every
+    // check read the DECLARATION, and a declaration nobody was asked for is empty in exactly the
+    // same way as one honestly assessed and found empty. So assert on the call sites themselves —
+    // the prompt that asks, the schema that makes the answer mandatory, and the reviewer that
+    // checks the answer against the code.
+    const planCall = out.prompts.find(p => p.label === 'plan:work-items')
+    check(
+      planCall && /Channel changes — declare them, do not smuggle them/.test(planCall.prompt) &&
+        /NEVER Server Actions/.test(planCall.prompt) && /`channelChanges`/.test(planCall.prompt),
+      `${PILOT}: the plan prompt must still instruct the planner to assess channels — nothing else asks`
+    )
+    check(
+      planCall && Array.isArray(planCall.schema.required) && planCall.schema.required.includes('channelChanges'),
+      `${PILOT}: channelChanges must be required, or "assessed and found none" is indistinguishable from "never asked"`
+    )
+    // The declaration is written before the code exists. Something has to compare it with what was
+    // actually built, and only the adversarial reviewer reads the built tree.
+    const reviewCall = out.prompts.find(p => p.label === 'verify:review')
+    check(
+      reviewCall && /CHANNELS: compare how each behaviour is transported NOW/.test(reviewCall.prompt) &&
+        /is NOT in that list is a must-fix/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must be asked to find transport changes the plan did not declare`
+    )
+    check(
+      reviewCall && reviewCall.prompt.includes('browser list read: Server Action -> GET route handler'),
+      `${PILOT}: the reviewer must be handed the actual declaration to check the code against`
+    )
+    check(
+      reviewCall && /at least two real capability consumers/.test(reviewCall.prompt) &&
+        /no natural capability owner/.test(reviewCall.prompt) && /duplication now costs more than coordination/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must enforce the semantic admission gate for shared code`
+    )
+    check(
+      reviewCall && /server prefetch\/hydration consumer/.test(reviewCall.prompt) &&
+        /browser query consumer/.test(reviewCall.prompt),
+      `${PILOT}: the review oracle must require both runtime consumers for query-cache`
+    )
+    const quietReview = quiet.prompts.find(p => p.label === 'verify:review')
+    check(
+      quietReview && /assessed channels and declared no change/.test(quietReview.prompt),
+      `${PILOT}: with nothing declared the reviewer must be told that is a claim, not an absence of one`
+    )
+  }
 
   // ─── Plan must be a partition of the manifest's file set ───
   // Screening judged destinations only, so a plan covering a subset passed and the pilot

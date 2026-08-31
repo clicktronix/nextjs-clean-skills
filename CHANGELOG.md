@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Simplified `designing-architecture` around ownership, named consumers, runtime channels, and
+  conditional trust decisions. Ordinary component work preserves local architecture; detailed guidance
+  is loaded through direct topic references, while shared admission and `query-cache.ts` retain their
+  full model-visible gates.
+- Hardened the migration workflows around declared channel changes, operator-supplied ownership and
+  dependency decisions, real surface consumers, unmeasured agents, bounded fix-loop outcomes, and
+  adversarial review of the semantic properties static rules cannot prove.
+- Added optional `generatedRoot` enforcement: generated files may compose internally, external imports
+  stay inside capability-private `server/**`, and configured roots must remain inside `sourceRoot`.
+- Removed the shared-admission and runtime-neutral-consumer scripts whose path heuristics claimed to
+  prove semantic ownership and real runtime use. Their full gates now run in architecture review;
+  static rules retain only the import properties they can establish.
+- Moved the live migration summary from the workflow manual to `docs/evidence.md`.
+- Made the migration handoff fail closed: phase 1 proves its source inventory is partitioned exactly
+  once, records the complete target profile before writing, and refuses undeliverable shared rows;
+  phase 2 rejects a `moduleRoot` override that disagrees with the target contract and includes change
+  radius in its recommendation.
+- Rejected `generatedRoot` values that overlap module, app, or shared ownership roots, where
+  ordinary consumers would otherwise be classified as generated and bypass the provider boundary.
+
 - **BREAKING**: renamed the architecture skill from `designing-nextjs-capabilities` to
   `designing-architecture`. The previous name repeated `nextjs`, which the plugin name already
   carries, and scoped the skill to capability placement when it also governs runtime boundaries,

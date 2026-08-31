@@ -168,7 +168,7 @@ second one. They require dynamic workflows to be enabled, and they are part of t
 it is all the setup a target repository needs:
 
 ```text
-Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange } })
+Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange, profileDecisions } })
 Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } })
 ```
 
@@ -176,8 +176,8 @@ Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } 
 workflows loaded.
 
 Phase 1 is not read-only — it writes into the target — so run it on a branch you can throw away.
-Neither workflow has yet been executed against a live repository; treat the first run as an
-experiment.
+Both workflows have now been run end to end against a live repository; [the evidence record](docs/evidence.md#live-migration-workflow)
+summarizes what the runs exposed.
 
 ## Versioning
 

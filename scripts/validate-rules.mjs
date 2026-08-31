@@ -3,8 +3,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import ts from 'typescript'
 
 import { fail, root } from './_lib.mjs'
+import { loadArchitecturePaths, moduleSpecifiers } from '../rules/contract-paths.mjs'
 
 const BASE = 'rules/eslint-boundaries.mjs'
 const STRICT = 'rules/eslint-boundaries-resolved.mjs'
@@ -13,6 +15,7 @@ const PATHS = 'rules/contract-paths.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
 const errors = []
 
+let sandboxSummary = 'sandbox skipped'
 let ESLint
 try {
   ;({ ESLint } = await import('eslint'))
@@ -21,6 +24,23 @@ try {
 }
 
 const files = {
+  'src/generated/provider-rows.ts': `
+export type WorkItemRow = { id: string; title: string }
+`,
+  'src/generated/provider-api.ts': `
+import type { WorkItemRow } from './provider-rows.js'
+export type ProviderResult = { row: WorkItemRow }
+`,
+  // Legal: a private server adapter is exactly where a provider row is translated.
+  'src/modules/work-items/server/rows.ts': `
+import type { WorkItemRow } from '@/generated/provider-rows'
+export const idOf = (row: WorkItemRow) => row.id
+`,
+  // Illegal: past the adapter, and every consumer downstream is coupled to a generated file.
+  'src/modules/work-items/domain/bad-generated.ts': `
+import type { WorkItemRow } from '@/generated/provider-rows'
+export const titleOf = (row: WorkItemRow) => row.title
+`,
   'src/modules/labels/server/store.ts': `
 export function listLabels() {
   return []
@@ -76,11 +96,18 @@ export async function createWorkItem() {
   return { ok: true }
 }
 `,
+  // The directive is the runtime boundary; folder placement alone does not make a module client.
   'src/modules/work-items/client/query.ts': `
+'use client'
 import { createWorkItem } from '../actions.js'
 import { workItemKeys } from '../query-cache.js'
 export const mutation = createWorkItem
 export const queryKey = workItemKeys.list()
+`,
+  // Runtime-neutral surfaces are the exception to the private-server backedge rule.
+  'src/modules/work-items/server/prefetch.ts': `
+import { workItemKeys } from '../query-cache.js'
+export const prefetchKey = workItemKeys.list()
 `,
   'src/modules/work-items/client.ts': `
 export { mutation } from './client/query.js'
@@ -114,6 +141,14 @@ export const logger = console
 `,
   'src/shared/client/events.ts': `
 export const events = new EventTarget()
+`,
+  'src/shared/server/bad-generated.ts': `
+import type { WorkItemRow } from '../../generated/provider-rows.js'
+export const idOf = (row: WorkItemRow) => row.id
+`,
+  'src/modules/work-items/client/bad-generated.ts': `
+import type { WorkItemRow } from '../../../generated/provider-rows.js'
+export const idOf = (row: WorkItemRow) => row.id
 `,
 
   // Ownership.
@@ -240,6 +275,27 @@ export default missing
 import { b } from '../cycle-b/server.js'
 export const a = b
 `,
+  // A type-only cycle is a cycle: the contract requires the module dependency graph to be acyclic,
+  // without qualification. Erasing type edges from the AST extractor made this graph report none.
+  'src/modules/cycle-type-a/server.ts': `
+import type { B } from '../cycle-type-b/server.js'
+export type A = { b: B }
+`,
+  'src/modules/cycle-type-b/server.ts': `
+import type { A } from '../cycle-type-a/server.js'
+export type B = { a?: A }
+`,
+  // The same cycle in NodeNext extensions, written with the `.mjs` specifiers TypeScript expects.
+  // The resolver settings listed js/jsx/ts/tsx only, so these resolved to nothing and the canary
+  // passed over a real cycle.
+  'src/modules/cycle-mts-a/server.mts': `
+import { b } from '../cycle-mts-b/server.mjs'
+export const a = b
+`,
+  'src/modules/cycle-mts-b/server.mts': `
+import { a } from '../cycle-mts-a/server.mjs'
+export const b = a
+`,
   'src/modules/cycle-b/server.ts': `
 import { a } from '../cycle-a/server.js'
 export const b = a
@@ -258,9 +314,19 @@ export const graphB = true
 import { graphA } from '../../graph-a/server.js'
 export const useA = graphA
 `,
+
+  // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
+  // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
+  // import parser could still see imports into it. The two halves of the floor disagreed about what
+  // the project contains, and the narrower one was the one that judges.
+  'src/modules/nodenext/domain/bad-internal.mts': `
+import { getWorkItems } from '../../work-items/server/store.js'
+export default getWorkItems
+`,
 }
 
 const expectedBase = new Map([
+  ['src/modules/work-items/domain/bad-generated.ts', 'generatedProviderLeak'],
   ['src/app/bad-internal/page.ts', 'appInternal'],
   ['src/modules/board/server/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/work-items/domain/bad-server.ts', 'domainDirection'],
@@ -281,20 +347,29 @@ const expectedBase = new Map([
   ['src/shared/server/bad-module.ts', 'sharedImportsModule'],
   ['src/shared/kernel/bad-server.ts', 'sharedKernelDirection'],
   ['src/shared/client/bad-server.ts', 'browserServer'],
+  ['src/shared/server/bad-generated.ts', 'generatedProviderLeak'],
+  ['src/modules/work-items/client/bad-generated.ts', 'generatedProviderLeak'],
   ['src/modules/work-items/server/hidden-dynamic.ts', 'hiddenDynamicImport'],
   ['src/modules/work-items/server/public-backedge.ts', 'privateServerBackedge'],
   ['src/modules/work-items/server/index.tsx', 'shadowedSegmentIndex'],
   ['src/modules/bad-neutral/query-cache.ts', 'neutralDirection'],
   ['src/modules/bad-neutral-local/query-cache.ts', 'neutralDirection'],
+  ['src/modules/nodenext/domain/bad-internal.mts', 'crossCapabilityInternal'],
 ])
 
 const expectedStrict = new Map([
   ['src/app/unresolved/page.ts', 'import/no-unresolved'],
   ['src/modules/cycle-a/server.ts', 'import/no-cycle'],
   ['src/modules/cycle-b/server.ts', 'import/no-cycle'],
+  ['src/modules/cycle-mts-a/server.mts', 'import/no-cycle'],
+  ['src/modules/cycle-mts-b/server.mts', 'import/no-cycle'],
 ])
 
 const clean = new Set([
+  'src/generated/provider-api.ts',
+  // The permitting half of generatedProviderLeak: a private server adapter IS where a provider row
+  // is translated, so this import must stay clean or the rule only proves it can say no.
+  'src/modules/work-items/server/rows.ts',
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
   'src/modules/work-items/application/list.ts',
@@ -309,6 +384,7 @@ const clean = new Set([
   'src/modules/work-items/ui/WorkItemsView/index.tsx',
   'src/modules/work-items/ui.ts',
   'src/modules/board/server/adapters.ts',
+  'src/modules/work-items/server/prefetch.ts',
   'src/modules/board/server.ts',
   'src/app/work-items/page.ts',
   'src/shared/kernel/id.ts',
@@ -329,6 +405,17 @@ if (ESLint) {
     for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES]) {
       fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
     }
+    // `generatedRoot` is deliberately absent from the shipped contract: declared there, every repo
+    // adopting the floor would inherit a generated root it never has. The sandbox declares it so the
+    // rule has something to bind to; the inert-when-absent case is asserted separately below.
+    fs.writeFileSync(
+      path.join(sandbox, 'architecture-contract.json'),
+      `${JSON.stringify(
+        { ...JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8')), generatedRoot: 'src/generated' },
+        null,
+        2
+      )}\n`
+    )
     fs.writeFileSync(
       path.join(sandbox, 'tsconfig.json'),
       `${JSON.stringify(
@@ -347,7 +434,7 @@ if (ESLint) {
       )}\n`
     )
 
-    const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx}'], languageOptions: { parser } }\n`
+    const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx,mts,cts}'], languageOptions: { parser } }\n`
     fs.writeFileSync(
       path.join(sandbox, 'eslint.config.base.mjs'),
       `${parser}import boundaries from './eslint-boundaries.mjs'\nexport default [ts, ...boundaries]\n`
@@ -414,6 +501,11 @@ if (ESLint) {
     }
 
     const graphOutput = `${graphResult.stdout}${graphResult.stderr}`
+    // A type-only cycle is still a cycle: the contract requires an acyclic module graph without
+    // qualification.
+    if (!graphOutput.includes('cycle-type-a -> cycle-type-b -> cycle-type-a')) {
+      errors.push(`type-only capability cycle canary failed: received ${graphOutput.trim() || `exit ${graphResult.status}`}`)
+    }
     if (
       graphResult.status === 0 ||
       !graphOutput.includes('graph-a -> graph-b -> graph-a')
@@ -425,6 +517,44 @@ if (ESLint) {
 
     fs.rmSync(path.join(sandbox, 'src/modules/graph-b/server/use-a.ts'))
     fs.rmSync(path.join(sandbox, 'src/modules/cycle-b/server.ts'))
+    fs.rmSync(path.join(sandbox, 'src/modules/cycle-mts-b/server.mts'))
+    fs.rmSync(path.join(sandbox, 'src/modules/cycle-type-b/server.ts'))
+
+    // A development-directory word is allowed as the capability name. The filter starts below that
+    // boundary; applying it to the first segment makes a real production cycle disappear.
+    for (const capability of ['test', 'tests', 'mocks', 'fixtures']) {
+      const partner = `zz-${capability}-partner`
+      const capabilityFile = path.join(sandbox, 'src/modules', capability, 'server.ts')
+      const partnerFile = path.join(sandbox, 'src/modules', partner, 'server.ts')
+      fs.mkdirSync(path.dirname(capabilityFile), { recursive: true })
+      fs.mkdirSync(path.dirname(partnerFile), { recursive: true })
+      fs.writeFileSync(
+        capabilityFile,
+        `import { partner } from '../${partner}/server.js'\nexport const value = partner\n`
+      )
+      fs.writeFileSync(
+        partnerFile,
+        `import { value } from '../${capability}/server.js'\nexport const partner = value\n`
+      )
+
+      const namedCapabilityGraph = spawnSync(
+        process.execPath,
+        [path.join(sandbox, path.basename(CYCLES))],
+        { cwd: nestedCwd, encoding: 'utf8' }
+      )
+      const namedCapabilityOutput = `${namedCapabilityGraph.stdout}${namedCapabilityGraph.stderr}`
+      if (
+        namedCapabilityGraph.status === 0 ||
+        !namedCapabilityOutput.includes(`${capability} -> ${partner} -> ${capability}`)
+      ) {
+        errors.push(
+          `capability-name cycle canary failed for ${capability}: ${namedCapabilityOutput.trim() || `exit ${namedCapabilityGraph.status}`}`
+        )
+      }
+      fs.rmSync(path.join(sandbox, 'src/modules', capability), { recursive: true, force: true })
+      fs.rmSync(path.join(sandbox, 'src/modules', partner), { recursive: true, force: true })
+    }
+
     const cleanGraphResult = spawnSync(
       process.execPath,
       [path.join(sandbox, path.basename(CYCLES))],
@@ -561,15 +691,61 @@ if (ESLint) {
       )
     }
 
-    if (errors.length === 0) {
-      console.log(
-        `rules ok (${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 4} resolver/cycle/portability canaries)`
-      )
-    }
+    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 8} resolver/cycle/portability canaries`
   } finally {
     process.chdir(previousCwd)
     fs.rmSync(sandbox, { recursive: true, force: true })
   }
 }
 
+for (const [generatedRoot, expected] of [
+  ['../outside', 'generatedRoot must stay inside the project root'],
+  ['generated', 'generatedRoot must stay inside sourceRoot'],
+  ['src', 'moduleRoot and generatedRoot must not overlap'],
+  ['src/modules', 'moduleRoot and generatedRoot must not overlap'],
+  ['src/app/generated', 'appRoot and generatedRoot must not overlap'],
+  ['src/shared/generated', 'sharedRoot and generatedRoot must not overlap'],
+]) {
+  const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'invalid-generated-root-')))
+  try {
+    fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
+    fs.mkdirSync(path.join(sandbox, 'rules'))
+    fs.writeFileSync(
+      path.join(sandbox, 'rules/architecture-contract.json'),
+      `${JSON.stringify({
+        ...JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8')),
+        generatedRoot,
+      })}\n`
+    )
+    try {
+      loadArchitecturePaths(import.meta.url, sandbox)
+      errors.push(`${generatedRoot} was accepted as generatedRoot`)
+    } catch (error) {
+      if (!String(error.message).includes(expected)) {
+        errors.push(`${generatedRoot} failed for the wrong reason: ${error.message}`)
+      }
+    }
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true })
+  }
+}
+
+// The cycle checker consumes the shared AST extractor directly. Keep its uncommon static module
+// forms covered here even when no other checker needs them.
+for (const [label, source, expected] of [
+  ['template import', "const value = import(`@/modules/a/server`)\n", '@/modules/a/server'],
+  ['template require', "const value = require(`@/modules/a/server`)\n", '@/modules/a/server'],
+  ['module.require', "const value = module.require('@/modules/a/server')\n", '@/modules/a/server'],
+  ['module bracket require', "const value = module['require']('@/modules/a/server')\n", '@/modules/a/server'],
+  ['import attributes', "const value = import('@/modules/a/server', { with: { type: 'json' } })\n", '@/modules/a/server'],
+]) {
+  const parsed = ts.createSourceFile(`${label}.ts`, source, ts.ScriptTarget.Latest, true)
+  if (!moduleSpecifiers(parsed).includes(expected)) errors.push(`${label} was not extracted`)
+}
+{
+  const parsed = ts.createSourceFile('ordinary-method.ts', "loader.require('@/not-an-edge')\n", ts.ScriptTarget.Latest, true)
+  if (moduleSpecifiers(parsed).length > 0) errors.push('ordinary require method was classified as a module edge')
+}
+
 fail(errors)
+console.log(`rules ok (${sandboxSummary})`)

@@ -1,0 +1,11 @@
+{
+  "scenario": "ownership-resolution",
+  "arm": "no-skill",
+  "repeat": 2,
+  "model": "gpt-5.6-luna",
+  "framing": "neutral",
+  "taskHash": "215e020e031af695e3685fc1b7d53cbe1cae58e138a6286cab2439996701c95f",
+  "skillHash": null,
+  "skillTreeHash": null,
+  "responseSchemaHash": "f83dd0d537d9cfb0be7e4e364a1f88b2a2f0a0da569c37c6ff718787820872c9"
+}
