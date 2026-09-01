@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Made phase 1's inventory an enumeration rather than a summary. The roots lens now returns a
+  partition of the source tree plus a total counted over the whole root, one agent lists each
+  subtree, and a listing shorter than that total fails the run in Inventory. On a 2210-file
+  repository the lens had answered with 808 directories while its own findings carried the correct
+  count, and the run died two phases later blaming assignment for not owning them.
+- Made the Assign handoff scale with the number of decisions instead of the number of files. One
+  agent still decides over the whole tree, but answers with coverage rules — prefix or file,
+  resolved by specificity — which the script expands against the inventory. Asked for a row per
+  file, the same agent had returned 497 rows for 808 inputs and reported no failure.
+
 - Simplified `designing-architecture` around ownership, named consumers, runtime channels, and
   conditional trust decisions. Ordinary component work preserves local architecture; detailed guidance
   is loaded through direct topic references, while shared admission and `query-cache.ts` retain their

@@ -131,18 +131,61 @@ const LENS_SCHEMA = {
   },
 }
 
-// The roots lens already has to discover sourceRoot. Its file list is the one canonical inventory
-// that the Assign result is checked against; the other lenses remain free to report only the files
-// relevant to their own question.
+// The roots lens already has to discover sourceRoot. It no longer enumerates the tree.
+// Asking one agent to list every path turned the canonical inventory into a structured-output size
+// problem: on a 2210-file repository the lens returned 808 directories while its own findings
+// carried the correct count, and a summarised inventory is indistinguishable from a measured one.
+// What it returns now is a partition plus an independently counted total; the enumeration is fanned
+// out below. Counting is not judgement, so splitting it costs nothing the barrier protects.
+const MAX_SUBTREE_FILES = 300
 const SOURCE_LENS_SCHEMA = {
   ...LENS_SCHEMA,
-  required: ['lens', 'findings', 'files'],
+  required: ['lens', 'findings', 'subtrees', 'rootFiles', 'totalFiles'],
+  properties: {
+    ...LENS_SCHEMA.properties,
+    subtrees: {
+      type: 'array',
+      description:
+        'repo-relative directories under sourceRoot that do not overlap and, together with rootFiles, ' +
+        'cover every source file; no entry may exceed ' + MAX_SUBTREE_FILES + ' files — split deeper instead',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['path', 'fileCount'],
+        properties: {
+          path: { type: 'string' },
+          fileCount: { type: 'integer', description: 'source files under this directory, counted with a command' },
+        },
+      },
+    },
+    rootFiles: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'source files sitting directly in sourceRoot with no owning directory',
+    },
+    totalFiles: {
+      type: 'integer',
+      description: 'source files under sourceRoot in total, counted with one command over the whole root',
+    },
+  },
+}
+
+// Mechanical listing of one subtree: the agent runs a find and reports what it printed.
+const ENUMERATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['path', 'files'],
+  properties: {
+    path: { type: 'string', description: 'the subtree it was asked to enumerate, verbatim' },
+    files: { type: 'array', items: { type: 'string' }, description: 'every repo-relative source file under it' },
+    notes: { type: 'string' },
+  },
 }
 
 const ASSIGN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['capabilities', 'assignments', 'unassigned'],
+  required: ['capabilities', 'rules', 'unassigned'],
   properties: {
     capabilities: {
       type: 'array',
@@ -160,18 +203,28 @@ const ASSIGN_SCHEMA = {
         },
       },
     },
-    assignments: {
+    // One decision still sees the whole tree; what changed is that it is not asked to TYPE the whole
+    // tree back. A row per file made the handoff scale with file count — 2210 rows, each carrying
+    // prose evidence, is a payload no single structured output returns, and the agent silently
+    // covered 497 of 808 inputs rather than failing. Rules are the same judgement expressed at the
+    // size of the decision instead of the size of the repository, and the script expands them.
+    rules: {
       type: 'array',
+      description:
+        'coverage rules over the inventory. Resolution is by specificity, not by array order: a `file` ' +
+        'rule beats every prefix, and among prefixes the longest match wins. Every source file must be ' +
+        'covered by exactly one winner, and every rule must match at least one real file.',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['file', 'placement', 'runtime'],
+        required: ['path', 'kind', 'placement', 'runtime'],
         properties: {
-          file: { type: 'string', description: 'repo-relative current path' },
+          path: { type: 'string', description: 'repo-relative directory (kind=prefix) or file (kind=file)' },
+          kind: { enum: ['prefix', 'file'] },
           placement: { enum: ['capability', 'shared', 'app', 'infrastructure', 'unclear'] },
           capability: { type: 'string' },
           segment: { enum: ['domain', 'application', 'server', 'client', 'ui'] },
-          surface: { type: 'string', description: 'set only when this file becomes a module-root public surface' },
+          surface: { type: 'string', description: 'set only on a kind=file rule, when that file becomes a module-root public surface' },
           sharedRoot: { enum: ['kernel', 'server', 'client', 'ui'] },
           runtime: { enum: ['server-only', 'browser-safe', 'neutral', 'unclear'] },
           evidence: { type: 'string' },
@@ -295,7 +348,70 @@ const lensByKey = Object.create(null)
 for (const o of lensOuts) lensByKey[o.key] = o
 const dataLens = lensByKey.data
 const sourceLens = lensByKey.roots
-const sourceInventory = ((sourceLens && sourceLens.files) || []).map(file => String(file).trim())
+
+// ─── Enumeration: fanned out, then checked against a total nobody in the fan-out produced ───
+// The partition is judgement the roots lens already had to make; listing the files under it is not.
+// Splitting the listing keeps each agent's output small enough to be complete, and the lens's own
+// count — taken with one command over the whole root, before any subtree was listed — is what makes
+// a short answer fail instead of pass quietly.
+const subtreeRows = (sourceLens && sourceLens.subtrees) || []
+const rootFiles = ((sourceLens && sourceLens.rootFiles) || []).map(file => String(file).trim())
+const declaredTotal = sourceLens && typeof sourceLens.totalFiles === 'number' ? sourceLens.totalFiles : -1
+const subtreePaths = subtreeRows.map(row => (row && typeof row.path === 'string' ? row.path.trim() : ''))
+const unsafeSubtrees = subtreePaths.filter(path => path === '' || path[0] === '/' || /(^|\/)\.\.(\/|$)/.test(path))
+const overlappingSubtrees = subtreePaths.filter((path, i) =>
+  subtreePaths.some((other, j) => i !== j && other !== '' && path.startsWith(other + '/'))
+)
+const oversizedSubtrees = subtreeRows
+  .filter(row => row && typeof row.fileCount === 'number' && row.fileCount > MAX_SUBTREE_FILES)
+  .map(row => ({ path: row.path, fileCount: row.fileCount }))
+if (declaredTotal < 0 || unsafeSubtrees.length > 0 || overlappingSubtrees.length > 0 || oversizedSubtrees.length > 0) {
+  return {
+    error: 'the roots lens did not return a usable partition of the source tree',
+    unsafe: [...new Set(unsafeSubtrees)],
+    overlapping: [...new Set(overlappingSubtrees)],
+    oversized: oversizedSubtrees,
+    totalFiles: declaredTotal,
+    detail: 'Subtrees must be safe repo-relative directories, must not nest inside one another, and must each ' +
+      'stay under ' + MAX_SUBTREE_FILES + ' files so one agent can list them completely. Nothing has been written.',
+  }
+}
+
+const enumeratedRaw = await parallel(subtreeRows.map(row => () =>
+  agent(
+    `List every JavaScript or TypeScript source file under ${REPO}/${row.path}.\n\n` +
+    '## Rules\n' +
+    'Run one command (for example `find` or `git ls-files`) rooted at that directory and report exactly what it printed.\n' +
+    'Extensions: .js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts. Include tests and generated source. ' +
+    'Exclude dependency, build-output and coverage directories.\n' +
+    'Paths must be repo-relative and must all start with `' + row.path + '/`.\n' +
+    'This is a listing, not a summary: do NOT collapse directories, do NOT omit files that look unimportant, ' +
+    'and do NOT stop early. The count is checked against an independent total — a short list fails the run.\n' +
+    'Do not write, edit or move anything.\n\n' +
+    'Structured output only.',
+    { label: 'enumerate:' + row.path, phase: 'Inventory', schema: ENUMERATE_SCHEMA }
+  )
+))
+const silentSubtrees = subtreeRows.filter((row, i) => !enumeratedRaw[i]).map(row => row.path)
+if (silentSubtrees.length > 0) {
+  return {
+    error: 'enumeration incomplete: ' + silentSubtrees.length + ' of ' + subtreeRows.length + ' subtrees did not return',
+    missingSubtrees: silentSubtrees,
+    detail: 'An agent that died is not an agent that found no files. Re-run; nothing has been written.',
+  }
+}
+
+// Key position is authoritative here too: the agent's own `path` is descriptive.
+const strayEnumerations = []
+const sourceInventory = rootFiles.slice()
+enumeratedRaw.forEach((out, i) => {
+  const prefix = subtreePaths[i] + '/'
+  for (const raw of (out && out.files) || []) {
+    const file = String(raw).trim()
+    if (!file.startsWith(prefix)) strayEnumerations.push({ subtree: subtreePaths[i], file })
+    else sourceInventory.push(file)
+  }
+})
 const invalidInventoryFiles = sourceInventory.filter(
   file => file === '' || file[0] === '/' || /(^|\/)\.\.(\/|$)/.test(file)
 )
@@ -305,13 +421,31 @@ const duplicateInventoryFiles = sourceInventory.filter(file => {
   inventorySeen.add(file)
   return false
 })
-if (invalidInventoryFiles.length > 0 || duplicateInventoryFiles.length > 0) {
+if (invalidInventoryFiles.length > 0 || duplicateInventoryFiles.length > 0 || strayEnumerations.length > 0) {
   return {
     error: 'source inventory is not a unique set of safe repo-relative files',
     invalid: [...new Set(invalidInventoryFiles)],
     duplicates: [...new Set(duplicateInventoryFiles)],
+    outsideItsSubtree: strayEnumerations.slice(0, 50),
+    detail: 'Each enumerating agent is authoritative only over its own subtree. Nothing has been written.',
   }
 }
+// The one check the fan-out cannot fake: a total counted over the whole root before it ran.
+if (sourceInventory.length !== declaredTotal) {
+  return {
+    error: 'enumeration does not account for every source file the roots lens counted',
+    counted: declaredTotal,
+    enumerated: sourceInventory.length,
+    perSubtree: subtreeRows.map((row, i) => ({
+      path: row.path,
+      declared: row.fileCount,
+      returned: ((enumeratedRaw[i] && enumeratedRaw[i].files) || []).length,
+    })),
+    detail: 'A listing shorter than the count is a summarised inventory, which would make every later ' +
+      'verdict a statement about files nobody looked at. Nothing has been written.',
+  }
+}
+log('Inventory: ' + sourceInventory.length + ' source files across ' + subtreeRows.length + ' subtrees')
 
 const LENS_BLOCK = lensOuts
   .map(o =>
@@ -323,6 +457,14 @@ const LENS_BLOCK = lensOuts
   )
   .join('\n\n')
 
+// The whole inventory still reaches the single Assign decision — a prompt carries what a structured
+// output could not. Grouped by subtree so the shape of the tree survives the listing.
+const INVENTORY_BLOCK =
+  (rootFiles.length > 0 ? '#### (loose files at the source root)\n' + rootFiles.join('\n') + '\n\n' : '') +
+  subtreePaths
+    .map((path, i) => '#### ' + path + '\n' + (((enumeratedRaw[i] && enumeratedRaw[i].files) || []).join('\n')))
+    .join('\n\n')
+
 // ─── Assign: the barrier is load-bearing ───
 // One agent decides ownership for the WHOLE file set, because two files can only
 // be given one owner each if a single decision sees both. Fanning this out
@@ -332,17 +474,22 @@ phase('Assign')
 let assignment = await agent(
   `Assign a single owner and role to every source file in ${REPO}.\n\n` +
   '## Inventory from six independent lenses\n' + LENS_BLOCK + '\n\n' +
+  '## The source inventory — ' + sourceInventory.length + ' files, and the complete set you must cover\n' +
+  INVENTORY_BLOCK + '\n\n' +
   CONTRACT_DOCS + '\n\n' +
   '## What to produce\n' +
   '1. The capability list. Merge the lenses\' candidates into capabilities named from domain vocabulary. Give each a pilotScore: a good pilot is one COMPLETE capability with real consumers and few things depending on it.\n' +
-  '2. For EVERY source file, one assignment: placement (capability | shared | app | infrastructure | unclear), and when placement is `capability`, the target segment (domain | application | server | client | ui) or the public surface it becomes. Route-private UI stays under the app root — that is placement `app`, not a capability file.\n' +
-  '3. runtime class per file: server-only, browser-safe, neutral, or unclear. This is the fact a per-capability agent cannot derive on its own, so be exact and cite evidence.\n' +
+  '2. Coverage `rules` that place every file above. A rule is `kind: "prefix"` (a directory) or `kind: "file"` (one path), and carries placement (capability | shared | app | infrastructure | unclear), and when placement is `capability`, the target segment (domain | application | server | client | ui). Route-private UI stays under the app root — that is placement `app`, not a capability file. A public surface is named with `surface` on a `kind: "file"` rule only.\n' +
+  '   Resolution is by specificity, not by the order you write them in: a `file` rule beats every prefix, and among prefixes the longest match wins. So cover a directory once and then carve out the exceptions.\n' +
+  '   Write a rule per real decision, not per file: a directory whose files share an owner, a role and a runtime is ONE prefix rule. Split it only where the answer actually differs.\n' +
+  '3. runtime class on every rule: server-only, browser-safe, neutral, or unclear. This is the fact a per-capability agent cannot derive on its own, so be exact and cite evidence. Where a directory mixes runtimes, that is a reason to split the rule, not to average it.\n' +
   '4. Direct dependency classification: pure / runtime / undecided. `undecided` is a real answer; the product decides those, not you.\n' +
-  '5. Anything you cannot place, in `unassigned`, with why — and `likelyCapability`, your best guess at which capability it would belong to. The pilot gate reads that field, so omitting it hides the file from the gate.\n' +
+  '5. Anything you cannot place, in `unassigned`, with why — and `likelyCapability`, your best guess at which capability it would belong to. The pilot gate reads that field, so omitting it hides the file from the gate. An unassigned file is an exception to a prefix rule, so leave the prefix rule in place and list the file here.\n' +
   '6. roots: the repo\'s real sourceRoot and appRoot, plus the moduleRoot and sharedRoot the capabilities WILL live under. Phase 2 computes every destination path from moduleRoot, so pick it deliberately and consistently with this repo\'s existing layout (do not default to src/modules if that is not where this repo would put them).\n\n' +
   '## Rules\n' +
-  'Verify against the code before assigning — Read or Grep the file, do not infer ownership from its current directory.\n' +
-  'A file gets exactly ONE placement. Prefer `unclear` over a guess; an unclear file is a review item, a wrong assignment is a silent architecture defect.\n' +
+  'Verify against the code before assigning — Read or Grep the files a rule covers, do not infer ownership from a directory name alone.\n' +
+  'Every file must be covered, and every rule must match at least one real file: a rule over a path that does not exist is a decision about a tree that is not this one.\n' +
+  'Prefer `unclear` over a guess; an unclear file is a review item, a wrong assignment is a silent architecture defect.\n' +
   'Do NOT propose a segment that would be empty, and do NOT invent a surface no consumer needs.\n' +
   'Read and Grep only — write nothing.\n\n' +
   'Structured output only.',
@@ -377,31 +524,120 @@ if (invalidCapabilityNames.length > 0 || duplicateCapabilityNames.length > 0 || 
   }
 }
 
-const assignmentRows = assignment.assignments || []
+// ─── Rules are expanded HERE ───
+// Which file a rule wins is arithmetic, so it belongs to the script: an agent asked to apply its own
+// precedence would be free to disagree with itself between two files. A `file` rule beats every
+// prefix; among prefixes the longest wins. Nothing depends on the order the rules arrived in.
+function winningRule(file, rules) {
+  let best = null
+  let bestLength = -1
+  for (const rule of rules) {
+    if (!rule || typeof rule.path !== 'string') continue
+    const path = rule.path.trim()
+    if (rule.kind === 'file') {
+      if (path === file) return rule
+      continue
+    }
+    if (file.startsWith(path + '/') && path.length > bestLength) {
+      best = rule
+      bestLength = path.length
+    }
+  }
+  return best
+}
+
+const ruleRows = assignment.rules || []
 const unassignedRows = assignment.unassigned || []
-const partitionRows = assignmentRows.concat(unassignedRows)
-const rowFiles = partitionRows.map(row => row && typeof row.file === 'string' ? row.file.trim() : '')
-const rowSeen = new Set()
-const duplicateRows = rowFiles.filter(file => {
-  if (rowSeen.has(file)) return true
-  rowSeen.add(file)
-  return false
-})
-const missingRows = sourceInventory.filter(file => !rowSeen.has(file))
-const extraRows = rowFiles.filter(file => !inventorySeen.has(file))
+const unassignedFiles = unassignedRows.map(row => (row && typeof row.file === 'string' ? row.file.trim() : ''))
+const unassignedSeen = new Set(unassignedFiles)
+
+const unsafeRulePaths = ruleRows
+  .map(rule => (rule && typeof rule.path === 'string' ? rule.path.trim() : ''))
+  .filter(path => path === '' || path[0] === '/' || /(^|\/)\.\.(\/|$)/.test(path))
+const ruleKeySeen = new Set()
+const duplicateRules = ruleRows
+  .map(rule => (rule ? rule.kind + ':' + String(rule.path).trim() : ''))
+  .filter(key => {
+    if (ruleKeySeen.has(key)) return true
+    ruleKeySeen.add(key)
+    return false
+  })
+// A surface names one file. On a prefix it would publish a whole directory under one public name.
+const prefixSurfaces = ruleRows
+  .filter(rule => rule && rule.kind === 'prefix' && rule.surface)
+  .map(rule => ({ path: rule.path, surface: rule.surface }))
+if (unsafeRulePaths.length > 0 || duplicateRules.length > 0 || prefixSurfaces.length > 0) {
+  return {
+    error: 'coverage rules are not a usable decision set',
+    unsafe: [...new Set(unsafeRulePaths)],
+    duplicates: [...new Set(duplicateRules)],
+    surfaceOnPrefix: prefixSurfaces,
+    detail: 'Rule paths must be safe and unique per kind, and a public surface names exactly one file. Nothing has been written.',
+  }
+}
+
+const ruleKey = rule => rule.kind + ':' + String(rule.path).trim()
+// Matched, not won. Covering a directory and then carving out the exceptions is the shape the
+// prompt asks for, so a broad prefix that every longer rule overrides is doing its job — it is the
+// answer for the files nobody carved out. Only a rule no file matches at all describes another tree.
+const matchedRules = new Set()
+for (const file of sourceInventory) {
+  for (const rule of ruleRows) {
+    if (!rule || typeof rule.path !== 'string') continue
+    const path = rule.path.trim()
+    if (rule.kind === 'file' ? path === file : file.startsWith(path + '/')) matchedRules.add(ruleKey(rule))
+  }
+}
+
+const assignmentRows = []
+const uncoveredFiles = []
+for (const file of sourceInventory) {
+  if (unassignedSeen.has(file)) continue
+  const rule = winningRule(file, ruleRows)
+  if (!rule) {
+    uncoveredFiles.push(file)
+    continue
+  }
+  const row = { file, placement: rule.placement, runtime: rule.runtime }
+  if (rule.capability) row.capability = rule.capability
+  if (rule.segment) row.segment = rule.segment
+  if (rule.sharedRoot) row.sharedRoot = rule.sharedRoot
+  if (rule.surface) row.surface = rule.surface
+  if (rule.evidence) row.evidence = rule.evidence
+  assignmentRows.push(row)
+}
+// A rule matching nothing was written about a tree that is not this one; a `file` rule over an
+// unassigned file is the agent answering its own question twice, in two different ways.
+const deadRules = ruleRows
+  .filter(rule => rule && !matchedRules.has(ruleKey(rule)))
+  .map(rule => ({ path: rule.path, kind: rule.kind }))
+const contradictedUnassigned = ruleRows
+  .filter(rule => rule && rule.kind === 'file' && unassignedSeen.has(String(rule.path).trim()))
+  .map(rule => rule.path)
+const unknownUnassignedFiles = unassignedFiles.filter(file => !inventorySeen.has(file))
+const duplicateUnassigned = unassignedFiles.filter((file, i) => unassignedFiles.indexOf(file) !== i)
 const unknownAssignmentCapabilities = assignmentRows
   .filter(row => row && row.placement === 'capability' && !capabilitySeen.has(row.capability))
   .map(row => ({ file: row.file, capability: row.capability || null }))
-if (duplicateRows.length > 0 || missingRows.length > 0 || extraRows.length > 0 || unknownAssignmentCapabilities.length > 0) {
+if (
+  uncoveredFiles.length > 0 || deadRules.length > 0 || contradictedUnassigned.length > 0 ||
+  unknownUnassignedFiles.length > 0 || duplicateUnassigned.length > 0 || unknownAssignmentCapabilities.length > 0
+) {
   return {
     error: 'source inventory is not partitioned exactly once between assignments and unassigned',
-    missing: [...new Set(missingRows)],
-    extra: [...new Set(extraRows)],
-    duplicates: [...new Set(duplicateRows)],
+    uncovered: uncoveredFiles.slice(0, 100),
+    uncoveredCount: uncoveredFiles.length,
+    rulesMatchingNothing: deadRules,
+    ruledAndUnassigned: contradictedUnassigned,
+    unassignedOutsideInventory: [...new Set(unknownUnassignedFiles)],
+    duplicateUnassigned: [...new Set(duplicateUnassigned)],
     unknownAssignmentCapabilities,
-    detail: 'Every file from the roots lens must appear exactly once, and a capability placement must name a capability this run found. Nothing has been written.',
+    detail: 'Every inventory file must be covered by exactly one rule or listed as unassigned, every rule must ' +
+      'match a real file, and a capability placement must name a capability this run found. Nothing has been written.',
   }
 }
+// Downstream — the pilot gate, the shared-placement check, the manifest — reads rows, not rules.
+assignment.assignments = assignmentRows
 
 // ─── Human decisions on the files nobody could place ───
 // Human answers resolve the exact unassigned rows from this run.
