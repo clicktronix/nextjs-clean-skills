@@ -159,11 +159,30 @@ single-capability agent cannot derive correctly — they need the whole tree. Ph
 in a single Assign agent (not a fan-out: two agents assigning owners produce contested files and
 duplicate capabilities) and writes `migration-manifest.json`. Later phases read their own rows.
 
-Two deliberate `parallel()` barriers remain — the inventory lenses and the pilot's verify phase — and
-each earns it: the next step consumes the *aggregate* of all results, which is the documented
-condition for choosing a barrier over `pipeline()`. The baseline probes used to be a third; they are
-now a plain sequential loop, because concurrency there was not a barrier decision at all but a
-contention bug.
+**One decision, but not one payload.** That barrier is about judgement, and judgement was never the
+part that did not fit. Asking the one agent to *type back* a row per file made the handoff scale with
+the repository instead: on a 2210-file target the roots lens answered its file list with 808
+directories — while its own findings carried the correct count — and Assign then returned 497 rows
+for those 808 inputs and reported no failure. Both are the same defect, a summary standing in for an
+enumeration, and neither announced itself.
+
+The two are now separated. Listing is mechanical, so it is fanned out: the roots lens returns a
+*partition* of the source tree (non-overlapping subtrees, each under 300 files) plus a total counted
+with one command over the whole root, and one agent lists each subtree. That total is what makes a
+short answer fail — it is taken before any subtree is listed, so no enumerator can talk it down.
+Deciding stays single: Assign sees the whole inventory in its prompt and answers with coverage
+**rules** — a prefix or a file, resolved by specificity, where a `file` rule beats every prefix and
+among prefixes the longest match wins. The script expands rules against the inventory, so the number
+of rules tracks the number of decisions rather than the size of the repository, and a file no rule
+reaches stops the run instead of disappearing from it. Covering a directory and then carving out the
+exceptions is the intended shape, so a broad prefix every longer rule overrides is doing its job;
+only a rule matching no file at all is rejected, as a decision about a tree that is not this one.
+
+Three deliberate `parallel()` barriers remain — the inventory lenses, the subtree enumerators, and
+the pilot's verify phase — and each earns it: the next step consumes the *aggregate* of all results,
+which is the documented condition for choosing a barrier over `pipeline()`. The baseline probes used
+to be a fourth; they are now a plain sequential loop, because concurrency there was not a barrier
+decision at all but a contention bug.
 
 **Surfaces are derived from consumers, never proposed.** A surface with no named consumer is dropped
 from the plan by the script — both from the surface list and from the move that would have created
