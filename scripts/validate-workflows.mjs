@@ -1369,23 +1369,32 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       `${BASELINE} (surface on a prefix rule): must be refused, got ${JSON.stringify(prefixSurface.result && prefixSurface.result.error)}`
     )
 
-    // An unassigned file is an exception to a prefix, so the prefix stays. A `file` rule over the
-    // same path is the agent answering its own question twice, in two different ways.
+    // "Here is where it would go, and I still cannot commit to it" is one answer, not two conflicting
+    // ones — the first live run said exactly that about a module mixing a generic wrapper with one
+    // capability's contracts, and rejecting it burned a 37-minute run over a note. Unassigned wins,
+    // so the file must reach the manifest as unplaced and never as an owned row.
     const both = await runBody(baseSrc, {
       args: ARGSR,
       overrides: {
         ...src,
-        ...inventory(['src/wi/a.ts']),
+        ...inventory(['src/wi/a.ts', 'src/wi/b.ts']),
         assign: {
           ...base,
-          rules: [{ kind: 'file', path: 'src/wi/a.ts', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' }],
-          unassigned: [{ file: 'src/wi/a.ts', why: 'unclear', likelyCapability: 'work-items' }],
+          rules: [
+            { kind: 'prefix', path: 'src/wi', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' },
+            { kind: 'file', path: 'src/wi/a.ts', placement: 'shared', sharedRoot: 'client', runtime: 'browser-safe' },
+          ],
+          unassigned: [{ file: 'src/wi/a.ts', why: 'mixes generic and capability contracts', likelyCapability: 'work-items' }],
         },
+        'write-manifest': { label: 'write-manifest', ok: true, detail: 'written' },
       },
     })
+    const bothPrompt = both.prompts.find(p => p.label === 'write-manifest')
+    const bothPayload = bothPrompt ? JSON.parse(bothPrompt.prompt.match(/```json\n([\s\S]*?)\n```/)[1]) : null
     check(
-      both.result && (both.result.ruledAndUnassigned || []).includes('src/wi/a.ts'),
-      `${BASELINE} (file both ruled and unassigned): must be refused, got ${JSON.stringify(both.result && both.result.error)}`
+      bothPayload && !(bothPayload.assignments || []).some(r => r.file === 'src/wi/a.ts') &&
+        (bothPayload.unassigned || []).some(u => u.file === 'src/wi/a.ts'),
+      `${BASELINE} (file both ruled and unassigned): unassigned must win and the row must stay unplaced, got ${JSON.stringify(both.result && both.result.error)}`
     )
   }
 

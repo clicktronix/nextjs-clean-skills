@@ -612,21 +612,24 @@ for (const file of sourceInventory) {
   if (rule.evidence) row.evidence = rule.evidence
   assignmentRows.push(row)
 }
-// A rule matching nothing was written about a tree that is not this one; a `file` rule over an
-// unassigned file is the agent answering its own question twice, in two different ways.
+// A rule matching nothing was written about a tree that is not this one.
 const deadRules = ruleRows
   .filter(rule => rule && !matchedRules.has(ruleKey(rule)))
   .map(rule => ({ path: rule.path, kind: rule.kind }))
-const contradictedUnassigned = ruleRows
+// A `file` rule over an unassigned file is NOT a contradiction. "Here is where it would go, and I
+// still cannot commit to it" carries more than either half alone, and the first live run produced
+// exactly that for a module mixing a generic wrapper with one capability's contracts. Unassigned
+// wins — the expansion above skips those files — so the placement stays a note, never an owner.
+const suggestedForUnassigned = ruleRows
   .filter(rule => rule && rule.kind === 'file' && unassignedSeen.has(String(rule.path).trim()))
-  .map(rule => rule.path)
+  .map(rule => ({ file: String(rule.path).trim(), wouldBe: rule.placement || null, capability: rule.capability || null }))
 const unknownUnassignedFiles = unassignedFiles.filter(file => !inventorySeen.has(file))
 const duplicateUnassigned = unassignedFiles.filter((file, i) => unassignedFiles.indexOf(file) !== i)
 const unknownAssignmentCapabilities = assignmentRows
   .filter(row => row && row.placement === 'capability' && !capabilitySeen.has(row.capability))
   .map(row => ({ file: row.file, capability: row.capability || null }))
 if (
-  uncoveredFiles.length > 0 || deadRules.length > 0 || contradictedUnassigned.length > 0 ||
+  uncoveredFiles.length > 0 || deadRules.length > 0 ||
   unknownUnassignedFiles.length > 0 || duplicateUnassigned.length > 0 || unknownAssignmentCapabilities.length > 0
 ) {
   return {
@@ -634,13 +637,15 @@ if (
     uncovered: uncoveredFiles.slice(0, 100),
     uncoveredCount: uncoveredFiles.length,
     rulesMatchingNothing: deadRules,
-    ruledAndUnassigned: contradictedUnassigned,
     unassignedOutsideInventory: [...new Set(unknownUnassignedFiles)],
     duplicateUnassigned: [...new Set(duplicateUnassigned)],
     unknownAssignmentCapabilities,
     detail: 'Every inventory file must be covered by exactly one rule or listed as unassigned, every rule must ' +
       'match a real file, and a capability placement must name a capability this run found. Nothing has been written.',
   }
+}
+if (suggestedForUnassigned.length > 0) {
+  log('Assign: ' + suggestedForUnassigned.length + ' unassigned file(s) carry a suggested placement')
 }
 // Downstream — the pilot gate, the shared-placement check, the manifest — reads rows, not rules.
 assignment.assignments = assignmentRows
