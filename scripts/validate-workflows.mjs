@@ -1243,6 +1243,21 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       `${BASELINE} (file outside its subtree): must refuse, got ${JSON.stringify(stray.result && stray.result.error)}`
     )
 
+    // The schema and the prompt are two statements of one request, and only the schema is
+    // machine-checked. Asking for `files` while requiring a partition is how the lens ends up blamed
+    // for answering the question it was actually asked.
+    {
+      const asked = await runBody(baseSrc, { args: ARGSI, overrides: src })
+      const rootsPrompt = asked.prompts.find(p => p.label === 'lens:roots')
+      const required = (rootsPrompt && rootsPrompt.schema && rootsPrompt.schema.required) || []
+      check(
+        rootsPrompt && required.includes('subtrees') && required.includes('totalFiles') &&
+          /subtrees/.test(rootsPrompt.prompt) && /totalFiles/.test(rootsPrompt.prompt) &&
+          !/In `files`/.test(rootsPrompt.prompt),
+        `${BASELINE} (roots lens): the prompt must ask for the partition its schema requires, not a file list`
+      )
+    }
+
     // A dead enumerator is not an empty subtree.
     const silent = await runBody(baseSrc, {
       args: ARGSI,

@@ -310,7 +310,13 @@ const LENSES = [
     key: 'roots',
     text:
       'Read tsconfig.json, next.config.*, and any eslint config. Report the current source root, app root, path aliases (exact prefixes), and any existing boundary tooling already in place. ' +
-      'In `files`, enumerate every repo-relative JavaScript or TypeScript source file under sourceRoot (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), including tests and generated source but excluding dependency, build-output and coverage directories. This list is the canonical inventory checked against Assign; do not summarise directories or omit files that look unimportant.',
+      'Do NOT list the files themselves — agents after you do that, one subtree each. Partition the tree instead. ' +
+      'Source files are .js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts, including tests and generated source, excluding dependency, build-output and coverage directories. ' +
+      'In `totalFiles`: their count under sourceRoot, taken with ONE command over the whole root. ' +
+      'In `rootFiles`: the ones sitting directly in sourceRoot with no owning directory. ' +
+      'In `subtrees`: directories that together with rootFiles cover every one of those files. None may contain another, ' +
+      'and none may hold more than ' + MAX_SUBTREE_FILES + ' files — go deeper wherever a directory is larger — and each carries its counted fileCount. ' +
+      'Every count is checked against what the per-subtree listings return, so take them with commands rather than estimating.',
   },
 ]
 
