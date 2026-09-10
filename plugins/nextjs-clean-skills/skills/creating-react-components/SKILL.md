@@ -79,7 +79,7 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
 - `error.tsx` is a Client Component. Use its installed `ErrorInfo`: `reset` retries a temporary
-  render failure; in Next.js 16.2+, prefer `unstable_retry` when recovery must refetch RSC data.
+  render failure; in Next.js 16.3+, prefer `retry` when recovery must refetch RSC data.
 - `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.

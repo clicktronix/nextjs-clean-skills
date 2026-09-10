@@ -60,6 +60,31 @@ function receiverIdentifiers(node, names = new Set()) {
   return names
 }
 
+// The mutating half of the Supabase builder. A read and a write on the same table are different
+// permissions: a consumer legitimately reads a neighbour's table and calls its public RPCs, and
+// still must not be the one that decides what that table contains.
+const WRITE_METHODS = new Set(['insert', 'update', 'upsert', 'delete'])
+
+/**
+ * The methods chained onto this call, in order. `.from('t')` alone says nothing about intent;
+ * `.from('t').update({…}).eq(…)` does, and the two differ only by what follows.
+ */
+function chainedMethods(node) {
+  const names = []
+  let current = node
+  while (
+    current.parent &&
+    ts.isPropertyAccessExpression(current.parent) &&
+    current.parent.expression === current
+  ) {
+    names.push(current.parent.name.text)
+    const call = current.parent.parent
+    if (!call || !ts.isCallExpression(call) || call.expression !== current.parent) break
+    current = call
+  }
+  return names
+}
+
 function databaseCalls(file, clientIdentifiers) {
   const parsed = ts.createSourceFile(
     file,
@@ -81,9 +106,11 @@ function databaseCalls(file, clientIdentifiers) {
         return
       }
       const argument = node.arguments[0]
+      const kind = node.expression.name.text === 'from' ? 'table' : 'function'
       calls.push({
-        kind: node.expression.name.text === 'from' ? 'table' : 'function',
+        kind,
         name: argument && ts.isStringLiteralLike(argument) ? argument.text : null,
+        write: kind === 'table' && chainedMethods(node).some((name) => WRITE_METHODS.has(name)),
         line: parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1,
       })
     }
@@ -149,10 +176,30 @@ for (const resource of resources) {
   if (!consumers.includes(resource.owner)) {
     errors.push(`${key} consumers must include owner ${resource.owner}`)
   }
+  // `writers` is optional. Absent, `consumers` keeps meaning read-and-RPC-and-write exactly as
+  // before, because narrowing it silently would turn every declared consumer of an existing
+  // contract into a violation. Present, it names who may decide the table's contents; the owner
+  // always may, and a writer must already be a consumer or the read check would contradict it.
+  const writers = resource.writers === undefined ? null : resource.writers
+  if (writers !== null) {
+    if (resource.kind !== 'table') {
+      errors.push(`${key} writers is only valid for a table resource`)
+      continue
+    }
+    if (!Array.isArray(writers) || writers.some((writer) => typeof writer !== 'string')) {
+      errors.push(`${key} writers must be an array of strings`)
+      continue
+    }
+    const foreign = writers.filter((writer) => !consumers.includes(writer))
+    if (foreign.length > 0) {
+      errors.push(`${key} writers must be declared consumers: ${foreign.join(', ')}`)
+    }
+  }
   if (resourceMap.has(key)) errors.push(`${key} is declared more than once`)
   resourceMap.set(key, {
     ...resource,
     consumers: new Set(consumers),
+    writers: writers === null ? null : new Set([resource.owner, ...writers]),
   })
 }
 
@@ -173,6 +220,12 @@ for (const file of listSources(sourceRoot)) {
     if (!subject || !resource.consumers.has(subject)) {
       errors.push(
         `${relative}:${call.line} accesses ${key}, owned by ${resource.owner}; allowed consumers: ${[...resource.consumers].join(', ')}`
+      )
+      continue
+    }
+    if (call.write && resource.writers !== null && !resource.writers.has(subject)) {
+      errors.push(
+        `${relative}:${call.line} writes ${key}, owned by ${resource.owner}; allowed writers: ${[...resource.writers].join(', ')}`
       )
     }
   }
