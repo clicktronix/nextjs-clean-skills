@@ -1,5 +1,9 @@
 # Capability Architecture Release Gate
 
+> **Not reproducible as stated.** Every run behind this document inherited the author's `HOME`,
+> so the no-skill arm could read `~/.agents/skills`. See the 2026-09-10 evidence integrity note in
+> [`README.md`](README.md#evidence-integrity-note--2026-09-10).
+
 This protocol is frozen before the release runs. It evaluates candidate
 `e7b9bdc8ce47bf79d258ca86c04caccaee14a579`.
 

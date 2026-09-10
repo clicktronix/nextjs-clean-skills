@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +74,13 @@ async function loadRows(resultNames) {
 
   for (const name of resultNames) {
     const resultRoot = join(evalRoot, "results", name);
+    // The raw sets are no longer tracked in git; they ship as a release asset. Say so, rather than
+    // failing on an ENOENT for `manifest.json`.
+    if (!existsSync(resultRoot)) {
+      throw new Error(
+        `missing result set ${name}: unpack the results-2026-09-10.tar.zst release asset into tests/architecture-evals/`,
+      );
+    }
     const manifest = JSON.parse(await readFile(join(resultRoot, "manifest.json"), "utf8"));
     const summary = JSON.parse(await readFile(join(resultRoot, "summary.json"), "utf8"));
     matrices.push({

@@ -1,5 +1,9 @@
 # Capability Architecture Candidate V3 Results
 
+> **Not reproducible as stated.** Every run behind this document inherited the author's `HOME`,
+> so the no-skill arm could read `~/.agents/skills`. See the 2026-09-10 evidence integrity note in
+> [`README.md`](README.md#evidence-integrity-note--2026-09-10).
+
 - Date: 2026-07-28
 - Frozen candidate: `6c35c86246fbd65fecfddef5c0d193f50c739f7d`
 - Replay runner: `0be41e1`

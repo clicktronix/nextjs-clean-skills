@@ -9,8 +9,10 @@ This experiment compares architecture behavior, not prose quality:
 
 The smoke matrix is preregistered as three scenarios, one neutral framing, one model, and two
 repeats: 24 generation runs. A blind judge compares the four shuffled arms within each
-scenario/repeat pair. Generation and judging run in isolated temporary directories with a minimal
-`CODEX_HOME`; user instructions, plugins, skills, and project files are not loaded.
+scenario/repeat pair. Generation and judging run in isolated temporary directories with a fresh
+`HOME` and a fresh `CODEX_HOME`, and with every variable that points at the author's configuration
+removed from the cell environment (see `scripts/eval-env.mjs`), so user instructions, plugins,
+skills, and project files are not loaded. This held only from 2026-09-10; see the note below.
 
 Positive rubric items score 0 (missing/wrong), 1 (partial), or 2 (clear and coherent). Each
 negative violation subtracts one point. A fatal violation is a framework/runtime design that makes
@@ -67,6 +69,38 @@ for the release gate.
 A separate two-arm Claude Opus 5 experiment on the closing verification gate is in
 [`OPUS5_GATE_RESULTS.md`](OPUS5_GATE_RESULTS.md), run by `scripts/run-opus5-gate-eval.mjs`. It does
 not use this matrix's arms and does not clear the release gate.
+
+## Evidence integrity note — 2026-09-10
+
+Until this date every cell ran with `env: { ...process.env, CODEX_HOME: codexHome }`. `CODEX_HOME`
+was fresh, but `HOME` was inherited, so a CLI resolved `~/.agents/skills`, `~/.claude` and the rest
+of the author's configuration against the author's own account. The "no skill" arm was therefore not
+a no-skill arm: an architecture skill installed in the author's home was readable in every arm. This
+affects every result set produced before this date, and it is directly visible in the event streams
+of seven run directories, which name `/Users/<author>/.agents/skills`:
+
+- `results/ownership-resolution-luna-adversarial`
+- `results/ownership-resolution-luna-neutral`
+- `results/ownership-resolution-v2-luna-adversarial`
+- `results/ownership-resolution-v2-luna-neutral`
+- `results/release-sol-adversarial`
+- `results/release-v3-sol-adversarial`
+- `results/release-v3-sol-neutral`
+
+Consequences, recorded rather than repaired: the conclusions in `RELEASE_GATE.md`,
+`RELEASE_GATE_V3.md`, `RELEASE_RESULTS.md`, `RELEASE_V3_RESULTS.md` and
+`OWNERSHIP_RESOLUTION_RESULTS.md` are **not reproducible as stated**. The historical text is left
+unchanged; each of those files carries a pointer to this note. The isolation fix ships on its own
+(`scripts/eval-env.mjs`, asserted by `scripts/validate-eval-isolation.mjs`); rerunning the release
+matrix is a separate, costed decision and is not part of this change.
+
+## Raw result sets
+
+`tests/architecture-evals/results/` is no longer tracked in git (it is listed in `.gitignore`). The
+raw prompts, event streams, responses, judge inputs and scores for every set named above are
+attached to the `v4.1.0` GitHub release as the asset `results-2026-09-10.tar.zst`. Download and
+unpack it into this directory to inspect a run; the scripts here create the directory when they need
+it, and every validator tolerates its absence.
 
 ## Known limitations
 
