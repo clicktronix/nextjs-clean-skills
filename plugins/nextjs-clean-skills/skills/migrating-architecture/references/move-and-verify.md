@@ -4,11 +4,11 @@
 
 ## The mover's brief
 
-Give a mover its slice only: the moves with computed destinations, the surfaces to author
-with their exports and consumers, and the profile decisions. It reports `filesTouched`, or
-`{ replan: { file, reason, suggestedRole } }` when a file turns out to hold policy its role
-does not admit. It never chooses a destination, re-exports through a barrel to satisfy a rule,
-adds `eslint-disable`, widens the contract, or runs git commands.
+A mover gets its slice only: moves with computed destinations, surfaces to author with exports
+and consumers, the profile decisions. It reports `filesTouched`, or
+`{ replan: { file, reason, suggestedRole } }` when a file holds policy its role does not admit.
+It never chooses a destination, tunnels through a barrel, adds `eslint-disable`, widens the
+contract, or runs git.
 
 ## Probes and cleanup
 
@@ -21,21 +21,22 @@ missing once.
 ## The check record
 
 ```
-node $PLUGIN/bin/migration.mjs record --repo <target> --label check -- <check command>
+node $PLUGIN/bin/migration.mjs record --repo <target> --label check --artifact .nextjs-clean-migration/lint.json -- <check command>
 node $PLUGIN/bin/migration.mjs record-fresh --repo <target> --record <path>
-node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json .nextjs-clean-migration/lint.json --baseline <baseline census>
+node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json .nextjs-clean-migration/lint.json --contract rules/architecture-contract.json --capability <name> --baseline <baseline census>
 ```
 
 The record carries the command, its exit code, the tree state it ran against and the output
 path. It is the only evidence a reviewer gets. Readers cite its `id`. The check command's lint
-step writes ESLint JSON to a file (`--format json --output-file …`) so lint runs once and
-`census --lint-json` counts message ids and the capability counter from it. A killed wrapper
-forwards the signal to the check and still writes a record naming that signal.
+step writes ESLint JSON to a file (`--format json --output-file …`) so lint runs once; the
+record hashes that file as its artifact and `census --lint-json` reads it only while the hash
+still matches. A killed wrapper forwards the signal to the check's process group, waits for it
+to end (SIGKILL after a grace period), then writes a record naming that signal.
 
-The check command is your child process: you know when it ended because the record says so. If
-it prints nothing for a while, look at the process, do not declare it stalled. A reviewer has
-its own budget (`reviewerBudget`, turns); an exhausted reviewer returns no verdict for that
-axis and you decide whether to re-run it or read that axis yourself.
+The check is your child process; the record says when it ended. Silence in its output is a
+reason to look at the process, not to call it stalled. A reviewer has its own budget
+(`reviewerBudget`, turns); an exhausted one returns no verdict for that axis and you decide
+whether to re-run it or read that axis yourself.
 
 ## Fix rounds
 

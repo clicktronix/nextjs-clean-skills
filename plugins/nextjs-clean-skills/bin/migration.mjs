@@ -296,9 +296,13 @@ export function treeState(repo) {
   const index = path.join(os.tmpdir(), `ncs-index-${process.pid}-${Date.now()}`)
   try {
     const env = { ...process.env, GIT_INDEX_FILE: index }
-    // Start from HEAD so deletions register, then stage the working tree; the tool's own
-    // state directory is excluded because it is not part of the tree a check ran against.
-    git(repo, ['read-tree', 'HEAD'], { env })
+    // Start from the repository's own index, not HEAD: a file force-added inside an ignored
+    // directory exists only there, and an index built from HEAD would treat its edits as
+    // ignored. Then stage the working tree; the tool's own state directory is excluded
+    // because it is not part of the tree a check ran against.
+    const realIndex = path.resolve(repo, git(repo, ['rev-parse', '--git-path', 'index']))
+    if (fs.existsSync(realIndex)) fs.copyFileSync(realIndex, index)
+    else git(repo, ['read-tree', 'HEAD'], { env })
     git(repo, ['add', '-A', '--', '.', `:!${STATE_DIR}`], { env })
     const tree = git(repo, ['write-tree'], { env })
     return { head, tree }
@@ -314,11 +318,14 @@ export function runRecord(repo, label, command, options = {}) {
   const id = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
   const outPath = path.join(dir, `${id}.out`)
   const recordPath = path.join(dir, `${id}.json`)
+  const artifactPaths = (options.artifacts || []).map((a) => posix(path.normalize(a)))
+  const killAfterMs = typeof options.killAfterMs === 'number' ? options.killAfterMs : 10000
   const tree = treeState(repo)
   // Output streams straight into the file, so progress is visible while the check runs and
-  // nothing is lost if the wrapper is killed. The child gets its own process group, and a
-  // signal to the wrapper is forwarded to that group before the record is written: a killed
-  // check leaves a record saying it was killed, never a check still running with no record.
+  // nothing is lost if the wrapper is killed. The child gets its own process group; a signal
+  // to the wrapper is forwarded to that group, and the wrapper then WAITS for the group's
+  // leader to exit — escalating to SIGKILL after a grace period — before it writes the record.
+  // A record therefore never describes a check that is still running.
   const out = fs.openSync(outPath, 'w')
   const child = spawn(options.shell || 'sh', ['-c', command], {
     cwd: repo,
@@ -326,17 +333,30 @@ export function runRecord(repo, label, command, options = {}) {
     env: { ...process.env, ...(options.env || {}) },
     detached: true,
   })
+  // Artifacts the command was told to write are bound to this record by content: a reader can
+  // only trust a file whose hash the record carries, and only while it still hashes the same.
+  const bindArtifacts = () =>
+    artifactPaths.map((rel) => {
+      const abs = path.join(repo, rel)
+      try {
+        return { path: rel, sha256: sha256(fs.readFileSync(abs)), exists: true }
+      } catch {
+        return { path: rel, sha256: null, exists: false }
+      }
+    })
   const write = (exitCode, signal) => {
     const record = {
       id,
       label,
       command,
       cwd: repo,
+      pid: child.pid,
       exitCode,
       signal,
       startedAt,
       endedAt: new Date().toISOString(),
       tree,
+      artifacts: bindArtifacts(),
       outPath: posix(path.relative(repo, outPath)),
       stdoutPath: outPath,
     }
@@ -345,24 +365,51 @@ export function runRecord(repo, label, command, options = {}) {
   }
   return new Promise((resolve) => {
     let settled = false
+    let forwarded = null
+    let escalation = null
     const finish = (exitCode, signal) => {
       if (settled) return
       settled = true
+      if (escalation) clearTimeout(escalation)
       for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.removeListener(sig, forward)
       try { fs.closeSync(out) } catch { /* already closed */ }
-      resolve({ recordPath, record: write(exitCode, signal) })
+      resolve({ recordPath, record: write(exitCode, forwarded || signal) })
     }
     const forward = (sig) => {
+      if (forwarded) return
+      forwarded = sig
       try { process.kill(-child.pid, sig) } catch { /* group already gone */ }
-      finish(null, sig)
+      // A child that ignores the signal is still ours to stop; after the grace period the group
+      // is killed outright, and the record names the signal that was asked for.
+      escalation = setTimeout(() => {
+        try { process.kill(-child.pid, 'SIGKILL') } catch { /* group already gone */ }
+      }, killAfterMs)
     }
     for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, forward)
     child.on('error', (error) => {
       fs.writeSync(out, `\n--- spawn error ---\n${error.message}\n`)
       finish(null, error.code || 'SPAWN_ERROR')
     })
-    child.on('exit', (code, signal) => finish(typeof code === 'number' ? code : null, signal || null))
+    child.on('exit', (code, signal) => finish(typeof code === 'number' && !forwarded ? code : null, signal || null))
   })
+}
+
+// An artifact is readable only through the record that produced it, and only while it still
+// hashes the same. Anything else is a file that happens to lie at that path.
+export function boundArtifact(repo, record, rel) {
+  const wanted = posix(path.normalize(rel))
+  const entry = (record.artifacts || []).find((a) => a.path === wanted)
+  if (!entry) return { ok: false, detail: `${wanted} is not an artifact of record ${record.id}; pass --artifact when taking the record` }
+  if (!entry.exists || !entry.sha256) return { ok: false, detail: `${wanted} did not exist when record ${record.id} finished` }
+  const abs = path.join(repo, wanted)
+  let text
+  try {
+    text = fs.readFileSync(abs)
+  } catch {
+    return { ok: false, detail: `${wanted} is missing on disk` }
+  }
+  if (sha256(text) !== entry.sha256) return { ok: false, detail: `${wanted} changed since record ${record.id} was written; it is not this record's evidence` }
+  return { ok: true, text: text.toString('utf8') }
 }
 
 export function recordFreshness(repo, record) {
@@ -518,8 +565,11 @@ export async function main(argv) {
         console.error('record: pass the command after --')
         return 1
       }
-      const { recordPath, record } = await runRecord(repo, label, command)
-      print({ recordPath, exitCode: record.exitCode, signal: record.signal, outPath: record.stdoutPath, tree: record.tree })
+      const head = sep === -1 ? rest : rest.slice(0, sep)
+      const artifacts = head.flatMap((v, i) => (v === '--artifact' && head[i + 1] ? [head[i + 1]] : []))
+      const killAfterMs = Number(arg(head, 'kill-after', '10000'))
+      const { recordPath, record } = await runRecord(repo, label, command, { artifacts, killAfterMs })
+      print({ recordPath, exitCode: record.exitCode, signal: record.signal, artifacts: record.artifacts, outPath: record.stdoutPath, tree: record.tree })
       return 0
     }
     case 'tree-state':
@@ -536,7 +586,17 @@ export async function main(argv) {
       // One check command can write ESLint's JSON to a file (`--output-file`) beside the rest of
       // its output; `--lint-json` reads that file so lint runs once per tree state.
       const lintJson = arg(rest, 'lint-json', '')
-      const text = fs.readFileSync(lintJson ? path.resolve(repo, lintJson) : record.stdoutPath || path.join(repo, record.outPath), 'utf8')
+      let text
+      if (lintJson) {
+        const bound = boundArtifact(repo, record, lintJson)
+        if (!bound.ok) {
+          print({ ok: false, detail: bound.detail, recordId: record.id })
+          return 1
+        }
+        text = bound.text
+      } else {
+        text = fs.readFileSync(record.stdoutPath || path.join(repo, record.outPath), 'utf8')
+      }
       const ctx = arg(rest, 'contract', '') ? contractContext(arg(rest, 'contract'), repo) : { moduleRoot: arg(rest, 'module-root', '') }
       const baseline = arg(rest, 'baseline', '') ? readJson(arg(rest, 'baseline')) : null
       const baselineKeys = baseline ? Object.keys(baseline.counts || baseline) : []

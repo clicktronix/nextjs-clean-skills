@@ -138,19 +138,47 @@ try {
   fs.writeFileSync(path.join(repo, 'src/features/a/f0.ts'), 'export {}\n')
   const rec2 = await lib.runRecord(repo, 'check', 'true')
   check(rec2.recordPath !== rec.recordPath, 'record: each run gets its own artefact')
-  // A signal to the wrapper reaches the child and still leaves a record.
-  const cli = (...argv) => spawnSync(process.execPath, [LIB, ...argv], { encoding: 'utf8' })
-  const slow = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'slow', '--', 'sleep 30; echo late'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  // A signal to the wrapper reaches the check and the wrapper waits for it to end — even when
+  // the check ignores the signal — before a record is written. Nothing here searches the machine
+  // for processes by name: the record carries the child's pid, and that is what is checked.
+  const token = `ncs-${process.pid}-${Date.now()}`
+  const slow = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'slow', '--kill-after', '500', '--', `trap '' TERM; sleep 30; echo ${token}`], { stdio: ['ignore', 'pipe', 'pipe'] })
   await new Promise((r) => setTimeout(r, 700))
+  const beforeSignal = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-slow-') && f.endsWith('.json'))
+  check(beforeSignal.length === 0, 'record: no record exists while the check is still running')
   slow.kill('SIGTERM')
-  const slowExit = await new Promise((r) => slow.on('exit', () => r()))
-  void slowExit
-  await new Promise((r) => setTimeout(r, 300))
-  const stillSleeping = spawnSync('pgrep', ['-f', 'sleep 30; echo late'], { encoding: 'utf8' }).stdout.trim()
+  const slowExit = await new Promise((r) => slow.on('exit', (code, sig) => r({ code, sig })))
   const slowRecords = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-slow-') && f.endsWith('.json'))
-  check(stillSleeping === '', 'record: a signal to the wrapper stops the child check')
-  check(slowRecords.length === 1 && JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', slowRecords[0]), 'utf8')).signal === 'SIGTERM', 'record: a killed check leaves a record naming the signal')
-  if (stillSleeping) spawnSync('pkill', ['-f', 'sleep 30; echo late'])
+  check(slowRecords.length === 1, `record: the wrapper writes exactly one record after a signal (wrapper exit ${JSON.stringify(slowExit)})`)
+  const slowRecord = slowRecords.length === 1 ? JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', slowRecords[0]), 'utf8')) : null
+  const childAlive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+  check(slowRecord && slowRecord.signal === 'SIGTERM' && slowRecord.exitCode === null, 'record: a killed check is recorded as killed, not as an exit code')
+  check(slowRecord && typeof slowRecord.pid === 'number' && !childAlive(slowRecord.pid), 'record: the check that ignored SIGTERM is gone when the record exists (escalated within kill-after)')
+  check(slowRecord && new Date(slowRecord.endedAt) - new Date(slowRecord.startedAt) >= 500, 'record: the wrapper waited for the grace period before recording')
+
+  // A file force-added inside an ignored directory lives only in the index; its edits must count.
+  fs.writeFileSync(path.join(repo, '.gitignore'), 'gen/\n')
+  spawnSync('git', ['-C', repo, 'add', '.gitignore'])
+  spawnSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'ignore'])
+  fs.mkdirSync(path.join(repo, 'gen'), { recursive: true })
+  fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'a\n')
+  spawnSync('git', ['-C', repo, 'add', '-f', 'gen/x.ts'])
+  const withForced = await lib.runRecord(repo, 'check', 'true')
+  fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'b\n')
+  check(!lib.recordFreshness(repo, withForced.record).fresh, 'record: editing a force-added ignored file makes the record stale')
+  fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'a\n')
+
+  // An artifact is evidence only through the record that hashed it.
+  const artifactRel = '.nextjs-clean-migration/lint.json'
+  fs.writeFileSync(path.join(repo, artifactRel), '[]')
+  const withArtifact = await lib.runRecord(repo, 'check', 'true', { artifacts: [artifactRel] })
+  check(withArtifact.record.artifacts.length === 1 && withArtifact.record.artifacts[0].exists && /^[0-9a-f]{64}$/.test(withArtifact.record.artifacts[0].sha256), 'record: an artifact is hashed into the record')
+  check(lib.boundArtifact(repo, withArtifact.record, artifactRel).ok, 'artifact: readable while its hash matches')
+  fs.writeFileSync(path.join(repo, artifactRel), '[{"filePath":"x","messages":[]}]')
+  check(!lib.boundArtifact(repo, withArtifact.record, artifactRel).ok, 'artifact: a replaced file is refused, even though the tree state is unchanged')
+  check(!lib.boundArtifact(repo, withArtifact.record, 'other.json').ok, 'artifact: a file the record never bound is refused')
+  const unbound = await lib.runRecord(repo, 'check', 'true')
+  check(!lib.boundArtifact(repo, unbound.record, artifactRel).ok, 'artifact: a record taken without --artifact binds nothing')
 
   // ─── census ───
   const eslintJson = JSON.stringify([
@@ -184,6 +212,7 @@ try {
   check(lib.recommend({ ...green, review: { verdict: 'sound', findings: [{ severity: 'must-fix', property: 'auth', detail: 'x' }] } }).gate === 'revise', 'gate: a must-fix revises')
 
   // ─── CLI round trip ───
+  const cli = (...argv) => spawnSync(process.execPath, [LIB, ...argv], { encoding: 'utf8' })
   const r1 = cli('inventory', '--repo', repo, '--source-root', 'src')
   check(r1.status === 0 && JSON.parse(r1.stdout).count === 301, `cli inventory: status=${r1.status} out=${JSON.stringify(r1.stdout.slice(0, 400))} err=${r1.stderr.slice(0, 300)}`)
   const rulesFile = path.join(repo, 'rules.json')
@@ -210,6 +239,14 @@ try {
   check(r7.status === 0 && JSON.parse(r7.stdout).ok && JSON.parse(r7.stdout).assignedFiles === featureRows.length, `cli plan-check reads what expand wrote: ${r7.stderr.slice(0, 200)}`)
   const r8 = cli('destination', '--repo', repo, '--contract', path.join(root, 'rules/architecture-contract.json'), '--capability', '../../../outside', '--role', 'domain', '--file', 'src/a.ts')
   check(r8.status === 1 && JSON.parse(r8.stdout).dest === null, 'cli destination: a path-shaped capability is refused')
+  fs.writeFileSync(path.join(repo, artifactRel), JSON.stringify([{ filePath: `${repo}/src/features/a/f1.ts`, messages: [{ ruleId: 'clean-architecture/boundaries', messageId: 'appInternal' }] }]))
+  const r10 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', artifactRel, '--', 'true')
+  const r10path = JSON.parse(r10.stdout).recordPath
+  const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', artifactRel, '--module-root', 'src/modules', '--capability', 'features')
+  check(r11.status === 0 && JSON.parse(r11.stdout).counts.appInternal === 1, `cli census reads the bound artifact: ${r11.stdout.slice(0, 200)}`)
+  fs.writeFileSync(path.join(repo, artifactRel), '[]')
+  const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', artifactRel, '--module-root', 'src/modules', '--capability', 'features')
+  check(r12.status === 1 && /changed since record/.test(r12.stdout), 'cli census refuses a swapped JSON under the same record id')
   const link = path.join(repo, 'bin-link')
   fs.symlinkSync(path.dirname(LIB), link)
   const r9 = spawnSync(process.execPath, [path.join(link, path.basename(LIB)), 'tree-state', '--repo', repo], { encoding: 'utf8' })

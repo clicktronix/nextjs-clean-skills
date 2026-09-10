@@ -48,9 +48,9 @@ node <plugin>/bin/migration.mjs inventory    --repo R --source-root src
 node <plugin>/bin/migration.mjs expand       --repo R --rules rules.json          # exit 2 = uncovered files to decide
 node <plugin>/bin/migration.mjs destination  --repo R --contract rules/architecture-contract.json --capability C --role domain --file src/x.ts
 node <plugin>/bin/migration.mjs plan-check   --repo R --contract … --capability C --plan plan.json --assignments a.json --consumers c.json
-node <plugin>/bin/migration.mjs record       --repo R --label check -- <the target's check command>
+node <plugin>/bin/migration.mjs record       --repo R --label check --artifact .nextjs-clean-migration/lint.json -- <the target's check command>
 node <plugin>/bin/migration.mjs record-fresh --repo R --record <path>              # exit 3 = stale
-node <plugin>/bin/migration.mjs census       --repo R --record <lint json record> --contract … --capability C
+node <plugin>/bin/migration.mjs census       --repo R --record <path> --lint-json .nextjs-clean-migration/lint.json --contract … --capability C [--baseline <census>]
 node <plugin>/bin/migration.mjs recommend    --input oracles.json
 ```
 

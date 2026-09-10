@@ -50,15 +50,19 @@ Copy `$PLUGIN/rules/` into the target, draft `rules/architecture-contract.json` 
 lens, and spread the two ESLint configs after the target's own. Install the census configuration
 repo-wide so violations can be counted, but keep the **blocking** entry scoped to roots that are
 already migrated — widen it per accepted capability. The target's lint must stay judgeable as
-its own gate. Take the baseline with one record: the target's check command, where the lint
-step also writes `eslint <sourceRoot> --format json --output-file .nextjs-clean-migration/lint.json`
-so lint runs once per tree state; then `census --record <path> --lint-json .nextjs-clean-migration/lint.json`.
+its own gate. Take the baseline with one record whose lint step also writes
+`eslint <sourceRoot> --format json --output-file .nextjs-clean-migration/lint.json`, so lint runs
+once per tree state, and name that file as the record's artifact:
+`record --label baseline --artifact .nextjs-clean-migration/lint.json -- <check command>`, then
+`census --record <path> --lint-json .nextjs-clean-migration/lint.json --contract rules/architecture-contract.json`.
 Keep that census: later ones pass it as `--baseline` so a counter fixed to zero reads as zero.
+`census` refuses a JSON file the record did not bind or that changed since.
 
 ## Step 4 — Plan one capability (agent decides roles, script computes paths)
 
 Ask one subagent for per-file roles and the surfaces real consumers need. Run
-`plan-check --plan <file> --assignments <file> --consumers <file>`; fix or re-ask on any
+`plan-check --contract rules/architecture-contract.json --capability <name> --plan <file>
+--assignments .nextjs-clean-migration/assignments.json --consumers <file>`; fix or re-ask on any
 problem it names. Destinations come from `destination`, never from an agent.
 
 ## Step 5 — Move (per-slice subagents, you accept by diff)
@@ -72,9 +76,11 @@ or move it yourself; independent slices continue. Before accepting any slice rea
 
 ## Step 6 — Verify (one record, two readers)
 
-`record --label check -- <the same check command, lint JSON to the same file>`; `record-fresh`
-before anyone reads it. The record's exit code is evidence about those checks, not a proof
-that product behaviour is preserved; the reviewer and the real user path cover the rest.
+`record --label check --artifact .nextjs-clean-migration/lint.json -- <the same check command>`;
+`record-fresh` before anyone reads it; `census --record <path> --lint-json … --contract …
+--capability <name> --baseline <baseline census>`. The record's exit code is evidence about
+those checks, not a proof that product behaviour is preserved; the reviewer and the real user
+path cover the rest.
 `Workflow({ name: 'nextjs-clean-skills:verify', args: { repo, capability, recordPath, diffBase,
 contractSource: PLUGIN, ordinaryChange, baselineRadius } })`. Behaviour is the record's exit
 code; architecture is `census` over a JSON lint record; the workflow returns the review and an
