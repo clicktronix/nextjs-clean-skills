@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -299,8 +300,9 @@ function isPureSpecifier(specifier, purePackages) {
   return purePackages.some((name) => specifier === name || specifier.startsWith(`${name}/`))
 }
 
-function isSchemaExpression(expression, schemaNames) {
+function isSchemaExpression(expression, schemaNames, pureCallees = new Set()) {
   if (!expression) return false
+  // A bare identifier is a schema only when it names one; a bare constructor is behaviour.
   if (ts.isIdentifier(expression)) return schemaNames.has(expression.text)
   if (
     ts.isAsExpression(expression) ||
@@ -308,27 +310,25 @@ function isSchemaExpression(expression, schemaNames) {
     ts.isParenthesizedExpression(expression) ||
     ts.isNonNullExpression(expression)
   ) {
-    return isSchemaExpression(expression.expression, schemaNames)
+    return isSchemaExpression(expression.expression, schemaNames, pureCallees)
   }
   if (ts.isCallExpression(expression)) {
     const root = calleeRoot(expression.expression)
-    return root !== null && schemaNames.has(root)
+    return root !== null && (schemaNames.has(root) || pureCallees.has(root))
   }
   return false
 }
 
 function readSourceFile(file) {
   try {
-    const stats = fs.statSync(file)
+    // Keyed by content, not mtime: a rewrite inside one timestamp tick, or a copy that preserves
+    // mtime, would otherwise serve the previous classification for the rest of the process.
+    const text = fs.readFileSync(file, 'utf8')
+    const digest = createHash('sha256').update(text).digest('hex')
     const cached = CONTRACT_EXPORT_CACHE.get(file)
-    if (cached && cached.mtimeMs === stats.mtimeMs) return cached
-    const parsed = ts.createSourceFile(
-      file,
-      fs.readFileSync(file, 'utf8'),
-      ts.ScriptTarget.Latest,
-      true
-    )
-    const entry = { mtimeMs: stats.mtimeMs, parsed, result: null }
+    if (cached && cached.digest === digest) return cached
+    const parsed = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
+    const entry = { digest, parsed, result: null }
     CONTRACT_EXPORT_CACHE.set(file, entry)
     return entry
   } catch {
@@ -348,6 +348,7 @@ export function contractSurfaceExports(file, options = {}) {
   // Every local declaration, not only the exported ones: `export { X }` names a local binding.
   const locals = new Map()
   const schemaNames = new Set()
+  const pureCallees = new Set()
   const deferred = []
 
   const follow = (specifierNode) => {
@@ -372,8 +373,10 @@ export function contractSurfaceExports(file, options = {}) {
       const record = (name, isTypeOnly) => {
         if (clause.isTypeOnly || isTypeOnly) locals.set(name, 'type')
         else if (pure) {
-          locals.set(name, 'schema')
-          schemaNames.add(name)
+          // A binding imported from a schema package is a constructor — `string`, `object` — and
+          // exporting it bare exports behaviour. Only a call rooted in it yields a schema.
+          locals.set(name, 'behaviour')
+          pureCallees.add(name)
         } else deferred.push({ name, statement })
       }
       if (clause.name) record(clause.name.text, false)
@@ -404,6 +407,16 @@ export function contractSurfaceExports(file, options = {}) {
     }
   }
 
+  // Imported bindings are classified first, so a schema imported from a sibling file can seed a
+  // derived declaration below; resolving them after the fixed point left every such derivation
+  // classified as behaviour.
+  for (const { name, statement } of deferred) {
+    const resolved = follow(statement.moduleSpecifier, name)
+    const imported = resolved?.kinds.get(name)
+    locals.set(name, imported ?? 'behaviour')
+    if (imported === 'schema') schemaNames.add(name)
+  }
+
   // A schema may be built from a schema declared later in the file, so classification is a fixed
   // point rather than one pass in declaration order.
   for (let pass = 0; pass < 3; pass += 1) {
@@ -414,19 +427,13 @@ export function contractSurfaceExports(file, options = {}) {
         if (!ts.isIdentifier(declaration.name)) continue
         const name = declaration.name.text
         if (schemaNames.has(name)) continue
-        if (!isSchemaExpression(declaration.initializer, schemaNames)) continue
+        if (!isSchemaExpression(declaration.initializer, schemaNames, pureCallees)) continue
         schemaNames.add(name)
         locals.set(name, 'schema')
         changed = true
       }
     }
     if (!changed) break
-  }
-
-  for (const { name, statement } of deferred) {
-    const resolved = follow(statement.moduleSpecifier, name)
-    const imported = resolved?.kinds.get(name)
-    locals.set(name, imported ?? 'behaviour')
   }
 
   const kinds = new Map()

@@ -90,9 +90,14 @@ reads the declaration behind each imported binding:
 - a type alias, an interface or a type-only binding is admitted;
 - `export const X = <call>` is admitted when the callee's root binding was imported from a package
   listed in `purePackages`, or is another schema declared in the same file;
+- an alias of a schema (`export { X as Y }`, `export const Y = X`), in the file or re-exported
+  from a sibling it can read, is that schema;
+- a binding imported bare from a schema package (`string`, `object`) is a constructor, so
+  re-exporting it is behaviour: only a call rooted in it yields a schema;
 - everything else is behaviour, including every declaration the reader cannot follow — an
   unreadable file, an unresolvable re-export, a value built by an unclassified call. The
-  classification fails closed.
+  classification fails closed. The reader caches by file content, so a rewrite is seen even
+  within one ESLint process.
 
 This is deliberately not a `/Schema$/` name test: such a test admits
 `export function chargeCardSchema() { return fetch(…) }`, reproduced under a real project's config.
@@ -105,7 +110,8 @@ proves the declaration's shape, not the callee's behaviour.
 `server-only` and `client-only` are the part of the floor that the bundler enforces rather than a
 reviewer. The resolved tier requires the marker to be the **first** import of the surface it guards
 — module bodies run in order, and a marker placed after the imports it is meant to guard poisons
-the module too late to matter:
+the module too late to matter. Type-only imports are erased before the body runs, so a marker
+after them is still first:
 
 | Surface | Marker |
 | --- | --- |

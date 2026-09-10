@@ -75,7 +75,11 @@ const runtimeMarkerRule = {
       Program(node) {
         // The first import, not merely a present one: module bodies run in order, and a marker
         // placed after the imports it is supposed to guard poisons the module too late to matter.
-        const firstImport = node.body.find((statement) => statement.type === 'ImportDeclaration')
+        // Type-only imports are erased before the module body runs, so they cannot precede the
+        // marker in any order that matters; the first VALUE import is what must come after it.
+        const firstImport = node.body.find(
+          (statement) => statement.type === 'ImportDeclaration' && statement.importKind !== 'type'
+        )
         if (
           firstImport &&
           firstImport.specifiers.length === 0 &&

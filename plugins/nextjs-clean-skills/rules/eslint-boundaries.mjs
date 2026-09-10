@@ -258,6 +258,8 @@ const capabilityRule = {
         'Browser-safe code must not import the server surface {{target}}.',
       serverClient:
         'Server capability code must not import the browser surface {{target}}.',
+      serverUiReach:
+        'A Server Component under ui/** reads its capability through rsc.ts only; {{target}} is private server code or another server surface.',
       privateServerBackedge:
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
       generatedProviderLeak:
@@ -455,6 +457,24 @@ const capabilityRule = {
       const sourceIsServer = isServerSourceLocation(sourceModule, sourceShared)
       const targetIsClient = isClientLocation(targetModule, targetShared)
       const targetIsServer = isServerLocation(targetModule, targetShared)
+
+      // A Server Component under ui/** reads its capability through rsc.ts and nothing else on the
+      // server side: private server/** and the other server surfaces are what rsc.ts exists to
+      // narrow, and the directive-based classification above must not widen them.
+      if (
+        !typeOnly &&
+        sourceModule?.segment === 'ui' &&
+        !sourceIsClientDirective &&
+        targetModule?.capability === sourceModule.capability &&
+        (targetModule.segment === 'server' || (targetModule.surface && targetIsServer && targetModule.surface !== 'rsc'))
+      ) {
+        context.report({
+          node,
+          messageId: 'serverUiReach',
+          data: { target: targetLabel },
+        })
+        return
+      }
 
       if (!typeOnly && sourceIsClient && targetIsServer) {
         context.report({

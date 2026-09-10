@@ -222,7 +222,8 @@ Normative rules:
    file there **with** the directive imports its own domain/client values and, when required, its
    exact action surface, and never `server.ts`, `rsc.ts`, or `server/**`. A file there **without**
    the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
-   publish it. It still may not reach into another capability's internals or into `server/**`.
+   publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
+   narrowing — nor another capability's internals; the checker reports `serverUiReach`.
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. `server-only` and `client-only` protect runtime modules in addition to path rules, and the

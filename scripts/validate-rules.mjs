@@ -383,6 +383,40 @@ import { chargeCardSchema } from '../../billing/contracts.js'
 export const charge = chargeCardSchema
 `,
 
+  // Shapes a name test or a one-pass classifier gets wrong: an alias of a schema, a schema derived
+  // from one imported from a sibling file, and a bare schema-package constructor re-exported.
+  'src/modules/shapes/domain/inner.ts': `
+import * as v from 'valibot'
+export const InnerSchema = v.object({ id: v.string() })
+`,
+  'src/modules/shapes/contracts.ts': `
+import { string } from 'valibot'
+import { InnerSchema } from './domain/inner.js'
+export { InnerSchema as AliasSchema }
+export const DerivedSchema = InnerSchema
+export { string }
+`,
+  'src/modules/agency/domain/alias-ok.ts': `
+import { AliasSchema, DerivedSchema } from '../../shapes/contracts.js'
+export const a = AliasSchema
+export const b = DerivedSchema
+`,
+  'src/modules/agency/domain/bad-constructor.ts': `
+import { string } from '../../shapes/contracts.js'
+export const make = string
+`,
+  // A Server Component under ui/** reads rsc.ts, not the private server segment behind it.
+  'src/modules/work-items/ui/BadServerReach.tsx': `
+import { store } from '../server/store.js'
+export const BadServerReach = () => store
+`,
+  // The marker guards value imports; an erased type import before it is not an ordering defect.
+  'src/modules/marker-type/server.ts': `
+import type { Card } from '../billing/contracts.js'
+import 'server-only'
+export const card: Card = { id: 'x' }
+`,
+
   // Static module forms the ImportDeclaration visitor never sees.
   'src/modules/import-equals/domain/bad-internal.ts': `
 import store = require('../../work-items/server/store.js')
@@ -480,6 +514,8 @@ const expectedBase = new Map([
   // The same import as a value is the runtime edge the type-only form is not.
   ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
   ['src/modules/agency/application/charge.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/agency/domain/bad-constructor.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/work-items/ui/BadServerReach.tsx', 'serverUiReach'],
   ['src/modules/import-equals/domain/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/import-equals/domain/bad-module-require.ts', 'domainDirection'],
   ['src/modules/work-items/domain/bad-subpath.ts', 'domainDirection'],
@@ -541,6 +577,10 @@ const clean = new Set([
   'src/modules/agency/domain/policy.ts',
   'src/modules/work-items/domain/template-import.ts',
   'src/modules/work-items/ui/ServerList.tsx',
+  'src/modules/shapes/domain/inner.ts',
+  'src/modules/shapes/contracts.ts',
+  'src/modules/agency/domain/alias-ok.ts',
+  'src/modules/marker-type/server.ts',
 ])
 
 if (ESLint) {
