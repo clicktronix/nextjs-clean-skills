@@ -21,22 +21,23 @@ missing once.
 ## The check record
 
 ```
-node $PLUGIN/bin/migration.mjs record --repo <target> --label check --artifact .nextjs-clean-migration/lint.json -- <check command>
+node $PLUGIN/bin/migration.mjs record --repo <target> --label check --artifact lint.json -- <check command>
 node $PLUGIN/bin/migration.mjs record-fresh --repo <target> --record <path>
-node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json .nextjs-clean-migration/lint.json --contract rules/architecture-contract.json --capability <name> --baseline <baseline census>
+node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json lint.json --contract rules/architecture-contract.json --capability <name> --baseline <baseline census>
 ```
 
 The record carries the command, its exit code, the tree state it ran against and the output
 path. It is the only evidence a reviewer gets. Readers cite its `id`. The check command's lint
-step writes ESLint JSON to a file (`--format json --output-file …`) so lint runs once; the
-record hashes that file as its artifact and `census --lint-json` reads it only while the hash
-still matches. A killed wrapper forwards the signal to the check's process group, waits for it
-to end (SIGKILL after a grace period), then writes a record naming that signal.
+step writes ESLint JSON to `$NCS_ARTIFACTS/lint.json` — a directory created empty for this run,
+so nothing older can sit there — and the record hashes it; `census --lint-json` reads it only
+while the hash matches. A killed wrapper forwards the signal to the check's process group,
+waits until the whole group is gone (SIGKILL after a grace period), then writes the record.
 
 The check is your child process; the record says when it ended. Silence in its output is a
 reason to look at the process, not to call it stalled. A reviewer has its own budget
-(`reviewerBudget`, turns); an exhausted one returns no verdict for that axis and you decide
-whether to re-run it or read that axis yourself.
+(`reviewerBudget`, a turn count stated in its brief, not a runtime limit); one that reports
+exhaustion returns no verdict for that axis and you decide whether to re-run it or read that
+axis yourself.
 
 ## Fix rounds
 

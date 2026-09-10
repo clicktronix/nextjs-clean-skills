@@ -318,30 +318,33 @@ export function runRecord(repo, label, command, options = {}) {
   const id = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
   const outPath = path.join(dir, `${id}.out`)
   const recordPath = path.join(dir, `${id}.json`)
-  const artifactPaths = (options.artifacts || []).map((a) => posix(path.normalize(a)))
+  // Artifacts live in a directory that exists only for this run and is created empty: a file
+  // there can only have been written by this command. `$NCS_ARTIFACTS` tells the command where.
+  const artifactDir = path.join(dir, `${id}.artifacts`)
+  fs.rmSync(artifactDir, { recursive: true, force: true })
+  fs.mkdirSync(artifactDir)
+  const artifactNames = (options.artifacts || []).map((a) => path.basename(a))
   const killAfterMs = typeof options.killAfterMs === 'number' ? options.killAfterMs : 10000
   const tree = treeState(repo)
   // Output streams straight into the file, so progress is visible while the check runs and
-  // nothing is lost if the wrapper is killed. The child gets its own process group; a signal
-  // to the wrapper is forwarded to that group, and the wrapper then WAITS for the group's
-  // leader to exit — escalating to SIGKILL after a grace period — before it writes the record.
-  // A record therefore never describes a check that is still running.
+  // nothing is lost if the wrapper is killed. The child leads its own process group; a signal
+  // to the wrapper is forwarded to that group, and the wrapper then waits for the WHOLE group
+  // to be gone — escalating to SIGKILL after a grace period — before it writes the record. A
+  // record therefore never describes a check, or a child of a check, that is still running.
   const out = fs.openSync(outPath, 'w')
   const child = spawn(options.shell || 'sh', ['-c', command], {
     cwd: repo,
     stdio: ['ignore', out, out],
-    env: { ...process.env, ...(options.env || {}) },
+    env: { ...process.env, ...(options.env || {}), NCS_ARTIFACTS: artifactDir, NCS_RECORD_ID: id },
     detached: true,
   })
-  // Artifacts the command was told to write are bound to this record by content: a reader can
-  // only trust a file whose hash the record carries, and only while it still hashes the same.
   const bindArtifacts = () =>
-    artifactPaths.map((rel) => {
-      const abs = path.join(repo, rel)
+    artifactNames.map((name) => {
+      const abs = path.join(artifactDir, name)
       try {
-        return { path: rel, sha256: sha256(fs.readFileSync(abs)), exists: true }
+        return { name, path: posix(path.relative(repo, abs)), sha256: sha256(fs.readFileSync(abs)), exists: true }
       } catch {
-        return { path: rel, sha256: null, exists: false }
+        return { name, path: posix(path.relative(repo, abs)), sha256: null, exists: false }
       }
     })
   const write = (exitCode, signal) => {
@@ -356,6 +359,7 @@ export function runRecord(repo, label, command, options = {}) {
       startedAt,
       endedAt: new Date().toISOString(),
       tree,
+      artifactDir: posix(path.relative(repo, artifactDir)),
       artifacts: bindArtifacts(),
       outPath: posix(path.relative(repo, outPath)),
       stdoutPath: outPath,
@@ -363,52 +367,72 @@ export function runRecord(repo, label, command, options = {}) {
     fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n')
     return record
   }
+  const groupAlive = () => {
+    try {
+      process.kill(-child.pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
   return new Promise((resolve) => {
     let settled = false
     let forwarded = null
-    let escalation = null
     const finish = (exitCode, signal) => {
       if (settled) return
       settled = true
-      if (escalation) clearTimeout(escalation)
       for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.removeListener(sig, forward)
       try { fs.closeSync(out) } catch { /* already closed */ }
       resolve({ recordPath, record: write(exitCode, forwarded || signal) })
+    }
+    // After a forwarded signal the leader's exit is not the end: a grandchild that ignored the
+    // signal keeps the group alive. Poll the group; kill it outright once the grace period has
+    // passed; write the record only when nothing in it answers.
+    const awaitGroup = (leaderCode, leaderSignal) => {
+      const deadline = Date.now() + killAfterMs
+      let killed = false
+      const tick = () => {
+        if (!groupAlive()) return finish(forwarded ? null : leaderCode, leaderSignal)
+        if (!killed && Date.now() >= deadline) {
+          killed = true
+          try { process.kill(-child.pid, 'SIGKILL') } catch { /* gone between checks */ }
+        }
+        setTimeout(tick, 50)
+      }
+      tick()
     }
     const forward = (sig) => {
       if (forwarded) return
       forwarded = sig
       try { process.kill(-child.pid, sig) } catch { /* group already gone */ }
-      // A child that ignores the signal is still ours to stop; after the grace period the group
-      // is killed outright, and the record names the signal that was asked for.
-      escalation = setTimeout(() => {
-        try { process.kill(-child.pid, 'SIGKILL') } catch { /* group already gone */ }
-      }, killAfterMs)
     }
     for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, forward)
     child.on('error', (error) => {
       fs.writeSync(out, `\n--- spawn error ---\n${error.message}\n`)
       finish(null, error.code || 'SPAWN_ERROR')
     })
-    child.on('exit', (code, signal) => finish(typeof code === 'number' && !forwarded ? code : null, signal || null))
+    child.on('exit', (code, signal) => {
+      if (forwarded || groupAlive()) awaitGroup(typeof code === 'number' ? code : null, signal || null)
+      else finish(typeof code === 'number' ? code : null, signal || null)
+    })
   })
 }
 
-// An artifact is readable only through the record that produced it, and only while it still
-// hashes the same. Anything else is a file that happens to lie at that path.
-export function boundArtifact(repo, record, rel) {
-  const wanted = posix(path.normalize(rel))
-  const entry = (record.artifacts || []).find((a) => a.path === wanted)
-  if (!entry) return { ok: false, detail: `${wanted} is not an artifact of record ${record.id}; pass --artifact when taking the record` }
-  if (!entry.exists || !entry.sha256) return { ok: false, detail: `${wanted} did not exist when record ${record.id} finished` }
-  const abs = path.join(repo, wanted)
+// An artifact is evidence only through the record whose run produced it — it can only exist
+// inside that run's own directory — and only while it still hashes the same.
+export function boundArtifact(repo, record, nameOrPath) {
+  const name = path.basename(nameOrPath)
+  const entry = (record.artifacts || []).find((a) => a.name === name)
+  if (!entry) return { ok: false, detail: `${name} is not an artifact of record ${record.id}; pass --artifact ${name} when taking the record and write it to $NCS_ARTIFACTS/${name}` }
+  if (!entry.exists || !entry.sha256) return { ok: false, detail: `${name} was not written by the command of record ${record.id}` }
+  const abs = path.join(repo, entry.path)
   let text
   try {
     text = fs.readFileSync(abs)
   } catch {
-    return { ok: false, detail: `${wanted} is missing on disk` }
+    return { ok: false, detail: `${entry.path} is missing on disk` }
   }
-  if (sha256(text) !== entry.sha256) return { ok: false, detail: `${wanted} changed since record ${record.id} was written; it is not this record's evidence` }
+  if (sha256(text) !== entry.sha256) return { ok: false, detail: `${entry.path} changed since record ${record.id} was written; it is not this record's evidence` }
   return { ok: true, text: text.toString('utf8') }
 }
 

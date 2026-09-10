@@ -168,17 +168,34 @@ try {
   check(!lib.recordFreshness(repo, withForced.record).fresh, 'record: editing a force-added ignored file makes the record stale')
   fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'a\n')
 
-  // An artifact is evidence only through the record that hashed it.
-  const artifactRel = '.nextjs-clean-migration/lint.json'
-  fs.writeFileSync(path.join(repo, artifactRel), '[]')
-  const withArtifact = await lib.runRecord(repo, 'check', 'true', { artifacts: [artifactRel] })
-  check(withArtifact.record.artifacts.length === 1 && withArtifact.record.artifacts[0].exists && /^[0-9a-f]{64}$/.test(withArtifact.record.artifacts[0].sha256), 'record: an artifact is hashed into the record')
-  check(lib.boundArtifact(repo, withArtifact.record, artifactRel).ok, 'artifact: readable while its hash matches')
-  fs.writeFileSync(path.join(repo, artifactRel), '[{"filePath":"x","messages":[]}]')
-  check(!lib.boundArtifact(repo, withArtifact.record, artifactRel).ok, 'artifact: a replaced file is refused, even though the tree state is unchanged')
+  // An artifact is evidence only through the record whose run wrote it into that run's own
+  // directory. A file that existed before the command ran cannot be there; a file the command
+  // did not write is recorded as absent.
+  const withArtifact = await lib.runRecord(repo, 'check', 'echo "[]" > "$NCS_ARTIFACTS/lint.json"', { artifacts: ['lint.json'] })
+  const bound = withArtifact.record.artifacts[0]
+  check(bound && bound.exists && /^[0-9a-f]{64}$/.test(bound.sha256) && bound.path.includes(`${withArtifact.record.id}.artifacts/`), 'record: an artifact written to $NCS_ARTIFACTS is hashed into the record under the run directory')
+  check(lib.boundArtifact(repo, withArtifact.record, 'lint.json').ok, 'artifact: readable while its hash matches')
+  fs.writeFileSync(path.join(repo, bound.path), '[{"filePath":"x","messages":[]}]')
+  check(!lib.boundArtifact(repo, withArtifact.record, 'lint.json').ok, 'artifact: a replaced file is refused, even though the tree state is unchanged')
   check(!lib.boundArtifact(repo, withArtifact.record, 'other.json').ok, 'artifact: a file the record never bound is refused')
+  const skipped = await lib.runRecord(repo, 'check', 'echo lint stage skipped', { artifacts: ['lint.json'] })
+  check(skipped.record.artifacts[0].exists === false && !lib.boundArtifact(repo, skipped.record, 'lint.json').ok, 'artifact: a command that did not write the file leaves no evidence — a stale file elsewhere cannot stand in')
   const unbound = await lib.runRecord(repo, 'check', 'true')
-  check(!lib.boundArtifact(repo, unbound.record, artifactRel).ok, 'artifact: a record taken without --artifact binds nothing')
+  check(!lib.boundArtifact(repo, unbound.record, 'lint.json').ok, 'artifact: a record taken without --artifact binds nothing')
+
+  // A grandchild that ignores the signal outlives the shell leader; the record waits for the
+  // whole group, escalating to SIGKILL, and is written only once nothing in the group answers.
+  const gcToken = `ncs-gc-${process.pid}-${Date.now()}`
+  const gc = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'gc', '--kill-after', '500', '--', `${JSON.stringify(process.execPath)} -e "process.on('SIGTERM',()=>{});setTimeout(()=>{},20000)" & wait`], { stdio: ['ignore', 'pipe', 'pipe'] })
+  void gcToken
+  await new Promise((r) => setTimeout(r, 700))
+  gc.kill('SIGTERM')
+  await new Promise((r) => gc.on('exit', () => r()))
+  const gcRecords = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-gc-') && f.endsWith('.json'))
+  const gcRecord = gcRecords.length === 1 ? JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', gcRecords[0]), 'utf8')) : null
+  const groupAlive = (pid) => { try { process.kill(-pid, 0); return true } catch { return false } }
+  check(gcRecord && gcRecord.signal === 'SIGTERM', 'record: the grandchild case still records the forwarded signal')
+  check(gcRecord && !groupAlive(gcRecord.pid), 'record: when the record exists, no process of the group — leader or grandchild — is alive')
 
   // ─── census ───
   const eslintJson = JSON.stringify([
@@ -239,14 +256,17 @@ try {
   check(r7.status === 0 && JSON.parse(r7.stdout).ok && JSON.parse(r7.stdout).assignedFiles === featureRows.length, `cli plan-check reads what expand wrote: ${r7.stderr.slice(0, 200)}`)
   const r8 = cli('destination', '--repo', repo, '--contract', path.join(root, 'rules/architecture-contract.json'), '--capability', '../../../outside', '--role', 'domain', '--file', 'src/a.ts')
   check(r8.status === 1 && JSON.parse(r8.stdout).dest === null, 'cli destination: a path-shaped capability is refused')
-  fs.writeFileSync(path.join(repo, artifactRel), JSON.stringify([{ filePath: `${repo}/src/features/a/f1.ts`, messages: [{ ruleId: 'clean-architecture/boundaries', messageId: 'appInternal' }] }]))
-  const r10 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', artifactRel, '--', 'true')
+  const lintCmd = `printf '%s' ${JSON.stringify(JSON.stringify([{ filePath: `${repo}/src/features/a/f1.ts`, messages: [{ ruleId: 'clean-architecture/boundaries', messageId: 'appInternal' }] }]))} > "$NCS_ARTIFACTS/lint.json"`
+  const r10 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', 'lint.json', '--', lintCmd)
   const r10path = JSON.parse(r10.stdout).recordPath
-  const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', artifactRel, '--module-root', 'src/modules', '--capability', 'features')
-  check(r11.status === 0 && JSON.parse(r11.stdout).counts.appInternal === 1, `cli census reads the bound artifact: ${r11.stdout.slice(0, 200)}`)
-  fs.writeFileSync(path.join(repo, artifactRel), '[]')
-  const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', artifactRel, '--module-root', 'src/modules', '--capability', 'features')
+  const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
+  check(r11.status === 0 && JSON.parse(r11.stdout).counts.appInternal === 1, `cli census reads the bound artifact: ${r11.stdout.slice(0, 200)} ${r11.stderr.slice(0, 200)}`)
+  fs.writeFileSync(path.join(repo, JSON.parse(fs.readFileSync(r10path, 'utf8')).artifacts[0].path), '[]')
+  const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
   check(r12.status === 1 && /changed since record/.test(r12.stdout), 'cli census refuses a swapped JSON under the same record id')
+  const r13 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', 'lint.json', '--', 'echo lint stage skipped')
+  const r14 = cli('census', '--repo', repo, '--record', JSON.parse(r13.stdout).recordPath, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
+  check(r14.status === 1 && /was not written by the command/.test(r14.stdout), 'cli census refuses a record whose command wrote no lint JSON')
   const link = path.join(repo, 'bin-link')
   fs.symlinkSync(path.dirname(LIB), link)
   const r9 = spawnSync(process.execPath, [path.join(link, path.basename(LIB)), 'tree-state', '--repo', repo], { encoding: 'utf8' })

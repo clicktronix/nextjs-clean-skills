@@ -51,12 +51,12 @@ lens, and spread the two ESLint configs after the target's own. Install the cens
 repo-wide so violations can be counted, but keep the **blocking** entry scoped to roots that are
 already migrated — widen it per accepted capability. The target's lint must stay judgeable as
 its own gate. Take the baseline with one record whose lint step also writes
-`eslint <sourceRoot> --format json --output-file .nextjs-clean-migration/lint.json`, so lint runs
-once per tree state, and name that file as the record's artifact:
-`record --label baseline --artifact .nextjs-clean-migration/lint.json -- <check command>`, then
-`census --record <path> --lint-json .nextjs-clean-migration/lint.json --contract rules/architecture-contract.json`.
+`eslint <sourceRoot> --format json --output-file "$NCS_ARTIFACTS/lint.json"`, so lint runs once
+per tree state into a directory that exists only for this run:
+`record --label baseline --artifact lint.json -- <check command>`, then
+`census --record <path> --lint-json lint.json --contract rules/architecture-contract.json`.
 Keep that census: later ones pass it as `--baseline` so a counter fixed to zero reads as zero.
-`census` refuses a JSON file the record did not bind or that changed since.
+`census` refuses a file the command did not write, or that changed since.
 
 ## Step 4 — Plan one capability (agent decides roles, script computes paths)
 
@@ -76,9 +76,9 @@ or move it yourself; independent slices continue. Before accepting any slice rea
 
 ## Step 6 — Verify (one record, two readers)
 
-`record --label check --artifact .nextjs-clean-migration/lint.json -- <the same check command>`;
-`record-fresh` before anyone reads it; `census --record <path> --lint-json … --contract …
---capability <name> --baseline <baseline census>`. The record's exit code is evidence about
+`record --label check --artifact lint.json -- <the same check command>`; `record-fresh` before
+anyone reads it; `census --record <path> --lint-json lint.json --contract … --capability <name>
+--baseline <baseline census>`. The record's exit code is evidence about
 those checks, not a proof that product behaviour is preserved; the reviewer and the real user
 path cover the rest.
 `Workflow({ name: 'nextjs-clean-skills:verify', args: { repo, capability, recordPath, diffBase,

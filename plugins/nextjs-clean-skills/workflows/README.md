@@ -37,9 +37,11 @@ Workflow({ name: 'nextjs-clean-skills:verify', args: {
 }})
 ```
 
-Both refuse a missing argument before any agent runs. `verify` expects a **fresh** record: run
-`migration.mjs record-fresh` first; a record taken against a different tree state is not evidence
-about this one.
+Both refuse a missing argument before any agent runs — that is what the validator's "missing
+record" scenario proves; whether the record file exists and is fresh is checked by the CLI
+(`migration.mjs record-fresh`), which the skill runs first. `reviewerBudget` is a turn count the
+reviewer is told in its brief, not a limit the runtime enforces; a reviewer that reports
+exhaustion yields no verdict.
 
 ## The script
 
@@ -48,9 +50,9 @@ node <plugin>/bin/migration.mjs inventory    --repo R --source-root src
 node <plugin>/bin/migration.mjs expand       --repo R --rules rules.json          # exit 2 = uncovered files to decide
 node <plugin>/bin/migration.mjs destination  --repo R --contract rules/architecture-contract.json --capability C --role domain --file src/x.ts
 node <plugin>/bin/migration.mjs plan-check   --repo R --contract … --capability C --plan plan.json --assignments a.json --consumers c.json
-node <plugin>/bin/migration.mjs record       --repo R --label check --artifact .nextjs-clean-migration/lint.json -- <the target's check command>
+node <plugin>/bin/migration.mjs record       --repo R --label check --artifact lint.json -- <the target's check command, lint JSON to "$NCS_ARTIFACTS/lint.json">
 node <plugin>/bin/migration.mjs record-fresh --repo R --record <path>              # exit 3 = stale
-node <plugin>/bin/migration.mjs census       --repo R --record <path> --lint-json .nextjs-clean-migration/lint.json --contract … --capability C [--baseline <census>]
+node <plugin>/bin/migration.mjs census       --repo R --record <path> --lint-json lint.json --contract … --capability C [--baseline <census>]
 node <plugin>/bin/migration.mjs recommend    --input oracles.json
 ```
 
