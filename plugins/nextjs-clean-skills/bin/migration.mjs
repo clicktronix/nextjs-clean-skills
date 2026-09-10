@@ -11,10 +11,11 @@
 // Plain Node, no dependencies: this file ships inside the installed plugin and runs
 // against any repository from anywhere.
 import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const STATE_DIR = '.nextjs-clean-migration'
 export const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
@@ -144,7 +145,23 @@ export function expandRules(files, rules, unassigned = []) {
 // The model decides roles; this computes paths. Closed under the capability root and
 // injective across a plan.
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const CAPABILITY_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/
+// A module root is a project-relative path with no way out of the project; a capability is one
+// kebab-case segment. Both end up in every destination, so a bad value here would be a
+// "verified" path outside the repository.
+export function safeRoots({ moduleRoot, capability }) {
+  const problems = []
+  if (typeof moduleRoot !== 'string' || moduleRoot === '' || moduleRoot.startsWith('/') || /(^|\/)\.\.?(\/|$)/.test(moduleRoot) || moduleRoot.endsWith('/')) {
+    problems.push(`moduleRoot must be a project-relative path without . or .. segments, got ${JSON.stringify(moduleRoot)}`)
+  }
+  if (typeof capability !== 'string' || !CAPABILITY_NAME.test(capability)) {
+    problems.push(`capability must be one kebab-case segment, got ${JSON.stringify(capability)}`)
+  }
+  return problems
+}
+
 export function destination(move, { moduleRoot, capability, segments, surfaces }) {
+  if (safeRoots({ moduleRoot, capability }).length > 0) return null
   if (!move || move.role === 'stay' || move.role === 'delete') return null
   if (move.role === 'surface') {
     if (!surfaces.includes(move.surface)) return null
@@ -163,6 +180,8 @@ export function destination(move, { moduleRoot, capability, segments, surfaces }
 export function screenPlan(plan, ctx) {
   const { moduleRoot, capability, segments, surfaces, assignedFiles, consumers } = ctx
   const problems = []
+  const rootProblems = safeRoots({ moduleRoot, capability })
+  if (rootProblems.length > 0) return { ok: false, problems: [{ kind: 'unsafe-roots', detail: rootProblems }] }
   const channelChanges = plan.channelChanges || []
   const malformedChannels = channelChanges.filter(
     (c) => !c || !c.what || !c.from || !c.to || !String(c.behaviourRisk || '').trim()
@@ -261,32 +280,31 @@ export function screenPlan(plan, ctx) {
 // The owner runs one heavy check as its own child process and writes down what it ran,
 // what came back, and what tree it ran against. Reviewers read the record; nobody waits
 // for a file to appear. A record is fresh only while the tree it names is the tree on disk.
-function git(repo, args) {
-  const r = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
-  return r.status === 0 ? r.stdout.trim() : ''
+//
+// The tree state is a git tree object of the working directory, built in a temporary
+// index: every tracked and untracked file's content, by the same hashing git uses, with
+// no porcelain to parse and no output buffer to overflow. Quoted paths and multi-megabyte
+// diffs are exactly the inputs a text-based hash got wrong.
+function git(repo, args, options = {}) {
+  const r = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options })
+  if (r.status !== 0) throw new Error(`git ${args[0]} failed in ${repo}: ${(r.stderr || '').trim() || r.error?.message || `exit ${r.status}`}`)
+  return r.stdout.trim()
 }
 
 export function treeState(repo) {
   const head = git(repo, ['rev-parse', 'HEAD'])
-  // The state directory holds records and inventories this tool writes; it is not part
-  // of the tree a check ran against, so it never makes a record stale.
-  const status = git(repo, ['status', '--porcelain=v1', '--untracked-files=all'])
-    .split('\n')
-    .filter((l) => l && !l.slice(3).startsWith(STATE_DIR + '/'))
-    .join('\n')
-  const diff = git(repo, ['diff', 'HEAD', '--no-color'])
-  const untracked = status.split('\n').filter((l) => l.startsWith('?? ')).map((l) => l.slice(3))
-  const untrackedContent = untracked
-    .map((f) => {
-      const abs = path.join(repo, f)
-      try {
-        return fs.statSync(abs).isFile() ? `${f}\n${fs.readFileSync(abs)}` : f
-      } catch {
-        return f
-      }
-    })
-    .join('\n')
-  return { head, dirtyHash: sha256(`${status}\n${diff}\n${untrackedContent}`) }
+  const index = path.join(os.tmpdir(), `ncs-index-${process.pid}-${Date.now()}`)
+  try {
+    const env = { ...process.env, GIT_INDEX_FILE: index }
+    // Start from HEAD so deletions register, then stage the working tree; the tool's own
+    // state directory is excluded because it is not part of the tree a check ran against.
+    git(repo, ['read-tree', 'HEAD'], { env })
+    git(repo, ['add', '-A', '--', '.', `:!${STATE_DIR}`], { env })
+    const tree = git(repo, ['write-tree'], { env })
+    return { head, tree }
+  } finally {
+    fs.rmSync(index, { force: true })
+  }
 }
 
 export function runRecord(repo, label, command, options = {}) {
@@ -295,35 +313,61 @@ export function runRecord(repo, label, command, options = {}) {
   const startedAt = new Date().toISOString()
   const id = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
   const outPath = path.join(dir, `${id}.out`)
-  const tree = treeState(repo)
-  const result = spawnSync(options.shell || 'sh', ['-c', command], {
-    cwd: repo,
-    encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 512,
-    env: { ...process.env, ...(options.env || {}) },
-  })
-  fs.writeFileSync(outPath, `${result.stdout || ''}${result.stderr ? `\n--- stderr ---\n${result.stderr}` : ''}`)
-  const record = {
-    id,
-    label,
-    command,
-    cwd: repo,
-    exitCode: typeof result.status === 'number' ? result.status : null,
-    signal: result.signal || null,
-    startedAt,
-    endedAt: new Date().toISOString(),
-    tree,
-    outPath: posix(path.relative(repo, outPath)),
-    stdoutPath: outPath,
-  }
   const recordPath = path.join(dir, `${id}.json`)
-  fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n')
-  return { recordPath, record }
+  const tree = treeState(repo)
+  // Output streams straight into the file, so progress is visible while the check runs and
+  // nothing is lost if the wrapper is killed. The child gets its own process group, and a
+  // signal to the wrapper is forwarded to that group before the record is written: a killed
+  // check leaves a record saying it was killed, never a check still running with no record.
+  const out = fs.openSync(outPath, 'w')
+  const child = spawn(options.shell || 'sh', ['-c', command], {
+    cwd: repo,
+    stdio: ['ignore', out, out],
+    env: { ...process.env, ...(options.env || {}) },
+    detached: true,
+  })
+  const write = (exitCode, signal) => {
+    const record = {
+      id,
+      label,
+      command,
+      cwd: repo,
+      exitCode,
+      signal,
+      startedAt,
+      endedAt: new Date().toISOString(),
+      tree,
+      outPath: posix(path.relative(repo, outPath)),
+      stdoutPath: outPath,
+    }
+    fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n')
+    return record
+  }
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (exitCode, signal) => {
+      if (settled) return
+      settled = true
+      for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.removeListener(sig, forward)
+      try { fs.closeSync(out) } catch { /* already closed */ }
+      resolve({ recordPath, record: write(exitCode, signal) })
+    }
+    const forward = (sig) => {
+      try { process.kill(-child.pid, sig) } catch { /* group already gone */ }
+      finish(null, sig)
+    }
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, forward)
+    child.on('error', (error) => {
+      fs.writeSync(out, `\n--- spawn error ---\n${error.message}\n`)
+      finish(null, error.code || 'SPAWN_ERROR')
+    })
+    child.on('exit', (code, signal) => finish(typeof code === 'number' ? code : null, signal || null))
+  })
 }
 
 export function recordFreshness(repo, record) {
   const now = treeState(repo)
-  const fresh = now.head === record.tree.head && now.dirtyHash === record.tree.dirtyHash
+  const fresh = now.head === record.tree.head && now.tree === record.tree.tree
   return { fresh, recorded: record.tree, now }
 }
 
@@ -331,7 +375,7 @@ export function recordFreshness(repo, record) {
 // Counts a boundary census from an ESLint JSON output the record carries. The counter
 // named `capability` is the burndown for one capability; the others are compared with the
 // baseline. A record whose output is not ESLint JSON is reported as such, not as zero.
-export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'clean-architecture/boundaries' } = {}) {
+export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'clean-architecture/boundaries', baselineKeys = [] } = {}) {
   let files
   try {
     const start = text.indexOf('[')
@@ -351,8 +395,13 @@ export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'c
       if (capPrefix && rel.includes(`/${capPrefix}`)) capabilityCount += 1
     }
   }
-  counts.capability = capabilityCount
-  return { ok: true, counts, files: files.length }
+  // A counter that was measured and found nothing is 0, not absent: zero-fill every key the
+  // baseline knew, or the last violation fixed reads as an unmeasured counter.
+  for (const key of baselineKeys) if (key !== 'capability' && typeof counts[key] !== 'number') counts[key] = 0
+  // Without a capability there is no capability counter to report. Saying 0 would present a
+  // whole-repository baseline as a clean measurement of one slice.
+  counts.capability = capPrefix ? capabilityCount : null
+  return { ok: true, scope: capPrefix ? 'capability' : 'baseline', counts, files: files.length }
 }
 
 // ─── gate ───
@@ -361,7 +410,8 @@ export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'c
 export function archRed(architecture, census = {}, vacuous = []) {
   if (!architecture || !architecture.ok || !architecture.counts || typeof architecture.counts.capability !== 'number') return 'not measured'
   const c = architecture.counts
-  if (Object.keys(census).some((k) => typeof c[k] !== 'number')) return 'not measured'
+  // Counts come from a complete ESLint run over the whole root, so a key the baseline had and
+  // this run lacks means the run found none of that kind — a measured zero.
   if (c.capability !== 0) return `the capability still has ${c.capability} violation(s)`
   const regressed = Object.keys(c).filter((k) => k !== 'capability' && !vacuous.includes(k) && (c[k] || 0) > (census[k] || 0))
   return regressed.length > 0 ? `regressions above baseline: ${regressed.join(', ')}` : ''
@@ -412,7 +462,7 @@ function contractContext(contractPath, repo) {
   }
 }
 
-export function main(argv) {
+export async function main(argv) {
   const [command, ...rest] = argv
   const repo = path.resolve(arg(rest, 'repo', process.cwd()))
   switch (command) {
@@ -445,11 +495,19 @@ export function main(argv) {
     }
     case 'plan-check': {
       const ctx = contractContext(arg(rest, 'contract'), repo)
+      const capability = arg(rest, 'capability')
       const plan = readJson(arg(rest, 'plan'))
+      // Accepts what `expand` wrote ({ rows }) or a bare list; only this capability's rows are
+      // the files the plan must account for.
       const assignments = readJson(arg(rest, 'assignments'))
+      const rows = Array.isArray(assignments) ? assignments : assignments.rows || []
+      const assignedFiles = rows
+        .map((a) => (typeof a === 'string' ? { file: a, placement: 'capability', capability } : a))
+        .filter((a) => a.placement === 'capability' && a.capability === capability)
+        .map((a) => a.file)
       const consumers = arg(rest, 'consumers', '') ? readJson(arg(rest, 'consumers')) : []
-      const result = screenPlan(plan, { ...ctx, capability: arg(rest, 'capability'), assignedFiles: assignments.map((a) => (typeof a === 'string' ? a : a.file)), consumers })
-      print(result)
+      const result = screenPlan(plan, { ...ctx, capability, assignedFiles, consumers })
+      print({ ...result, assignedFiles: assignedFiles.length })
       return result.ok ? 0 : 1
     }
     case 'record': {
@@ -460,8 +518,8 @@ export function main(argv) {
         console.error('record: pass the command after --')
         return 1
       }
-      const { recordPath, record } = runRecord(repo, label, command)
-      print({ recordPath, exitCode: record.exitCode, outPath: record.stdoutPath, tree: record.tree })
+      const { recordPath, record } = await runRecord(repo, label, command)
+      print({ recordPath, exitCode: record.exitCode, signal: record.signal, outPath: record.stdoutPath, tree: record.tree })
       return 0
     }
     case 'tree-state':
@@ -475,9 +533,14 @@ export function main(argv) {
     }
     case 'census': {
       const record = readJson(arg(rest, 'record'))
-      const text = fs.readFileSync(record.stdoutPath || path.join(repo, record.outPath), 'utf8')
+      // One check command can write ESLint's JSON to a file (`--output-file`) beside the rest of
+      // its output; `--lint-json` reads that file so lint runs once per tree state.
+      const lintJson = arg(rest, 'lint-json', '')
+      const text = fs.readFileSync(lintJson ? path.resolve(repo, lintJson) : record.stdoutPath || path.join(repo, record.outPath), 'utf8')
       const ctx = arg(rest, 'contract', '') ? contractContext(arg(rest, 'contract'), repo) : { moduleRoot: arg(rest, 'module-root', '') }
-      const result = censusFromEslintJson(text, { moduleRoot: ctx.moduleRoot, capability: arg(rest, 'capability', '') })
+      const baseline = arg(rest, 'baseline', '') ? readJson(arg(rest, 'baseline')) : null
+      const baselineKeys = baseline ? Object.keys(baseline.counts || baseline) : []
+      const result = censusFromEslintJson(text, { moduleRoot: ctx.moduleRoot, capability: arg(rest, 'capability', ''), baselineKeys })
       print({ ...result, recordId: record.id, exitCode: record.exitCode })
       return result.ok ? 0 : 1
     }
@@ -491,6 +554,19 @@ export function main(argv) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main(process.argv.slice(2)))
+// Compared by real path: on macOS /tmp is a symlink to /private/tmp, and a URL comparison
+// alone made the CLI a silent no-op when invoked through the symlinked spelling.
+const invokedDirectly = (() => {
+  if (!process.argv[1]) return false
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+})()
+if (invokedDirectly) {
+  main(process.argv.slice(2)).then((code) => process.exit(code), (error) => {
+    console.error(error.message)
+    process.exit(1)
+  })
 }

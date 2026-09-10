@@ -22,13 +22,15 @@ missing once.
 
 ```
 node $PLUGIN/bin/migration.mjs record --repo <target> --label check -- <check command>
-node $PLUGIN/bin/migration.mjs record --repo <target> --label lint-json -- eslint src --format json
 node $PLUGIN/bin/migration.mjs record-fresh --repo <target> --record <path>
+node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json .nextjs-clean-migration/lint.json --baseline <baseline census>
 ```
 
 The record carries the command, its exit code, the tree state it ran against and the output
-path. It is the only evidence a reviewer gets. Readers cite its `id`. The lint record must be
-produced with `--format json` so `census` can count message ids and the capability counter.
+path. It is the only evidence a reviewer gets. Readers cite its `id`. The check command's lint
+step writes ESLint JSON to a file (`--format json --output-file …`) so lint runs once and
+`census --lint-json` counts message ids and the capability counter from it. A killed wrapper
+forwards the signal to the check and still writes a record naming that signal.
 
 The check command is your child process: you know when it ended because the record says so. If
 it prints nothing for a while, look at the process, do not declare it stalled. A reviewer has

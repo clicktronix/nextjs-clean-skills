@@ -252,10 +252,15 @@ const INVENTORY = 'inventory.js'
 check(files.includes(INVENTORY), `${INVENTORY} not found — its scenarios were skipped`)
 if (files.includes(INVENTORY)) {
   const source = readText(`${DIR}/${INVENTORY}`)
-  const small = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, fileCount: 10 } })
-  const large = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, fileCount: 3000 } })
+  // The script has no filesystem, so the only way a file list could reach an agent is through
+  // args. Hand it one — small and large — and assert it neither changes the agent count nor
+  // appears in any prompt.
+  const listOf = (n) => Array.from({ length: n }, (_, i) => `src/features/f${i}.ts`)
+  const small = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(10), count: 10 } })
+  const large = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(3000), count: 3000 } })
   check(small.calls.length > 0 && small.calls.length <= 6, `${INVENTORY}: expected 1–6 lens agents, got ${small.calls.length}`)
   check(small.calls.length === large.calls.length, `${INVENTORY}: agent count must not depend on inventory size (10 → ${small.calls.length}, 3000 → ${large.calls.length})`)
+  check(large.prompts.every(p => !p.prompt.includes('src/features/f2999.ts') && !p.prompt.includes('src/features/f0.ts')), `${INVENTORY}: a file list handed in args must not be forwarded to any agent`)
   check(small.calls.every(l => typeof l === 'string' && l.startsWith('lens:')), `${INVENTORY}: every agent is a lens, got ${JSON.stringify(small.calls)}`)
   check(small.prompts.every(p => p.prompt.includes(`${REPO}/.nextjs-clean-migration/inventory.json`)), `${INVENTORY}: every lens prompt must name the inventory file`)
   check(small.prompts.every(p => !/enumerate|list the tree|partition/i.test(p.prompt.replace(/Do NOT list the tree yourself/g, ''))), `${INVENTORY}: no prompt may ask an agent to enumerate or partition the tree`)
@@ -298,6 +303,9 @@ if (files.includes(VERIFY)) {
   const dead = await runBody(source, { args: { ...base, recordPath: recordA, ordinaryChange: 'x' }, overrides: { review: null } })
   check(dead.result && dead.result.review === null && dead.result.noVerdict.includes('review') && !dead.result.error, `${VERIFY}: a reviewer that returns nothing is "no verdict", not an error of the run`)
   check(dead.result.radius && dead.result.radius.direction, `${VERIFY}: the other reader's answer survives a dead reviewer`)
+  const exhausted = await runBody(source, { args: { ...base, recordPath: recordA }, overrides: { review: { verdict: 'sound', findings: [], recordId: 'r', budgetExhausted: true } } })
+  check(exhausted.result.review === null && exhausted.result.noVerdict.includes('review') && exhausted.result.partialReview && exhausted.result.partialReview.verdict === 'sound', `${VERIFY}: an exhausted reviewer yields no verdict; its partial findings are kept, its "sound" is not`)
+  check(exhausted.prompts[0].schema.required.includes('budgetExhausted'), `${VERIFY}: the reviewer must declare budget exhaustion in its structured output`)
 }
 
 fail(errors)

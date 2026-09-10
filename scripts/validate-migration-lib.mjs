@@ -3,7 +3,7 @@
 // the migration. Every function is exercised with a case that passes and a case that
 // must fail for the intended reason; the inventory case is the tree the old partition
 // contract could not represent (a loose file beside two children over the cap).
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -74,6 +74,9 @@ try {
   check(d({ role: 'surface', surface: 'lib', file: 'x' }) === null, 'destination: an unknown surface is refused')
   check(d({ role: 'services', file: 'x.ts' }) === null, 'destination: an unknown segment is refused')
   check(d({ role: 'domain', file: 'x', basename: '../escape.ts' }) === null && d({ role: 'domain', file: 'x', basename: 'a/b.ts' }) === null, 'destination: a basename cannot leave the directory')
+  check(lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, capability: '../../../outside' }) === null, 'destination: a capability that is not one kebab-case segment is refused')
+  check(lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, moduleRoot: '/etc' }) === null && lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, moduleRoot: 'src/../..' }) === null, 'destination: a module root outside the project is refused')
+  check(!lib.screenPlan({ moves: [], surfaces: [] }, { ...CTX, capability: 'Bad_Cap', assignedFiles: [], consumers: [] }).ok, 'screen: unsafe roots are the first problem reported')
 
   // ─── plan screening ───
   const assigned = ['src/old/a.ts', 'src/old/b.ts', 'src/old/c.ts']
@@ -111,17 +114,43 @@ try {
   spawnSync('git', ['-C', repo, 'init', '-q'])
   spawnSync('git', ['-C', repo, 'add', '.'])
   spawnSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'init'])
-  const rec = lib.runRecord(repo, 'check', `${JSON.stringify(process.execPath)} -e "console.log('hello'); process.exit(3)"`)
+  const rec = await lib.runRecord(repo, 'check', `${JSON.stringify(process.execPath)} -e "console.log('hello'); process.exit(3)"`)
   check(rec.record.exitCode === 3, `record: the exit code is the child's, got ${rec.record.exitCode}`)
   check(fs.existsSync(rec.recordPath) && fs.readFileSync(rec.record.stdoutPath, 'utf8').includes('hello'), 'record: output and record are written')
-  check(rec.record.tree.head.length >= 7 && rec.record.tree.dirtyHash.length === 64, 'record: the tree state is recorded')
+  check(rec.record.tree.head.length >= 7 && /^[0-9a-f]{40}$/.test(rec.record.tree.tree), 'record: the tree state is a git tree object')
   check(lib.recordFreshness(repo, rec.record).fresh, 'record: fresh right after it was taken')
   fs.writeFileSync(path.join(repo, 'src/features/index.ts'), 'export const changed = 1\n')
   check(!lib.recordFreshness(repo, rec.record).fresh, 'record: a changed tree makes the record stale')
   fs.writeFileSync(path.join(repo, 'src/features/index.ts'), 'export {}\n')
   check(lib.recordFreshness(repo, rec.record).fresh, 'record: restoring the tree restores freshness')
-  const rec2 = lib.runRecord(repo, 'check', 'true')
+  // The two inputs a text-based hash got wrong: an untracked file git quotes in porcelain output
+  // (its content then never reached the hash), and a diff larger than a child-process buffer.
+  const quoted = path.join(repo, 'src', '\u0434\u0430\u043d\u043d\u044b\u0435.ts')
+  fs.writeFileSync(quoted, 'export const a = 1\n')
+  const withQuoted = await lib.runRecord(repo, 'check', 'true')
+  fs.writeFileSync(quoted, 'export const a = 2\n')
+  check(!lib.recordFreshness(repo, withQuoted.record).fresh, 'record: editing an untracked file with a non-ASCII name makes the record stale')
+  fs.rmSync(quoted)
+  fs.writeFileSync(path.join(repo, 'src/features/a/f0.ts'), `export const big = "${'x'.repeat(2 * 1024 * 1024)}"\n`)
+  const withBig = await lib.runRecord(repo, 'check', 'true')
+  fs.writeFileSync(path.join(repo, 'src/features/a/f0.ts'), `export const big = "${'y'.repeat(2 * 1024 * 1024)}"\n`)
+  check(!lib.recordFreshness(repo, withBig.record).fresh, 'record: a further edit behind a multi-megabyte diff makes the record stale')
+  fs.writeFileSync(path.join(repo, 'src/features/a/f0.ts'), 'export {}\n')
+  const rec2 = await lib.runRecord(repo, 'check', 'true')
   check(rec2.recordPath !== rec.recordPath, 'record: each run gets its own artefact')
+  // A signal to the wrapper reaches the child and still leaves a record.
+  const cli = (...argv) => spawnSync(process.execPath, [LIB, ...argv], { encoding: 'utf8' })
+  const slow = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'slow', '--', 'sleep 30; echo late'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  await new Promise((r) => setTimeout(r, 700))
+  slow.kill('SIGTERM')
+  const slowExit = await new Promise((r) => slow.on('exit', () => r()))
+  void slowExit
+  await new Promise((r) => setTimeout(r, 300))
+  const stillSleeping = spawnSync('pgrep', ['-f', 'sleep 30; echo late'], { encoding: 'utf8' }).stdout.trim()
+  const slowRecords = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-slow-') && f.endsWith('.json'))
+  check(stillSleeping === '', 'record: a signal to the wrapper stops the child check')
+  check(slowRecords.length === 1 && JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', slowRecords[0]), 'utf8')).signal === 'SIGTERM', 'record: a killed check leaves a record naming the signal')
+  if (stillSleeping) spawnSync('pkill', ['-f', 'sleep 30; echo late'])
 
   // ─── census ───
   const eslintJson = JSON.stringify([
@@ -133,6 +162,12 @@ try {
   check(c.ok && c.counts.domainDirection === 1 && c.counts.appInternal === 1 && c.counts['import/no-cycle'] === 1 && c.counts.capability === 1, `census: counts per messageId and the capability counter: ${JSON.stringify(c.counts)}`)
   const notJson = lib.censusFromEslintJson('42 problems', {})
   check(!notJson.ok, 'census: non-JSON output is reported, not counted as zero')
+  const baselineScope = lib.censusFromEslintJson(eslintJson, { moduleRoot: 'src/modules' })
+  check(baselineScope.ok && baselineScope.scope === 'baseline' && baselineScope.counts.capability === null, 'census: without a capability the capability counter is null, never a clean zero')
+  const zeroFilled = lib.censusFromEslintJson('[]', { moduleRoot: 'src/modules', capability: 'work-items', baselineKeys: ['domainDirection', 'appInternal', 'capability'] })
+  check(zeroFilled.counts.domainDirection === 0 && zeroFilled.counts.appInternal === 0 && zeroFilled.counts.capability === 0, 'census: a baseline key with no diagnostics left is a measured zero')
+  const fixedLast = lib.recommend({ ...{ behaviour: { ok: true }, review: { verdict: 'sound', findings: [] }, census: { domainDirection: 1 } }, architecture: { ok: true, counts: { capability: 0 } } })
+  check(fixedLast.gate === 'accept', `gate: fixing the last violation of a kind is 1 → 0, not an unmeasured counter: ${fixedLast.gate} ${fixedLast.reason}`)
 
   // ─── gate ───
   const green = { behaviour: { ok: true }, architecture: { ok: true, counts: { capability: 0, domainDirection: 2 } }, review: { verdict: 'sound', findings: [] }, census: { domainDirection: 2 } }
@@ -142,7 +177,6 @@ try {
   check(lib.recommend({ ...green, review: { verdict: 'reject', findings: [] } }).gate === 'reject', 'gate: reject belongs to the review')
   check(lib.recommend({ ...green, behaviour: { ok: false } }).gate === 'revise', 'gate: red behaviour revises')
   check(lib.recommend({ ...green, architecture: { ok: true, counts: { capability: 0, domainDirection: 3 } } }).reason.includes('regressions'), 'gate: a counter above baseline is a regression')
-  check(lib.recommend({ ...green, architecture: { ok: true, counts: { capability: 0 } } }).gate === 'inconclusive', 'gate: a baseline counter that did not return is unmeasured')
   check(lib.recommend({ ...green, review: null }).gate === 'inconclusive', 'gate: silence is inconclusive')
   const capped = lib.recommend({ ...green, behaviour: { ok: false }, fixLoopExit: 'cap-reached' })
   check(capped.gate === 'revise' && capped.reason.startsWith('cap-reached'), 'gate: an exhausted budget is named as such, not as a red verdict')
@@ -150,9 +184,8 @@ try {
   check(lib.recommend({ ...green, review: { verdict: 'sound', findings: [{ severity: 'must-fix', property: 'auth', detail: 'x' }] } }).gate === 'revise', 'gate: a must-fix revises')
 
   // ─── CLI round trip ───
-  const cli = (...argv) => spawnSync(process.execPath, [LIB, ...argv], { encoding: 'utf8' })
   const r1 = cli('inventory', '--repo', repo, '--source-root', 'src')
-  check(r1.status === 0 && JSON.parse(r1.stdout).count === 301, `cli inventory: ${r1.stderr}`)
+  check(r1.status === 0 && JSON.parse(r1.stdout).count === 301, `cli inventory: status=${r1.status} out=${JSON.stringify(r1.stdout.slice(0, 400))} err=${r1.stderr.slice(0, 300)}`)
   const rulesFile = path.join(repo, 'rules.json')
   fs.writeFileSync(rulesFile, JSON.stringify({ rules, unassigned: [] }))
   const r2 = cli('expand', '--repo', repo, '--rules', rulesFile)
@@ -166,6 +199,22 @@ try {
   check(r5.status === 0, 'cli record-fresh: fresh record exits 0')
   const r6 = cli('nonsense')
   check(r6.status === 1, 'cli: unknown command exits 1')
+  // The hand-off expand → plan-check, as the skill runs it: the file expand wrote is what
+  // plan-check reads, filtered to this capability's rows.
+  fs.writeFileSync(rulesFile, JSON.stringify({ rules, unassigned: [] }))
+  cli('expand', '--repo', repo, '--rules', rulesFile)
+  const planFile = path.join(repo, 'plan.json')
+  const featureRows = JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/assignments.json'), 'utf8')).rows.filter((r) => r.capability === 'features')
+  fs.writeFileSync(planFile, JSON.stringify({ moves: featureRows.map((r) => ({ file: r.file, role: 'domain' })), surfaces: [] }))
+  const r7 = cli('plan-check', '--repo', repo, '--contract', path.join(root, 'rules/architecture-contract.json'), '--capability', 'features', '--plan', planFile, '--assignments', path.join(repo, '.nextjs-clean-migration/assignments.json'))
+  check(r7.status === 0 && JSON.parse(r7.stdout).ok && JSON.parse(r7.stdout).assignedFiles === featureRows.length, `cli plan-check reads what expand wrote: ${r7.stderr.slice(0, 200)}`)
+  const r8 = cli('destination', '--repo', repo, '--contract', path.join(root, 'rules/architecture-contract.json'), '--capability', '../../../outside', '--role', 'domain', '--file', 'src/a.ts')
+  check(r8.status === 1 && JSON.parse(r8.stdout).dest === null, 'cli destination: a path-shaped capability is refused')
+  const link = path.join(repo, 'bin-link')
+  fs.symlinkSync(path.dirname(LIB), link)
+  const r9 = spawnSync(process.execPath, [path.join(link, path.basename(LIB)), 'tree-state', '--repo', repo], { encoding: 'utf8' })
+  check(r9.status === 0 && r9.stdout.includes('"tree"'), 'cli: invoked through a symlinked path it still runs')
+  fs.rmSync(link)
 } finally {
   fs.rmSync(repo, { recursive: true, force: true })
 }

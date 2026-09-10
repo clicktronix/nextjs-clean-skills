@@ -40,9 +40,10 @@ if (!SRC) return { error: 'args.contractSource is required: the installed plugin
 const REVIEW_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['verdict', 'findings', 'recordId'],
+  required: ['verdict', 'findings', 'recordId', 'budgetExhausted'],
   properties: {
     verdict: { type: 'string', enum: ['sound', 'revise', 'reject'] },
+    budgetExhausted: { type: 'boolean', description: 'true when the turn budget ran out before every property was checked; the verdict then covers only what was verified' },
     recordId: { type: 'string', description: 'the id field of the record you read; proves which evidence this verdict is about' },
     findings: {
       type: 'array',
@@ -87,7 +88,7 @@ const tasks = [
     '- a declared channel change (Server Action → GET, etc.) has its behaviour risk named.\n\n' +
     '## Verdict\n`sound` = nothing must-fix. `revise` = this migration needs work, the model is fine. `reject` = the ownership model is wrong for this codebase — reserve it for that.\n' +
     'A should-fix is a real finding the owner must verify; do not downgrade a defect to should-fix to avoid a verdict.\n\n' +
-    `Budget: ${BUDGET} turns. If you run out, return what you verified and put "budget exhausted" in a nit finding rather than guessing the rest.\n\nStructured output only.`,
+    `Budget: ${BUDGET} turns. If you run out, set budgetExhausted=true and return only what you verified; never guess the rest.\n\nStructured output only.`,
     { label: 'review', phase: 'Verify', schema: REVIEW_SCHEMA }
   ),
 ]
@@ -105,12 +106,16 @@ if (ORDINARY) {
 }
 const [review, radius] = await parallel(tasks)
 
-log('Verify: review ' + (review ? review.verdict : 'no verdict') + (ORDINARY ? '; radius ' + (radius ? radius.direction : 'not reported') : ''))
+// A reviewer that returned nothing, or ran out of budget before finishing, is "no verdict"
+// for that axis: its partial findings are kept for the owner, but no verdict is derived from
+// an unfinished review. The owner decides whether to re-run it or verify the axis itself. It
+// is not a failed migration.
+const reviewComplete = !!review && review.budgetExhausted !== true
+log('Verify: review ' + (reviewComplete ? review.verdict : 'no verdict') + (ORDINARY ? '; radius ' + (radius ? radius.direction : 'not reported') : ''))
 return {
   recordPath: RECORD,
-  review: review || null,
+  review: reviewComplete ? review : null,
+  partialReview: review && !reviewComplete ? review : null,
   radius: ORDINARY ? radius || null : null,
-  // A reviewer that returned nothing is "no verdict" for that axis; the owner decides
-  // whether to re-run it or verify the axis itself. It is not a failed migration.
-  noVerdict: [...(review ? [] : ['review']), ...(ORDINARY && !radius ? ['radius'] : [])],
+  noVerdict: [...(reviewComplete ? [] : ['review']), ...(ORDINARY && !radius ? ['radius'] : [])],
 }
