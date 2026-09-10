@@ -98,7 +98,7 @@ matrix is a separate, costed decision and is not part of this change.
 
 `tests/architecture-evals/results/` is no longer tracked in git (it is listed in `.gitignore`). The
 raw prompts, event streams, responses, judge inputs and scores for every set named above are
-attached to the `v4.1.0` GitHub release as the asset `results-2026-09-10.tar.zst`. Download and
+attached to the first GitHub release cut after 2026-09-10 (4.2.0) as the asset `architecture-evals-results-2026-09-10.tar.zst`; there is no GitHub release for 4.1.0. Download and
 unpack it into this directory to inspect a run; the scripts here create the directory when they need
 it, and every validator tolerates its absence.
 

@@ -53,12 +53,18 @@ if (cellEnv.HOME !== cellHome || cellEnv.CODEX_HOME !== cellCodexHome) {
   errors.push('cell HOME/CODEX_HOME must point at the throwaway sandbox')
 }
 
-// (b) nothing left in the environment names a real home directory, PATH entries included.
+// (b) nothing left in the environment names a real home directory — except PATH, which finds
+// executables rather than configuration and must keep working for a CLI installed under the
+// home directory (nvm, npm prefix, bun). The parent's node must still resolve through it.
 for (const [key, value] of Object.entries(cellEnv)) {
+  if (key === 'PATH') continue
   for (const home of [authorHome, process.env.HOME, os.homedir()].filter(Boolean)) {
     if (value.includes(home)) errors.push(`cell env ${key} still contains ${home}`)
   }
 }
+if (cellEnv.PATH !== baseEnv.PATH) errors.push('cell PATH must be the parent PATH, untouched')
+const nodeViaCellPath = spawnSync('sh', ['-c', 'command -v node'], { env: cellEnv, encoding: 'utf8' })
+if (nodeViaCellPath.status !== 0 || !nodeViaCellPath.stdout.trim()) errors.push('node must resolve through the cell PATH, or a #!/usr/bin/env node CLI cannot start')
 for (const key of USER_CONFIG_ENV_KEYS) {
   if (key === 'CODEX_HOME') continue
   if (key in cellEnv) errors.push(`cell env must not carry ${key}`)

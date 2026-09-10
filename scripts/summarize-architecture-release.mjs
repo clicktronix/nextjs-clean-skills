@@ -78,7 +78,7 @@ async function loadRows(resultNames) {
     // failing on an ENOENT for `manifest.json`.
     if (!existsSync(resultRoot)) {
       throw new Error(
-        `missing result set ${name}: unpack the results-2026-09-10.tar.zst release asset into tests/architecture-evals/`,
+        `missing result set ${name}: unpack the architecture-evals-results-2026-09-10.tar.zst release asset into tests/architecture-evals/`,
       );
     }
     const manifest = JSON.parse(await readFile(join(resultRoot, "manifest.json"), "utf8"));

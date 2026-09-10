@@ -6,11 +6,12 @@
  * against the author's account, so the "no skill" arm could still read an architecture skill
  * installed there. This module builds the only environment a cell is allowed to see: a fresh
  * `HOME`, a fresh `CODEX_HOME`, no variable that points back at the author's configuration, and
- * no variable (`PATH` included) whose value still contains the real home directory.
+ * no configuration-bearing variable whose value still contains the real home directory.
  *
- * Because `PATH` is stripped of home-owned entries, a CLI installed under the home directory is
- * no longer resolvable from inside a cell; `resolveCommand()` turns the command name into an
- * absolute path using the parent's `PATH` before the cell is spawned.
+ * `PATH` is left intact. It decides which executables are found, not which configuration is
+ * read, and stripping its home-owned entries broke CLIs installed through nvm, npm prefix or
+ * bun: an absolute `codex` path was still found, but its `#!/usr/bin/env node` no longer was.
+ * `resolveCommand()` remains for callers that want an absolute path regardless.
  */
 import { accessSync, constants } from 'node:fs'
 import { mkdir, mkdtemp, realpath, symlink } from 'node:fs/promises'
@@ -58,12 +59,6 @@ function realHomes(base) {
   return [base.HOME, base.USERPROFILE, homedir()].filter((value) => typeof value === 'string' && value.length > 1)
 }
 
-function stripHomeEntries(pathValue, homes) {
-  return pathValue
-    .split(delimiter)
-    .filter((entry) => entry.length > 0 && !homes.some((home) => entry.includes(home)))
-    .join(delimiter)
-}
 
 /**
  * Build the environment for one eval cell.
@@ -81,10 +76,11 @@ export function buildCellEnv({ home, codexHome, base = process.env }) {
     if (USER_CONFIG_ENV_KEYS.includes(key)) continue
     env[key] = value
   }
-  if (typeof env.PATH === 'string') env.PATH = stripHomeEntries(env.PATH, homes)
   // Anything left that still names the author's home is dropped rather than rewritten: a cell has
-  // no business reading a path under it, whatever the variable is called.
+  // no business reading a path under it, whatever the variable is called. PATH is the one
+  // exception, for the reason above.
   for (const [key, value] of Object.entries(env)) {
+    if (key === 'PATH') continue
     if (homes.some((real) => value.includes(real))) delete env[key]
   }
   env.HOME = home
