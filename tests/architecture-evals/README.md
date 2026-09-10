@@ -97,10 +97,17 @@ matrix is a separate, costed decision and is not part of this change.
 ## Raw result sets
 
 `tests/architecture-evals/results/` is no longer tracked in git (it is listed in `.gitignore`). The
-raw prompts, event streams, responses, judge inputs and scores for every set named above are
-attached to the first GitHub release cut after 2026-09-10 (4.2.0) as the asset `architecture-evals-results-2026-09-10.tar.zst`; there is no GitHub release for 4.1.0. Download and
-unpack it into this directory to inspect a run; the scripts here create the directory when they need
-it, and every validator tolerates its absence.
+raw prompts, event streams, responses, judge inputs and scores for every set named above will be
+attached to the next GitHub release (4.2.0) as the asset `architecture-evals-results-2026-09-10.tar.zst`.
+There is no GitHub release for 4.1.0, and until 4.2.0 is cut the archive exists only on the
+maintainer's machine. Download and unpack it into this directory to inspect a run; the scripts here
+create the directory when they need it, and every validator tolerates its absence.
+
+What the isolation check proves, and what it does not: `scripts/validate-eval-isolation.mjs`
+exercises the environment builder both runners import, with a canary skill in a stand-in author
+home and a stub standing in for the CLI. It does not launch either runner end to end — that needs
+the scenario fixtures and the real CLIs — so the first real cell after 2026-09-10 is the first
+end-to-end evidence that the isolation holds.
 
 ## Known limitations
 
