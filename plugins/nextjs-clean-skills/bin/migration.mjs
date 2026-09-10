@@ -368,6 +368,7 @@ export function runRecord(repo, label, command, options = {}) {
       pid: child.pid,
       exitCode,
       signal,
+      killed,
       startedAt,
       endedAt: new Date().toISOString(),
       tree,
@@ -379,6 +380,7 @@ export function runRecord(repo, label, command, options = {}) {
     fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n')
     return record
   }
+  let killed = false
   const groupAlive = () => {
     try {
       process.kill(-child.pid, 0)
@@ -401,20 +403,24 @@ export function runRecord(repo, label, command, options = {}) {
     // leader's exit, which never comes when the shell itself ignores the signal, and not only
     // the leader, which a grandchild can outlive. Once the grace period has passed the group is
     // killed outright; the record is written only when nothing in the group answers.
+    // Observing the group and cancelling it are two different things. Observation alone —
+    // the leader exited on its own while a child still runs — waits for the group with no
+    // deadline and reports the leader's exit code. Cancellation — a signal was forwarded —
+    // starts the grace period, SIGKILLs the group when it runs out, and reports the signal:
+    // a killed check is never written up as a success.
     let leaderExit = null
     let watching = false
+    let deadline = null
     const watchGroup = () => {
       if (watching) return
       watching = true
-      const deadline = Date.now() + killAfterMs
-      let killed = false
       const tick = () => {
         if (settled) return
         if (!groupAlive()) {
           const exit = leaderExit || { code: null, signal: null }
           return finish(forwarded ? null : exit.code, exit.signal)
         }
-        if (!killed && Date.now() >= deadline) {
+        if (deadline !== null && !killed && Date.now() >= deadline) {
           killed = true
           try { process.kill(-child.pid, 'SIGKILL') } catch { /* gone between checks */ }
         }
@@ -425,6 +431,7 @@ export function runRecord(repo, label, command, options = {}) {
     const forward = (sig) => {
       if (forwarded) return
       forwarded = sig
+      deadline = Date.now() + killAfterMs
       try { process.kill(-child.pid, sig) } catch { /* group already gone */ }
       watchGroup()
     }
@@ -435,8 +442,8 @@ export function runRecord(repo, label, command, options = {}) {
     })
     child.on('exit', (code, signal) => {
       leaderExit = { code: typeof code === 'number' ? code : null, signal: signal || null }
-      // A leader that exits on its own with the group still alive is watched without a grace
-      // period of its own: its children are the command's business until a signal says otherwise.
+      // A leader that exits on its own with the group still alive is only watched: no deadline,
+      // no kill — its children are the command's business until a signal says otherwise.
       if (forwarded || groupAlive()) watchGroup()
       else finish(leaderExit.code, leaderExit.signal)
     })

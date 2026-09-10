@@ -153,7 +153,7 @@ try {
   const slowRecord = slowRecords.length === 1 ? JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', slowRecords[0]), 'utf8')) : null
   const childAlive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
   const groupAliveByPid = (pid) => { try { process.kill(-pid, 0); return true } catch { return false } }
-  check(slowRecord && slowRecord.signal === 'SIGTERM' && slowRecord.exitCode === null, 'record: a killed check is recorded as killed, not as an exit code')
+  check(slowRecord && slowRecord.signal === 'SIGTERM' && slowRecord.exitCode === null && slowRecord.killed === true, 'record: a killed check is recorded as killed, not as an exit code')
   check(slowRecord && typeof slowRecord.pid === 'number' && !childAlive(slowRecord.pid), 'record: the check that ignored SIGTERM is gone when the record exists (escalated within kill-after)')
   const slowMs = slowRecord ? new Date(slowRecord.endedAt) - new Date(slowRecord.startedAt) : -1
   check(slowMs >= 500 && slowMs < 5000, `record: the wrapper waited for the grace period and then escalated — not for the check to finish on its own (${slowMs} ms)`)
@@ -194,6 +194,13 @@ try {
   check(!lib.boundArtifact(repo, withArtifact.record, 'other.json').ok, 'artifact: a file the record never bound is refused')
   const skipped = await lib.runRecord(repo, 'check', 'echo lint stage skipped', { artifacts: ['lint.json'] })
   check(skipped.record.artifacts[0].exists === false && !lib.boundArtifact(repo, skipped.record, 'lint.json').ok, 'artifact: a command that did not write the file leaves no evidence — a stale file elsewhere cannot stand in')
+  // A leader that exits on its own while a child still runs is waited for, not killed: the
+  // child finishes, its output exists, and the record carries the leader's exit code.
+  const doneFile = path.join(repo, 'done.txt')
+  fs.rmSync(doneFile, { force: true })
+  const natural = await lib.runRecord(repo, 'nat', '(sleep 1; echo done > done.txt) & exit 0', { killAfterMs: 300 })
+  check(natural.record.exitCode === 0 && natural.record.signal === null && natural.record.killed === false && fs.existsSync(doneFile), 'record: a lingering child of a leader that exited normally is waited for, never killed, and the record is not a success written early')
+  fs.rmSync(doneFile, { force: true })
   const twins = await Promise.all([lib.runRecord(repo, 'twin', 'true'), lib.runRecord(repo, 'twin', 'true')])
   check(twins[0].recordPath !== twins[1].recordPath && twins[0].record.artifactDir !== twins[1].record.artifactDir, 'record: two runs started together get distinct ids and artifact directories')
   const unbound = await lib.runRecord(repo, 'check', 'true')

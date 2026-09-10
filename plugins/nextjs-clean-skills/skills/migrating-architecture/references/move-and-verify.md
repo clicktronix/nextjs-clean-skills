@@ -19,7 +19,7 @@ deletions is how a whole directory once went missing.
 ## The check record
 
 ```
-node "$PLUGIN/bin/migration.mjs" record --repo "$TARGET" --label check --artifact lint.json -- 'bun run typecheck && eslint src --format json --output-file "$NCS_ARTIFACTS/lint.json"; bun test && bun run build'
+node "$PLUGIN/bin/migration.mjs" record --repo "$TARGET" --label check --artifact lint.json -- 'bun run typecheck && eslint src --format json --output-file "$NCS_ARTIFACTS/lint.json" && bun test && bun run build'
 node $PLUGIN/bin/migration.mjs record-fresh --repo <target> --record <path>
 node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json lint.json --contract rules/architecture-contract.json --capability <name> --baseline <baseline census>
 ```
