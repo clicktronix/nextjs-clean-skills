@@ -77,8 +77,11 @@ const runtimeMarkerRule = {
         // placed after the imports it is supposed to guard poisons the module too late to matter.
         // Type-only imports are erased before the module body runs, so they cannot precede the
         // marker in any order that matters; the first VALUE import is what must come after it.
+        const erased = (statement) =>
+          statement.importKind === 'type' ||
+          (statement.specifiers.length > 0 && statement.specifiers.every((s) => s.importKind === 'type'))
         const firstImport = node.body.find(
-          (statement) => statement.type === 'ImportDeclaration' && statement.importKind !== 'type'
+          (statement) => statement.type === 'ImportDeclaration' && !erased(statement)
         )
         if (
           firstImport &&

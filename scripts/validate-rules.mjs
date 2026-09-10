@@ -392,14 +392,17 @@ export const InnerSchema = v.object({ id: v.string() })
   'src/modules/shapes/contracts.ts': `
 import { string } from 'valibot'
 import { InnerSchema } from './domain/inner.js'
+import { InnerSchema as ImportAlias } from './domain/inner.js'
 export { InnerSchema as AliasSchema }
+export { ImportAlias }
 export const DerivedSchema = InnerSchema
 export { string }
 `,
   'src/modules/agency/domain/alias-ok.ts': `
-import { AliasSchema, DerivedSchema } from '../../shapes/contracts.js'
+import { AliasSchema, DerivedSchema, ImportAlias } from '../../shapes/contracts.js'
 export const a = AliasSchema
 export const b = DerivedSchema
+export const c = ImportAlias
 `,
   'src/modules/agency/domain/bad-constructor.ts': `
 import { string } from '../../shapes/contracts.js'
@@ -413,8 +416,10 @@ export const BadServerReach = () => store
   // The marker guards value imports; an erased type import before it is not an ordering defect.
   'src/modules/marker-type/server.ts': `
 import type { Card } from '../billing/contracts.js'
+import { type Model } from '../campaign/contracts.js'
 import 'server-only'
 export const card: Card = { id: 'x' }
+export const model: Model = { id: 'y' }
 `,
 
   // Static module forms the ImportDeclaration visitor never sees.
@@ -685,6 +690,18 @@ if (ESLint) {
     const posix = (value) => value.split(path.sep).join('/')
     const baseResults = await lint('eslint.config.base.mjs')
     const strictResults = await lint('eslint.config.strict.mjs')
+
+    // A classification depends on the files it follows: rewriting the schema's source file, not
+    // the contract file, must change the verdict inside the same process.
+    const innerPath = path.join(sandbox, 'src/modules/shapes/domain/inner.ts')
+    const innerSource = fs.readFileSync(innerPath, 'utf8')
+    fs.writeFileSync(innerPath, "export function InnerSchema() {\n  return fetch('/x')\n}\n")
+    const afterDependencyChange = await lint('eslint.config.base.mjs')
+    fs.writeFileSync(innerPath, innerSource)
+    const aliasMessages = afterDependencyChange.get('src/modules/agency/domain/alias-ok.ts') ?? []
+    if (!aliasMessages.some((m) => m.messageId === 'contractSurfaceBehaviour')) {
+      errors.push('contract classification served a stale verdict after a dependency file changed in the same process')
+    }
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',

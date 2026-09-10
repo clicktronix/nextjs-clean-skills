@@ -328,7 +328,9 @@ function readSourceFile(file) {
     const cached = CONTRACT_EXPORT_CACHE.get(file)
     if (cached && cached.digest === digest) return cached
     const parsed = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
-    const entry = { digest, parsed, result: null }
+    // Only the parse is cached: a classification depends on every file it follows, so caching it
+    // on this file alone served a stale verdict after a dependency changed.
+    const entry = { digest, parsed }
     CONTRACT_EXPORT_CACHE.set(file, entry)
     return entry
   } catch {
@@ -340,7 +342,6 @@ export function contractSurfaceExports(file, options = {}) {
   const { paths = null, purePackages = [], depth = CONTRACT_EXPORT_DEPTH, seen = new Set() } = options
   const entry = readSourceFile(file)
   if (!entry) return null
-  if (entry.result && depth === CONTRACT_EXPORT_DEPTH && seen.size === 0) return entry.result
   if (seen.has(file) || depth <= 0) return { kinds: new Map(), complete: false }
   const nested = new Set(seen).add(file)
   const parsed = entry.parsed
@@ -370,20 +371,24 @@ export function contractSurfaceExports(file, options = {}) {
       const clause = statement.importClause
       if (!clause) continue
       const pure = isPureSpecifier(statement.moduleSpecifier.text, purePackages)
-      const record = (name, isTypeOnly) => {
+      // `name` is the local binding; `imported` is what the source module exports it as. An
+      // alias at the import site (`import { X as Y }`) must be looked up as X, not Y.
+      const record = (name, imported, isTypeOnly) => {
         if (clause.isTypeOnly || isTypeOnly) locals.set(name, 'type')
         else if (pure) {
           // A binding imported from a schema package is a constructor — `string`, `object` — and
           // exporting it bare exports behaviour. Only a call rooted in it yields a schema.
           locals.set(name, 'behaviour')
           pureCallees.add(name)
-        } else deferred.push({ name, statement })
+        } else deferred.push({ name, imported, statement })
       }
-      if (clause.name) record(clause.name.text, false)
+      if (clause.name) record(clause.name.text, 'default', false)
       const bindings = clause.namedBindings
-      if (bindings && ts.isNamespaceImport(bindings)) record(bindings.name.text, false)
+      if (bindings && ts.isNamespaceImport(bindings)) record(bindings.name.text, '*', false)
       if (bindings && ts.isNamedImports(bindings)) {
-        for (const element of bindings.elements) record(element.name.text, element.isTypeOnly)
+        for (const element of bindings.elements) {
+          record(element.name.text, (element.propertyName ?? element.name).text, element.isTypeOnly)
+        }
       }
       continue
     }
@@ -410,11 +415,11 @@ export function contractSurfaceExports(file, options = {}) {
   // Imported bindings are classified first, so a schema imported from a sibling file can seed a
   // derived declaration below; resolving them after the fixed point left every such derivation
   // classified as behaviour.
-  for (const { name, statement } of deferred) {
-    const resolved = follow(statement.moduleSpecifier, name)
-    const imported = resolved?.kinds.get(name)
-    locals.set(name, imported ?? 'behaviour')
-    if (imported === 'schema') schemaNames.add(name)
+  for (const { name, imported, statement } of deferred) {
+    const resolved = follow(statement.moduleSpecifier, imported)
+    const kind = imported === '*' ? 'behaviour' : resolved?.kinds.get(imported)
+    locals.set(name, kind ?? 'behaviour')
+    if (kind === 'schema') schemaNames.add(name)
   }
 
   // A schema may be built from a schema declared later in the file, so classification is a fixed
@@ -502,6 +507,5 @@ export function contractSurfaceExports(file, options = {}) {
   }
 
   const result = { kinds, complete }
-  if (depth === CONTRACT_EXPORT_DEPTH && seen.size === 0) entry.result = result
   return result
 }
