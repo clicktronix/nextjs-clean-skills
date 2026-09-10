@@ -7,7 +7,7 @@ architecture and React Server/Client Component rules.
 
 | Plugin | Skills | Purpose |
 | --- | --- | --- |
-| `nextjs-clean-skills` | `designing-architecture`, `creating-react-components` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries. |
+| `nextjs-clean-skills` | `designing-architecture`, `creating-react-components`, `migrating-architecture` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries; migrate an existing repository to them one capability at a time. |
 
 Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
@@ -40,6 +40,7 @@ After install, run `/reload-plugins`. Invoke directly with:
 ```shell
 /nextjs-clean-skills:designing-architecture
 /nextjs-clean-skills:creating-react-components
+/nextjs-clean-skills:migrating-architecture
 ```
 
 ## Codex Install
@@ -86,6 +87,7 @@ Installed skills:
 ```text
 $designing-architecture
 $creating-react-components
+$migrating-architecture
 ```
 
 ## Optional Greenfield Profile
@@ -159,25 +161,23 @@ Run the local checks:
 npm run validate
 ```
 
-## Migration Workflows
+## Migrating An Existing Repository
 
-[`plugins/nextjs-clean-skills/workflows/`](plugins/nextjs-clean-skills/workflows/README.md) ships two
-multi-agent workflows that adopt this architecture in an existing Next.js repository, executing the
-procedure in [`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) rather than a
-second one. They require dynamic workflows to be enabled, and they are part of the plugin — installing
-it is all the setup a target repository needs:
+The `migrating-architecture` skill runs the adoption procedure in
+[`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) inside your session: it
+lists files and writes manifests with `plugins/nextjs-clean-skills/bin/migration.mjs`, runs the
+target's own checks as its own child processes, dispatches subagents only for judgement and
+per-slice moves, and asks you once after the pilot. Two small workflows,
+[`inventory` and `verify`](plugins/nextjs-clean-skills/workflows/README.md), cover the parts that
+need parallel opinions; they require dynamic workflows to be enabled.
 
 ```text
-Workflow({ name: 'prepare-architecture-migration', args: { repo, ordinaryChange, profileDecisions } })
-Workflow({ name: 'migrate-capability', args: { repo, capability, manifestPath } })
+/nextjs-clean-skills:migrating-architecture
 ```
 
-`/workflows` lists what the session resolved, which is the fastest way to confirm the plugin's
-workflows loaded.
-
-Phase 1 is not read-only — it writes into the target — so run it on a branch you can throw away.
-Both workflows have now been run end to end against a live repository; [the evidence record](docs/evidence.md#live-migration-workflow)
-summarizes what the runs exposed.
+Enabling the rules writes into the target, so run it on a branch you can throw away. The skill
+reports agents by role and records taken; cost is bounded by the number of lenses and slices,
+never by the number of files.
 
 ## Versioning
 

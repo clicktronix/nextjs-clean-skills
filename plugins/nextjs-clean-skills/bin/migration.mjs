@@ -1,0 +1,496 @@
+#!/usr/bin/env node
+// Mechanical half of the migration procedure in docs/adoption-and-enforcement.md.
+//
+// Everything here is arithmetic over files the session already has: listing a tree,
+// expanding coverage rules, computing destinations, screening a plan, running one
+// owned check and recording its exit code, counting a census, deciding a gate. None
+// of it needs a model, so none of it is done by an agent. The skill
+// `migrating-architecture` calls these subcommands from the session; the two
+// workflows `inventory.js` and `verify.js` only dispatch the judgement calls.
+//
+// Plain Node, no dependencies: this file ships inside the installed plugin and runs
+// against any repository from anywhere.
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+export const STATE_DIR = '.nextjs-clean-migration'
+export const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
+export const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'out', '.turbo'])
+
+const posix = (value) => value.split(path.sep).join('/')
+const sha256 = (value) => createHash('sha256').update(value).digest('hex')
+
+// ─── inventory ───
+// One walk over the source root, sorted, written once. A 301-file tree with a loose
+// index.ts beside two 150-file children is nothing special here: there is no
+// partition to satisfy because nothing is handed to an agent.
+export function listSourceFiles(repo, sourceRoot, excluded = EXCLUDED_DIRS) {
+  const rootAbs = path.join(repo, sourceRoot)
+  if (!fs.existsSync(rootAbs)) throw new Error(`source root ${sourceRoot} does not exist under ${repo}`)
+  const out = []
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isSymbolicLink()) continue
+      const abs = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!excluded.has(entry.name)) walk(abs)
+        continue
+      }
+      if (SOURCE_EXTENSIONS.has(path.extname(entry.name))) out.push(posix(path.relative(repo, abs)))
+    }
+  }
+  walk(rootAbs)
+  return out.sort()
+}
+
+export function writeInventory(repo, sourceRoot, options = {}) {
+  const files = listSourceFiles(repo, sourceRoot, options.excluded)
+  const inventory = {
+    sourceRoot,
+    count: files.length,
+    listHash: sha256(files.join('\n')),
+    listedAt: new Date().toISOString(),
+    files,
+  }
+  const file = path.join(repo, STATE_DIR, 'inventory.json')
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(inventory, null, 2) + '\n')
+  return { path: file, count: files.length, listHash: inventory.listHash }
+}
+
+// ─── expand: coverage rules → one row per file ───
+// A `file` rule beats every prefix; among prefixes the longest wins; arrival order means
+// nothing. An `unassigned` entry wins over any rule: it is the decision "nobody could
+// place this", and a prefix must not silently overrule it.
+export function winningRule(file, rules) {
+  let best = null
+  let bestLength = -1
+  for (const rule of rules) {
+    if (!rule || typeof rule.path !== 'string') continue
+    const rulePath = rule.path.trim()
+    if (rule.kind === 'file') {
+      if (rulePath === file) return rule
+      continue
+    }
+    if (rule.kind === 'prefix' && file.startsWith(rulePath + '/') && rulePath.length > bestLength) {
+      best = rule
+      bestLength = rulePath.length
+    }
+  }
+  return best
+}
+
+export function expandRules(files, rules, unassigned = []) {
+  const problems = []
+  const unsafe = rules.filter((r) => {
+    const p = r && typeof r.path === 'string' ? r.path.trim() : ''
+    return p === '' || p[0] === '/' || /(^|\/)\.\.(\/|$)/.test(p)
+  })
+  if (unsafe.length > 0) problems.push({ kind: 'unsafe-rule-path', rules: unsafe.map((r) => r && r.path) })
+  const seen = new Set()
+  const duplicates = rules.filter((r) => {
+    const key = r ? `${r.kind}:${String(r.path).trim()}` : ''
+    if (seen.has(key)) return true
+    seen.add(key)
+    return false
+  })
+  if (duplicates.length > 0) problems.push({ kind: 'duplicate-rule', rules: duplicates.map((r) => `${r.kind}:${r.path}`) })
+  const prefixSurfaces = rules.filter((r) => r && r.kind === 'prefix' && r.surface)
+  if (prefixSurfaces.length > 0) problems.push({ kind: 'surface-on-prefix', rules: prefixSurfaces.map((r) => r.path) })
+  if (problems.length > 0) return { ok: false, problems }
+
+  const unassignedByFile = new Map(
+    unassigned.filter((u) => u && typeof u.file === 'string').map((u) => [u.file.trim(), u])
+  )
+  const matched = new Set()
+  const rows = []
+  const uncovered = []
+  for (const file of files) {
+    for (const rule of rules) {
+      const p = rule.path.trim()
+      if (rule.kind === 'file' ? p === file : file.startsWith(p + '/')) matched.add(`${rule.kind}:${p}`)
+    }
+    if (unassignedByFile.has(file)) {
+      const u = unassignedByFile.get(file)
+      rows.push({ file, placement: 'unassigned', why: u.why || '', likelyCapability: u.likelyCapability || '' })
+      continue
+    }
+    const rule = winningRule(file, rules)
+    if (!rule) {
+      uncovered.push(file)
+      continue
+    }
+    rows.push({
+      file,
+      placement: rule.placement,
+      capability: rule.capability || '',
+      runtime: rule.runtime || '',
+      role: rule.role || '',
+      surface: rule.surface || '',
+      rule: `${rule.kind}:${rule.path.trim()}`,
+    })
+  }
+  // A rule no file matches describes a different tree. That is a warning for the owner to
+  // read, not a stop: nothing wrong is written because of it.
+  const deadRules = rules.map((r) => `${r.kind}:${r.path.trim()}`).filter((key) => !matched.has(key))
+  const strayUnassigned = [...unassignedByFile.keys()].filter((f) => !files.includes(f))
+  return { ok: true, rows, uncovered, deadRules, strayUnassigned }
+}
+
+// ─── destination ───
+// The model decides roles; this computes paths. Closed under the capability root and
+// injective across a plan.
+const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+export function destination(move, { moduleRoot, capability, segments, surfaces }) {
+  if (!move || move.role === 'stay' || move.role === 'delete') return null
+  if (move.role === 'surface') {
+    if (!surfaces.includes(move.surface)) return null
+    return `${moduleRoot}/${capability}/${move.surface}.ts`
+  }
+  if (!segments.includes(move.role)) return null
+  const name = move.basename || String(move.file).split('/').pop()
+  if (!SAFE_NAME.test(name)) return null
+  return `${moduleRoot}/${capability}/${move.role}/${name}`
+}
+
+// ─── plan screening ───
+// Pure: decides what would be written and what the mover is told. Rejects rather than
+// filters — a malformed entry that a filter dropped was a risk the planner reported and
+// the report ate.
+export function screenPlan(plan, ctx) {
+  const { moduleRoot, capability, segments, surfaces, assignedFiles, consumers } = ctx
+  const problems = []
+  const channelChanges = plan.channelChanges || []
+  const malformedChannels = channelChanges.filter(
+    (c) => !c || !c.what || !c.from || !c.to || !String(c.behaviourRisk || '').trim()
+  )
+  if (malformedChannels.length > 0) problems.push({ kind: 'malformed-channel-change', count: malformedChannels.length })
+
+  const resolved = (plan.moves || []).map((mv) => ({ ...mv, dest: destination(mv, { moduleRoot, capability, segments, surfaces }) }))
+  const invalid = resolved.filter((r) => r.role !== 'stay' && r.role !== 'delete' && !r.dest)
+  if (invalid.length > 0) problems.push({ kind: 'invalid-move', files: invalid.map((r) => r.file) })
+
+  const declaredSurfaces = plan.surfaces || []
+  const badSurfaces = declaredSurfaces.filter((s) => !surfaces.includes(s.surface))
+  if (badSurfaces.length > 0) problems.push({ kind: 'unknown-surface', surfaces: badSurfaces.map((s) => s.surface) })
+  const surfaceSeen = new Set()
+  const duplicateSurfaces = declaredSurfaces.filter((s) => (surfaceSeen.has(s.surface) ? true : (surfaceSeen.add(s.surface), false)))
+  if (duplicateSurfaces.length > 0) problems.push({ kind: 'duplicate-surface', surfaces: duplicateSurfaces.map((s) => s.surface) })
+
+  const usedSurfaces = declaredSurfaces.filter((s) => (s.consumers || []).length > 0)
+  const usedNames = usedSurfaces.map((s) => s.surface)
+  const staying = resolved.filter((r) => r.role === 'stay')
+  const deleting = resolved.filter((r) => r.role === 'delete')
+  const moving = resolved.filter((r) => r.dest && (r.role !== 'surface' || usedNames.includes(r.surface)))
+  for (const r of resolved) if (r.dest && r.role === 'surface' && !usedNames.includes(r.surface)) staying.push(r)
+
+  const byDest = new Map()
+  for (const r of moving) byDest.set(r.dest, [...(byDest.get(r.dest) || []), r.file])
+  const collisions = [...byDest].filter(([, sources]) => sources.length > 1).map(([dest, sources]) => ({ dest, sources }))
+  if (collisions.length > 0) problems.push({ kind: 'destination-collision', collisions })
+
+  const sourceSeen = new Set()
+  const duplicateSources = []
+  for (const mv of plan.moves || []) {
+    if (sourceSeen.has(mv.file)) duplicateSources.push(mv.file)
+    sourceSeen.add(mv.file)
+  }
+  if (duplicateSources.length > 0) problems.push({ kind: 'duplicate-source', files: duplicateSources })
+  const unplanned = assignedFiles.filter((f) => !sourceSeen.has(f))
+  if (unplanned.length > 0) problems.push({ kind: 'unplanned-file', files: unplanned })
+  const unknownSources = (plan.moves || []).filter((mv) => mv.role !== 'stay' && !assignedFiles.includes(mv.file)).map((mv) => mv.file)
+  if (unknownSources.length > 0) problems.push({ kind: 'unknown-source', files: unknownSources })
+
+  // A surface is grounded by a concrete consumer, or by another surface that is; a loop of
+  // surfaces citing each other grounds nothing.
+  const capRoot = `${moduleRoot}/${capability}/`
+  const plannedDests = moving.map((r) => r.dest)
+  const deletedFiles = deleting.map((r) => r.file)
+  const surfaceDests = new Map(usedSurfaces.map((s) => [`${capRoot}${s.surface}.ts`, s.surface]))
+  for (const r of moving) if (r.role === 'surface' && r.surface) surfaceDests.set(r.file, r.surface)
+  const bare = (c) => String(c).split(' (')[0].split(', ')[0].trim()
+  const concrete = (c) => !deletedFiles.includes(c) && (consumers.includes(c) || assignedFiles.includes(c) || plannedDests.includes(c))
+  const stray = []
+  const edges = new Map()
+  const grounded = new Set()
+  for (const s of usedSurfaces) {
+    const out = []
+    for (const c of s.consumers || []) {
+      const b = bare(c)
+      const named = surfaceDests.get(b)
+      if (named) {
+        if (named === s.surface) stray.push({ surface: s.surface, consumer: c, why: 'a surface cannot be its own consumer' })
+        else out.push(named)
+        continue
+      }
+      if (concrete(b)) grounded.add(s.surface)
+      else stray.push({ surface: s.surface, consumer: c, why: 'names no file this plan knows to exist' })
+    }
+    edges.set(s.surface, out)
+  }
+  for (let settled = false; !settled; ) {
+    settled = true
+    for (const [surface, out] of edges) {
+      if (grounded.has(surface) || !out.some((t) => grounded.has(t))) continue
+      grounded.add(surface)
+      settled = false
+    }
+  }
+  const ungrounded = usedSurfaces.filter((s) => !grounded.has(s.surface)).map((s) => s.surface)
+  if (stray.length > 0) problems.push({ kind: 'stray-consumer', stray })
+  if (ungrounded.length > 0) problems.push({ kind: 'ungrounded-surface', surfaces: ungrounded })
+  const emptyExports = usedSurfaces.filter((s) => (s.exports || []).length === 0).map((s) => s.surface)
+  if (emptyExports.length > 0) problems.push({ kind: 'empty-surface', surfaces: emptyExports })
+
+  return {
+    ok: problems.length === 0,
+    problems,
+    moving: moving.map(({ file, role, surface, dest }) => ({ file, role, surface: surface || '', dest })),
+    staying: staying.map((r) => r.file),
+    deleting: deletedFiles,
+    surfaces: usedSurfaces.map((s) => ({ surface: s.surface, exports: s.exports || [], consumers: (s.consumers || []).map(bare) })),
+    droppedSurfaces: declaredSurfaces.filter((s) => !usedNames.includes(s.surface)).map((s) => s.surface),
+    channelChanges,
+  }
+}
+
+// ─── tree state and check records ───
+// The owner runs one heavy check as its own child process and writes down what it ran,
+// what came back, and what tree it ran against. Reviewers read the record; nobody waits
+// for a file to appear. A record is fresh only while the tree it names is the tree on disk.
+function git(repo, args) {
+  const r = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim() : ''
+}
+
+export function treeState(repo) {
+  const head = git(repo, ['rev-parse', 'HEAD'])
+  // The state directory holds records and inventories this tool writes; it is not part
+  // of the tree a check ran against, so it never makes a record stale.
+  const status = git(repo, ['status', '--porcelain=v1', '--untracked-files=all'])
+    .split('\n')
+    .filter((l) => l && !l.slice(3).startsWith(STATE_DIR + '/'))
+    .join('\n')
+  const diff = git(repo, ['diff', 'HEAD', '--no-color'])
+  const untracked = status.split('\n').filter((l) => l.startsWith('?? ')).map((l) => l.slice(3))
+  const untrackedContent = untracked
+    .map((f) => {
+      const abs = path.join(repo, f)
+      try {
+        return fs.statSync(abs).isFile() ? `${f}\n${fs.readFileSync(abs)}` : f
+      } catch {
+        return f
+      }
+    })
+    .join('\n')
+  return { head, dirtyHash: sha256(`${status}\n${diff}\n${untrackedContent}`) }
+}
+
+export function runRecord(repo, label, command, options = {}) {
+  const dir = path.join(repo, STATE_DIR, 'records')
+  fs.mkdirSync(dir, { recursive: true })
+  const startedAt = new Date().toISOString()
+  const id = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
+  const outPath = path.join(dir, `${id}.out`)
+  const tree = treeState(repo)
+  const result = spawnSync(options.shell || 'sh', ['-c', command], {
+    cwd: repo,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 512,
+    env: { ...process.env, ...(options.env || {}) },
+  })
+  fs.writeFileSync(outPath, `${result.stdout || ''}${result.stderr ? `\n--- stderr ---\n${result.stderr}` : ''}`)
+  const record = {
+    id,
+    label,
+    command,
+    cwd: repo,
+    exitCode: typeof result.status === 'number' ? result.status : null,
+    signal: result.signal || null,
+    startedAt,
+    endedAt: new Date().toISOString(),
+    tree,
+    outPath: posix(path.relative(repo, outPath)),
+    stdoutPath: outPath,
+  }
+  const recordPath = path.join(dir, `${id}.json`)
+  fs.writeFileSync(recordPath, JSON.stringify(record, null, 2) + '\n')
+  return { recordPath, record }
+}
+
+export function recordFreshness(repo, record) {
+  const now = treeState(repo)
+  const fresh = now.head === record.tree.head && now.dirtyHash === record.tree.dirtyHash
+  return { fresh, recorded: record.tree, now }
+}
+
+// ─── census ───
+// Counts a boundary census from an ESLint JSON output the record carries. The counter
+// named `capability` is the burndown for one capability; the others are compared with the
+// baseline. A record whose output is not ESLint JSON is reported as such, not as zero.
+export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'clean-architecture/boundaries' } = {}) {
+  let files
+  try {
+    const start = text.indexOf('[')
+    files = JSON.parse(text.slice(start === -1 ? 0 : start))
+  } catch {
+    return { ok: false, detail: 'record output is not ESLint JSON; run the check with --format json' }
+  }
+  if (!Array.isArray(files)) return { ok: false, detail: 'record output is not an ESLint results array' }
+  const counts = {}
+  let capabilityCount = 0
+  const capPrefix = moduleRoot && capability ? `${moduleRoot}/${capability}/` : ''
+  for (const f of files) {
+    const rel = posix(String(f.filePath || ''))
+    for (const m of f.messages || []) {
+      const key = m.ruleId === ruleId ? String(m.messageId || m.message || m.ruleId) : String(m.ruleId || 'unknown')
+      counts[key] = (counts[key] || 0) + 1
+      if (capPrefix && rel.includes(`/${capPrefix}`)) capabilityCount += 1
+    }
+  }
+  counts.capability = capabilityCount
+  return { ok: true, counts, files: files.length }
+}
+
+// ─── gate ───
+// Silence is inconclusive. `reject` belongs to the review alone and dominates. A radius
+// that grew is a note, never a veto: it is an estimate, not a measurement.
+export function archRed(architecture, census = {}, vacuous = []) {
+  if (!architecture || !architecture.ok || !architecture.counts || typeof architecture.counts.capability !== 'number') return 'not measured'
+  const c = architecture.counts
+  if (Object.keys(census).some((k) => typeof c[k] !== 'number')) return 'not measured'
+  if (c.capability !== 0) return `the capability still has ${c.capability} violation(s)`
+  const regressed = Object.keys(c).filter((k) => k !== 'capability' && !vacuous.includes(k) && (c[k] || 0) > (census[k] || 0))
+  return regressed.length > 0 ? `regressions above baseline: ${regressed.join(', ')}` : ''
+}
+
+export function recommend(input) {
+  const { behaviour, architecture, review, census = {}, vacuous = [], radius = null, fixLoopExit = 'not-entered' } = input
+  const unmeasured = []
+  if (!behaviour || typeof behaviour.ok !== 'boolean') unmeasured.push('behaviour')
+  const arch = archRed(architecture, census, vacuous)
+  if (arch === 'not measured') unmeasured.push('architecture')
+  if (!review || !review.verdict) unmeasured.push('review')
+  const notes = []
+  if (radius && radius.ok && radius.direction === 'grew') notes.push('the estimated change radius grew: ' + (radius.detail || ''))
+  if (!radius || !radius.ok) notes.push('change radius not measured')
+  if (unmeasured.length > 0) return { gate: 'inconclusive', unmeasured, reason: `did not report: ${unmeasured.join(', ')}`, notes }
+  if (review.verdict === 'reject') return { gate: 'reject', unmeasured, reason: 'the review rejected the ownership model', notes }
+  const musts = (review.findings || []).filter((f) => f.severity === 'must-fix')
+  const shoulds = (review.findings || []).filter((f) => f.severity === 'should-fix')
+  if (shoulds.length > 0) notes.push(`${shoulds.length} should-fix finding(s) for the owner to verify and, when confirmed, fix`)
+  if (fixLoopExit === 'cap-reached') {
+    return { gate: 'revise', unmeasured, reason: 'cap-reached: the fix budget ran out with work still open — a budget, not a conclusion', notes }
+  }
+  if (!behaviour.ok) return { gate: 'revise', unmeasured, reason: 'behaviour check is red', notes }
+  if (arch) return { gate: 'revise', unmeasured, reason: `architecture: ${arch}`, notes }
+  if (musts.length > 0) return { gate: 'revise', unmeasured, reason: `${musts.length} must-fix review finding(s)`, notes }
+  if (review.verdict === 'revise') return { gate: 'revise', unmeasured, reason: 'the review asked for revision', notes }
+  return { gate: 'accept', unmeasured, reason: 'behaviour green, architecture at zero with no regression, review sound', notes }
+}
+
+// ─── CLI ───
+function arg(argv, name, fallback) {
+  const i = argv.indexOf(`--${name}`)
+  return i === -1 || i + 1 >= argv.length ? fallback : argv[i + 1]
+}
+const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
+const print = (value) => process.stdout.write(JSON.stringify(value, null, 2) + '\n')
+
+function contractContext(contractPath, repo) {
+  const contract = readJson(contractPath)
+  const rootsFrom = arg(process.argv, 'roots', '')
+  const roots = rootsFrom ? readJson(rootsFrom) : {}
+  return {
+    moduleRoot: roots.moduleRoot || contract.moduleRoot,
+    segments: contract.segments,
+    surfaces: contract.publicSurfaces,
+    repo,
+  }
+}
+
+export function main(argv) {
+  const [command, ...rest] = argv
+  const repo = path.resolve(arg(rest, 'repo', process.cwd()))
+  switch (command) {
+    case 'inventory': {
+      const sourceRoot = arg(rest, 'source-root', 'src')
+      const extra = arg(rest, 'exclude', '')
+      const excluded = new Set([...EXCLUDED_DIRS, ...extra.split(',').filter(Boolean)])
+      print(writeInventory(repo, sourceRoot, { excluded }))
+      return 0
+    }
+    case 'expand': {
+      const inventory = readJson(path.join(repo, STATE_DIR, 'inventory.json'))
+      const decision = readJson(arg(rest, 'rules'))
+      const result = expandRules(inventory.files, decision.rules || [], decision.unassigned || [])
+      if (result.ok) {
+        const file = path.join(repo, STATE_DIR, 'assignments.json')
+        fs.writeFileSync(file, JSON.stringify({ rows: result.rows, deadRules: result.deadRules, strayUnassigned: result.strayUnassigned, uncovered: result.uncovered }, null, 2) + '\n')
+        print({ ok: true, path: file, rows: result.rows.length, uncovered: result.uncovered, deadRules: result.deadRules, strayUnassigned: result.strayUnassigned })
+        return result.uncovered.length > 0 ? 2 : 0
+      }
+      print(result)
+      return 1
+    }
+    case 'destination': {
+      const ctx = contractContext(arg(rest, 'contract'), repo)
+      const move = { role: arg(rest, 'role'), file: arg(rest, 'file', ''), basename: arg(rest, 'basename', ''), surface: arg(rest, 'surface', '') }
+      const dest = destination(move, { ...ctx, capability: arg(rest, 'capability') })
+      print({ dest })
+      return dest ? 0 : 1
+    }
+    case 'plan-check': {
+      const ctx = contractContext(arg(rest, 'contract'), repo)
+      const plan = readJson(arg(rest, 'plan'))
+      const assignments = readJson(arg(rest, 'assignments'))
+      const consumers = arg(rest, 'consumers', '') ? readJson(arg(rest, 'consumers')) : []
+      const result = screenPlan(plan, { ...ctx, capability: arg(rest, 'capability'), assignedFiles: assignments.map((a) => (typeof a === 'string' ? a : a.file)), consumers })
+      print(result)
+      return result.ok ? 0 : 1
+    }
+    case 'record': {
+      const label = arg(rest, 'label', 'check')
+      const sep = rest.indexOf('--')
+      const command = sep === -1 ? '' : rest.slice(sep + 1).join(' ')
+      if (!command) {
+        console.error('record: pass the command after --')
+        return 1
+      }
+      const { recordPath, record } = runRecord(repo, label, command)
+      print({ recordPath, exitCode: record.exitCode, outPath: record.stdoutPath, tree: record.tree })
+      return 0
+    }
+    case 'tree-state':
+      print(treeState(repo))
+      return 0
+    case 'record-fresh': {
+      const record = readJson(arg(rest, 'record'))
+      const result = recordFreshness(repo, record)
+      print(result)
+      return result.fresh ? 0 : 3
+    }
+    case 'census': {
+      const record = readJson(arg(rest, 'record'))
+      const text = fs.readFileSync(record.stdoutPath || path.join(repo, record.outPath), 'utf8')
+      const ctx = arg(rest, 'contract', '') ? contractContext(arg(rest, 'contract'), repo) : { moduleRoot: arg(rest, 'module-root', '') }
+      const result = censusFromEslintJson(text, { moduleRoot: ctx.moduleRoot, capability: arg(rest, 'capability', '') })
+      print({ ...result, recordId: record.id, exitCode: record.exitCode })
+      return result.ok ? 0 : 1
+    }
+    case 'recommend': {
+      print(recommend(readJson(arg(rest, 'input'))))
+      return 0
+    }
+    default:
+      console.error('usage: migration.mjs <inventory|expand|destination|plan-check|record|tree-state|record-fresh|census|recommend> [--repo <path>] ...')
+      return 1
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exit(main(process.argv.slice(2)))
+}
