@@ -793,6 +793,20 @@ if (files.includes(PILOT)) {
 
 // ─── Call sites, exercised ───
 const BASELINE = 'prepare-architecture-migration.js'
+
+// Phase 1's inventory arrives as a partition plus an independently counted total, and the files
+// themselves come from the enumerating fan-out. A fixture that supplies one without the other is a
+// tree nobody listed, which is exactly what the gate exists to reject.
+const inventory = files => ({
+  'lens:roots': {
+    lens: 'roots',
+    findings: [],
+    subtrees: [{ path: 'src', fileCount: files.length }],
+    rootFiles: [],
+    totalFiles: files.length,
+  },
+  'enumerate:src': { path: 'src', files },
+})
 if (files.includes(PILOT) && files.includes(BASELINE)) {
   const pilotSrc = readText(`${DIR}/${PILOT}`)
   const baseSrc = readText(`${DIR}/${BASELINE}`)
@@ -843,11 +857,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     const ARGSD = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
     const withSrc = {
       'resolve:contract-source': { ok: true, path: '/p', detail: '' },
-      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+      ...inventory(['src/a.ts']),
     }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
-      assignments: [{ file: 'src/a.ts', capability: 'work-items' }],
+      rules: [{ kind: 'file', path: 'src/a.ts', capability: 'work-items' }],
       unassigned: [],
       deps: { pure: [], runtime: [], undecided: ['dayjs'] },
     }
@@ -908,11 +922,11 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     const ARGSO = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
     const withSrc = {
       'resolve:contract-source': { ok: true, path: '/p', detail: '' },
-      'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/orphan.ts'] },
+      ...inventory(['src/a.ts', 'src/orphan.ts']),
     }
     const assigned = {
       capabilities: [{ name: 'work-items' }],
-      assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', runtime: 'server' }],
+      rules: [{ kind: 'file', path: 'src/a.ts', capability: 'work-items', placement: 'capability', runtime: 'server' }],
       unassigned: [{ file: 'src/orphan.ts', why: 'no clear owner', likelyCapability: 'work-items' }],
       deps: { pure: [], runtime: [], undecided: [] },
     }
@@ -946,7 +960,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
         args: ARGSO,
         overrides: {
           ...withSrc,
-          'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', row.file] },
+          ...inventory(['src/a.ts', row.file]),
           assign: { ...assigned, unassigned: [row] },
         },
       })
@@ -979,7 +993,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGSO,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/padded.ts'] },
+        ...inventory(['src/a.ts', 'src/padded.ts']),
         assign: { ...assigned, unassigned: [{ file: 'src/padded.ts', why: 'unclear', likelyCapability: ' work-items ' }] },
       },
     })
@@ -993,7 +1007,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGSO,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/later.ts'] },
+        ...inventory(['src/a.ts', 'src/later.ts']),
         assign: {
           ...assigned,
           capabilities: [{ name: 'work-items' }, { name: 'labels' }],
@@ -1063,10 +1077,10 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGS1,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts', 'src/b.ts'] },
+        ...inventory(['src/a.ts', 'src/b.ts']),
         assign: {
           capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
-          assignments: [{ file: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          rules: [{ kind: 'file', path: 'src/a.ts', capability: 'work-items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
           unassigned: [],
           deps: { pure: [], runtime: [], undecided: [] },
           roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
@@ -1082,10 +1096,10 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGS1,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        ...inventory(['src/a.ts']),
         assign: {
           capabilities: [{ name: 'Work Items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 1, pilotScore: 10 }],
-          assignments: [{ file: 'src/a.ts', capability: 'Work Items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
+          rules: [{ kind: 'file', path: 'src/a.ts', capability: 'Work Items', placement: 'capability', segment: 'domain', runtime: 'neutral' }],
           unassigned: [],
           deps: { pure: [], runtime: [], undecided: [] },
           roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
@@ -1101,7 +1115,7 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGS1,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/a.ts'] },
+        ...inventory(['src/a.ts']),
         assign: {
           capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 2, pilotScore: 10 }],
           assignments: [
@@ -1133,10 +1147,10 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
       args: ARGS1,
       overrides: {
         ...withSrc,
-        'lens:roots': { lens: 'roots', findings: [], files: ['src/lib/id.ts'] },
+        ...inventory(['src/lib/id.ts']),
         assign: {
           capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 0, pilotScore: 10 }],
-          assignments: [{ file: 'src/lib/id.ts', placement: 'shared', sharedRoot: 'kernel', runtime: 'neutral' }],
+          rules: [{ kind: 'file', path: 'src/lib/id.ts', placement: 'shared', sharedRoot: 'kernel', runtime: 'neutral' }],
           unassigned: [],
           deps: { pure: [], runtime: [], undecided: [] },
           roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
@@ -1146,6 +1160,241 @@ if (files.includes(PILOT) && files.includes(BASELINE)) {
     check(
       misplacedShared.result && /shared/i.test(misplacedShared.result.error || '') && !misplacedShared.calls.includes('enable-rules'),
       `${BASELINE} (shared file outside sharedRoot): must stop before writes because no later workflow moves it, got ${JSON.stringify(misplacedShared.result && misplacedShared.result.error)}`
+    )
+  }
+
+  // ─── The inventory is enumerated, not summarised ───
+  // Observed on a 2210-file repository: the roots lens returned 808 directories as its file list
+  // while its own findings carried the correct count, and the run died two phases later complaining
+  // that assignment had not covered directories nobody can own. Each check below fails the run at
+  // the point the listing goes short, and each names a different way for it to go short.
+  {
+    const ARGSI = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const src = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const assignOf = files => ({
+      capabilities: [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: files.length, pilotScore: 10 }],
+      rules: [{ kind: 'prefix', path: 'src', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' }],
+      unassigned: [],
+      deps: { pure: [], runtime: [], undecided: [] },
+      roots: { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' },
+    })
+
+    // The defect itself: a listing shorter than the count the lens took over the whole root.
+    const short = await runBody(baseSrc, {
+      args: ARGSI,
+      overrides: {
+        ...src,
+        'lens:roots': { lens: 'roots', findings: [], subtrees: [{ path: 'src', fileCount: 3 }], rootFiles: [], totalFiles: 3 },
+        'enumerate:src': { path: 'src', files: ['src/a.ts'] },
+        assign: assignOf(['src/a.ts']),
+      },
+    })
+    check(
+      short.result && /does not account for every source file/.test(short.result.error || '') &&
+        short.result.counted === 3 && short.result.enumerated === 1 && !short.calls.includes('assign'),
+      `${BASELINE} (enumeration shorter than the count): must stop in Inventory and report both numbers, got ${JSON.stringify(short.result)}`
+    )
+
+    // A subtree nobody could list completely is refused before an agent is spent on it.
+    const oversized = await runBody(baseSrc, {
+      args: ARGSI,
+      overrides: {
+        ...src,
+        'lens:roots': { lens: 'roots', findings: [], subtrees: [{ path: 'src', fileCount: 4000 }], rootFiles: [], totalFiles: 4000 },
+      },
+    })
+    check(
+      oversized.result && /usable partition/.test(oversized.result.error || '') &&
+        !oversized.calls.some(c => String(c).startsWith('enumerate:')),
+      `${BASELINE} (subtree above the cap): must refuse before enumerating, got ${JSON.stringify(oversized.result && oversized.result.error)}`
+    )
+
+    // Nested subtrees list the same file twice and pass a total that was never one partition.
+    const overlapping = await runBody(baseSrc, {
+      args: ARGSI,
+      overrides: {
+        ...src,
+        'lens:roots': {
+          lens: 'roots', findings: [], rootFiles: [], totalFiles: 2,
+          subtrees: [{ path: 'src', fileCount: 2 }, { path: 'src/ui', fileCount: 1 }],
+        },
+      },
+    })
+    check(
+      overlapping.result && /usable partition/.test(overlapping.result.error || '') &&
+        (overlapping.result.overlapping || []).length > 0,
+      `${BASELINE} (nested subtrees): must refuse and name the nested path, got ${JSON.stringify(overlapping.result && overlapping.result.error)}`
+    )
+
+    // An enumerator is authoritative over its own subtree only. A path from elsewhere is a claim it
+    // was never asked to make, and accepting it lets one agent's listing contradict another's.
+    const stray = await runBody(baseSrc, {
+      args: ARGSI,
+      overrides: {
+        ...src,
+        'lens:roots': { lens: 'roots', findings: [], subtrees: [{ path: 'src', fileCount: 1 }], rootFiles: [], totalFiles: 1 },
+        'enumerate:src': { path: 'src', files: ['docs/readme.ts'] },
+        assign: assignOf(['docs/readme.ts']),
+      },
+    })
+    check(
+      stray.result && /unique set of safe repo-relative files/.test(stray.result.error || '') &&
+        (stray.result.outsideItsSubtree || []).length > 0,
+      `${BASELINE} (file outside its subtree): must refuse, got ${JSON.stringify(stray.result && stray.result.error)}`
+    )
+
+    // The schema and the prompt are two statements of one request, and only the schema is
+    // machine-checked. Asking for `files` while requiring a partition is how the lens ends up blamed
+    // for answering the question it was actually asked.
+    {
+      const asked = await runBody(baseSrc, { args: ARGSI, overrides: src })
+      const rootsPrompt = asked.prompts.find(p => p.label === 'lens:roots')
+      const required = (rootsPrompt && rootsPrompt.schema && rootsPrompt.schema.required) || []
+      check(
+        rootsPrompt && required.includes('subtrees') && required.includes('totalFiles') &&
+          /subtrees/.test(rootsPrompt.prompt) && /totalFiles/.test(rootsPrompt.prompt) &&
+          !/In `files`/.test(rootsPrompt.prompt),
+        `${BASELINE} (roots lens): the prompt must ask for the partition its schema requires, not a file list`
+      )
+    }
+
+    // A dead enumerator is not an empty subtree.
+    const silent = await runBody(baseSrc, {
+      args: ARGSI,
+      overrides: {
+        ...src,
+        'lens:roots': { lens: 'roots', findings: [], subtrees: [{ path: 'src', fileCount: 1 }], rootFiles: [], totalFiles: 1 },
+        'enumerate:src': null,
+      },
+    })
+    check(
+      silent.result && /enumeration incomplete/.test(silent.result.error || '') && !silent.calls.includes('assign'),
+      `${BASELINE} (enumerator returned nothing): must stop rather than assign a tree nobody listed, got ${JSON.stringify(silent.result && silent.result.error)}`
+    )
+  }
+
+  // ─── Coverage rules are expanded by the script ───
+  // Rules exist so one decision can cover a tree it could never type back. That only holds if the
+  // expansion is arithmetic: asking for a row per file is what made the live run return 497 rows
+  // for 808 inputs and report success.
+  {
+    const ARGSR = { repo: '/t', ordinaryChange: 'add a field', profileDecisions: PROFILE_DECISIONS }
+    const src = { 'resolve:contract-source': { ok: true, path: '/p', detail: '' } }
+    const caps = [{ name: 'work-items', rationale: 'owns work', consumers: [], dependsOn: [], fileCount: 2, pilotScore: 10 }]
+    const roots = { sourceRoot: 'src', appRoot: 'src/app', moduleRoot: 'src/modules', sharedRoot: 'src/shared' }
+    const files = ['src/wi/a.ts', 'src/wi/deep/b.ts', 'src/app/page.tsx']
+    const base = { capabilities: caps, unassigned: [], deps: { pure: [], runtime: [], undecided: [] }, roots }
+
+    // Specificity, not array order: the longest prefix wins and a file rule beats every prefix.
+    const resolved = await runBody(baseSrc, {
+      args: ARGSR,
+      overrides: {
+        ...src,
+        ...inventory(files),
+        assign: {
+          ...base,
+          rules: [
+            { kind: 'prefix', path: 'src', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' },
+            { kind: 'prefix', path: 'src/app', placement: 'app', runtime: 'browser-safe' },
+            { kind: 'prefix', path: 'src/wi/deep', placement: 'capability', capability: 'work-items', segment: 'server', runtime: 'server-only' },
+            { kind: 'file', path: 'src/wi/a.ts', placement: 'capability', capability: 'work-items', segment: 'ui', runtime: 'browser-safe' },
+          ],
+        },
+        'write-manifest': { label: 'write-manifest', ok: true, detail: 'written' },
+      },
+    })
+    const manifestPrompt = resolved.prompts.find(p => p.label === 'write-manifest')
+    const payloadMatch = manifestPrompt && manifestPrompt.prompt.match(/```json\n([\s\S]*?)\n```/)
+    const payload = payloadMatch ? JSON.parse(payloadMatch[1]) : null
+    const rowFor = f => ((payload && payload.assignments) || []).find(r => r.file === f)
+    check(payload && (payload.assignments || []).length === files.length,
+      `${BASELINE} (rule expansion): every inventory file must reach the manifest, got ${payload && (payload.assignments || []).length}`)
+    check(rowFor('src/wi/a.ts') && rowFor('src/wi/a.ts').segment === 'ui',
+      `${BASELINE} (rule expansion): a file rule must beat the prefixes covering it, got ${JSON.stringify(rowFor('src/wi/a.ts'))}`)
+    check(rowFor('src/wi/deep/b.ts') && rowFor('src/wi/deep/b.ts').segment === 'server',
+      `${BASELINE} (rule expansion): the longest matching prefix must win, got ${JSON.stringify(rowFor('src/wi/deep/b.ts'))}`)
+    check(rowFor('src/app/page.tsx') && rowFor('src/app/page.tsx').placement === 'app',
+      `${BASELINE} (rule expansion): route-private files must keep the app placement, got ${JSON.stringify(rowFor('src/app/page.tsx'))}`)
+
+    // A file no rule reaches is the old silent omission, now caught before anything is written.
+    const uncovered = await runBody(baseSrc, {
+      args: ARGSR,
+      overrides: {
+        ...src,
+        ...inventory(files),
+        assign: { ...base, rules: [{ kind: 'prefix', path: 'src/wi', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' }] },
+      },
+    })
+    check(
+      uncovered.result && /partitioned exactly once/.test(uncovered.result.error || '') &&
+        (uncovered.result.uncovered || []).includes('src/app/page.tsx') && !uncovered.calls.includes('enable-rules'),
+      `${BASELINE} (file no rule covers): must stop before writing and name it, got ${JSON.stringify(uncovered.result && uncovered.result.error)}`
+    )
+
+    // A rule matching nothing described a different tree — usually a path the agent believed existed.
+    const dead = await runBody(baseSrc, {
+      args: ARGSR,
+      overrides: {
+        ...src,
+        ...inventory(['src/wi/a.ts']),
+        assign: {
+          ...base,
+          rules: [
+            { kind: 'prefix', path: 'src/wi', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' },
+            { kind: 'prefix', path: 'src/nowhere', placement: 'app', runtime: 'browser-safe' },
+          ],
+        },
+      },
+    })
+    check(
+      dead.result && (dead.result.rulesMatchingNothing || []).some(r => r.path === 'src/nowhere'),
+      `${BASELINE} (rule matching nothing): must be reported, got ${JSON.stringify(dead.result && dead.result.error)}`
+    )
+
+    // A surface names one file. On a prefix it would publish a directory under a single public name.
+    const prefixSurface = await runBody(baseSrc, {
+      args: ARGSR,
+      overrides: {
+        ...src,
+        ...inventory(['src/wi/a.ts']),
+        assign: {
+          ...base,
+          rules: [{ kind: 'prefix', path: 'src/wi', placement: 'capability', capability: 'work-items', surface: 'server', runtime: 'server-only' }],
+        },
+      },
+    })
+    check(
+      prefixSurface.result && /usable decision set/.test(prefixSurface.result.error || '') &&
+        (prefixSurface.result.surfaceOnPrefix || []).length > 0,
+      `${BASELINE} (surface on a prefix rule): must be refused, got ${JSON.stringify(prefixSurface.result && prefixSurface.result.error)}`
+    )
+
+    // "Here is where it would go, and I still cannot commit to it" is one answer, not two conflicting
+    // ones — the first live run said exactly that about a module mixing a generic wrapper with one
+    // capability's contracts, and rejecting it burned a 37-minute run over a note. Unassigned wins,
+    // so the file must reach the manifest as unplaced and never as an owned row.
+    const both = await runBody(baseSrc, {
+      args: ARGSR,
+      overrides: {
+        ...src,
+        ...inventory(['src/wi/a.ts', 'src/wi/b.ts']),
+        assign: {
+          ...base,
+          rules: [
+            { kind: 'prefix', path: 'src/wi', placement: 'capability', capability: 'work-items', segment: 'domain', runtime: 'neutral' },
+            { kind: 'file', path: 'src/wi/a.ts', placement: 'shared', sharedRoot: 'client', runtime: 'browser-safe' },
+          ],
+          unassigned: [{ file: 'src/wi/a.ts', why: 'mixes generic and capability contracts', likelyCapability: 'work-items' }],
+        },
+        'write-manifest': { label: 'write-manifest', ok: true, detail: 'written' },
+      },
+    })
+    const bothPrompt = both.prompts.find(p => p.label === 'write-manifest')
+    const bothPayload = bothPrompt ? JSON.parse(bothPrompt.prompt.match(/```json\n([\s\S]*?)\n```/)[1]) : null
+    check(
+      bothPayload && !(bothPayload.assignments || []).some(r => r.file === 'src/wi/a.ts') &&
+        (bothPayload.unassigned || []).some(u => u.file === 'src/wi/a.ts'),
+      `${BASELINE} (file both ruled and unassigned): unassigned must win and the row must stay unplaced, got ${JSON.stringify(both.result && both.result.error)}`
     )
   }
 
