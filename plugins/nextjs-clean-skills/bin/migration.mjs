@@ -10,7 +10,7 @@
 //
 // Plain Node, no dependencies: this file ships inside the installed plugin and runs
 // against any repository from anywhere.
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -315,14 +315,26 @@ export function runRecord(repo, label, command, options = {}) {
   const dir = path.join(repo, STATE_DIR, 'records')
   fs.mkdirSync(dir, { recursive: true })
   const startedAt = new Date().toISOString()
-  const id = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
+  // The run's identity is claimed by creating its artifact directory exclusively: two runs
+  // started in the same millisecond with the same label and command get different ids, and
+  // neither can take over a directory the other already owns. The directory exists only for
+  // this run and is created empty, so a file there can only have been written by this command;
+  // `$NCS_ARTIFACTS` tells the command where.
+  const stem = `${startedAt.replace(/[:.]/g, '-')}-${label.replace(/[^A-Za-z0-9_-]/g, '_')}-${sha256(command).slice(0, 8)}`
+  let id
+  let artifactDir
+  for (let attempt = 0; ; attempt += 1) {
+    id = attempt === 0 ? stem : `${stem}-${randomBytes(3).toString('hex')}`
+    artifactDir = path.join(dir, `${id}.artifacts`)
+    try {
+      fs.mkdirSync(artifactDir)
+      break
+    } catch (error) {
+      if (error.code !== 'EEXIST' || attempt > 8) throw error
+    }
+  }
   const outPath = path.join(dir, `${id}.out`)
   const recordPath = path.join(dir, `${id}.json`)
-  // Artifacts live in a directory that exists only for this run and is created empty: a file
-  // there can only have been written by this command. `$NCS_ARTIFACTS` tells the command where.
-  const artifactDir = path.join(dir, `${id}.artifacts`)
-  fs.rmSync(artifactDir, { recursive: true, force: true })
-  fs.mkdirSync(artifactDir)
   const artifactNames = (options.artifacts || []).map((a) => path.basename(a))
   const killAfterMs = typeof options.killAfterMs === 'number' ? options.killAfterMs : 10000
   const tree = treeState(repo)
@@ -385,14 +397,23 @@ export function runRecord(repo, label, command, options = {}) {
       try { fs.closeSync(out) } catch { /* already closed */ }
       resolve({ recordPath, record: write(exitCode, forwarded || signal) })
     }
-    // After a forwarded signal the leader's exit is not the end: a grandchild that ignored the
-    // signal keeps the group alive. Poll the group; kill it outright once the grace period has
-    // passed; write the record only when nothing in it answers.
-    const awaitGroup = (leaderCode, leaderSignal) => {
+    // From the moment a signal is forwarded, the wrapper watches the whole group — not the
+    // leader's exit, which never comes when the shell itself ignores the signal, and not only
+    // the leader, which a grandchild can outlive. Once the grace period has passed the group is
+    // killed outright; the record is written only when nothing in the group answers.
+    let leaderExit = null
+    let watching = false
+    const watchGroup = () => {
+      if (watching) return
+      watching = true
       const deadline = Date.now() + killAfterMs
       let killed = false
       const tick = () => {
-        if (!groupAlive()) return finish(forwarded ? null : leaderCode, leaderSignal)
+        if (settled) return
+        if (!groupAlive()) {
+          const exit = leaderExit || { code: null, signal: null }
+          return finish(forwarded ? null : exit.code, exit.signal)
+        }
         if (!killed && Date.now() >= deadline) {
           killed = true
           try { process.kill(-child.pid, 'SIGKILL') } catch { /* gone between checks */ }
@@ -405,6 +426,7 @@ export function runRecord(repo, label, command, options = {}) {
       if (forwarded) return
       forwarded = sig
       try { process.kill(-child.pid, sig) } catch { /* group already gone */ }
+      watchGroup()
     }
     for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, forward)
     child.on('error', (error) => {
@@ -412,8 +434,11 @@ export function runRecord(repo, label, command, options = {}) {
       finish(null, error.code || 'SPAWN_ERROR')
     })
     child.on('exit', (code, signal) => {
-      if (forwarded || groupAlive()) awaitGroup(typeof code === 'number' ? code : null, signal || null)
-      else finish(typeof code === 'number' ? code : null, signal || null)
+      leaderExit = { code: typeof code === 'number' ? code : null, signal: signal || null }
+      // A leader that exits on its own with the group still alive is watched without a grace
+      // period of its own: its children are the command's business until a signal says otherwise.
+      if (forwarded || groupAlive()) watchGroup()
+      else finish(leaderExit.code, leaderExit.signal)
     })
   })
 }

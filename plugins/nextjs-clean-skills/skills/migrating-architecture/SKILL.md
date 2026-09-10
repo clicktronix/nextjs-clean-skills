@@ -53,7 +53,8 @@ already migrated — widen it per accepted capability. The target's lint must st
 its own gate. Take the baseline with one record whose lint step also writes
 `eslint <sourceRoot> --format json --output-file "$NCS_ARTIFACTS/lint.json"`, so lint runs once
 per tree state into a directory that exists only for this run:
-`record --label baseline --artifact lint.json -- <check command>`, then
+`record --label baseline --artifact lint.json -- '<check command>'` — the command in single
+quotes, so `$NCS_ARTIFACTS` reaches the check unexpanded — then
 `census --record <path> --lint-json lint.json --contract rules/architecture-contract.json`.
 Keep that census: later ones pass it as `--baseline` so a counter fixed to zero reads as zero.
 `census` refuses a file the command did not write, or that changed since.
@@ -76,7 +77,7 @@ or move it yourself; independent slices continue. Before accepting any slice rea
 
 ## Step 6 — Verify (one record, two readers)
 
-`record --label check --artifact lint.json -- <the same check command>`; `record-fresh` before
+`record --label check --artifact lint.json -- '<the same check command>'`; `record-fresh` before
 anyone reads it; `census --record <path> --lint-json lint.json --contract … --capability <name>
 --baseline <baseline census>`. The record's exit code is evidence about
 those checks, not a proof that product behaviour is preserved; the reviewer and the real user

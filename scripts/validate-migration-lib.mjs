@@ -152,9 +152,23 @@ try {
   check(slowRecords.length === 1, `record: the wrapper writes exactly one record after a signal (wrapper exit ${JSON.stringify(slowExit)})`)
   const slowRecord = slowRecords.length === 1 ? JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', slowRecords[0]), 'utf8')) : null
   const childAlive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+  const groupAliveByPid = (pid) => { try { process.kill(-pid, 0); return true } catch { return false } }
   check(slowRecord && slowRecord.signal === 'SIGTERM' && slowRecord.exitCode === null, 'record: a killed check is recorded as killed, not as an exit code')
   check(slowRecord && typeof slowRecord.pid === 'number' && !childAlive(slowRecord.pid), 'record: the check that ignored SIGTERM is gone when the record exists (escalated within kill-after)')
-  check(slowRecord && new Date(slowRecord.endedAt) - new Date(slowRecord.startedAt) >= 500, 'record: the wrapper waited for the grace period before recording')
+  const slowMs = slowRecord ? new Date(slowRecord.endedAt) - new Date(slowRecord.startedAt) : -1
+  check(slowMs >= 500 && slowMs < 5000, `record: the wrapper waited for the grace period and then escalated — not for the check to finish on its own (${slowMs} ms)`)
+
+  // The leader itself ignoring the signal is the case a leader-exit trigger never reaches.
+  const lead = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'lead', '--kill-after', '500', '--', "trap '' TERM; sleep 30"], { stdio: ['ignore', 'pipe', 'pipe'] })
+  await new Promise((r) => setTimeout(r, 700))
+  const leadStart = Date.now()
+  lead.kill('SIGTERM')
+  await Promise.race([new Promise((r) => lead.on('exit', () => r())), new Promise((r) => setTimeout(r, 6000))])
+  const leadMs = Date.now() - leadStart
+  const leadRecords = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-lead-') && f.endsWith('.json'))
+  const leadRecord = leadRecords.length === 1 ? JSON.parse(fs.readFileSync(path.join(repo, '.nextjs-clean-migration/records', leadRecords[0]), 'utf8')) : null
+  check(leadRecord && leadMs < 5000 && !groupAliveByPid(leadRecord.pid), `record: a leader that ignores SIGTERM is killed after the grace period and recorded (${leadMs} ms)`)
+  if (!leadRecord) { try { lead.kill('SIGKILL') } catch { /* gone */ } }
 
   // A file force-added inside an ignored directory lives only in the index; its edits must count.
   fs.writeFileSync(path.join(repo, '.gitignore'), 'gen/\n')
@@ -180,6 +194,8 @@ try {
   check(!lib.boundArtifact(repo, withArtifact.record, 'other.json').ok, 'artifact: a file the record never bound is refused')
   const skipped = await lib.runRecord(repo, 'check', 'echo lint stage skipped', { artifacts: ['lint.json'] })
   check(skipped.record.artifacts[0].exists === false && !lib.boundArtifact(repo, skipped.record, 'lint.json').ok, 'artifact: a command that did not write the file leaves no evidence — a stale file elsewhere cannot stand in')
+  const twins = await Promise.all([lib.runRecord(repo, 'twin', 'true'), lib.runRecord(repo, 'twin', 'true')])
+  check(twins[0].recordPath !== twins[1].recordPath && twins[0].record.artifactDir !== twins[1].record.artifactDir, 'record: two runs started together get distinct ids and artifact directories')
   const unbound = await lib.runRecord(repo, 'check', 'true')
   check(!lib.boundArtifact(repo, unbound.record, 'lint.json').ok, 'artifact: a record taken without --artifact binds nothing')
 
