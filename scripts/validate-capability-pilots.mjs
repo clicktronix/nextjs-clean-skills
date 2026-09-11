@@ -152,6 +152,7 @@ const clientSurfaces = stringArray('clientSurfaces')
 const neutralSurfaces = contract.neutralSurfaces
   ? stringArray('neutralSurfaces')
   : []
+const contractSurfaces = contract.contractSurfaces ? stringArray('contractSurfaces') : []
 const runtimePackages = stringArray('runtimePackages')
 
 requireSubset('serverSurfaces', serverSurfaces, 'publicSurfaces', publicSurfaces)
@@ -163,6 +164,11 @@ requireSubset(
 )
 requireSubset('clientSurfaces', clientSurfaces, 'publicSurfaces', publicSurfaces)
 requireSubset('neutralSurfaces', neutralSurfaces, 'publicSurfaces', publicSurfaces)
+// A contract surface is a public surface that runs nothing: a neighbour's pure policy may read it,
+// so it must be admitted as public and classified as runtime-neutral, or the two halves of the
+// contract disagree about what `contracts.ts` is.
+requireSubset('contractSurfaces', contractSurfaces, 'publicSurfaces', publicSurfaces)
+requireSubset('contractSurfaces', contractSurfaces, 'neutralSurfaces', neutralSurfaces)
 requireSubset(
   'serverSurfaces',
   serverSurfaces,

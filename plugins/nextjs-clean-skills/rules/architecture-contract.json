@@ -21,6 +21,7 @@
     "actions",
     "client",
     "ui",
+    "contracts",
     "query-cache",
     "stream",
     "job"
@@ -43,7 +44,11 @@
     "ui"
   ],
   "neutralSurfaces": [
+    "contracts",
     "query-cache"
+  ],
+  "contractSurfaces": [
+    "contracts"
   ],
   "sharedRoots": [
     "kernel",

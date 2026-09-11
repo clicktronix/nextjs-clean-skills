@@ -26,7 +26,7 @@ Suspense scopes pending UI, not errors. To preserve surrounding content after a 
 nested or parallel route with `error.tsx`, or the project's component Error Boundary.
 
 Use the callback from the installed `ErrorInfo` type. `reset()` clears the boundary and rerenders
-its children, which suits a temporary render failure. Next.js 16.2 adds `unstable_retry()`, which
+its children, which suits a temporary render failure. Next.js 16.3 stabilises `retry()`, which
 also refreshes the route; prefer it when recovery must refetch RSC data.
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict

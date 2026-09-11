@@ -60,7 +60,7 @@ flowchart TB
   Owner{"One capability owns it?"}
   Route{"Route-private glue only?"}
   Module["modules/capability"]
-  App["app/route/_ui"]
+  App["app/route/_components"]
   Shared{"Capability-neutral and proven shared?"}
   SharedRoot["shared/runtime-owner"]
   Stop["Resolve ownership before coding"]

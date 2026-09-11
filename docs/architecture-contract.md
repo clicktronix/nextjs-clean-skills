@@ -120,6 +120,7 @@ src/modules/work-items/
 ├── actions.ts         # top-level 'use server'; UI commands
 ├── client.ts          # browser-safe read or subscription surface
 ├── ui.ts              # reusable capability UI
+├── contracts.ts       # runtime-neutral vocabulary: types and the schemas that witness them
 ├── query-cache.ts     # shared serializable query-key identity for prefetch and hydration
 ├── stream.ts          # stream-channel contract
 └── job.ts             # worker contract
@@ -156,6 +157,17 @@ validation, failure translation, or telemetry ownership.
 `actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
 must be an async function declared in that file. Import the private implementation and call it from
 the local action; do not value-re-export it. Type-only re-exports remain allowed.
+
+`contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
+that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
+about this capability without depending on how it works — depending on a published vocabulary is not
+depending on an implementation. It imports only its own `domain/**`, admitted `shared/kernel`, and
+packages the contract classifies as pure. Consumers take types from it freely; a value taken from it
+must be a schema *by declaration* (`export const X = <schema-package call>`, or a schema built from
+another schema in the file). An exported function or class on a contract surface is behaviour, and
+the checker rejects it whatever it is named — a name test admits
+`export function chargeCardSchema() { return fetch(…) }`, which is behaviour wearing a schema's
+name. Behaviour is taken from the owner's `server.ts` or restated as a port.
 
 `query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
 only when the same serializable TanStack Query key identity has both a server prefetch/hydration
@@ -206,16 +218,30 @@ Normative rules:
    It does not import its own root public surfaces; `server.ts`, `rsc.ts`, and `actions.ts` depend
    inward on private server implementation.
 7. `client/**` imports only browser-safe values and the exact `actions.ts` mutations it needs.
-8. `ui/**` imports its own domain/client values and, when required, its exact action surface. It
-   never imports `server.ts`, `rsc.ts`, or `server/**`.
+8. `ui/**` is a directory, not a runtime, and the `'use client'` directive classifies its files. A
+   file there **with** the directive imports its own domain/client values and, when required, its
+   exact action surface, and never `server.ts`, `rsc.ts`, or `server/**`. A file there **without**
+   the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
+   publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
+   narrowing — nor another capability's internals; the checker reports `serverUiReach`.
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
-10. `server-only` and `client-only` protect runtime modules in addition to path rules.
+10. `server-only` and `client-only` protect runtime modules in addition to path rules, and the
+    resolved rule tier checks it: a `server.ts`, `rsc.ts`, `stream.ts`, or `job.ts` imports
+    `'server-only'`, and `client.ts` imports `'client-only'`, before its other imports. `actions.ts`
+    is excluded — it is the one surface browser code is meant to import.
 11. A production build must fail when a Client Component imports a server surface.
 12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
     fail closed until the product updates its contract.
 13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
     `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
+14. A type-only edge — `import type`, `import { type X }`, `export type … from` — is erased by the
+    compiler, so it does not carry a runtime direction: the browser/server, purity and neutrality
+    rules do not apply to it. Ownership does. Importing a neighbour's private file as a type is the
+    same coupling as importing it as a value, and fails the same way.
+15. A table's *writes* belong to the owner of its invariants. `consumers` admits reads and the
+    owner's public RPCs; an optional `writers` list narrows `insert`/`update`/`upsert`/`delete` to
+    the subjects that may decide what the table contains. A writer must already be a consumer.
 
 Within one capability, channel roots such as `rsc.ts` and `actions.ts` may call its trusted
 `server.ts` surface or the same private composition. This is inward reuse, not a license for
@@ -233,7 +259,8 @@ The database resource check sees literal Supabase `.from()` and `.rpc()` calls o
 receiver contains an identifier listed in `databaseClientIdentifiers`. This avoids treating every
 same-named method as Supabase while keeping the canary explicit and reviewable. It does not trace
 renamed clients, parse raw SQL, ORM queries, views reached indirectly, migrations, or dynamic
-provider abstractions. RLS, explicit grants, migration review, and integration tests remain
+provider abstractions. It tells a read from a write by the method chained onto `.from(name)`, which
+is syntax, not semantics: a write routed through a helper the checker cannot follow is not seen. RLS, explicit grants, migration review, and integration tests remain
 separate guarantees.
 
 ## Application Operations

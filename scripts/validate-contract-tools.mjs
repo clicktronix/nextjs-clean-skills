@@ -175,6 +175,71 @@ try {
     'uses a dynamic Supabase table name'
   )
 
+  // `writers` narrows the write half of ownership without touching the read half. A consumer
+  // legitimately reads a neighbour's table and calls its public RPCs; deciding what that table
+  // contains belongs to the owner of its invariants. Absent, `consumers` keeps its old meaning.
+  fs.writeFileSync(
+    store,
+    "export const read = (supabase) => supabase.from('work_items').select('id')\n" +
+      "export const write = (supabase) => supabase.from('work_items').insert({ id: 1 })\n"
+  )
+  fs.mkdirSync(path.join(sandbox, 'src', 'modules', 'labels', 'server'), { recursive: true })
+  const labelStore = path.join(sandbox, 'src', 'modules', 'labels', 'server', 'store.ts')
+  fs.writeFileSync(
+    labelStore,
+    "export const read = (supabase) => supabase.from('work_items').select('id')\n"
+  )
+  contract.databaseResources = [
+    {
+      kind: 'table',
+      name: 'work_items',
+      owner: 'work-items',
+      consumers: ['work-items', 'labels'],
+      writers: ['work-items'],
+    },
+  ]
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  const writerClean = run('check-database-resources.mjs')
+  if (writerClean.status !== 0) {
+    errors.push(
+      `writer fixture failed: ${`${writerClean.stdout}${writerClean.stderr}`.trim()}`
+    )
+  }
+
+  // The chained method is the whole difference: the same `.from()` receiver, a write instead of a
+  // read. A checker that stops at `.from(name)` cannot tell these two lines apart.
+  fs.writeFileSync(
+    labelStore,
+    "export const write = (supabase) => supabase.from('work_items').update({ id: 1 }).eq('id', 1)\n"
+  )
+  expect(
+    run('check-database-resources.mjs'),
+    'consumer writing a foreign table',
+    'writes table:work_items, owned by work-items'
+  )
+
+  contract.databaseResources[0].writers = ['reference-data']
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-database-resources.mjs'),
+    'writer that is not a consumer',
+    'writers must be declared consumers: reference-data'
+  )
+
+  fs.rmSync(path.join(sandbox, 'src', 'modules', 'labels'), { recursive: true })
+  contract.databaseResources = [{ kind: 'table', name: 'work_items', owner: 'work-items' }]
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  fs.writeFileSync(store, "export const read = (supabase, table) => supabase.from(table)\n")
+
   contract.appRoot = 'src/modules/app'
   fs.writeFileSync(
     path.join(sandbox, 'rules', 'architecture-contract.json'),
@@ -205,4 +270,4 @@ try {
 }
 
 fail(errors)
-console.log('contract tools ok (3 clean checks, 6 failing mutations)')
+console.log('contract tools ok (4 clean checks, 8 failing mutations)')

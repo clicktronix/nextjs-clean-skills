@@ -47,6 +47,7 @@ export function listLabels() {
 }
 `,
   'src/modules/labels/server.ts': `
+import 'server-only'
 export { listLabels } from './server/store.js'
 `,
   'src/modules/labels/actions.ts': `
@@ -80,9 +81,12 @@ export function getWorkItems(): WorkItem[] {
 }
 `,
   'src/modules/work-items/server.ts': `
+import 'server-only'
 export { getWorkItems } from './server/store.js'
+export type { WorkItem } from './domain/model.js'
 `,
   'src/modules/work-items/rsc.ts': `
+import 'server-only'
 import { getWorkItems } from './server.js'
 import { workItemKeys } from './query-cache.js'
 export const workItemsRscQueryKey = workItemKeys.list()
@@ -110,6 +114,7 @@ import { workItemKeys } from '../query-cache.js'
 export const prefetchKey = workItemKeys.list()
 `,
   'src/modules/work-items/client.ts': `
+import 'client-only'
 export { mutation } from './client/query.js'
 `,
   'src/modules/work-items/ui/view.ts': `
@@ -121,12 +126,14 @@ export const NestedWorkItemsView = () => null
 `,
   'src/modules/work-items/ui.ts': `
 export { viewModel } from './ui/view.js'
+export { ServerList } from './ui/ServerList.js'
 `,
   'src/modules/board/server/adapters.ts': `
 import { listLabels } from '../../labels/server.js'
 export const loadLabels = listLabels
 `,
   'src/modules/board/server.ts': `
+import 'server-only'
 export { loadLabels } from './server/adapters.js'
 `,
   'src/app/work-items/page.ts': `
@@ -301,6 +308,7 @@ import { a } from '../cycle-a/server.js'
 export const b = a
 `,
   'src/modules/graph-a/server.ts': `
+import 'server-only'
 export const graphA = true
 `,
   'src/modules/graph-a/server/use-b.ts': `
@@ -308,11 +316,160 @@ import { graphB } from '../../graph-b/server.js'
 export const useB = graphB
 `,
   'src/modules/graph-b/server.ts': `
+import 'server-only'
 export const graphB = true
 `,
   'src/modules/graph-b/server/use-a.ts': `
 import { graphA } from '../../graph-a/server.js'
 export const useA = graphA
+`,
+
+  // A type-only edge is erased by the compiler, so the runtime-direction rules have nothing to
+  // report on it; the ownership rules still do, because the coupling survives compilation.
+  'src/modules/type-consumer/client/view.ts': `
+'use client'
+import type { WorkItem } from '../../work-items/server.js'
+export type Local = WorkItem
+`,
+  'src/modules/type-consumer/client/inline-type.ts': `
+'use client'
+import { type WorkItem } from '../../work-items/server.js'
+export type Inline = WorkItem
+`,
+  'src/modules/type-consumer/client.ts': `
+import 'client-only'
+export type { WorkItem } from '../work-items/server.js'
+`,
+  'src/modules/type-consumer/client/bad-value.ts': `
+'use client'
+import { getWorkItems } from '../../work-items/server.js'
+export default getWorkItems
+`,
+  'src/modules/type-consumer/domain/bad-type-internal.ts': `
+import type { WorkItem } from '../../work-items/domain/model.js'
+export type Borrowed = WorkItem
+`,
+  'src/app/bad-type-internal/page.ts': `
+import type { WorkItem } from '@/modules/work-items/domain/model'
+export type PageItem = WorkItem
+`,
+
+  // A contract surface publishes vocabulary: types, and the schemas that witness them.
+  'src/modules/campaign/domain/model.ts': `
+export type Campaign = { id: string }
+`,
+  'src/modules/campaign/contracts.ts': `
+import * as v from 'valibot'
+export type { Campaign } from './domain/model.js'
+export const CampaignSchema = v.object({ id: v.string() })
+export const CampaignListSchema = v.array(CampaignSchema)
+`,
+  'src/modules/agency/domain/policy.ts': `
+import type { Campaign } from '../../campaign/contracts.js'
+import { CampaignSchema } from '../../campaign/contracts.js'
+export const schema = CampaignSchema
+export type Owned = Campaign
+`,
+  // The name is not the check: chargeCardSchema is a function, so it is behaviour whatever it is
+  // called, and a /Schema$/ name test admits exactly this shape.
+  'src/modules/billing/contracts.ts': `
+export type Card = { id: string }
+export function chargeCardSchema() {
+  return fetch('/charge')
+}
+`,
+  'src/modules/agency/application/charge.ts': `
+import { chargeCardSchema } from '../../billing/contracts.js'
+export const charge = chargeCardSchema
+`,
+
+  // Shapes a name test or a one-pass classifier gets wrong: an alias of a schema, a schema derived
+  // from one imported from a sibling file, and a bare schema-package constructor re-exported.
+  'src/modules/shapes/domain/inner.ts': `
+import * as v from 'valibot'
+export const InnerSchema = v.object({ id: v.string() })
+`,
+  'src/modules/shapes/contracts.ts': `
+import { string } from 'valibot'
+import { InnerSchema } from './domain/inner.js'
+import { InnerSchema as ImportAlias } from './domain/inner.js'
+export { InnerSchema as AliasSchema }
+export { ImportAlias }
+export const DerivedSchema = InnerSchema
+export { string }
+`,
+  'src/modules/agency/domain/alias-ok.ts': `
+import { AliasSchema, DerivedSchema, ImportAlias } from '../../shapes/contracts.js'
+export const a = AliasSchema
+export const b = DerivedSchema
+export const c = ImportAlias
+`,
+  'src/modules/agency/domain/bad-constructor.ts': `
+import { string } from '../../shapes/contracts.js'
+export const make = string
+`,
+  // A Server Component under ui/** reads rsc.ts, not the private server segment behind it.
+  'src/modules/work-items/ui/BadServerReach.tsx': `
+import { store } from '../server/store.js'
+export const BadServerReach = () => store
+`,
+  // The marker guards value imports; an erased type import before it is not an ordering defect.
+  'src/modules/marker-type/server.ts': `
+import type { Card } from '../billing/contracts.js'
+import { type Model } from '../campaign/contracts.js'
+import 'server-only'
+export const card: Card = { id: 'x' }
+export const model: Model = { id: 'y' }
+`,
+
+  // Static module forms the ImportDeclaration visitor never sees.
+  'src/modules/import-equals/domain/bad-internal.ts': `
+import store = require('../../work-items/server/store.js')
+export default store
+`,
+  'src/modules/import-equals/domain/bad-module-require.ts': `
+const fs = module.require('node:fs')
+export default fs
+`,
+
+  // A subpath inherits the class of its package. packageRoot returned the scope, so nothing the
+  // contract listed matched @scope/pkg/sub.
+  'src/modules/work-items/domain/bad-subpath.ts': `
+import thing from '@scope/pkg/sub'
+export default thing
+`,
+
+  // A template literal with no substitutions is a constant written with different quotes.
+  'src/modules/work-items/domain/template-import.ts': `
+export const load = () => import(\`./model.js\`)
+`,
+  'src/modules/work-items/server/hidden-template.ts': `
+const name = 'store'
+export const load = () => import(\`./\${name}.js\`)
+`,
+
+  // ui/** is a directory, not a runtime: without the directive the file is a Server Component.
+  'src/modules/work-items/ui/ServerList.tsx': `
+import { readWorkItems } from '../rsc.js'
+export const ServerList = async () => readWorkItems()
+`,
+  'src/modules/work-items/ui/ClientList.tsx': `
+'use client'
+import { readWorkItems } from '../rsc.js'
+export const ClientList = readWorkItems
+`,
+
+  // The runtime marker is a build guarantee, and the contract has claimed it without checking it.
+  'src/modules/marker/server.ts': `
+export const unmarked = true
+`,
+  'src/modules/marker/client.ts': `
+export const unmarkedClient = true
+`,
+  'src/modules/marker/rsc.ts': `
+import { unmarked } from './server.js'
+import 'server-only'
+export const late = unmarked
 `,
 
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
@@ -355,6 +512,29 @@ const expectedBase = new Map([
   ['src/modules/bad-neutral/query-cache.ts', 'neutralDirection'],
   ['src/modules/bad-neutral-local/query-cache.ts', 'neutralDirection'],
   ['src/modules/nodenext/domain/bad-internal.mts', 'crossCapabilityInternal'],
+  // A type-only edge keeps the ownership rules: the coupling to a neighbour's private file and to
+  // a capability's internals survives the compiler erasing the binding.
+  ['src/modules/type-consumer/domain/bad-type-internal.ts', 'crossCapabilityInternal'],
+  ['src/app/bad-type-internal/page.ts', 'appInternal'],
+  // The same import as a value is the runtime edge the type-only form is not.
+  ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
+  ['src/modules/agency/application/charge.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/agency/domain/bad-constructor.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/work-items/ui/BadServerReach.tsx', 'serverUiReach'],
+  ['src/modules/import-equals/domain/bad-internal.ts', 'crossCapabilityInternal'],
+  ['src/modules/import-equals/domain/bad-module-require.ts', 'domainDirection'],
+  ['src/modules/work-items/domain/bad-subpath.ts', 'domainDirection'],
+  ['src/modules/work-items/server/hidden-template.ts', 'hiddenDynamicImport'],
+  ['src/modules/work-items/ui/ClientList.tsx', 'browserServer'],
+])
+
+// The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
+// not a judgement about one import.
+const expectedMarkers = new Map([
+  ['src/modules/marker/server.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker/client.ts', 'clean-runtime/runtime-markers'],
+  // Present but after the imports it is supposed to guard: the module body has already run them.
+  ['src/modules/marker/rsc.ts', 'clean-runtime/runtime-markers'],
 ])
 
 const expectedStrict = new Map([
@@ -394,6 +574,18 @@ const clean = new Set([
   'src/modules/graph-a/server/use-b.ts',
   'src/modules/graph-b/server.ts',
   'src/modules/graph-b/server/use-a.ts',
+  'src/modules/type-consumer/client/view.ts',
+  'src/modules/type-consumer/client/inline-type.ts',
+  'src/modules/type-consumer/client.ts',
+  'src/modules/campaign/domain/model.ts',
+  'src/modules/campaign/contracts.ts',
+  'src/modules/agency/domain/policy.ts',
+  'src/modules/work-items/domain/template-import.ts',
+  'src/modules/work-items/ui/ServerList.tsx',
+  'src/modules/shapes/domain/inner.ts',
+  'src/modules/shapes/contracts.ts',
+  'src/modules/agency/domain/alias-ok.ts',
+  'src/modules/marker-type/server.ts',
 ])
 
 if (ESLint) {
@@ -411,7 +603,15 @@ if (ESLint) {
     fs.writeFileSync(
       path.join(sandbox, 'architecture-contract.json'),
       `${JSON.stringify(
-        { ...JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8')), generatedRoot: 'src/generated' },
+        (() => {
+          const shipped = JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8'))
+          return {
+            ...shipped,
+            generatedRoot: 'src/generated',
+            // A package name, not a scope: the subpath fixture proves `@scope/pkg/sub` inherits it.
+            runtimePackages: [...shipped.runtimePackages, '@scope/pkg'],
+          }
+        })(),
         null,
         2
       )}\n`
@@ -422,7 +622,16 @@ if (ESLint) {
         {
           compilerOptions: {
             baseUrl: '.',
-            paths: { '@/*': ['./src/*'] },
+            paths: {
+              '@/*': ['./src/*'],
+              // Stubs, not dependencies. The rules must see these specifiers as packages — the
+              // boundary rule resolves no alias for them — while the resolver tier still has a
+              // file to find, or `import/no-unresolved` would fail every clean fixture that
+              // carries a runtime marker or builds a schema.
+              'server-only': ['./stubs/server-only.ts'],
+              'client-only': ['./stubs/client-only.ts'],
+              valibot: ['./stubs/valibot.ts'],
+            },
             module: 'esnext',
             moduleResolution: 'bundler',
             target: 'esnext',
@@ -432,6 +641,20 @@ if (ESLint) {
         null,
         2
       )}\n`
+    )
+
+    fs.mkdirSync(path.join(sandbox, 'stubs'), { recursive: true })
+    fs.writeFileSync(path.join(sandbox, 'stubs', 'server-only.ts'), 'export {}\n')
+    fs.writeFileSync(path.join(sandbox, 'stubs', 'client-only.ts'), 'export {}\n')
+    fs.writeFileSync(
+      path.join(sandbox, 'stubs', 'valibot.ts'),
+      [
+        'export const object = (shape: unknown) => shape',
+        'export const array = (item: unknown) => item',
+        'export const string = () => null',
+        'export const pipe = (...steps: unknown[]) => steps',
+        '',
+      ].join('\n')
     )
 
     const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx,mts,cts}'], languageOptions: { parser } }\n`
@@ -467,6 +690,18 @@ if (ESLint) {
     const posix = (value) => value.split(path.sep).join('/')
     const baseResults = await lint('eslint.config.base.mjs')
     const strictResults = await lint('eslint.config.strict.mjs')
+
+    // A classification depends on the files it follows: rewriting the schema's source file, not
+    // the contract file, must change the verdict inside the same process.
+    const innerPath = path.join(sandbox, 'src/modules/shapes/domain/inner.ts')
+    const innerSource = fs.readFileSync(innerPath, 'utf8')
+    fs.writeFileSync(innerPath, "export function InnerSchema() {\n  return fetch('/x')\n}\n")
+    const afterDependencyChange = await lint('eslint.config.base.mjs')
+    fs.writeFileSync(innerPath, innerSource)
+    const aliasMessages = afterDependencyChange.get('src/modules/agency/domain/alias-ok.ts') ?? []
+    if (!aliasMessages.some((m) => m.messageId === 'contractSurfaceBehaviour')) {
+      errors.push('contract classification served a stale verdict after a dependency file changed in the same process')
+    }
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',
@@ -489,7 +724,7 @@ if (ESLint) {
       }
     }
 
-    for (const [file, ruleId] of expectedStrict) {
+    for (const [file, ruleId] of [...expectedStrict, ...expectedMarkers]) {
       const messages = strictResults.get(file) ?? []
       if (!messages.some((message) => message.ruleId === ruleId)) {
         errors.push(
@@ -579,6 +814,7 @@ if (ESLint) {
           (message) =>
             message.severity === 2 &&
             (message.ruleId === 'clean-architecture/boundaries' ||
+              message.ruleId === 'clean-runtime/runtime-markers' ||
               message.ruleId === 'import/no-unresolved' ||
               message.ruleId === 'import/no-cycle')
         )
@@ -691,7 +927,7 @@ if (ESLint) {
       )
     }
 
-    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + 8} resolver/cycle/portability canaries`
+    sandboxSummary = `${clean.size} clean fixtures, ${expectedBase.size} boundary mutations, ${expectedStrict.size + expectedMarkers.size + 8} resolver/cycle/marker/portability canaries`
   } finally {
     process.chdir(previousCwd)
     fs.rmSync(sandbox, { recursive: true, force: true })

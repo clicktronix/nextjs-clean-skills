@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -135,6 +136,33 @@ export function resolveProjectImport(paths, importer, specifier) {
 // Every extension a project source file can carry. ESLint and cycle detection share this inventory.
 export const SOURCE_EXTENSIONS = ['js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts']
 
+/**
+ * The source file a resolved import path actually names. A specifier carries the extension the
+ * *bundler* wants — `./model.js` for a file on disk called `model.ts` under NodeNext, or none at
+ * all — so a reader that opens the resolved path verbatim opens nothing and silently reports the
+ * file as unreadable.
+ */
+export function existingSourceFile(target) {
+  const candidates = [target]
+  for (const extension of SOURCE_EXTENSIONS) {
+    candidates.push(`${target}.${extension}`, path.join(target, `index.${extension}`))
+  }
+  const compiled = target.match(/\.([cm]?)js(x?)$/)
+  if (compiled) {
+    for (const extension of [`${compiled[1]}ts${compiled[2]}`, 'ts', 'tsx']) {
+      candidates.push(target.replace(/\.[cm]?jsx?$/, `.${extension}`))
+    }
+  }
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate
+    } catch {
+      // Not a file. The next candidate, or null: resolution failure is import/no-unresolved's report.
+    }
+  }
+  return null
+}
+
 export function sourceFilesPattern(paths) {
   const relative = posix(path.relative(paths.projectRoot, paths.sourceRoot))
   return `${relative ? `${relative}/` : ''}**/*.{${SOURCE_EXTENSIONS.join(',')}}`
@@ -226,4 +254,258 @@ export function isDevelopmentArtifactFile(file) {
 
 export function isDevelopmentArtifactDirectory(name) {
   return DEV_DIRECTORIES.includes(name)
+}
+
+/**
+ * What a contract surface publishes, per exported name.
+ *
+ * A contract surface exists to publish a capability's vocabulary — its types and the schemas that
+ * witness them — so a neighbour's pure policy can speak about the capability without depending on
+ * how it works. The promise is only worth enforcing if it is checked structurally: a name test
+ * (`/Schema$/`) admits `export function chargeCardSchema() { return fetch(...) }`, which is
+ * behaviour wearing a schema's name. So the declaration is read:
+ *
+ *   - `type` — a type alias, an interface, or a type-only binding. Erased at runtime.
+ *   - `schema` — `export const X = <call>` whose callee root is a binding imported from a package
+ *     the contract classifies as pure (`purePackages`), or another schema declared in the file.
+ *   - `behaviour` — everything else, including every declaration this reader cannot follow. The
+ *     classification fails closed: an unreadable file, an unresolvable re-export, a value built by
+ *     an unclassified call are all behaviour.
+ *
+ * `complete` is false when the file re-exports from somewhere this reader could not follow, so a
+ * namespace or default binding over it cannot be cleared.
+ */
+const CONTRACT_EXPORT_CACHE = new Map()
+const CONTRACT_EXPORT_DEPTH = 4
+
+const hasExportModifier = (node) =>
+  Boolean(node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+
+const hasDefaultModifier = (node) =>
+  Boolean(node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword))
+
+function calleeRoot(expression) {
+  let current = expression
+  while (current) {
+    if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
+      current = current.expression
+    } else if (ts.isCallExpression(current) || ts.isNonNullExpression(current)) {
+      current = current.expression
+    } else break
+  }
+  return current && ts.isIdentifier(current) ? current.text : null
+}
+
+function isPureSpecifier(specifier, purePackages) {
+  return purePackages.some((name) => specifier === name || specifier.startsWith(`${name}/`))
+}
+
+function isSchemaExpression(expression, schemaNames, pureCallees = new Set()) {
+  if (!expression) return false
+  // A bare identifier is a schema only when it names one; a bare constructor is behaviour.
+  if (ts.isIdentifier(expression)) return schemaNames.has(expression.text)
+  if (
+    ts.isAsExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isParenthesizedExpression(expression) ||
+    ts.isNonNullExpression(expression)
+  ) {
+    return isSchemaExpression(expression.expression, schemaNames, pureCallees)
+  }
+  if (ts.isCallExpression(expression)) {
+    const root = calleeRoot(expression.expression)
+    return root !== null && (schemaNames.has(root) || pureCallees.has(root))
+  }
+  return false
+}
+
+function readSourceFile(file) {
+  try {
+    // Keyed by content, not mtime: a rewrite inside one timestamp tick, or a copy that preserves
+    // mtime, would otherwise serve the previous classification for the rest of the process.
+    const text = fs.readFileSync(file, 'utf8')
+    const digest = createHash('sha256').update(text).digest('hex')
+    const cached = CONTRACT_EXPORT_CACHE.get(file)
+    if (cached && cached.digest === digest) return cached
+    const parsed = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
+    // Only the parse is cached: a classification depends on every file it follows, so caching it
+    // on this file alone served a stale verdict after a dependency changed.
+    const entry = { digest, parsed }
+    CONTRACT_EXPORT_CACHE.set(file, entry)
+    return entry
+  } catch {
+    return null
+  }
+}
+
+export function contractSurfaceExports(file, options = {}) {
+  const { paths = null, purePackages = [], depth = CONTRACT_EXPORT_DEPTH, seen = new Set() } = options
+  const entry = readSourceFile(file)
+  if (!entry) return null
+  if (seen.has(file) || depth <= 0) return { kinds: new Map(), complete: false }
+  const nested = new Set(seen).add(file)
+  const parsed = entry.parsed
+
+  // Every local declaration, not only the exported ones: `export { X }` names a local binding.
+  const locals = new Map()
+  const schemaNames = new Set()
+  const pureCallees = new Set()
+  const deferred = []
+
+  const follow = (specifierNode) => {
+    const specifier = specifierNode && ts.isStringLiteralLike(specifierNode) ? specifierNode.text : null
+    if (specifier === null || paths === null) return null
+    const target = resolveProjectImport(paths, file, specifier)
+    const candidate = target === null ? null : existingSourceFile(target)
+    if (candidate === null) return null
+    return contractSurfaceExports(candidate, {
+      paths,
+      purePackages,
+      depth: depth - 1,
+      seen: nested,
+    })
+  }
+
+  for (const statement of parsed.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteralLike(statement.moduleSpecifier)) {
+      const clause = statement.importClause
+      if (!clause) continue
+      const pure = isPureSpecifier(statement.moduleSpecifier.text, purePackages)
+      // `name` is the local binding; `imported` is what the source module exports it as. An
+      // alias at the import site (`import { X as Y }`) must be looked up as X, not Y.
+      const record = (name, imported, isTypeOnly) => {
+        if (clause.isTypeOnly || isTypeOnly) locals.set(name, 'type')
+        else if (pure) {
+          // A binding imported from a schema package is a constructor — `string`, `object` — and
+          // exporting it bare exports behaviour. Only a call rooted in it yields a schema.
+          locals.set(name, 'behaviour')
+          pureCallees.add(name)
+        } else deferred.push({ name, imported, statement })
+      }
+      if (clause.name) record(clause.name.text, 'default', false)
+      const bindings = clause.namedBindings
+      if (bindings && ts.isNamespaceImport(bindings)) record(bindings.name.text, '*', false)
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          record(element.name.text, (element.propertyName ?? element.name).text, element.isTypeOnly)
+        }
+      }
+      continue
+    }
+    if (ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) {
+      locals.set(statement.name.text, 'type')
+      continue
+    }
+    if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
+      if (statement.name) locals.set(statement.name.text, 'behaviour')
+      continue
+    }
+    if (ts.isEnumDeclaration(statement)) {
+      locals.set(statement.name.text, 'behaviour')
+      continue
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue
+        locals.set(declaration.name.text, 'behaviour')
+      }
+    }
+  }
+
+  // Imported bindings are classified first, so a schema imported from a sibling file can seed a
+  // derived declaration below; resolving them after the fixed point left every such derivation
+  // classified as behaviour.
+  for (const { name, imported, statement } of deferred) {
+    const resolved = follow(statement.moduleSpecifier, imported)
+    const kind = imported === '*' ? 'behaviour' : resolved?.kinds.get(imported)
+    locals.set(name, kind ?? 'behaviour')
+    if (kind === 'schema') schemaNames.add(name)
+  }
+
+  // A schema may be built from a schema declared later in the file, so classification is a fixed
+  // point rather than one pass in declaration order.
+  for (let pass = 0; pass < 3; pass += 1) {
+    let changed = false
+    for (const statement of parsed.statements) {
+      if (!ts.isVariableStatement(statement)) continue
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue
+        const name = declaration.name.text
+        if (schemaNames.has(name)) continue
+        if (!isSchemaExpression(declaration.initializer, schemaNames, pureCallees)) continue
+        schemaNames.add(name)
+        locals.set(name, 'schema')
+        changed = true
+      }
+    }
+    if (!changed) break
+  }
+
+  const kinds = new Map()
+  let complete = true
+
+  for (const statement of parsed.statements) {
+    if (
+      (ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      hasExportModifier(statement)
+    ) {
+      kinds.set(hasDefaultModifier(statement) ? 'default' : statement.name?.text ?? 'default', 'behaviour')
+      continue
+    }
+    if (
+      (ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) &&
+      hasExportModifier(statement)
+    ) {
+      kinds.set(statement.name.text, 'type')
+      continue
+    }
+    if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) {
+          complete = false
+          continue
+        }
+        kinds.set(declaration.name.text, locals.get(declaration.name.text) ?? 'behaviour')
+      }
+      continue
+    }
+    if (ts.isExportAssignment(statement)) {
+      kinds.set('default', 'behaviour')
+      continue
+    }
+    if (!ts.isExportDeclaration(statement)) continue
+    const clause = statement.exportClause
+    if (!clause) {
+      const resolved = statement.moduleSpecifier ? follow(statement.moduleSpecifier) : null
+      if (!resolved) {
+        complete = false
+        continue
+      }
+      if (!resolved.complete) complete = false
+      for (const [name, kind] of resolved.kinds) if (!kinds.has(name)) kinds.set(name, kind)
+      continue
+    }
+    if (ts.isNamespaceExport(clause)) {
+      kinds.set(clause.name.text, statement.isTypeOnly ? 'type' : 'behaviour')
+      continue
+    }
+    const resolved = statement.moduleSpecifier ? follow(statement.moduleSpecifier) : null
+    if (statement.moduleSpecifier && !resolved) complete = false
+    for (const element of clause.elements) {
+      const source = (element.propertyName ?? element.name).text
+      if (statement.isTypeOnly || element.isTypeOnly) {
+        kinds.set(element.name.text, 'type')
+        continue
+      }
+      const kind = statement.moduleSpecifier
+        ? resolved?.kinds.get(source) ?? 'behaviour'
+        : locals.get(source) ?? 'behaviour'
+      kinds.set(element.name.text, kind)
+    }
+  }
+
+  const result = { kinds, complete }
+  return result
 }
