@@ -13,27 +13,30 @@ decision; it does not make that decision universally true.
 | Next.js official docs: [Backend for Frontend](https://nextjs.org/docs/app/guides/backend-for-frontend), [Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers), [`use server`](https://nextjs.org/docs/app/api-reference/directives/use-server), [Authentication](https://nextjs.org/docs/app/guides/authentication) | direct RSC reads, queued Server Actions, Route Handler HTTP ownership, per-entrypoint authorization | the capability topology |
 | React official rule: [React calls Components and Hooks](https://react.dev/reference/rules/react-calls-components-and-hooks) | call Hooks directly; never pass Hooks as regular values | the controller/view file split |
 
-The private transportation handbook informed documentation shape and supplied production
-counterexamples. It is field input, not a canonical source.
+A private field handbook informed documentation shape and supplied production counterexamples. It
+is field input, not a canonical source.
 
 ## Product Snapshot
 
 Structural measurements were anchored on 2026-07-26:
 
-| Product | Commit | Role |
-| --- | --- | --- |
-| Marqa platform | `378f278f43554d18323707856c4e77b341d6700d` | store-backed product with layer rules |
-| Stokli frontend | `57da6fb6a766b3ebb48afc73d696bfc709a56cd2` | service-backed product without equivalent rules |
-| Fullstack AI template | `0bae9739e5d688f55ebe971658ce4b533a24daf3` | reference implementation |
+| Product | Role |
+| --- | --- |
+| Store-backed product A | store-backed product with layer rules |
+| Service-backed product B | service-backed product without equivalent rules |
+| A reference template | reference implementation |
 
-Reproduce callable and import-shape measurements with `scripts/measure-evidence.mjs`. The script
-reads the named commit and rejects an empty application inventory.
+The three codebases are private, so their names and commits are not published here. Every number in
+this document was measured on those private repositories at the anchor date and is recorded as a
+finding; a reader cannot reproduce it from this repository. What a reader can reproduce is the
+measurement itself: `scripts/measure-evidence.mjs` takes a commit of their own codebase, reads it,
+and rejects an empty application inventory.
 
 ### Forwarding Application Modules
 
 | Product | Exported callables | Direct dependency forwards | At most two statements |
 | --- | ---: | ---: | ---: |
-| Marqa | 201 | 75 | 153 |
+| Product A | 201 | 75 | 153 |
 | Template | 11 | 5 | 11 |
 
 This establishes the old failure mode: mandatory application files frequently held no policy. It
@@ -41,8 +44,8 @@ motivates the deletion test. It does not prove that deletion is the only valid t
 
 ### Boundary Duplication
 
-Marqa contained 66 direct UUID assertions and 44 direct schema parses inside use-cases. Stokli's two
-use-case files each hand-wrote validation, logging, catch, and failure mapping.
+Product A contained 66 direct UUID assertions and 44 direct schema parses inside use-cases. Product
+B's two use-case files each hand-wrote validation, logging, catch, and failure mapping.
 
 This supports stable validation and failure semantics. It does not support one universal wrapper:
 the later stream/job pilots showed that native channel outcomes differ.
@@ -51,8 +54,8 @@ the later stream/job pilots showed that native channel outcomes differ.
 
 | Product | Use-case files importing concrete adapters | UI files importing outbound API code |
 | --- | ---: | ---: |
-| Marqa | 0 | 2 |
-| Stokli | 2 of 2 | 42 |
+| Product A | 0 | 2 |
+| Product B | 2 of 2 | 42 |
 
 The products differ in more than enforcement, so this is correlation, not causal proof. It supports
 shipping executable import rules while requiring project-specific runtime and ownership review.
@@ -61,7 +64,7 @@ shipping executable import rules while requiring project-specific runtime and ow
 
 The immutable template baseline is
 [`tests/architecture-pilots/baseline.json`](../tests/architecture-pilots/baseline.json), anchored to
-`0bae9739e5d688f55ebe971658ce4b533a24daf3`.
+the template commit recorded there.
 
 For `work-items` it recorded:
 
@@ -94,7 +97,7 @@ The original acceptance pilots encode six architecture properties as ten histori
 Current portable tooling expands the seven-property enforcement floor into 12 mutation-covered
 rule codes with 19 capability mutations, plus 29 boundary mutations and 13
 resolver/cycle/portability canaries. These are coverage counts, not competing architecture
-taxonomies. A real Next.js 16.2.10 pilot at `fullstack-ai-template@0a3eeca` passes its production
+taxonomies. A real Next.js 16.2.10 pilot on the reference template passes its production
 build and 990 tests. A deliberate Client Component import of `server.ts` fails that build through
 `server-only`.
 
@@ -184,7 +187,8 @@ one-model, one-framing result is targeted evidence rather than a new release gat
 ## Limits
 
 - Pilot fixtures are intentionally small.
-- Two measured products are private; readers reproduce the tool on their own codebase.
+- Two measured products are private, as is the reference template; the measurements above are
+  recorded findings, not reproducible ones, and readers reproduce the tool on their own codebase.
 - Static checks cannot prove semantic depth, authorization policy, report-once behavior, or cache
   ownership.
 - Agent evaluations measure responses under a fixed scenario/model/framing matrix, not long-term

@@ -1,5 +1,9 @@
 # Capability Architecture Candidate V3 Release Gate
 
+> **Not reproducible as stated.** Every run behind this document inherited the author's `HOME`,
+> so the no-skill arm could read `~/.agents/skills`. See the 2026-09-10 evidence integrity note in
+> [`README.md`](README.md#evidence-integrity-note--2026-09-10).
+
 This protocol is frozen before candidate-v3 release runs.
 
 - Candidate: `6c35c86246fbd65fecfddef5c0d193f50c739f7d`

@@ -1,5 +1,9 @@
 # Ownership Resolution Focused Results
 
+> **Not reproducible as stated.** Every run behind this document inherited the author's `HOME`,
+> so the no-skill arm could read `~/.agents/skills`. See the 2026-09-10 evidence integrity note in
+> [`README.md`](README.md#evidence-integrity-note--2026-09-10).
+
 - Date: 2026-08-30
 - Generation: `gpt-5.6-luna`
 - Blind judge: `gpt-5.6-sol`

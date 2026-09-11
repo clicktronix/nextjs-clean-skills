@@ -5,17 +5,16 @@ import {
   mkdir,
   mkdtemp,
   readFile,
-  realpath,
   rm,
-  symlink,
   writeFile,
 } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { hashDirectory } from "./hash-directory.mjs";
+import { buildCellEnv, createEvalSandbox, resolveCommand } from "./eval-env.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const evalRoot = join(root, "tests", "architecture-evals");
@@ -193,14 +192,6 @@ async function gitArchive(commit, skillDir, target) {
   }
 }
 
-async function prepareCodexHome(base) {
-  const codexHome = join(base, "codex-home");
-  await mkdir(codexHome, { recursive: true });
-  const sourceAuth = join(homedir(), ".codex", "auth.json");
-  await symlink(await realpath(sourceAuth), join(codexHome, "auth.json"));
-  return codexHome;
-}
-
 // The control arms archive `skills/nextjs-architecture` from a tag and a commit that both predate
 // the renames that produced today's `designing-architecture`. These paths are historical and must not be renamed
 // with the working tree, or `git archive` finds nothing and the control arms silently ship an empty
@@ -241,7 +232,7 @@ async function prepareArm(arm, workspace) {
   };
 }
 
-async function executeCodex({ cwd, codexHome, prompt, schema, output, events, selectedModel }) {
+async function executeCodex({ cwd, sandbox, prompt, schema, output, events, selectedModel }) {
   const args = [
     "exec",
     "--ignore-user-config",
@@ -261,9 +252,9 @@ async function executeCodex({ cwd, codexHome, prompt, schema, output, events, se
     cwd,
     "-",
   ];
-  const result = await run("codex", args, {
+  const result = await run(resolveCommand("codex"), args, {
     cwd,
-    env: { ...process.env, CODEX_HOME: codexHome },
+    env: buildCellEnv({ home: sandbox.home, codexHome: sandbox.codexHome }),
     input: prompt,
     timeoutMs,
     killGroup: true,
@@ -272,7 +263,7 @@ async function executeCodex({ cwd, codexHome, prompt, schema, output, events, se
   if (result.stderr) await writeFile(`${events}.stderr`, result.stderr);
 }
 
-async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome, resume = false }) {
+async function runCell({ scenarioId, arm, repeat, outputRoot, sandbox, resume = false }) {
   const scenario = JSON.parse(
     await readFile(join(evalRoot, "scenarios", `${scenarioId}.json`), "utf8"),
   );
@@ -330,7 +321,7 @@ async function runCell({ scenarioId, arm, repeat, outputRoot, codexHome, resume 
     process.stdout.write(`generate ${scenarioId} repeat=${repeat} arm=${arm}\n`);
     await executeCodex({
       cwd: workspace,
-      codexHome,
+      sandbox,
       prompt,
       schema: join(evalRoot, "response.schema.json"),
       output: responsePath,
@@ -349,7 +340,7 @@ function shuffledCandidates(scenarioId, repeat) {
     .map((item, index) => ({ ...item, candidate: `candidate-${index + 1}` }));
 }
 
-async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume = false }) {
+async function judgeGroup({ scenarioId, repeat, outputRoot, sandbox, resume = false }) {
   const scenario = JSON.parse(
     await readFile(join(evalRoot, "scenarios", `${scenarioId}.json`), "utf8"),
   );
@@ -406,7 +397,7 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume = 
     process.stdout.write(`judge ${scenarioId} repeat=${repeat}\n`);
     await executeCodex({
       cwd: workspace,
-      codexHome,
+      sandbox,
       prompt,
       schema: join(evalRoot, "judge.schema.json"),
       output: scorePath,
@@ -580,15 +571,14 @@ async function main() {
     await writeSummary(options.output, options.scenarios);
     return;
   }
-  const tempBase = await mkdtemp(join(tmpdir(), "nextjs-arch-eval-home-"));
-  const codexHome = await prepareCodexHome(tempBase);
+  const sandbox = await createEvalSandbox("nextjs-arch-eval-home-");
   try {
     if (options.judgeOnly) {
       await judgeGroup({
         scenarioId: options.scenario,
         repeat: options.repeat,
         outputRoot: options.output,
-        codexHome,
+        sandbox,
         resume: options.resume,
       });
       return;
@@ -599,7 +589,7 @@ async function main() {
         arm: options.arm,
         repeat: options.repeat,
         outputRoot: options.output,
-        codexHome,
+        sandbox,
         resume: options.resume,
       });
       return;
@@ -623,7 +613,7 @@ async function main() {
             arm: "capability-first",
             repeat,
             outputRoot: options.output,
-            codexHome,
+            sandbox,
             resume: options.resume,
           });
         } else {
@@ -633,7 +623,7 @@ async function main() {
               arm,
               repeat,
               outputRoot: options.output,
-              codexHome,
+              sandbox,
               resume: options.resume,
             });
           }
@@ -642,14 +632,14 @@ async function main() {
           scenarioId,
           repeat,
           outputRoot: options.output,
-          codexHome,
+          sandbox,
           resume: options.resume,
         });
       }
     }
     await writeSummary(options.output, options.scenarios);
   } finally {
-    await rm(tempBase, { recursive: true, force: true });
+    await rm(sandbox.base, { recursive: true, force: true });
   }
 }
 

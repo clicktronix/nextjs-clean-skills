@@ -14,13 +14,14 @@
 
 import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { homedir, tmpdir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { hashDirectory } from './hash-directory.mjs'
+import { buildCellEnv, createEvalSandbox, resolveCommand } from './eval-env.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const evalRoot = join(root, 'tests', 'architecture-evals')
@@ -136,7 +137,7 @@ async function hashArm(arm) {
   }
 }
 
-async function generateCell({ scenarioId, repeat, arm, outputRoot, resume }) {
+async function generateCell({ scenarioId, repeat, arm, outputRoot, sandbox, resume }) {
   const runDir = join(outputRoot, 'runs', scenarioId, `repeat-${repeat}`, arm)
   const responsePath = join(runDir, 'response.json')
   if (resume && existsSync(responsePath)) {
@@ -174,7 +175,7 @@ async function generateCell({ scenarioId, repeat, arm, outputRoot, resume }) {
   // One retry: a transient CLI/API failure in cell 3 of 12 should not discard the other cells.
   const attempt = async () => {
     const { stdout } = await run(
-      'claude',
+      resolveCommand('claude'),
       [
         '-p',
         prompt,
@@ -196,7 +197,12 @@ async function generateCell({ scenarioId, repeat, arm, outputRoot, resume }) {
         '--max-budget-usd',
         maxBudgetUsd,
       ],
-      { cwd: workspace, env: process.env, timeoutMs, killGroup: true },
+      {
+        cwd: workspace,
+        env: buildCellEnv({ home: sandbox.home, codexHome: sandbox.codexHome }),
+        timeoutMs,
+        killGroup: true,
+      },
     )
     const result = JSON.parse(stdout)
     await writeFile(join(runDir, 'result.json'), `${JSON.stringify(result, null, 2)}\n`)
@@ -242,14 +248,7 @@ function shuffledCandidates(scenarioId, repeat) {
     .map((item, index) => ({ ...item, candidate: `candidate-${index + 1}` }))
 }
 
-async function prepareCodexHome(base) {
-  const codexHome = join(base, 'codex-home')
-  await mkdir(codexHome, { recursive: true })
-  await symlink(await realpath(join(homedir(), '.codex', 'auth.json')), join(codexHome, 'auth.json'))
-  return codexHome
-}
-
-async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume }) {
+async function judgeGroup({ scenarioId, repeat, outputRoot, sandbox, resume }) {
   const judgeDir = join(outputRoot, 'judges', scenarioId, `repeat-${repeat}`)
   const scorePath = join(judgeDir, 'scores.blind.json')
   if (resume && existsSync(scorePath)) {
@@ -290,7 +289,7 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume })
   try {
     process.stdout.write(`judge ${scenarioId} repeat=${repeat}\n`)
     const { stdout } = await run(
-      'codex',
+      resolveCommand('codex'),
       [
         'exec',
         '--ignore-user-config',
@@ -310,7 +309,13 @@ async function judgeGroup({ scenarioId, repeat, outputRoot, codexHome, resume })
         workspace,
         '-',
       ],
-      { cwd: workspace, env: { ...process.env, CODEX_HOME: codexHome }, input: prompt, timeoutMs, killGroup: true },
+      {
+        cwd: workspace,
+        env: buildCellEnv({ home: sandbox.home, codexHome: sandbox.codexHome }),
+        input: prompt,
+        timeoutMs,
+        killGroup: true,
+      },
     )
     await writeFile(join(judgeDir, 'events.jsonl'), stdout)
   } finally {
@@ -411,8 +416,7 @@ async function main() {
   await mkdir(options.output, { recursive: true })
   if (options.summaryOnly) return writeSummary(options.output, options.scenarios)
 
-  const tempBase = await mkdtemp(join(tmpdir(), 'opus5-gate-home-'))
-  const codexHome = await prepareCodexHome(tempBase)
+  const sandbox = await createEvalSandbox('opus5-gate-home-')
   try {
     if (!options.judgeOnly) {
       if (!options.resume || !existsSync(join(options.output, 'manifest.json'))) {
@@ -422,17 +426,17 @@ async function main() {
         repeats.flatMap((repeat) => arms.map((arm) => ({ scenarioId, repeat, arm }))),
       )
       await pool(cells, concurrency, (cell) =>
-        generateCell({ ...cell, outputRoot: options.output, resume: options.resume }),
+        generateCell({ ...cell, outputRoot: options.output, sandbox, resume: options.resume }),
       )
     }
     for (const scenarioId of options.scenarios) {
       for (const repeat of repeats) {
-        await judgeGroup({ scenarioId, repeat, outputRoot: options.output, codexHome, resume: options.resume })
+        await judgeGroup({ scenarioId, repeat, outputRoot: options.output, sandbox, resume: options.resume })
       }
     }
     await writeSummary(options.output, options.scenarios)
   } finally {
-    await rm(tempBase, { recursive: true, force: true })
+    await rm(sandbox.base, { recursive: true, force: true })
   }
 }
 

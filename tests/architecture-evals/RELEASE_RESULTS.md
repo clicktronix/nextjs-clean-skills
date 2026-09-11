@@ -1,5 +1,9 @@
 # Capability Architecture Release Results
 
+> **Not reproducible as stated.** Every run behind this document inherited the author's `HOME`,
+> so the no-skill arm could read `~/.agents/skills`. See the 2026-09-10 evidence integrity note in
+> [`README.md`](README.md#evidence-integrity-note--2026-09-10).
+
 - Date: 2026-07-27
 - Frozen candidate: `e7b9bdc8ce47bf79d258ca86c04caccaee14a579`
 - Generation: `gpt-5.6-luna` and `gpt-5.6-sol`
