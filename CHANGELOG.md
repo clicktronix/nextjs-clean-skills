@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-09-11
+
 ### Added
 
 - **Cache Components** section in `docs/architecture-contract.md` and a
