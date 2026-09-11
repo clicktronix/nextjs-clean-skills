@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **BREAKING**: replaced the two controller workflows `prepare-architecture-migration` and
+  `migrate-capability` with the `migrating-architecture` skill, two small workflows (`inventory`,
+  `verify`) and a dependency-free script `bin/migration.mjs`. The session owns the procedure: it
+  lists files (no agent per subtree), writes the manifest itself (no agent transcribes it), runs
+  the target's checks as its own child processes and records command, exit code and tree state
+  (no reviewer re-runs a check or waits for a file), computes destinations, screens plans and
+  decides the gate with the script. Agents remain for judgement — six inventory lenses, one
+  assignment, one reviewer, an advisory radius — and for per-slice moves. A repeated slice failure
+  returns the slice to the owner instead of stopping the run; a reviewer that returns nothing is
+  "no verdict" for that axis; `cap-reached` is reported as a budget, not a red result; a grown
+  radius is a note and never a veto; `should-fix` findings reach the owner to verify. Blocking
+  ESLint entries are scoped to migrated roots so the target's lint stays a readable gate while
+  the census counts the rest. Evidence for each of these came from one 2 200-file migration:
+  a model lens answered 808 directories for 2 210 files, 125 enumerator agents were spent on one
+  inventory, a consumer agent deleted a live directory while cleaning up a probe, an oracle parsed
+  a lint JSON written before its own run started, a verifier looped for 14.8 hours on a dead
+  process, and a pilot returned `revise` on a green tree.
+- `scripts/validate-workflows.mjs` now runs the two scripts as scenarios (agent count independent
+  of inventory size, no file list in a prompt, one record for both readers, missing record refused
+  before any agent); `scripts/validate-migration-lib.mjs` unit-tests the script, including a
+  301-file tree with a loose file beside two 150-file children.
+
 - Made phase 1's inventory an enumeration rather than a summary. The roots lens now returns a
   partition of the source tree plus a total counted over the whole root, one agent lists each
   subtree, and a listing shorter than that total fails the run in Inventory. On a 2210-file

@@ -37,7 +37,7 @@ const checkLink = (fromLabel, baseDir, linkPath, anchor, errors) => {
 }
 
 const skillsRoot = path.join(root, 'plugins/nextjs-clean-skills/skills')
-const expected = new Set(['designing-architecture', 'creating-react-components'])
+const expected = new Set(['designing-architecture', 'creating-react-components', 'migrating-architecture'])
 const errors = []
 const warnings = []
 

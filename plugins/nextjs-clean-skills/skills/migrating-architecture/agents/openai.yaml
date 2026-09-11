@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migrating Architecture"
+  short_description: "Adopt capability-first in an existing Next.js repository"
+  default_prompt: "Use $migrating-architecture to migrate this repository to capability-first, one capability at a time, owning the checks and decisions in this session."
