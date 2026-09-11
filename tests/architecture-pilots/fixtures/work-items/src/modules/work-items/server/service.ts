@@ -1,30 +1,25 @@
+import { forbidden, type Forbidden } from '../../../shared/kernel/failure.js'
+import type { RequestIdentity } from '../../../shared/kernel/request-identity.js'
 import type { CreateWorkItemInput, WorkItem } from '../domain/work-item.js'
-import type {
-  RequestContext,
-  WorkItemsServerDependencies,
-} from './contracts.js'
+import type { WorkItemsServerDependencies } from './contracts.js'
 
-function assertCanManageWorkItems(context: RequestContext): void {
-  if (!context.roles.includes('admin')) {
-    throw new Error('work-items access denied')
-  }
+function canManageWorkItems(identity: RequestIdentity): boolean {
+  return identity.roles.includes('admin')
 }
 
 export async function listAuthorizedWorkItems(
-  context: RequestContext,
+  identity: RequestIdentity,
   dependencies: WorkItemsServerDependencies
-): Promise<WorkItem[]> {
-  assertCanManageWorkItems(context)
-  return dependencies.store.list(context.tenantId)
+): Promise<WorkItem[] | Forbidden> {
+  if (!canManageWorkItems(identity)) return forbidden()
+  return dependencies.store.list(identity.tenantId)
 }
 
 export async function createAuthorizedWorkItem(
-  context: RequestContext,
+  identity: RequestIdentity,
   input: CreateWorkItemInput,
   dependencies: WorkItemsServerDependencies
-): Promise<WorkItem> {
-  assertCanManageWorkItems(context)
-  const item = await dependencies.store.create(context.tenantId, input)
-  await dependencies.cache.invalidate(context.tenantId)
-  return item
+): Promise<WorkItem | Forbidden> {
+  if (!canManageWorkItems(identity)) return forbidden()
+  return dependencies.store.create(identity.tenantId, input)
 }

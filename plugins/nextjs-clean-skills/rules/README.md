@@ -150,7 +150,8 @@ The portable floor has seven named properties:
    classified by its `'use client'` directive, not by its directory: without one it is a Server
    Component and may read its own capability's `rsc.ts`.
 5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
-   are allowed, `export *` is not, action values are local async functions, `query-cache.ts` remains
+   are allowed, `export *` is not, `actions.ts` opens with `'use server'` and exports only async
+   functions declared there (`actionDirective`, `actionValueExport`, `actionReexport`), `query-cache.ts` remains
    runtime-neutral, and a contract surface publishes types and schema declarations, never
    behaviour.
 6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a

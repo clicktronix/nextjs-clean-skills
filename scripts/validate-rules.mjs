@@ -217,6 +217,47 @@ export default mutation
 'use server'
 export { getWorkItems } from '../work-items/server.js'
 `,
+  // The compiler constraint the docs promised: a top-level 'use server' module exposes async
+  // functions and nothing else. Each fixture escapes one half of the old re-export-only check.
+  'src/modules/bad-action-directive/actions.ts': `
+export async function createLabel() {
+  return { ok: true }
+}
+`,
+  // The string is after an import, so it is an expression the compiler ignores, not a directive.
+  'src/modules/bad-action-late-directive/actions.ts': `
+import type { WorkItem } from '../work-items/server.js'
+'use server'
+export async function createLabel(): Promise<WorkItem | null> {
+  return null
+}
+`,
+  'src/modules/bad-action-sync/actions.ts': `
+'use server'
+export function createLabel() {
+  return { ok: true }
+}
+`,
+  'src/modules/bad-action-local-export/actions.ts': `
+'use server'
+const limit = 10
+export { limit }
+`,
+  // Every accepted shape of an async value export: declaration, const arrow, local export list,
+  // type export, and a type-only re-export.
+  'src/modules/good-actions/actions.ts': `
+'use server'
+export type ActionState = { ok: boolean }
+export async function createWorkItem(): Promise<ActionState> {
+  return { ok: true }
+}
+export const archiveWorkItem = async (): Promise<ActionState> => ({ ok: true })
+async function restoreWorkItem(): Promise<ActionState> {
+  return { ok: true }
+}
+export { restoreWorkItem }
+export type { ActionState as State }
+`,
 
   // Public and shared vocabulary.
   'src/modules/work-items/repository.ts': `
@@ -497,6 +538,10 @@ const expectedBase = new Map([
   ['src/modules/work-items/server/bad-client.ts', 'serverClient'],
   ['src/modules/bad-actions/actions.ts', 'serverClient'],
   ['src/modules/bad-action-export/actions.ts', 'actionReexport'],
+  ['src/modules/bad-action-directive/actions.ts', 'actionDirective'],
+  ['src/modules/bad-action-late-directive/actions.ts', 'actionDirective'],
+  ['src/modules/bad-action-sync/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-local-export/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
@@ -552,6 +597,7 @@ const clean = new Set([
   'src/modules/work-items/server/rows.ts',
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
+  'src/modules/good-actions/actions.ts',
   'src/modules/work-items/application/list.ts',
   'src/modules/work-items/query-cache.ts',
   'src/modules/work-items/server.ts',

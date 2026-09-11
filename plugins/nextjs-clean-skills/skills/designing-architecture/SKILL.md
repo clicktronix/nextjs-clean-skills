@@ -146,6 +146,7 @@ changed.
 
 For cache or verification details, read only the relevant reference:
 [cache tiers](references/caching/cache-tiers.md),
+[cache components](references/caching/cache-components.md),
 [client cache](references/caching/client-cache.md),
 [testing](references/quality/testing-by-capability.md),
 [observability](references/quality/observability-and-sentry.md), or the

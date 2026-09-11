@@ -276,9 +276,12 @@ Every read path has one owner:
 | public HTTP caching | Route Handler and HTTP cache contract |
 | shared server result | capability server cache |
 
-Application operations may return ownership metadata, not call Next.js cache APIs. The runtime
-surface maps a successful write to the current framework invalidation primitive. Cache keys include
-the full user or tenant scope whenever authorization changes the result.
+Application operations may return ownership metadata, not call Next.js cache APIs. The channel root
+that performed the write calls the framework primitive — `updateTag` from `actions.ts`,
+`revalidateTag(tag, 'max')` from a Route Handler or job — with a tag the capability's `server/**`
+names. Cache keys include the full user or tenant scope whenever authorization changes the result; a
+`'use cache'` function receives that scope as an argument
+([Cache Components](./architecture-contract.md#cache-components)).
 
 When RSC prefetch hydrates a browser-owned TanStack Query cache, both sides use one serializable
 query-key identity from the capability's `query-cache.ts`. This neutral surface contains keys only:

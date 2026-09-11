@@ -12,12 +12,30 @@
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/cache-tags.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/composition.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/contracts.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/service.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/store.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/ui/form.ts",
-        "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts"
+        "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/failure.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/request-identity.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/shared/server/reporting.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/shared/server/request-scope.ts"
+      ],
+      "revisions": [
+        {
+          "revisedAt": "2026-09-11",
+          "reason": "Contract reconciliation, not a measured change: the Server Action resolves identity, reporter and the cache primitive from request scope instead of accepting them as arguments; RequestIdentity is the one identity type admitted in shared/kernel; forbidden is a typed value on every channel; the tag vocabulary and the runtime memo live in server/**. Measured scenarios stay bound to the commits in results.json.",
+          "added": [
+            "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/cache-tags.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/composition.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/failure.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/request-identity.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/shared/server/request-scope.ts"
+          ]
+        }
       ]
     },
     "assistant-stream": {
