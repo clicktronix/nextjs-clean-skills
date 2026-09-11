@@ -133,6 +133,45 @@ A consuming repository records:
 The profile narrows portable guidance. It may be stricter but does not create a hidden second
 architecture in agent-only instructions.
 
+## Review A Change
+
+Review in this order; the first "no" is the finding, and the later questions are moot until it is
+fixed.
+
+```mermaid
+flowchart TB
+  accTitle: Review an architecture change
+  accDescr: Review ownership, module boundaries, semantic depth, runtime behavior, trust, shared admission, and verification in order.
+  Start["Review change"]
+  Owner{"One discoverable<br/>capability owner?"}
+  Public{"Cross-module imports use<br/>narrow root surfaces?"}
+  Depth{"Operations and ports pass<br/>their gates?"}
+  Runtime{"Channel-native behavior<br/>preserved?"}
+  Auth{"Auth at channel, policy,<br/>and store boundaries?"}
+  Shared{"Shared code passes admission<br/>and has a demotion path?"}
+  Tests{"Outcome tests and runtime<br/>poisoning checks pass?"}
+  Accept["Architecture is coherent"]
+  Block["Any No<br/>Request changes"]
+
+  Start --> Owner
+  Owner -->|Yes| Public
+  Owner -->|No| Block
+  Public -->|Yes| Depth
+  Public -->|No| Block
+  Depth -->|Yes| Runtime
+  Depth -->|No| Block
+  Runtime -->|Yes| Auth
+  Runtime -->|No| Block
+  Auth -->|Yes| Shared
+  Auth -->|No| Block
+  Shared -->|Yes| Tests
+  Shared -->|No| Block
+  Tests -->|Yes| Accept
+  Tests -->|No| Block
+```
+
+Do not copy this map into `AGENTS.md`, `CLAUDE.md`, or a system prompt. Link this document.
+
 ## Architecture Change
 
 For an intentional change:

@@ -27,6 +27,18 @@ product policy.
 Browser code never imports `server.ts`, `rsc.ts`, or `server/**`. The deliberate exception is an
 exact Server Action imported from top-level `'use server'` `actions.ts`.
 
+Runtime calls and compile-time imports are different graphs:
+
+```text
+RSC route  -> rsc.ts     -> private server composition -> store
+UI command -> actions.ts -> private server composition -> store
+Browser    -> GET handler -> server.ts
+Worker     -> job.ts     -> application operation -> provider adapter
+```
+
+That runtime reaches a concrete adapter does not let application code import it. Server Components
+call server code directly, never their own Route Handler over HTTP.
+
 Use `server-only` and `client-only` markers, path checks, and a production build. Path legality and
 bundle safety are separate guarantees.
 

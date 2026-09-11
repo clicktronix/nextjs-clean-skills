@@ -38,6 +38,22 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Orchestrator rule softened (audit C5): an orchestrating operation may take a sibling's public
+  `server.ts` contract as a type; a port in its own vocabulary plus a private mapping adapter is
+  required only when the mapping carries policy. The pilot analyzer draws the type-only
+  distinction the ESLint tier already drew, and the `board-workflow` fixture loses the two
+  forwarding adapters the old rule had produced (registered as a dated revision in
+  `candidate-plan.json`).
+- ADR 0001 compressed to Context / Decision / Validation / Consequences. Its fourteen sections had
+  restated the contract and drifted from it in four places; each decision now points at the
+  section that states it.
+- `docs/agent-decision-maps.md` removed; its one map with no counterpart in the contract (review
+  order) moved to `docs/adoption-and-enforcement.md`.
+- Three references folded into their neighbours: `placement/capabilities-and-ownership.md` (into
+  `capability-granularity.md` and `when-a-use-case-exists.md`), `placement/runtime-vs-compile-time.md`
+  (into `modules-and-imports.md`), `use-cases/channel-boundaries.md` (into
+  `failure-at-the-boundary.md` and `composition-without-di.md`). Each was a restatement of the
+  contract plus one or two sentences that now live once.
 - **BREAKING**: replaced the two controller workflows `prepare-architecture-migration` and
   `migrate-capability` with the `migrating-architecture` skill, two small workflows (`inventory`,
   `verify`) and a dependency-free script `bin/migration.mjs`. The session owns the procedure: it

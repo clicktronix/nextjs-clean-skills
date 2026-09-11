@@ -10,7 +10,9 @@ unexpected defect or outage  -> exception
 framework control flow        -> framework boundary
 ```
 
-Each outer channel owns one translation and one unexpected-error report:
+Shared primitives may define stable expected-failure codes, reporter and request context,
+redaction, and provider-error mapping — semantics, never one carrier. Each outer channel owns one
+translation and one unexpected-error report:
 
 | Channel | Translation |
 | --- | --- |

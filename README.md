@@ -122,10 +122,8 @@ maps, use the human-facing docs:
   transactions, observability, and tests.
 - [Frontend Composition](docs/frontend-composition.md) — RSC, Client Components, forms, state, and
   component ownership.
-- [Architecture Decision Maps](docs/agent-decision-maps.md) — compact placement and review
-  flowcharts.
-- [Adoption And Enforcement](docs/adoption-and-enforcement.md) — rollout, executable coverage, and
-  known gaps.
+- [Adoption And Enforcement](docs/adoption-and-enforcement.md) — rollout, executable coverage,
+  review order, and known gaps.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.

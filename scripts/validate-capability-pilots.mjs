@@ -276,6 +276,24 @@ function runtimeSide(file, source, owner, fixtureRoot) {
   return null
 }
 
+// A type-only edge is erased by the compiler, so it carries no runtime direction — the same
+// distinction the ESLint tier draws (rule 14 of the contract). The analyzer must draw it too, or
+// the pilot rejects the contract's own orchestrator shape.
+function isTypeOnlyEdge(node) {
+  if (ts.isExportDeclaration(node)) return node.isTypeOnly === true
+  const clause = node.importClause
+  if (!clause) return false
+  if (clause.isTypeOnly) return true
+  const bindings = clause.namedBindings
+  return (
+    clause.name === undefined &&
+    bindings !== undefined &&
+    ts.isNamedImports(bindings) &&
+    bindings.elements.length > 0 &&
+    bindings.elements.every((element) => element.isTypeOnly)
+  )
+}
+
 function importSpecifiers(file, source) {
   const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
   const specifiers = []
@@ -286,7 +304,7 @@ function importSpecifiers(file, source) {
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      specifiers.push(node.moduleSpecifier.text)
+      specifiers.push({ specifier: node.moduleSpecifier.text, typeOnly: isTypeOnlyEdge(node) })
     }
     if (
       ts.isCallExpression(node) &&
@@ -294,7 +312,7 @@ function importSpecifiers(file, source) {
       node.arguments.length === 1 &&
       ts.isStringLiteral(node.arguments[0])
     ) {
-      specifiers.push(node.arguments[0].text)
+      specifiers.push({ specifier: node.arguments[0].text, typeOnly: false })
     }
     ts.forEachChild(node, visit)
   }
@@ -414,7 +432,7 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
       )
     }
 
-    for (const specifier of importSpecifiers(file, source)) {
+    for (const { specifier, typeOnly } of importSpecifiers(file, source)) {
       const sourceSegment = owner?.tail.length > 1 ? owner.tail[0] : null
       const sourceRoot = owner?.tail.length === 1 ? owner.tail[0] : null
       if (!specifier.startsWith('.') && neutralSurfaceNames.has(sourceRoot)) {
@@ -513,7 +531,11 @@ function analyzeFixture({ fixtureId, fixtureRoot, sources }) {
         } else if (
           serverSegmentNames.has(targetSegment) ||
           clientSegmentNames.has(targetSegment) ||
-          applicationRuntimeSurfaceNames.has(targetRoot)
+          // An orchestrator may take a sibling's public server contract as a type: the compiler
+          // erases the edge and the public surface is already the ownership boundary. The same
+          // import as a value, or any import of the capability's own runtime surface, stays red.
+          (applicationRuntimeSurfaceNames.has(targetRoot) &&
+            !(typeOnly && owner.moduleName !== targetOwner.moduleName))
         ) {
           addError('APPLICATION_RUNTIME_IMPORT', file, `application imports ${specifier}`)
         }
@@ -614,11 +636,13 @@ const fixtures = {
 const errors = Object.values(fixtures).flatMap(analyzeFixture)
 
 const mutations = [
+  // Ownership applies to a type-only edge: the coupling to a neighbour's private file survives the
+  // compiler erasing the binding.
   requireMutation(
     'cross-module internals',
     mutate(
       fixtures.board,
-      'src/modules/board/server/adapters.ts',
+      'src/modules/board/application/ports.ts',
       (source) =>
         source.replace(
           "'../../work-items/server.js'",
@@ -645,12 +669,23 @@ const mutations = [
     ),
     'APPLICATION_RUNTIME_IMPORT'
   ),
+  // The type-only import of a sibling's public server.ts is the fixture's own shape and stays
+  // clean; the same binding taken as a value is a runtime edge into another capability.
   requireMutation(
-    'application imports another capability runtime surface',
+    'application imports another capability runtime surface as a value',
     mutate(
       fixtures.board,
       'src/modules/board/application/ports.ts',
-      (source) => `${source}\nimport type { WorkItemsServer } from '../../work-items/server.js'\n`
+      (source) => `${source}\nimport { createWorkItemsServer } from '../../work-items/server.js'\nexport const factory = createWorkItemsServer\n`
+    ),
+    'APPLICATION_RUNTIME_IMPORT'
+  ),
+  requireMutation(
+    'application imports its own runtime surface as a type',
+    mutate(
+      fixtures.board,
+      'src/modules/board/application/ports.ts',
+      (source) => `${source}\nimport type { BoardServer } from '../server.js'\nexport type Own = BoardServer\n`
     ),
     'APPLICATION_RUNTIME_IMPORT'
   ),

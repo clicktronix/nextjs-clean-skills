@@ -10,15 +10,15 @@ Human-facing documentation for `nextjs-clean-skills`.
 ## Reading Path
 
 1. Start with [Architecture Contract](./architecture-contract.md) for capability placement,
-   optional segments, operations, ports, public surfaces, and dependency direction.
+   optional segments, operations, ports, public surfaces, dependency direction, and Cache
+   Components.
 2. Read [Runtime Boundaries](./runtime-boundaries.md) for request flow, trust, failures, state,
    transactions, observability, and testing.
 3. Read [Frontend Composition](./frontend-composition.md) for RSC, Client Components, forms, state,
    and component ownership.
-4. Use [Decision Maps](./agent-decision-maps.md) while designing or reviewing a change.
-5. Use [Adoption And Enforcement](./adoption-and-enforcement.md) when applying the contract to an
-   existing repository.
-6. Open [Evidence](./evidence.md) when reviewing or challenging a rule.
+4. Use [Adoption And Enforcement](./adoption-and-enforcement.md) when applying the contract to an
+   existing repository or reviewing a change against it.
+5. Open [Evidence](./evidence.md) when reviewing or challenging a rule.
 
 | Document | Purpose |
 | --- | --- |
@@ -26,8 +26,7 @@ Human-facing documentation for `nextjs-clean-skills`.
 | [Architecture Contract](./architecture-contract.md) | normative placement and dependency model |
 | [Runtime Boundaries](./runtime-boundaries.md) | runtime authority and cross-cutting invariants |
 | [Frontend Composition](./frontend-composition.md) | human UI architecture |
-| [Decision Maps](./agent-decision-maps.md) | compact design and review flowcharts |
-| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, and known gaps |
+| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, review order, and known gaps |
 | [Evidence](./evidence.md) | sources, measurements, and explicit judgement |
 | [`rules/`](../rules/) | executable portion of the contract |
 
