@@ -8,8 +8,9 @@ Candidate v3 also passed the comparative agent gate; see
 ## Evidence
 
 - 39 strict TypeScript fixture files across `work-items`, `assistant-stream`, and
-  `board-workflow` (34 at the 2026-07-27 measurement; the 2026-09-11 `work-items` revision in
-  `candidate-plan.json` added five).
+  `board-workflow` (34 at the 2026-07-27 measurement; the 2026-09-11 revisions in
+  `candidate-plan.json` added five to `work-items` and removed the forwarding adapter from
+  `board-workflow`).
 - Runtime checks cover tenant scoping, provider-row mapping, cache invalidation, expected action
   outcomes, HTTP mapping, stream commit state, cancellation, deadlines, job retries, reporting
   once, and cross-capability orchestration.

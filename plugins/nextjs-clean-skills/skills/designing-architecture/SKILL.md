@@ -64,10 +64,8 @@ global utility bucket. Put domain invariants and calculations in `domain/**`; ke
 wire-format mapping beside the private adapter in `server/**`.
 
 Read only the reference needed for the current decision:
-[modules and imports](references/placement/modules-and-imports.md),
-[capability ownership](references/placement/capabilities-and-ownership.md),
-[granularity](references/placement/capability-granularity.md), or
-[runtime separation](references/placement/runtime-vs-compile-time.md).
+[modules and imports](references/placement/modules-and-imports.md) or
+[granularity](references/placement/capability-granularity.md).
 
 Publish a root surface only for a named external consumer. Use the project's admitted vocabulary;
 the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.ts`,
@@ -88,7 +86,6 @@ Add an operation only when it owns product policy or coordination beyond that di
 
 For a non-obvious operation or dependency seam, read only the relevant reference:
 [operation gate](references/use-cases/when-a-use-case-exists.md),
-[channel boundary](references/use-cases/channel-boundaries.md),
 [validation](references/use-cases/validation-once.md),
 [dependency category](references/seams/dependency-categories.md),
 [port shape](references/seams/port-shape.md), or

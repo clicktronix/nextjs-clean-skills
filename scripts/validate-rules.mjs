@@ -136,6 +136,12 @@ export const loadLabels = listLabels
 import 'server-only'
 export { loadLabels } from './server/adapters.js'
 `,
+  // The orchestrator shape the contract admits: a sibling's public server contract taken as a
+  // type from application code. Type-only, public, cross-capability — every rule lets it through.
+  'src/modules/board/application/ports.ts': `
+import type { listLabels } from '../../labels/server.js'
+export type BoardReaders = { labels: { list: typeof listLabels } }
+`,
   'src/app/work-items/page.ts': `
 import { readWorkItems } from '@/modules/work-items/rsc'
 export default readWorkItems
@@ -610,6 +616,7 @@ const clean = new Set([
   'src/modules/work-items/ui/WorkItemsView/index.tsx',
   'src/modules/work-items/ui.ts',
   'src/modules/board/server/adapters.ts',
+  'src/modules/board/application/ports.ts',
   'src/modules/work-items/server/prefetch.ts',
   'src/modules/board/server.ts',
   'src/app/work-items/page.ts',

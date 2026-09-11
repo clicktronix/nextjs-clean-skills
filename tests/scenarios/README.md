@@ -78,7 +78,7 @@ Rows marked `hypothesis` below have no accepted observed run.
 | seams/dependency-categories | port-over-local-engine | hypothesis |
 | use-cases/when-a-use-case-exists | crud-forwarding-use-cases | hypothesis |
 | use-cases/validation-once | validate-once-per-boundary | hypothesis |
-| use-cases/channel-boundaries | nested-composition-no-bypass | hypothesis |
+| use-cases/when-a-use-case-exists (Orchestrating Capability) | nested-composition-no-bypass | hypothesis |
 | outbound/row-vs-domain-types | select-derived-from-domain-schema | hypothesis |
 | inbound/streaming | streaming-through-server-action | hypothesis |
 | inbound/route-handlers | framework-control-flow-not-swallowed | hypothesis |

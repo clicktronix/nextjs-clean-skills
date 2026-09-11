@@ -13,8 +13,8 @@ export type Board = {
 
 export async function loadBoard(tenantId: string, readers: BoardReaders): Promise<Board> {
   const [workItems, labels] = await Promise.all([
-    readers.workItems.list(tenantId),
-    readers.labels.list(tenantId),
+    readers.workItems.listForBoard(tenantId),
+    readers.labels.listForBoard(tenantId),
   ])
   const labelNames = new Map(labels.map((label) => [label.id, label.name]))
   const cards = workItems.map((item) => ({

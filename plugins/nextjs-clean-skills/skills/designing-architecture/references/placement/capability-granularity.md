@@ -2,6 +2,12 @@
 
 **Impact: HIGH** · **Scope: portable**
 
+Name the capability before creating files. Start from the terms product docs, code, and the task
+already use; if one term names different concepts, separate them by observable behavior first. Test
+each candidate boundary with one concrete creation, change, deletion, authorization, or lifecycle
+scenario before fixing the owner. Broad `lib`, `utils`, and `services` directories are migration
+buckets, not destinations.
+
 ### Capability Boundary Gate
 
 A capability serves a coherent product goal and owns its vocabulary, policy, and lifecycle. Do not

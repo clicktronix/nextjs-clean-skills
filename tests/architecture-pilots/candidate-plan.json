@@ -58,7 +58,6 @@
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/application/ports.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/rsc.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/server.ts",
-        "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/server/adapters.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/domain/label.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/rsc.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/labels/server.ts",
@@ -67,6 +66,15 @@
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/work-items/server.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/modules/work-items/server/store.ts",
         "tests/architecture-pilots/fixtures/board-workflow/src/shared/server/reporting.ts"
+      ],
+      "revisions": [
+        {
+          "revisedAt": "2026-09-11",
+          "reason": "Contract reconciliation (audit C5), not a measured change: the orchestrator's port takes each sibling's public server contract as a type, so the two forwarding adapters the port-and-adapter rule had produced are gone. Measured scenarios stay bound to the commits in results.json.",
+          "removed": [
+            "tests/architecture-pilots/fixtures/board-workflow/src/modules/board/server/adapters.ts"
+          ]
+        }
       ]
     }
   },

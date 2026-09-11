@@ -26,6 +26,10 @@ type Dependencies = {
 }
 ```
 
+`RequestIdentity` is the one identity type admitted in `shared/kernel`: actor, tenant, request, and
+trace. A capability's domain identity — its ids, its role vocabulary — is never lent to a neighbour;
+an orchestrator maps it separately for each source.
+
 Repeated wiring is a signal to extract a capability-local factory, not a global service locator.
 The factory may import private concrete adapters; application operations may not.
 

@@ -2,7 +2,7 @@
   "skills": [
     "designing-architecture"
   ],
-  "tests_reference": "references/use-cases/channel-boundaries.md",
+  "tests_reference": "references/use-cases/when-a-use-case-exists.md#orchestrating-capability",
   "query": "The board page needs work items and their labels together. Work-items and labels are separate modules with public server surfaces. A referenced label may be missing or inaccessible. Compose one board read.",
   "baseline_failure": "RED hypothesis: the agent reaches into another module's private server code, chains two already-translated channel results, or silently drops labels that were referenced but not visible.",
   "expected_behavior": [

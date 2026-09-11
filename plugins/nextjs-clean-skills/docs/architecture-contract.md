@@ -249,8 +249,9 @@ Normative rules:
 
 Within one capability, channel roots such as `rsc.ts` and `actions.ts` may call its trusted
 `server.ts` surface or the same private composition. This is inward reuse, not a license for
-`app/**` or another capability to import `server/**`. Cross-capability application ports declare
-their own types; private server adapters map other capabilities' public contracts into them.
+`app/**` or another capability to import `server/**`. An orchestrating operation may take a
+sibling's public `server.ts` contract as a type; a port in its own vocabulary with a private mapping
+adapter is required only when the mapping carries policy (see Cross-Capability Workflows).
 
 The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
 import arbitrary server modules.
@@ -378,27 +379,35 @@ route or sibling capability. One current route consumer is enough when the polic
 ```mermaid
 flowchart TB
   accTitle: Cross-capability orchestration
-  accDescr: A board capability owns board policy and adapts narrow public server surfaces from work-items and labels without coupling those source capabilities.
+  accDescr: A board capability owns board policy, names what it needs from work-items and labels as types taken from their public server surfaces, and receives the concrete servers from its own composition.
   Route["app/board"]
   BoardSurface["board/rsc.ts"]
+  BoardComposition["board/server.ts composition"]
   BoardOperation["board application"]
-  WorkAdapter["board private adapter"]
-  LabelAdapter["board private adapter"]
   WorkPublic["work-items/server.ts"]
   LabelPublic["labels/server.ts"]
 
   Route --> BoardSurface
-  BoardSurface --> BoardOperation
-  BoardOperation --> WorkAdapter
-  BoardOperation --> LabelAdapter
-  WorkAdapter --> WorkPublic
-  LabelAdapter --> LabelPublic
+  BoardSurface --> BoardComposition
+  BoardComposition --> BoardOperation
+  BoardOperation -.->|"type only"| WorkPublic
+  BoardOperation -.->|"type only"| LabelPublic
+  BoardComposition --> WorkPublic
+  BoardComposition --> LabelPublic
 ```
 
-The orchestrator owns dependencies in its own language. Private adapters call narrow public
-surfaces of source capabilities. Source capabilities do not import the orchestrator or one another.
-Their trusted `server.ts` surfaces accept explicit identity, enforce their own policy, and remain
-silent so the outer runtime channel owns the one unexpected-error report.
+The orchestrator names what it needs from each source capability. It may take that contract as a
+**type** from the sibling's public `server.ts` (`import type { WorkItemsServer }`, or a `Pick` of
+it): the compiler erases the edge, and the public surface is already the ownership boundary
+(rule 14). The concrete servers arrive through the orchestrator's own composition. A port in the
+orchestrator's vocabulary plus a private mapping adapter is required only when the deletion test
+names policy in the mapping — a rename the callers depend on, a reshaped value, a decision about
+the sibling's data. An adapter whose body is `(t) => source.listForBoard(t)` is the forwarding
+wrapper ADR 0001 rejects, and the `board-workflow` fixture no longer carries two of them.
+
+Source capabilities do not import the orchestrator or one another. Their trusted `server.ts`
+surfaces accept explicit identity, enforce their own policy, and remain silent so the outer runtime
+channel owns the one unexpected-error report.
 
 Sequence dependent calls. If label IDs come from work-items, load work-items before labels.
 Authorization-sensitive joins require a complete resolution result that distinguishes visible,
