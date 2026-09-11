@@ -118,7 +118,12 @@ it mixes runtime boundaries and encourages barrels.
 A public surface is valid only when it:
 
 1. narrows the internal surface, strengthens the contract, or establishes a runtime boundary;
-2. contains no one-to-one rename or re-export whose removal changes no consumer dependency.
+2. publishes named re-exports only under the contract's conditions — stable, safe for the surface's
+   own runtime, free of provider shapes, explicit about identity — and contains no `export *` and no
+   forwarding wrapper whose removal changes no consumer dependency.
+
+Where this decision and the [Architecture Contract](./architecture-contract.md#public-surfaces)
+differ, the contract is normative.
 
 A facade exposes fewer concepts than it hides. A one-to-one channel wrapper is valid when it adds
 real runtime behavior such as authentication, validation, failure translation, or telemetry
@@ -237,7 +242,8 @@ without reporting. The outer RSC, action, HTTP, stream, or job channel owns the 
 
 ### 8. Context and dependencies stay explicit
 
-`RequestContext` contains request identity only:
+`RequestIdentity`, the one identity type admitted in `shared/kernel`, contains request identity
+only:
 
 - actor identity and roles;
 - tenant or ownership scope;
@@ -258,9 +264,10 @@ context. This keeps RSC, Server Action, and HTTP callers independent of the conc
 without turning provider clients into request identity.
 
 Command results may carry server-only ownership metadata such as affected cache scope. The channel
-maps that scope to its runtime semantics: a Server Action may use `updateTag` for read-your-writes,
-while HTTP or background work may use `revalidateTag` or another invalidation mechanism. Next.js
-cache APIs do not belong in portable application operations.
+that wrote invalidates: a Server Action calls `updateTag` so its own request reads the write, HTTP
+and background work call `revalidateTag(tag, 'max')`. Cached reads, tags and their vocabulary live
+in `server/**`; Next.js cache APIs do not belong in portable application operations.
+[Cache Components](./architecture-contract.md#cache-components) is the normative statement.
 
 ### 9. Validation follows trust boundaries
 

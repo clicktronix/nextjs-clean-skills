@@ -46,7 +46,8 @@ smallest React-serializable value the client needs.
 The route owns framework decisions:
 
 - `params`, `searchParams`, cookies, headers, metadata, and navigation;
-- Suspense and route error boundaries;
+- Suspense and route error boundaries — under Cache Components every current-request read renders
+  inside one ([Cache Components](./architecture-contract.md#cache-components));
 - composition of capability public surfaces;
 - route-private visual layout.
 

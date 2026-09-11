@@ -32,9 +32,10 @@ internals. The application port does not import types from another capability's 
 `rsc.ts`, or other runtime surface. A private server adapter imports that public surface and maps its
 values into the orchestrator's own input and output types.
 
-Each source surface owns its request contract. Use an admitted shared identity type only when the
-meaning is genuinely common; otherwise the orchestrating adapter maps its identity separately for
-each source. One source capability never lends its identity type to another.
+Each source surface owns its request contract. Actor, tenant and trace travel as the admitted
+`shared/kernel` `RequestIdentity`; that meaning is common by contract. A source capability's domain
+identity — its ids, its role vocabulary — is never lent to another: the orchestrating adapter maps
+it separately for each source.
 
 Framework control flow such as redirect and not-found remains outside generic catches.
 

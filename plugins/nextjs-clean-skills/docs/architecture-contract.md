@@ -158,7 +158,9 @@ validation, failure translation, or telemetry ownership.
 
 `actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
 must be an async function declared in that file. Import the private implementation and call it from
-the local action; do not value-re-export it. Type-only re-exports remain allowed.
+the local action; do not value-re-export it. Type-only re-exports remain allowed. The base rule tier
+checks all three: the directive, the async shape of every value export, and the absence of value
+re-exports.
 
 `contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
 that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
@@ -264,6 +266,57 @@ renamed clients, parse raw SQL, ORM queries, views reached indirectly, migration
 provider abstractions. It tells a read from a write by the method chained onto `.from(name)`, which
 is syntax, not semantics: a write routed through a helper the checker cannot follow is not seen. RLS, explicit grants, migration review, and integration tests remain
 separate guarantees.
+
+## Cache Components
+
+With `cacheComponents: true`, caching is a property of a function. A `'use cache'` function runs
+outside the request: it cannot read `cookies()`, `headers()` or a request-scoped client, and every
+argument becomes part of the cache key, so every argument must be serializable. The contract already
+keeps identity and effects out of policy; this section fixes where the cache directive may sit
+relative to them.
+
+```mermaid
+flowchart TB
+  accTitle: Cache boundary below the identity boundary
+  accDescr: A channel root resolves identity and effects, then passes only serializable scope into a cached server function, which tags itself and reads the store.
+  Channel["rsc.ts, route, action: request scope"]
+  Resolved["identity and client resolved"]
+  Cached["server/** function with use cache"]
+  Store["store or provider"]
+
+  Channel --> Resolved
+  Resolved -->|"ids, tenant, filters"| Cached
+  Cached -->|"cacheTag, cacheLife inside"| Store
+```
+
+Normative rules:
+
+1. `'use cache'` sits in `server/**`, below the identity boundary. The channel root resolves identity
+   and effects first and passes the cached function serializable arguments only: ids, tenant,
+   filters. A request-scoped client, a reporter or an identity object never crosses into a cached
+   function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
+   to the next. The cached function obtains its store from the capability's own composition, not
+   from an argument.
+2. Every input that changes the result is an argument. A read whose result depends on tenant or user
+   takes that scope as a parameter, so the scope enters the key by construction.
+3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
+   prerenderable cache; data one identity may see and another may not never enters it.
+4. `cacheTag` and `cacheLife` are called inside the cached function. The tag vocabulary is a private
+   `server/**` module; nothing outside the capability learns how its cache is keyed.
+   `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
+5. Invalidation belongs to the channel that wrote. An `actions.ts` action calls `updateTag(tag)` so
+   the request that wrote reads its own write; a Route Handler or job calls
+   `revalidateTag(tag, 'max')`. `server.ts` operations return the affected scope, `server/**` names
+   the tag for it, and `application/**` and `domain/**` import nothing from `next/cache`. This is
+   the one answer; ADR 0001 §8 and Runtime Boundaries defer to it.
+6. A current-request read reached from `rsc.ts` or a page — `cookies()`, `headers()`,
+   `searchParams`, an uncached store read — renders under a Suspense boundary: the segment's
+   `loading.tsx` or an inline `<Suspense>` around the region. The build fails otherwise. The route
+   owns the boundary; the capability owns which of its reads are current-request.
+
+The `work-items` fixture shows the invalidation half: `server/cache-tags.ts` names the tag, and
+`actions.ts` invalidates through the request scope after a successful create
+([fixture](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts)).
 
 ## Application Operations
 
@@ -373,6 +426,14 @@ Admission requires:
 
 `shared/kernel` is stricter: terminology, invariants, and change cadence must also be identical.
 Similar names such as `Email`, `TenantId`, or `Money` are insufficient.
+
+Admitted infrastructure is the exception to the first requirement, because the contract itself names
+it: `RequestIdentity` in `shared/kernel` — actor, tenant, request and trace identifiers, nothing
+provider-shaped — and single-consumer server plumbing that binds a provider or the framework to the
+runtime, such as `shared/server/<provider>.ts`, a request-scope resolver, or the reporter. Each still
+carries a named maintainer and a narrow contract, and is demoted the day a capability becomes its
+natural owner. A capability's domain identity — its ids and its role vocabulary — is not
+`RequestIdentity` and is never lent to a neighbour.
 
 Demote shared code when consumers diverge or one capability becomes the natural owner. Broad
 `utils`, `services`, or migration buckets are invalid.

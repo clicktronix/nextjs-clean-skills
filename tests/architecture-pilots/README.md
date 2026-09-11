@@ -7,6 +7,11 @@ paths. `candidate-plan.json` records the candidate fixture inventory and expecte
 before implementation. Pilot implementation must not edit either plan after candidate results are
 known. Correct an objective plan error in a separate commit with an explanation.
 
+A `revisions` entry on a fixture records a later change to its base inventory that is not a
+measured scenario. The 2026-09-11 revision of `work-items` reconciled the example with the contract
+(the action resolves request scope itself, identity lives in `shared/kernel`, refusal is a typed
+value); the measurements in `results.json` stay bound to the commits they were taken at.
+
 [`RESULTS.md`](./RESULTS.md) summarizes the observed candidate and baseline results and their current
 limits. `results.json` binds candidate observations to exact local commits and records the exact
 remote baseline replay commits and paths.

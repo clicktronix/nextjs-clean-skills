@@ -46,6 +46,7 @@ async function testWorkItems(load) {
   const clientModule = await load('work-items/src/modules/work-items/client.js')
   const uiModule = await load('work-items/src/modules/work-items/ui.js')
   const routeModule = await load('work-items/src/app/api/work-items/route.js')
+  const scopeModule = await load('work-items/src/shared/server/request-scope.js')
 
   const remoteRows = [
     {
@@ -69,8 +70,7 @@ async function testWorkItems(load) {
       updated_at: '2026-01-01T00:00:00.000Z',
     },
   ]
-  const invalidated = []
-  const server = serverModule.createWorkItemsRuntime({
+  const runtimeOptions = {
     baseUrl: 'https://provider.test',
     fetcher: async (input, init) => {
       const url = new URL(String(input))
@@ -82,46 +82,76 @@ async function testWorkItems(load) {
       const tenantId = url.searchParams.get('tenantId')
       return Response.json(remoteRows.filter((row) => row.tenant_id === tenantId))
     },
-    cache: {
-      async invalidate(tenantId) {
-        invalidated.push(tenantId)
-      },
-    },
-  })
-  const context = {
+  }
+  // The application's root composition configures the capability once; channel roots read it.
+  const server = serverModule.configureWorkItemsRuntime(runtimeOptions)
+  const identity = {
     actorId: 'actor-a',
     tenantId: 'tenant-a',
     requestId: 'request-a',
     roles: ['admin'],
   }
+  const viewer = { ...identity, actorId: 'actor-b', requestId: 'request-b', roles: [] }
   const reports = createReporter()
+  const invalidated = []
+  // The stand-in for the framework's request scope: cookies(), headers() and updateTag in Next.js.
+  const bindScope = (scopeIdentity, reporter = reports.reporter) =>
+    scopeModule.bindRequestScope(async () => ({
+      identity: scopeIdentity,
+      reporter,
+      invalidate: async (tag) => {
+        invalidated.push(tag)
+      },
+    }))
+  const formData = (fields) => {
+    const data = new FormData()
+    for (const [name, value] of Object.entries(fields)) data.set(name, value)
+    return data
+  }
 
-  const rscItems = await rscModule.readWorkItemsForRsc(context, server, reports.reporter)
+  const rscItems = await rscModule.readWorkItemsForRsc(identity, server, reports.reporter)
   assert.deepEqual(rscItems.map((item) => item.id), ['item-a'])
   assert.equal('tenant_id' in rscItems[0], false)
   assert.equal(rscItems[0].priority, true)
   assert.equal(rscItems[0].dueAt, '2026-08-01T00:00:00.000Z')
 
-  const invalidAction = await actionsModule.createWorkItemAction(
-    { title: ' ' },
-    context,
-    server,
-    reports.reporter
-  )
+  // An expected refusal is a typed value on every channel, and nobody reports it.
+  assert.deepEqual(await rscModule.readWorkItemsForRsc(viewer, server, reports.reporter), {
+    kind: 'forbidden',
+  })
+
+  // Everything in the action's arguments came from the browser: no identity, no server, no
+  // reporter. A caller that is not signed in gets a serializable state, not an exception.
+  bindScope(null)
+  assert.deepEqual(await actionsModule.createWorkItemAction(null, formData({ title: 'x' })), {
+    ok: false,
+    code: 'UNAUTHENTICATED',
+  })
+
+  bindScope(viewer)
+  assert.deepEqual(await actionsModule.createWorkItemAction(null, formData({ title: 'x' })), {
+    ok: false,
+    code: 'FORBIDDEN',
+  })
+  assert.deepEqual(invalidated, [])
+
+  bindScope(identity)
+  const invalidAction = await actionsModule.createWorkItemAction(null, formData({ title: ' ' }))
   assert.deepEqual(invalidAction, { ok: false, code: 'INVALID_INPUT' })
   assert.equal(reports.calls.length, 0)
 
   const created = await actionsModule.createWorkItemAction(
-    { title: 'New item', priority: true, dueAt: '2026-08-15T00:00:00.000Z' },
-    context,
-    server,
-    reports.reporter
+    null,
+    formData({ title: 'New item', priority: 'on', dueAt: '2026-08-15T00:00:00.000Z' })
   )
   assert.equal(created.ok, true)
-  assert.deepEqual(invalidated, ['tenant-a'])
+  assert.equal(created.item.priority, true)
+  assert.equal(created.item.description, null)
+  // The channel that wrote invalidates the tag it owns; the tag vocabulary stays inside server/**.
+  assert.deepEqual(invalidated, ['work-items:list:tenant-a'])
 
   const httpDependencies = {
-    authenticate: async () => context,
+    authenticate: async () => identity,
     server,
     reporter: reports.reporter,
   }
@@ -131,6 +161,14 @@ async function testWorkItems(load) {
   )
   assert.equal(response.status, 200)
   assert.equal(response.headers.get('x-request-id'), 'request-a')
+
+  const forbiddenResponse = await routeModule.getWorkItems(
+    new Request('https://fixture.test/api/work-items'),
+    { ...httpDependencies, authenticate: async () => viewer }
+  )
+  assert.equal(forbiddenResponse.status, 403)
+  assert.equal(forbiddenResponse.headers.get('x-request-id'), 'request-b')
+  assert.equal(reports.calls.length, 0)
 
   const clientItems = await clientModule.fetchWorkItems((pathname) =>
     routeModule.getWorkItems(
@@ -151,9 +189,9 @@ async function testWorkItems(load) {
       dueAt: '2026-09-01T00:00:00.000Z',
     }),
     {
-    title: 'Form item',
-    description: null,
-    priority: false,
+      title: 'Form item',
+      description: null,
+      priority: false,
       dueAt: '2026-09-01T00:00:00.000Z',
     }
   )
@@ -163,7 +201,7 @@ async function testWorkItems(load) {
   await assert.rejects(
     () =>
       rscModule.readWorkItemsForRsc(
-        context,
+        identity,
         {
           list: async () => {
             throw failure
@@ -180,31 +218,32 @@ async function testWorkItems(load) {
   assert.equal(failingReports.calls[0].attributes.boundary, 'work-items.rsc')
   assert.equal(failingReports.calls[0].attributes.requestId, 'request-a')
 
+  // An unexpected failure inside the action is reported once, by the action channel, with the
+  // identity the channel resolved — then rethrown for the framework's error surface.
   const actionFailureReports = createReporter()
+  serverModule.configureWorkItemsRuntime({
+    ...runtimeOptions,
+    fetcher: async (input, init) => {
+      if (init?.method === 'POST') throw failure
+      return runtimeOptions.fetcher(input, init)
+    },
+  })
+  bindScope(identity, actionFailureReports.reporter)
   await assert.rejects(
-    () =>
-      actionsModule.createWorkItemAction(
-        { title: 'Valid input' },
-        context,
-        {
-          list: server.list,
-          create: async () => {
-            throw failure
-          },
-        },
-        actionFailureReports.reporter
-      ),
+    () => actionsModule.createWorkItemAction(null, formData({ title: 'Valid input' })),
     failure
   )
   assert.equal(actionFailureReports.calls.length, 1)
   assert.equal(actionFailureReports.calls[0].attributes.boundary, 'work-items.action')
   assert.equal(actionFailureReports.calls[0].attributes.requestId, 'request-a')
+  assert.deepEqual(invalidated, ['work-items:list:tenant-a'])
+  serverModule.configureWorkItemsRuntime(runtimeOptions)
 
   const httpFailureReports = createReporter()
   const httpFailure = await routeModule.getWorkItems(
     new Request('https://fixture.test/api/work-items'),
     {
-      authenticate: async () => context,
+      authenticate: async () => identity,
       server: {
         list: async () => {
           throw failure

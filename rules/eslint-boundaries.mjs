@@ -282,6 +282,10 @@ const capabilityRule = {
         'A public capability surface must be narrow. export * exposes module internals.',
       actionReexport:
         'actions.ts must declare async Server Actions locally. Next.js rejects value re-exports from a top-level use server module.',
+      actionDirective:
+        "actions.ts must open with the 'use server' directive. Without it the file is an ordinary server module, and the browser code that imports it bundles the server.",
+      actionValueExport:
+        '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions; anything else fails the Next.js build.',
       hiddenDynamicImport:
         'A computed import hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
     },
@@ -510,6 +514,77 @@ const capabilityRule = {
       }
     }
 
+    // `actions.ts` is compiler-constrained, not just path-constrained: Next.js accepts only async
+    // functions as value exports of a top-level `'use server'` module. The docs promised the check
+    // and only the re-export half of it was written; a sync export or a missing directive passed
+    // lint and failed the target's build.
+    const isAsyncFunctionNode = (node) =>
+      node != null &&
+      (node.type === 'FunctionDeclaration' ||
+        node.type === 'FunctionExpression' ||
+        node.type === 'ArrowFunctionExpression') &&
+      node.async === true
+
+    const isAsyncBinding = (programNode, name) => {
+      const sourceCode = context.sourceCode ?? context.getSourceCode()
+      const scope = sourceCode.getScope(programNode)
+      const variable = scope.set.get(name) ?? scope.childScopes[0]?.set.get(name)
+      const definition = variable?.defs[0]
+      if (!definition) return false
+      if (definition.type === 'FunctionName') return isAsyncFunctionNode(definition.node)
+      if (definition.type === 'Variable') return isAsyncFunctionNode(definition.node.init)
+      return false
+    }
+
+    const checkActionExports = (programNode) => {
+      // Only the directive prologue counts: a string statement after the first import is an
+      // expression the compiler ignores, not a directive.
+      let prologueHasDirective = false
+      for (const statement of programNode.body) {
+        if (statement.type !== 'ExpressionStatement' || statement.expression.type !== 'Literal') break
+        if (statement.expression.value === 'use server') prologueHasDirective = true
+      }
+      if (!prologueHasDirective) context.report({ node: programNode, messageId: 'actionDirective' })
+
+      const reportValue = (node, name) =>
+        context.report({ node, messageId: 'actionValueExport', data: { name } })
+
+      for (const statement of programNode.body) {
+        if (statement.type === 'ExportDefaultDeclaration') {
+          const declaration = statement.declaration
+          if (isAsyncFunctionNode(declaration)) continue
+          if (declaration.type === 'Identifier' && isAsyncBinding(programNode, declaration.name)) continue
+          reportValue(statement, 'default')
+          continue
+        }
+        if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') continue
+        const declaration = statement.declaration
+        if (declaration) {
+          if (declaration.type === 'FunctionDeclaration') {
+            if (!declaration.async) reportValue(declaration, declaration.id?.name ?? 'function')
+          } else if (declaration.type === 'VariableDeclaration') {
+            for (const declarator of declaration.declarations) {
+              if (!isAsyncFunctionNode(declarator.init)) {
+                reportValue(declarator, declarator.id.name ?? 'binding')
+              }
+            }
+          } else if (declaration.type === 'ClassDeclaration' || declaration.type === 'TSEnumDeclaration') {
+            reportValue(declaration, declaration.id?.name ?? 'value')
+          }
+          continue
+        }
+        // `export { helper }` without a source: a local binding. Re-exports with a source are the
+        // ExportNamedDeclaration visitor's `actionReexport`.
+        if (!statement.source) {
+          for (const specifier of statement.specifiers) {
+            if (specifier.exportKind === 'type') continue
+            const name = specifier.local.name ?? specifier.local.value
+            if (!isAsyncBinding(programNode, name)) reportValue(specifier, name)
+          }
+        }
+      }
+    }
+
     return {
       Program(node) {
         sourceIsClientDirective = node.body.some(
@@ -518,6 +593,8 @@ const capabilityRule = {
             statement.expression.type === 'Literal' &&
             statement.expression.value === 'use client'
         )
+
+        if (sourceModule?.surface === 'actions') checkActionExports(node)
 
         if (sourceModule?.surface && !PUBLIC_SURFACES.has(sourceModule.surface)) {
           context.report({

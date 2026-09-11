@@ -4,6 +4,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Cache Components** section in `docs/architecture-contract.md` and a
+  `caching/cache-components.md` reference: `'use cache'` sits in `server/**` below the identity
+  boundary and receives serializable scope only; per-user data is `'use cache: private'` or
+  uncached; tags are a private `server/**` vocabulary; the channel that wrote invalidates
+  (`updateTag` in `actions.ts`, `revalidateTag(tag, 'max')` in handlers and jobs); current-request
+  reads from `rsc.ts` render under Suspense. The README had promised the profile since 2.0.0 and
+  no document mentioned the directive.
+- `actions.ts` check completed: the base rule tier now reports a missing `'use server'` directive
+  (`actionDirective`) and any value export that is not an async function declared in the file
+  (`actionValueExport`), including `export { helper }` of a local non-function binding. Only the
+  re-export half had been written.
+- Shared admission gains an "admitted infrastructure" clause: `RequestIdentity` in `shared/kernel`
+  and single-consumer server plumbing are admitted by the contract without a second consumer.
+- `creating-react-components` carries the same adoption boundary as `designing-architecture`: the
+  `modules/<capability>/ui` placement applies only in a repository that adopted the contract.
+
+### Fixed
+
+- Four contradictions between the documents, resolved in favour of the contract: who invalidates
+  (three answers → the writing channel, tag named by `server/**`), whether a root surface may
+  re-export (ADR now defers to the contract's conditions), one request identity type
+  (`RequestIdentity` in `shared/kernel`; a capability never lends its *domain* identity), and
+  `forbidden` as a typed value (the fixture threw an exception).
+- The `work-items` fixture's Server Action accepted identity, server and reporter as arguments — the
+  shape `runtime-boundaries.md` forbids, since every argument of a Server Action comes from the
+  browser. It now takes `(previousState, formData)` and resolves request scope inside; refusal is a
+  typed `forbidden` value on every channel; the tag vocabulary and the runtime memo live in
+  `server/**`. Registered as a dated revision in `candidate-plan.json`; the measured scenarios
+  stay bound to their commits.
+
 ### Changed
 
 - **BREAKING**: replaced the two controller workflows `prepare-architecture-migration` and

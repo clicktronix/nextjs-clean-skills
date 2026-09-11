@@ -100,6 +100,14 @@ For boundary details, read [Loading And Errors](references/loading-and-errors.md
 For presentation details, read [Styling, Text, And Accessibility](references/styling-and-i18n.md) or
 [Notifications And Feedback](references/notifications-and-feedback.md).
 
+## Adoption Boundary
+
+The `modules/<capability>/ui` and `ui.ts` placements above assume a repository that has adopted the
+capability-first contract or asked to migrate to it. Anywhere else, put the component where its
+neighbours live and keep the repository's naming. Take from this skill only what holds in any App
+Router project: the Server/Client split, state ownership, and the action shape. Do not introduce
+`modules/`, `shared/ui`, or a root surface to place one component.
+
 ## Decision Gate
 
 For a non-trivial change, classify:
