@@ -15,6 +15,8 @@ Product behavior lives under `src/modules/<capability>`. Reserved internal segme
 Do not create empty segments. A tiny capability may keep several roles in one private server file
 when no dependency rule needs a split.
 
+For the tree inside a segment, read [Module Cohesion](module-cohesion.md).
+
 External consumers import only runtime-specific root surfaces: `server.ts`, `rsc.ts`, `actions.ts`,
 `client.ts`, `ui.ts`, `query-cache.ts`, `stream.ts`, or `job.ts`. Named re-exports may publish an
 explicit API; `export *` is forbidden. In top-level `'use server'` `actions.ts`, value exports are

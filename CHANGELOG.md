@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Module-cohesion guidance and a focused review scenario for capability-internal folders, local
+  `lib.ts`/`lib/` helpers, test-support boundaries, presentation ownership, schema-derived types,
+  private filenames, and the two-consumer gate for root `query-cache.ts`.
+
+### Changed
+
+- Architecture migration inventory and verification now audit the resulting module tree in addition
+  to import direction, so structurally legal test-only folders and misplaced helpers are surfaced as
+  review findings.
+
 ## [4.2.0] - 2026-09-11
 
 ### Added

@@ -85,6 +85,7 @@ Rows marked `hypothesis` below have no accepted observed run.
 | errors/error-taxonomy | transport-neutral-error-mapping | hypothesis |
 | quality/observability-and-sentry | sentry-instrumentation-first | hypothesis |
 | placement/modules-and-imports | portable-rules-on-existing-stack | hypothesis |
+| placement/module-cohesion | module-internal-cohesion | hypothesis |
 | placement/capability-granularity | capability-granularity-reference-data | hypothesis |
 | outbound/database-resource-ownership | database-resource-ownership | GREEN invalidated 2026-07-30; rerun pending |
 | outbound/service-transport | external-backend-authority | GREEN invalidated 2026-07-30; rerun pending |

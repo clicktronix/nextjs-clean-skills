@@ -15,6 +15,11 @@ src/modules/<capability>/client.ts
 Typical private files are keys, queries, mutations, subscriptions, and optional prefetch helpers.
 They are not mandatory.
 
+Keep a query-key factory under `client/` when only browser queries consume it. Promote only the
+serializable key identity to root `query-cache.ts` after naming both consumers: one server
+prefetch/hydration path and one browser query path. Server-only tags, fetchers, invalidation, and
+provider details remain private to their runtime even when the identity is shared.
+
 Browser reads call a `GET` Route Handler with an explicit HTTP cache policy, or a stream, through
 `client.ts`. They do not call Server Actions, private stores, provider adapters, or server surfaces.
 
