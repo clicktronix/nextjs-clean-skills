@@ -1,0 +1,20 @@
+{
+  "skills": ["designing-architecture"],
+  "tests_reference": "references/placement/module-cohesion.md#module-cohesion",
+  "query": "Review a migrated blog module. It has client/campaign-blogs/__tests__ but no production files in campaign-blogs, a domain probe exported from client.ts only for tests, client/lib/offer-format-label.ts used only by UI, handwritten types duplicating Valibot schemas, and root query-cache.ts keys used only by browser queries. Private files repeat blog-* although the module path already says blog. Propose the corrected tree and explain each move.",
+  "baseline_failure": "RED hypothesis: the agent checks only layer imports and accepts the folders and public files because every individual import is legal, leaving test-only pseudo-boundaries, misplaced presentation helpers, duplicated schema types, and a browser-only root cache surface.",
+  "expected_behavior": [
+    "Removes the test-only campaign-blogs owner directory and colocates its tests with the production behavior they exercise",
+    "Moves the schema probe behind a test boundary and removes it from client.ts",
+    "Moves the presentation-only formatter under ui/lib and groups other supporting helpers under the nearest lib.ts or lib directory",
+    "Derives TypeScript types from the Valibot schemas unless a distinct contract is explicitly justified",
+    "Moves browser-only query keys under client and reserves root query-cache.ts for a named server prefetch or hydration consumer plus a browser consumer",
+    "Drops redundant blog prefixes from private filenames when the parent path already supplies that context"
+  ],
+  "anti_expectation": [
+    "Does NOT create empty domain, application, server, client, or ui segments to complete a template",
+    "Does NOT invent one file per type or one directory per test suite",
+    "Does NOT move all helpers to a global shared utility bucket",
+    "Does NOT claim static import checks alone prove that the root query cache has real consumers"
+  ]
+}

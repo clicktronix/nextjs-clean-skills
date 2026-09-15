@@ -9,6 +9,8 @@ and consumers, the profile decisions. It reports `filesTouched`, or
 `{ replan: { file, reason, suggestedRole } }` when a file holds policy its role does not admit.
 It never chooses a destination, tunnels through a barrel, adds `eslint-disable`, or runs git.
 
+After moving, audit [Module Cohesion](../../designing-architecture/references/placement/module-cohesion.md).
+
 ## Probes and cleanup
 
 A subagent's throwaway file goes under a directory it created and it removes exactly that,
@@ -24,13 +26,12 @@ node $PLUGIN/bin/migration.mjs record-fresh --repo <target> --record <path>
 node $PLUGIN/bin/migration.mjs census --repo <target> --record <path> --lint-json lint.json --contract rules/architecture-contract.json --capability <name> --baseline <baseline census>
 ```
 
-The record carries the command, its exit code, the tree state it ran against and the output
-path. It is the only evidence a reviewer gets. Readers cite its `id`. The lint step writes ESLint
+The record carries the command, exit code, tree state and output path. Readers cite its `id`.
+The lint step writes ESLint
 JSON to `$NCS_ARTIFACTS/lint.json`, a directory created empty for this run, so nothing older
 can sit there. Single-quote the command so the variable expands in the check, not your
 shell. The record hashes the file; `census --lint-json` reads it only
-while the hash matches. A killed wrapper forwards the signal to the check's process group, waits
-until the whole group is gone (SIGKILL after a grace period), then writes the record.
+while the hash matches. A killed wrapper stops the check's process group before writing the record.
 
 The check is your child process; the record says when it ended. Silence in its output means
 look at the process, not "stalled". `reviewerBudget` is a turn count in the reviewer's brief,

@@ -106,6 +106,31 @@ may be one private server file plus one public server surface.
 Roles are architectural even when a tiny module keeps several roles in one file. Split a segment
 when the split makes a dependency rule or responsibility clearer, not to complete a template.
 
+## Internal Cohesion
+
+Organize a segment around the product operation or lifecycle it implements. A folder is justified
+when its production files change together around one coherent behavior. A directory that exists
+only to hold tests, mocks, fixtures, or a single type is not a product boundary; colocate those
+artifacts with the production owner instead.
+
+Use the capability name at the module boundary, then omit it from private filenames when the parent
+path already supplies the context. Prefer a file that names its role or behavior (`query.ts`,
+`mutation.ts`, `row-mapper.ts`) over repeated `<capability>-*` prefixes or generic buckets such as
+`services/`, `utils/`, and `helpers/`. These names describe responsibilities rather than prescribe a
+fixed template; create only the files the implementation needs.
+
+Supporting code stays with the behavior it supports. Keep one or a few local helpers in `lib.ts`;
+use `lib/` when several helpers have independent tests or change reasons. Presentation-only labels,
+formatters, and copy belong under `ui/lib/`; browser cache and transport helpers belong under
+`client/lib/`; adapter mapping and provider configuration belong under `server/lib/`. Move a helper
+to `domain/` only when it expresses a pure product rule rather than implementation support.
+
+Tests live beside their owner as `*.test.*` or under its `__tests__/`. Test-only probes, fixtures,
+and mocks stay in that test boundary and are never exported from production surfaces. When a runtime
+schema witnesses a TypeScript value, derive the type from that schema instead of maintaining a
+second handwritten shape; keep a manual type only when it deliberately expresses a broader or
+different contract.
+
 ## Public Surfaces
 
 Other capabilities and `app/**` import runtime-specific root files, never internal directories:

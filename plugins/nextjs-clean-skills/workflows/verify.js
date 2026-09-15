@@ -86,6 +86,12 @@ const tasks = [
     'For each: does the migrated capability satisfy it, with file:line evidence? A finding restates nothing; it names a place and what is wrong.\n\n' +
     '## Also check\n- every moved file lost its obsolete old path in this same change;\n- no compatibility bucket, re-export tunnel, or eslint-disable was introduced;\n' +
     '- a declared channel change (Server Action → GET, etc.) has its behaviour risk named.\n\n' +
+    '## Module cohesion audit\n' +
+    '- no directory is justified only by tests, mocks, fixtures, or a lone type;\n' +
+    '- test-only probes and fixtures remain behind test boundaries and production surfaces do not export them;\n' +
+    '- helpers sit with their owning behavior (`lib.ts` or `lib/`), and presentation formatting sits under `ui/`;\n' +
+    '- runtime schemas and TypeScript types do not duplicate the same shape without an intentional contract distinction;\n' +
+    '- every root `query-cache.ts` has a named server prefetch/hydration consumer and browser query consumer; otherwise its keys are private to the owning runtime.\n\n' +
     '## Verdict\n`sound` = nothing must-fix. `revise` = this migration needs work, the model is fine. `reject` = the ownership model is wrong for this codebase — reserve it for that.\n' +
     'A should-fix is a real finding the owner must verify; do not downgrade a defect to should-fix to avoid a verdict.\n\n' +
     `Budget: ${BUDGET} turns. If you run out, set budgetExhausted=true and return only what you verified; never guess the rest.\n\nStructured output only.`,
