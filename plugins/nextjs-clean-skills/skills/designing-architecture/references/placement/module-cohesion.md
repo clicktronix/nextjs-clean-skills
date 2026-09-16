@@ -36,8 +36,9 @@ transport in `client/lib/`, mapping in `server/lib/`, pure rules in `domain/`.
 
 ## Schemas and types
 
-A runtime schema witnesses a value only within its own kind — input, record, or row; see
-[Schema Kinds](../outbound/schema-kinds.md). Never infer one kind's type from another's schema.
+Infer types from the schema that witnesses the actual contract; reuse requires matching
+contracts, not matching fields. See [Schema Kinds](../outbound/schema-kinds.md) for input, record
+and row boundaries.
 
 ## Mechanically enforced
 
