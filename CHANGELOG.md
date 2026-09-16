@@ -6,15 +6,21 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Module-cohesion guidance and a focused review scenario for capability-internal folders, local
-  `lib.ts`/`lib/` helpers, test-support boundaries, presentation ownership, schema-derived types,
-  private filenames, and the two-consumer gate for root `query-cache.ts`.
+- Module-cohesion guidance, a positive naming rule (scenario folder vs. file role), a read-verb
+  vocabulary, and a focused review scenario for capability-internal folders, local `lib.ts`/`lib/`
+  helpers, test-support boundaries, presentation ownership, the three schema kinds (input, record,
+  row), private filenames, and the two-consumer gate for root `query-cache.ts`.
+- `rules/check-module-cohesion.mjs` mechanically enforces two of those properties: a directory
+  whose production content is nothing but tests, mocks, or fixtures, and `lib.ts` coexisting with
+  `lib/` under one owner. Private-filename prefix repetition stays review-only — a complete
+  scenario name may legitimately repeat the capability name — and so does role naming and the
+  read-verb vocabulary, since none of them are directory-shape properties a static walk can see.
 
 ### Changed
 
 - Architecture migration inventory and verification now audit the resulting module tree in addition
-  to import direction, so structurally legal test-only folders and misplaced helpers are surfaced as
-  review findings.
+  to import direction. Test-only folders and a `lib.ts`/`lib/` split fail the mechanical check;
+  misplaced helpers, role naming, and private-filename prefixes remain review findings.
 
 ## [4.2.0] - 2026-09-11
 

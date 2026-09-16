@@ -129,6 +129,12 @@ schema witnesses a TypeScript value, derive the type from that schema instead of
 second handwritten shape; keep a manual type only when it deliberately expresses a broader or
 different contract.
 
+`rules/check-module-cohesion.mjs` mechanically enforces two of the properties above — a directory
+whose production content is nothing but tests, mocks, or fixtures, and `lib.ts` coexisting with
+`lib/` under one owner. Private-filename prefix repetition, role naming, and the rest of this
+section remain review-only; a static walk over the tree cannot tell a legitimate complete scenario
+name from a lazy one.
+
 ## Public Surfaces
 
 Other capabilities and `app/**` import runtime-specific root files, never internal directories:
@@ -164,6 +170,11 @@ A public surface is valid only when it does at least one of these:
 1. publishes an explicit stable API for named consumers;
 2. strengthens or translates a contract;
 3. establishes a runtime boundary.
+
+No root surface other than `actions.ts` defines behavior — a wrapper, a closure, a status map. A
+root surface publishes named re-exports of behavior that already exists in its segment;
+`actions.ts` is the single inversion the compiler forces, because a top-level `'use server'`
+module can only export async functions declared in itself.
 
 A root public surface may use named re-exports when its exported contracts are already stable, safe
 for that surface's own runtime, free of provider shapes, and explicit about their identity

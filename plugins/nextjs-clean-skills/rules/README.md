@@ -14,6 +14,7 @@ try to infer business meaning from path names.
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
+| `check-module-cohesion.mjs` | test/mock/fixture-only directories and a `lib.ts`/`lib/` split under one owner |
 
 `generatedRoot` is optional. Declare it and generated files may import one another, while external
 consumers may import them only from a capability's private `server/**` segment. Mapping provider
@@ -57,7 +58,16 @@ Add the capability graph check to the same CI command:
 node rules/check-module-cycles.mjs
 node rules/check-dependency-classification.mjs
 node rules/check-database-resources.mjs
+node rules/check-module-cohesion.mjs
 ```
+
+`check-module-cohesion.mjs` walks `moduleRoot` for two directory-shape properties import rules
+cannot see: a directory whose production content, recursively, is nothing but `__tests__/`,
+`__mocks__/`, fixtures, or dev-suffixed files (`*.test.ts`, `*.mock.ts`, …); and `lib.ts`
+coexisting with a sibling `lib/` under the same owner, which means neither promotion finished. It
+does not judge private-filename prefixes, role naming, or read-verb vocabulary — those stay a
+review concern because they require reading what a file means, not what a directory contains. See
+`designing-architecture/references/placement/module-cohesion.md`.
 
 Before enabling the rules, classify every direct runtime dependency in
 `architecture-contract.json` as `purePackages` or `runtimePackages`. Run
@@ -158,6 +168,8 @@ The portable floor has seven named properties:
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
    calls use resources with declared owners and consumers.
+8. **Internal cohesion.** A directory's production content is not exhausted by its own tests,
+   mocks, and fixtures, and a `lib.ts`/`lib/` promotion is never left half-done in one owner.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.

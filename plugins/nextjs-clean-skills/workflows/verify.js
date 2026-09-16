@@ -91,7 +91,9 @@ const tasks = [
     '- test-only probes and fixtures remain behind test boundaries and production surfaces do not export them;\n' +
     '- helpers sit with their owning behavior (`lib.ts` or `lib/`), and presentation formatting sits under `ui/`;\n' +
     '- runtime schemas and TypeScript types do not duplicate the same shape without an intentional contract distinction;\n' +
-    '- every root `query-cache.ts` has a named server prefetch/hydration consumer and browser query consumer; otherwise its keys are private to the owning runtime.\n\n' +
+    '- every root `query-cache.ts` has a named server prefetch/hydration consumer and browser query consumer; otherwise its keys are private to the owning runtime;\n' +
+    '- no root surface other than `actions.ts` defines behaviour (wrappers, closures, status maps) — surfaces publish named re-exports, and `actions.ts` is the single inversion forced by `\'use server\'`;\n' +
+    '- no test registers `mock.module` on a path that does not resolve on disk after a move — a stale mock leaves the real module live and the test green for the wrong reason.\n\n' +
     '## Verdict\n`sound` = nothing must-fix. `revise` = this migration needs work, the model is fine. `reject` = the ownership model is wrong for this codebase — reserve it for that.\n' +
     'A should-fix is a real finding the owner must verify; do not downgrade a defect to should-fix to avoid a verdict.\n\n' +
     `Budget: ${BUDGET} turns. If you run out, set budgetExhausted=true and return only what you verified; never guess the rest.\n\nStructured output only.`,
