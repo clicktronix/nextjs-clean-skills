@@ -22,6 +22,13 @@ All notable changes to this project are documented in this file.
   to import direction. Test-only folders and a `lib.ts`/`lib/` split fail the mechanical check;
   misplaced helpers, role naming, and private-filename prefixes remain review findings.
 
+### Fixed
+
+- Cohesion checks admit resource-only production folders (JSON, SVG, CSS) while still rejecting
+  test-only owners. Surface guidance admits narrow contract composition and neutral key factories.
+- Schema guidance separates provider rows from product records and makes partial-read recovery a
+  scenario decision, preserving strict reads where omissions would corrupt totals or moderation.
+
 ## [4.2.0] - 2026-09-11
 
 ### Added

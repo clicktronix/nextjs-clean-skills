@@ -17,7 +17,6 @@ import {
 const paths = loadArchitecturePaths(import.meta.url)
 const { moduleRoot: modulesRoot } = paths
 
-const SOURCE = new RegExp(`\\.(${SOURCE_EXTENSIONS.join('|')})$`)
 const LIB_FILE = new RegExp(`^lib\\.(${SOURCE_EXTENSIONS.join('|')})$`)
 
 function posixOf(absolute) {
@@ -27,7 +26,7 @@ function posixOf(absolute) {
 // Recurse once per directory and report both properties this checker owns from the same walk: a
 // directory's own production content (for the test/mock-only property) and a sibling lib.ts/lib/
 // pair (for the split-helpers property). Returns whether `directory` itself contains, anywhere
-// beneath it, at least one production source file.
+// beneath it, at least one non-development file, including assets and data.
 function walk(directory, findings) {
   const entries = fs.readdirSync(directory, { withFileTypes: true })
   if (entries.length === 0) return false
@@ -51,7 +50,9 @@ function walk(directory, findings) {
       if (walk(absolute, findings)) hasProduction = true
       continue
     }
-    if (SOURCE.test(entry.name) && !isDevelopmentArtifactFile(entry.name)) hasProduction = true
+    // Assets, styles and message catalogues are production content too. Only known
+    // development artifacts establish a test-only directory; unknown file kinds do not.
+    if (!isDevelopmentArtifactFile(entry.name)) hasProduction = true
   }
 
   if (!hasProduction) {

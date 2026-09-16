@@ -68,6 +68,12 @@ try {
     "export const updateWorkItem = () => ({ ok: true })\n"
   )
 
+  // Resource-only directories are valid owners of production assets, even beside tests.
+  write('src/modules/work-items/ui/assets/logo.svg', '<svg/>')
+  write('src/modules/work-items/ui/messages/ru.json', '{"title":"Title"}')
+  write('src/modules/work-items/ui/styles/card.css', '.card { display: block }')
+  write('src/modules/work-items/ui/messages/messages.test.ts', 'export {}\n')
+
   const clean = run()
   if (clean.status !== 0) {
     errors.push(`clean fixture failed: ${`${clean.stdout}${clean.stderr}`.trim()}`)

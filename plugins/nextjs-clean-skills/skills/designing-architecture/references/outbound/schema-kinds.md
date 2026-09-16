@@ -2,20 +2,26 @@
 
 **Impact: HIGH** · **Scope: portable**
 
-A schema witnesses a TypeScript value only within its own kind. Inferring a value's type from a
-schema of a different kind is not an interchangeable shortcut — it silently narrows or widens what
-the value is allowed to hold.
+Infer a TypeScript type from the schema that actually witnesses its values. Input, product and
+provider contracts have different authorities; reuse a schema only when those contracts coincide.
 
-- **Input schema** — normalizes and rejects untrusted input at a channel boundary (transform, URL
-  validation, length limits). It describes what a client may send, not what the store holds.
-- **Record schema** — the shape the product reasons about. Derive it from the store contract:
-  nullability from generated types, the admitted set from the stored constraint — never from an
-  input schema, which is narrower and rejects values storage already allows.
-- **Row** — one provider row. Validate a list read per row and drop or neutralize a failing row;
-  do not validate a whole page as one array, or one bad row fails the entire list.
+- **Input schema** — normalizes and validates untrusted input at a channel boundary. It describes
+  accepted commands, including transforms and input limits, not every historical stored value.
+- **Record schema** — the product value and its invariants, owned by the capability. Storage
+  nullability or legacy values do not automatically widen it. Keep it independent of provider
+  representation; the adapter explicitly maps or rejects rows that cannot represent a product value.
+- **Row schema** — the selected provider projection, owned by the private adapter. Derive its
+  nullability and admitted values from the actual store/API contract, including query joins and
+  aggregates. A wider row schema does not require a wider product record or weaker input validation.
 
-Confusing these kinds is not hypothetical: a read projection once parsed with the input schema,
-rewrote stored data on read, and crashed on a legitimately empty stored string.
+Failure policy belongs to the consuming scenario. Reject malformed collections and invalid rows
+when completeness matters: moderation queues, authorization, totals and bulk operations must not
+silently lose entries. Row-by-row recovery is allowed only when the scenario explicitly accepts
+partial results and defines how omissions affect consumers, pagination, totals and observability.
+Logging a dropped row does not by itself make a partial result a valid success.
 
-Reference: an input schema, a record schema, and a row schema answer different questions and must
-not stand in for each other.
+Do not normalize saved values with an input transform on every read. A website field that adds a
+protocol on input must not silently rewrite the stored projection or reject allowed historical data.
+
+Reference: schemas witness distinct contracts; adapters own representation changes and scenarios
+own the consequences of incomplete data.

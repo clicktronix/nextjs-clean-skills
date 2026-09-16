@@ -171,10 +171,12 @@ A public surface is valid only when it does at least one of these:
 2. strengthens or translates a contract;
 3. establishes a runtime boundary.
 
-No root surface other than `actions.ts` defines behavior — a wrapper, a closure, a status map. A
-root surface publishes named re-exports of behavior that already exists in its segment;
-`actions.ts` is the single inversion the compiler forces, because a top-level `'use server'`
-module can only export async functions declared in itself.
+Keep product policy, provider IO and substantial channel implementations in private segments.
+A root surface normally publishes named re-exports. It may own the small translation or composition
+needed to establish its public contract or runtime boundary; keep that behavior at one owner.
+Runtime-neutral surfaces may define their admitted contract behavior, such as serializable key
+factories in `query-cache.ts`; they must not import browser or server implementations to do so.
+`actions.ts` retains its compiler-constrained local async wrappers described below.
 
 A root public surface may use named re-exports when its exported contracts are already stable, safe
 for that surface's own runtime, free of provider shapes, and explicit about their identity
