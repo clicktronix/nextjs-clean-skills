@@ -2,29 +2,47 @@
 
 **Impact: HIGH** · **Scope: stack (capability modules)**
 
-Group production files by the product operation or lifecycle that makes them change together. A
-directory containing only `__tests__/`, `__mocks__/`, fixtures, or a lone type does not establish a
-product boundary; keep those artifacts with the production owner.
+## Two names, two jobs
 
-The module path already names the capability. Private filenames normally name the local
-responsibility without repeating that capability prefix. Use names such as `query.ts`,
-`mutation.ts`, `row-mapper.ts`, and `filter-config.ts` only when those roles describe what the file
-actually owns. Do not introduce generic `services/`, `utils/`, or `helpers/` buckets.
+A folder names a product scenario (verb + object: `search-blogs`, `update-blog`); a file inside it
+names its architectural role. A complete scenario name may repeat the capability name; a private
+filename otherwise does not.
 
-Keep supporting code nearest to its owner:
+Stay flat while a scenario has one production file (`server/update-blog.ts`). Promote to a folder
+only when a second file shares that reason to change — a colocated test never counts. Roles after
+promotion: `application/` → `query.ts`/`command.ts`/`orchestrator.ts` (several capabilities or
+owned effects only); `server/` → `data.ts`, `http.ts` (behind `route.ts`), `repository.ts`
+(justified shared collection, never a synonym for DB access); `client/` → `query.ts`/`mutation.ts`/
+`store.ts`.
 
-- one or a few cohesive helpers in `lib.ts`;
-- independently tested helpers with distinct change reasons in `lib/`;
-- presentation-only labels, copy, and formatting in `ui/lib/`;
-- browser cache and transport support in `client/lib/`;
-- adapter mapping and provider configuration in `server/lib/`;
-- pure product rules in `domain/`, even when callers treat them as helpers.
+Never `use-case.ts` — the folder is the use case. Never bare `adapter.ts`/`service.ts`/`manager.ts`
+— name the role or protocol. Never a generic bucket (`catalog/`, `listing/`, `filters/`) unless
+that word is an established product concept.
 
-Tests live beside their owner as `*.test.*` or under its `__tests__/`. Test-only probes, fixtures,
-and mocks stay inside that test boundary and are never exported from production surfaces.
+A read scenario takes one verb: `list-<object>` (many) or `read-<object>` (one) — never `get-` or
+`load-`, which has also meant "already authorized." Authorization is a role inside the folder
+(`rsc.ts`: an auth wrapper over `data.ts`), never a verb.
 
-When a runtime schema witnesses a TypeScript value, infer the type from the schema. Keep a manual
-type only when it deliberately expresses a broader or different contract; name and test that
-distinction.
+## What else is cohesion
+
+A directory holding only `__tests__/`, `__mocks__/`, fixtures, or a lone type is not a product
+boundary; colocate with the production owner. Tests live as `*.test.*` beside it or under
+`__tests__/`; test-only probes and mocks never leave that boundary through a production surface.
+
+Never let `lib.ts` and `lib/` coexist under one owner — promote fully or not at all. `lib.ts` holds
+a few cohesive helpers; `lib/` holds helpers with distinct change reasons, named by behavior
+(`build-query.ts`, `map-row.ts`), never `helpers.ts`/`utils.ts`. Presentation in `ui/lib/`,
+transport in `client/lib/`, mapping in `server/lib/`, pure rules in `domain/`.
+
+## Schemas and types
+
+A runtime schema witnesses a value only within its own kind — input, record, or row; see
+[Schema Kinds](../outbound/schema-kinds.md). Never infer one kind's type from another's schema.
+
+## Mechanically enforced
+
+`check-module-cohesion.mjs` catches two properties above: a test/mock/fixture-only directory, and
+`lib.ts` coexisting with `lib/`. Role naming and read verbs stay review-only — a static walk
+cannot tell a legitimate full scenario name from a lazy one.
 
 Reference: folder shape follows change ownership; helpers and tests do not create product layers.

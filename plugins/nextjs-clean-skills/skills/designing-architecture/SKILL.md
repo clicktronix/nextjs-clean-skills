@@ -128,6 +128,7 @@ rebuilding its domain and application layers locally.
 For data, provider, or security boundaries, read only the relevant reference:
 [authority and transactions](references/outbound/authority-and-transactions.md),
 [row mapping](references/outbound/row-vs-domain-types.md),
+[schema kinds](references/outbound/schema-kinds.md),
 [database resources](references/outbound/database-resource-ownership.md),
 [service transport](references/outbound/service-transport.md), [auth](references/security/dal-and-auth.md),
 [environment validation](references/security/env-validation.md), or

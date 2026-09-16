@@ -28,4 +28,8 @@ Do not add a ceremonial mapping over identical semantics.
 The same rule applies to remote request/response bodies and SDK objects. Raw external values never
 leave the capability's private server adapter.
 
+A row schema is one of three schema kinds a capability owns, and the other two — the input schema
+at a channel boundary and the record schema the product reasons about — are not interchangeable
+with it; see [Schema Kinds](schema-kinds.md).
+
 Reference: external contracts and product models have independent reasons to change.
