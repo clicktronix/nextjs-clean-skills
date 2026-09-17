@@ -38,3 +38,8 @@ A `file` rule beats every prefix; the longest prefix wins among prefixes; order 
 Score capabilities by completeness, real consumers and few inbound dependencies. Pick one the
 ordinary follow-up change lives in; otherwise the radius comparison is about a different
 capability and proves nothing about this one.
+
+Before assigning destinations, audit folder ownership, helper locality, test-support boundaries,
+schema-derived types, and root query-cache consumers against
+[Module Cohesion](../../designing-architecture/references/placement/module-cohesion.md). A current
+directory name is history, not proof of a capability, operation, or layer.

@@ -63,9 +63,18 @@ Keep capability-specific pure helpers and transformations inside the owning capa
 global utility bucket. Put domain invariants and calculations in `domain/**`; keep provider-row and
 wire-format mapping beside the private adapter in `server/**`.
 
+Within a segment, group files by a real product operation or lifecycle. Keep supporting helpers in
+the nearest `lib.ts` or `lib/`, presentation-only formatting in `ui/lib/`, and test-only probes,
+fixtures, and mocks inside the owning test boundary. Do not create a directory whose only production
+meaning is its tests, repeat the capability name across private filenames, or export test support
+through a production surface. Derive TypeScript types from the runtime schema that witnesses them
+unless the type intentionally represents a different contract.
+
 Read only the reference needed for the current decision:
 [modules and imports](references/placement/modules-and-imports.md) or
-[granularity](references/placement/capability-granularity.md).
+[granularity](references/placement/capability-granularity.md). For a module whose internal folders,
+helpers, test support, or filenames are unclear, read
+[module cohesion](references/placement/module-cohesion.md).
 
 Publish a root surface only for a named external consumer. Use the project's admitted vocabulary;
 the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.ts`,
@@ -119,6 +128,7 @@ rebuilding its domain and application layers locally.
 For data, provider, or security boundaries, read only the relevant reference:
 [authority and transactions](references/outbound/authority-and-transactions.md),
 [row mapping](references/outbound/row-vs-domain-types.md),
+[schema kinds](references/outbound/schema-kinds.md),
 [database resources](references/outbound/database-resource-ownership.md),
 [service transport](references/outbound/service-transport.md), [auth](references/security/dal-and-auth.md),
 [environment validation](references/security/env-validation.md), or

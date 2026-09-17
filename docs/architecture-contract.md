@@ -104,6 +104,37 @@ may be one private server file plus one public server surface.
 Roles are architectural even when a tiny module keeps several roles in one file. Split a segment
 when the split makes a dependency rule or responsibility clearer, not to complete a template.
 
+## Internal Cohesion
+
+Organize a segment around the product operation or lifecycle it implements. A folder is justified
+when its production files change together around one coherent behavior. A directory that exists
+only to hold tests, mocks, fixtures, or a single type is not a product boundary; colocate those
+artifacts with the production owner instead.
+
+Use the capability name at the module boundary, then omit it from private filenames when the parent
+path already supplies the context. Prefer a file that names its role or behavior (`query.ts`,
+`mutation.ts`, `row-mapper.ts`) over repeated `<capability>-*` prefixes or generic buckets such as
+`services/`, `utils/`, and `helpers/`. These names describe responsibilities rather than prescribe a
+fixed template; create only the files the implementation needs.
+
+Supporting code stays with the behavior it supports. Keep one or a few local helpers in `lib.ts`;
+use `lib/` when several helpers have independent tests or change reasons. Presentation-only labels,
+formatters, and copy belong under `ui/lib/`; browser cache and transport helpers belong under
+`client/lib/`; adapter mapping and provider configuration belong under `server/lib/`. Move a helper
+to `domain/` only when it expresses a pure product rule rather than implementation support.
+
+Tests live beside their owner as `*.test.*` or under its `__tests__/`. Test-only probes, fixtures,
+and mocks stay in that test boundary and are never exported from production surfaces. When a runtime
+schema witnesses a TypeScript value, derive the type from that schema instead of maintaining a
+second handwritten shape; keep a manual type only when it deliberately expresses a broader or
+different contract.
+
+`rules/check-module-cohesion.mjs` mechanically enforces two of the properties above — a directory
+whose production content is nothing but tests, mocks, or fixtures, and `lib.ts` coexisting with
+`lib/` under one owner. Private-filename prefix repetition, role naming, and the rest of this
+section remain review-only; a static walk over the tree cannot tell a legitimate complete scenario
+name from a lazy one.
+
 ## Public Surfaces
 
 Other capabilities and `app/**` import runtime-specific root files, never internal directories:
@@ -139,6 +170,13 @@ A public surface is valid only when it does at least one of these:
 1. publishes an explicit stable API for named consumers;
 2. strengthens or translates a contract;
 3. establishes a runtime boundary.
+
+Keep product policy, provider IO and substantial channel implementations in private segments.
+A root surface normally publishes named re-exports. It may own the small translation or composition
+needed to establish its public contract or runtime boundary; keep that behavior at one owner.
+Runtime-neutral surfaces may define their admitted contract behavior, such as serializable key
+factories in `query-cache.ts`; they must not import browser or server implementations to do so.
+`actions.ts` retains its compiler-constrained local async wrappers described below.
 
 A root public surface may use named re-exports when its exported contracts are already stable, safe
 for that surface's own runtime, free of provider shapes, and explicit about their identity

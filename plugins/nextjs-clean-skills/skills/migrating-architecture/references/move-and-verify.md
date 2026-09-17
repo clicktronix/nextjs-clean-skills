@@ -9,12 +9,13 @@ and consumers, the profile decisions. It reports `filesTouched`, or
 `{ replan: { file, reason, suggestedRole } }` when a file holds policy its role does not admit.
 It never chooses a destination, tunnels through a barrel, adds `eslint-disable`, or runs git.
 
+After moving, audit [Module Cohesion](../../designing-architecture/references/placement/module-cohesion.md).
+
 ## Probes and cleanup
 
-A subagent's throwaway file goes under a directory it created and it removes exactly that,
-never a directory that existed before. After every slice run
-`git status --porcelain --untracked-files=all` and read it unfiltered: a filter hiding unstaged
-deletions is how a whole directory once went missing.
+A subagent's throwaway file goes under a directory it created and removes exactly that, never a
+directory that existed before. After every slice run `git status --porcelain --untracked-files=all`
+and read it unfiltered: a filter hiding unstaged deletions is how a whole directory went missing.
 
 ## The check record
 
@@ -32,14 +33,13 @@ shell. The record hashes the file; `census --lint-json` reads it only
 while the hash matches. A killed wrapper forwards the signal to the check's process group, waits
 until the whole group is gone (SIGKILL after a grace period), then writes the record.
 
-The check is your child process; the record says when it ended. Silence in its output means
-look at the process, not "stalled". `reviewerBudget` is a turn count in the reviewer's brief,
-not a runtime limit; a reviewer reporting exhaustion returns no verdict for that axis, and you
-re-run it or read the axis yourself.
+The check is your child process; the record says when it ended. Silence means look at the
+process, not "stalled". `reviewerBudget` is a turn count, not a runtime limit; on exhaustion the
+reviewer returns no verdict for that axis, and you re-run it or read it yourself.
 
 ## Fix rounds
 
-A fix subagent gets the behaviour output, the census counts and the must-fix findings:
-surgical edits, same destinations. Then a new record and verify again. A round that changes
-nothing any reader can see ends that attempt; take the slice back with a different brief, a
-smaller slice, or your own edit. Independent work does not wait.
+A fix subagent gets the behaviour output, census counts, and must-fix findings: surgical edits,
+same destinations, then a new record and verify. A round that changes nothing ends that attempt;
+take the slice back with a different brief, a smaller slice, or your own edit. Other work
+does not wait.
