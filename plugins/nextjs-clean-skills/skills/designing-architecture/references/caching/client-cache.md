@@ -20,12 +20,12 @@ serializable key identity to root `query-cache.ts` after naming both consumers: 
 prefetch/hydration path and one browser query path. Server-only tags, fetchers, invalidation, and
 provider details remain private to their runtime even when the identity is shared.
 
-There is a second, independent driver for the same promotion: `'use client'` in `client.ts` means
-that file cannot publish a runtime-neutral value to a server consumer at all, regardless of how
-many browser consumers exist. A key factory a server layout needs — even one that only reads the
-key to seed a prefetch, never the query itself — cannot live behind `client.ts` and must live in
-`query-cache.ts`. Do not flag that case as an unjustified second consumer; it is the directive, not
-the consumer count, that forces the move.
+The server prefetch is what makes the second consumer: a layout that reads the key only to seed
+`dehydrate()`, never running the query itself, is still a server consumer of that identity, and
+`client.ts` is browser code that cannot hand a value to it. That pair — one browser query, one
+server prefetch — is exactly what `query-cache.ts` exists for, so do not flag it as an
+unjustified promotion. With no browser query the key stays private to the server; with no server
+reader it stays under `client/`.
 
 Browser reads call a `GET` Route Handler with an explicit HTTP cache policy, or a stream, through
 `client.ts`. They do not call Server Actions, private stores, provider adapters, or server surfaces.

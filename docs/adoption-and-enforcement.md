@@ -20,7 +20,7 @@ A disagreement is a defect. Correct every affected surface rather than choosing 
 
 ## Enforcement Floor
 
-Portable tooling must protect seven named properties:
+Portable tooling must protect eight named properties:
 
 1. **Ownership:** cross-capability and route imports use public root surfaces.
 2. **Acyclic resolution:** imports resolve, hidden targets fail closed, and dependency graphs remain
@@ -31,6 +31,8 @@ Portable tooling must protect seven named properties:
 6. **Shared neutrality:** admitted shared roots are runtime-specific and capability-neutral.
 7. **Declared effects:** direct packages and configured database resources have explicit
    classifications, owners, and consumers.
+8. **Internal cohesion:** no directory under a capability or shared root is empty or holds only
+   test support, and `lib.ts` never coexists with `lib/` under one owner.
 
 Each invariant needs one mutation that fails for the intended reason. Assertion count is not a
 quality metric.

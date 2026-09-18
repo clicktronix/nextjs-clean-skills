@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- `check-module-cohesion.mjs` walks the admitted shared roots as well as every capability; a plain
+  `fixtures/` or `tests/` directory is entered and judged file by file (data, assets and styles are
+  production, source files there are test support) instead of being skipped whole, so
+  `server/fixtures/seed.json` no longer makes `server/` test-only; an empty directory is named
+  itself instead of blaming its parent; only the deepest offending directory is reported; a missing
+  `moduleRoot` fails instead of printing `ok`. Seven mutations in the validator.
+- The enforcement floor counts eight properties in every document that lists it
+  (`rules/README.md`, `adoption-and-enforcement.md`, ADR 0001); 4.3.0 had added the eighth in one
+  place and left "seven" in four.
+- `placement/module-cohesion.md` no longer names `rsc.ts` as a private role inside a scenario
+  folder or puts an authorization wrapper in `server/**`: those names are reserved root surfaces,
+  and policy sits where the contract puts it. Its naming rules are stated as preferences under the
+  contract's "responsibility, not template" sentence, and its example matches the contract's.
+- The migration skill appends the cohesion checker to the target's check command, so the record
+  measures the two mechanical properties; 4.3.0 claimed this and only asked the reviewer to judge it.
+- `client-cache.md` states the promotion driver as the two consumers rule 9 requires, not the
+  directive alone.
+- The 4.3.0 cohesion scenario is split into three, one reference each (cohesion, schema kinds,
+  query-key promotion), as `tests/scenarios/README.md` requires.
+
 ## [4.3.0] - 2026-09-17
 
 ### Added

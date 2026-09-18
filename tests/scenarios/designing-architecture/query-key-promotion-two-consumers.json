@@ -1,0 +1,17 @@
+{
+  "skills": [
+    "designing-architecture"
+  ],
+  "tests_reference": "references/caching/client-cache.md#capability-client-cache",
+  "query": "A blog module has a root query-cache.ts whose keys are used only by browser queries under client/. A second module has a key factory under client/ that a server layout now needs in order to seed a TanStack Query dehydration for the same browser query. Decide where each key factory lives and why.",
+  "baseline_failure": "RED hypothesis: the agent keeps the browser-only keys at the root because the file already exists, or refuses the second module's promotion as an unjustified extra surface, without naming the two consumers the neutral surface exists for.",
+  "expected_behavior": [
+    "Moves the browser-only query keys under client and reserves root query-cache.ts for a key identity with both a server prefetch or hydration consumer and a browser query consumer",
+    "Promotes the second module's key factory to query-cache.ts because the server layout that seeds the dehydration is the server consumer and client.ts is browser code that cannot hand it a value",
+    "Keeps Next.js tags, fetchers and invalidation private to the runtime that owns them"
+  ],
+  "anti_expectation": [
+    "Does NOT claim static import checks alone prove that the root query cache has real consumers",
+    "Does NOT keep a root query-cache.ts with consumers on only one side"
+  ]
+}

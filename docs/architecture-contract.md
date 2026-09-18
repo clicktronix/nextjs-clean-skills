@@ -113,7 +113,7 @@ artifacts with the production owner instead.
 
 Use the capability name at the module boundary, then omit it from private filenames when the parent
 path already supplies the context. Prefer a file that names its role or behavior (`query.ts`,
-`mutation.ts`, `row-mapper.ts`) over repeated `<capability>-*` prefixes or generic buckets such as
+`mutation.ts`, `map-row.ts`) over repeated `<capability>-*` prefixes or generic buckets such as
 `services/`, `utils/`, and `helpers/`. These names describe responsibilities rather than prescribe a
 fixed template; create only the files the implementation needs.
 
@@ -129,9 +129,10 @@ schema witnesses a TypeScript value, derive the type from that schema instead of
 second handwritten shape; keep a manual type only when it deliberately expresses a broader or
 different contract.
 
-`rules/check-module-cohesion.mjs` mechanically enforces two of the properties above — a directory
-whose production content is nothing but tests, mocks, or fixtures, and `lib.ts` coexisting with
-`lib/` under one owner. Private-filename prefix repetition, role naming, and the rest of this
+`rules/check-module-cohesion.mjs` mechanically enforces two of the properties above under every
+capability and every admitted shared root — a directory that is empty or holds nothing but test
+support, and `lib.ts` coexisting with `lib/` under one owner. Data, assets and styles count as
+production wherever they sit. Private-filename prefix repetition, role naming, and the rest of this
 section remain review-only; a static walk over the tree cannot tell a legitimate complete scenario
 name from a lazy one.
 
