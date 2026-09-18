@@ -47,7 +47,10 @@ them yourself or ask the same agent about exactly those. Dead rules are a warnin
 ## Step 3 — Enable (you write, the census measures)
 
 Copy `$PLUGIN/rules/` into the target, draft `rules/architecture-contract.json` from the roots
-lens, and spread the two ESLint configs after the target's own. Install the census configuration
+lens, and spread the two ESLint configs after the target's own. Append
+`node rules/check-module-cohesion.mjs` to the check command with `&&`: the record's exit code then
+carries the two directory-shape properties (test-only or empty directories, `lib.ts` beside
+`lib/`), so they are measured, not asked of a reviewer. Install the census configuration
 repo-wide so violations can be counted, but keep the **blocking** entry scoped to roots that are
 already migrated — widen it per accepted capability. The target's lint must stay judgeable as
 its own gate. Take the baseline with one record whose lint step also writes

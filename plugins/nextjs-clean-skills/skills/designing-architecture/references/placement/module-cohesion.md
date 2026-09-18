@@ -9,41 +9,37 @@ names its architectural role. A complete scenario name may repeat the capability
 filename otherwise does not.
 
 Stay flat while a scenario has one production file (`server/update-blog.ts`). Promote to a folder
-only when a second file shares that reason to change — a colocated test never counts. Roles after
-promotion: `application/` → `query.ts`/`command.ts`/`orchestrator.ts` (several capabilities or
-owned effects only); `server/` → `data.ts`, `http.ts` (behind `route.ts`), `repository.ts`
-(justified shared collection, never a synonym for DB access); `client/` → `query.ts`/`mutation.ts`/
-`store.ts`.
+only when a second file shares that reason to change — a colocated test never counts. After
+promotion a file names its role (`data.ts`, `map-row.ts`, `query.ts`, `mutation.ts`). The contract
+says a name describes a responsibility, not a template, so prefer a role or protocol name over
+`use-case.ts` (the folder already is the use case), bare `adapter.ts`/`service.ts`/`manager.ts`, or
+a generic bucket (`catalog/`, `filters/`) that is not an established product concept.
 
-Never `use-case.ts` — the folder is the use case. Never bare `adapter.ts`/`service.ts`/`manager.ts`
-— name the role or protocol. Never a generic bucket (`catalog/`, `listing/`, `filters/`) unless
-that word is an established product concept.
-
-A read scenario takes one verb: `list-<object>` (many) or `read-<object>` (one) — never `get-` or
-`load-`, which has also meant "already authorized." Authorization is a role inside the folder
-(`rsc.ts`: an auth wrapper over `data.ts`), never a verb.
+A read scenario takes one verb about the data: `list-<object>` (many) or `read-<object>` (one).
+`load-` has been used to mean "already authorized", a policy fact in a filename. Authorization is
+neither a verb nor a private file: the trusted `server.ts` enforces the capability's policy and the
+root `rsc.ts` reads through it. Those are reserved root surfaces, never names inside a folder.
 
 ## What else is cohesion
 
-A directory holding only `__tests__/`, `__mocks__/`, fixtures, or a lone type is not a product
-boundary; colocate with the production owner. Tests live as `*.test.*` beside it or under
-`__tests__/`; test-only probes and mocks never leave that boundary through a production surface.
+A directory that is empty, or holds only `__tests__/`, `__mocks__/`, test-support source, or a
+lone type, is not a product boundary; colocate with the production owner. Data, assets and styles
+are production wherever they sit — `fixtures/seed.json` keeps its folder. Tests live as `*.test.*`
+beside their owner or under `__tests__/`; probes and mocks never leave that boundary through a
+production surface.
 
 Never let `lib.ts` and `lib/` coexist under one owner — promote fully or not at all. `lib.ts` holds
 a few cohesive helpers; `lib/` holds helpers with distinct change reasons, named by behavior
-(`build-query.ts`, `map-row.ts`), never `helpers.ts`/`utils.ts`. Presentation in `ui/lib/`,
-transport in `client/lib/`, mapping in `server/lib/`, pure rules in `domain/`.
+(`build-query.ts`, `map-row.ts`), never `helpers.ts`/`utils.ts`; the contract says which
+segment's `lib/` owns which kind of helper.
 
-## Schemas and types
-
-Infer types from the schema that witnesses the actual contract; reuse requires matching
-contracts, not matching fields. See [Schema Kinds](../outbound/schema-kinds.md) for input, record
-and row boundaries.
+Types are inferred from the schema that witnesses the contract; see
+[Schema Kinds](../outbound/schema-kinds.md).
 
 ## Mechanically enforced
 
-`check-module-cohesion.mjs` catches two properties above: a test/mock/fixture-only directory, and
-`lib.ts` coexisting with `lib/`. Role naming and read verbs stay review-only — a static walk
-cannot tell a legitimate full scenario name from a lazy one.
+`check-module-cohesion.mjs` catches two properties above under every capability and shared root:
+an empty or test-support-only directory, and `lib.ts` beside `lib/`. Role naming and read verbs
+stay review-only — a static walk cannot tell a complete scenario name from a lazy one.
 
 Reference: folder shape follows change ownership; helpers and tests do not create product layers.

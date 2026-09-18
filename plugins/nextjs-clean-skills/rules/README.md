@@ -14,7 +14,7 @@ try to infer business meaning from path names.
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
-| `check-module-cohesion.mjs` | test/mock/fixture-only directories and a `lib.ts`/`lib/` split under one owner |
+| `check-module-cohesion.mjs` | test/mock-only or empty directories and a `lib.ts`/`lib/` split, under every capability and shared root |
 
 `generatedRoot` is optional. Declare it and generated files may import one another, while external
 consumers may import them only from a capability's private `server/**` segment. Mapping provider
@@ -61,12 +61,16 @@ node rules/check-database-resources.mjs
 node rules/check-module-cohesion.mjs
 ```
 
-`check-module-cohesion.mjs` walks `moduleRoot` for two directory-shape properties import rules
-cannot see: a directory whose production content, recursively, is nothing but `__tests__/`,
-`__mocks__/`, fixtures, or dev-suffixed files (`*.test.ts`, `*.mock.ts`, …); and `lib.ts`
-coexisting with a sibling `lib/` under the same owner, which means neither promotion finished. It
-does not judge private-filename prefixes, role naming, or read-verb vocabulary — those stay a
-review concern because they require reading what a file means, not what a directory contains. See
+`check-module-cohesion.mjs` walks every owner — each capability under `moduleRoot` and each
+admitted root under `sharedRoot` — for two directory-shape properties import rules cannot see: a
+directory whose content, recursively, is nothing but test support (`__tests__/`, `__mocks__/`,
+`__fixtures__/`, dev-suffixed files such as `*.test.ts`, source files inside a plain `fixtures/`
+or `tests/`), or nothing at all; and `lib.ts` coexisting with a sibling `lib/` under the same owner,
+which means neither promotion finished. Data, assets, styles and message catalogues are production
+wherever they sit, so `fixtures/seed.json` keeps its directory. Only the deepest offending
+directory is reported; a missing `moduleRoot` is a failure, not a pass. It does not judge
+private-filename prefixes, role naming, or read-verb vocabulary — those need reading what a file
+means, not what a directory contains. See
 `designing-architecture/references/placement/module-cohesion.md`.
 
 Before enabling the rules, classify every direct runtime dependency in
@@ -146,7 +150,7 @@ compiler dropping the binding. A partly type-only import (`import { type A, b }`
 
 ## Enforced Invariants
 
-The portable floor has seven named properties:
+The portable floor has eight named properties:
 
 1. **Ownership.** `app/**` and other capabilities use root public surfaces; private server code
    points inward, and a private segment cannot shadow a same-named root surface.
@@ -168,8 +172,8 @@ The portable floor has seven named properties:
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
    calls use resources with declared owners and consumers.
-8. **Internal cohesion.** A directory's production content is not exhausted by its own tests,
-   mocks, and fixtures, and a `lib.ts`/`lib/` promotion is never left half-done in one owner.
+8. **Internal cohesion.** No directory under a capability or shared root is empty or holds only
+   test support, and a `lib.ts`/`lib/` promotion is never left half-done in one owner.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.
@@ -200,6 +204,6 @@ prove one of these would create a false guarantee.
 `node scripts/validate-rules.mjs` builds temporary TypeScript projects and checks the default
 profile plus a nonstandard source root and alias. Every behaviour above carries both halves: a clean
 fixture that must pass and a mutation that must fail. `node scripts/validate-contract-tools.mjs`
-does the same for the standalone `check-*.mjs` tools, including the read/write distinction. The seven properties expand into multiple rule
+does the same for the standalone `check-*.mjs` tools, including the read/write distinction. The eight properties expand into multiple rule
 codes and mutations; exact current counts belong in validator output and `docs/evidence.md`, not in
 the architecture taxonomy.
