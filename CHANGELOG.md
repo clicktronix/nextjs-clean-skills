@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-09-22
+
 ### Changed
 
 - Internal cohesion is review guidance, not an eighth enforced property. Relative to 4.3.0,
