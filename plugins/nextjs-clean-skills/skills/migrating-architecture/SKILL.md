@@ -22,7 +22,7 @@ Resolve the plugin root once: `$CLAUDE_PLUGIN_ROOT`, else the directory holding 
 ## Before anything runs
 
 Confirm the target is on a throwaway branch with a clean tree and green checks. Record the
-target's own check command (typecheck, lint, tests, production build) — that command, run by
+target's own check command (applicable type, lint, test and build checks) — that command, run by
 you, is the only behaviour evidence this procedure accepts. Record one ordinary follow-up
 change **inside the pilot capability**; a change elsewhere measures nothing. Tell the user the
 cost shape: at most six lens agents for inventory, one assignment agent, one mover per slice,

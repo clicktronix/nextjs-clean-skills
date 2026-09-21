@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
   placement, or prescribed read verbs. Private test/fixture directories are allowed; trusted
   authorization may use `server.ts` or shared private composition. Strict ownership, runtime,
   private imports and public-surface constraints remain in force.
+- The migration reviewer follows the advisory policy too: layout alone cannot produce a
+  must-fix finding or a revise verdict; evidence covers only the recorded command.
 - Migration uses one repository-selected check command. Cohesion advice is separate from
   blocking evidence, which does not track empty directories.
 

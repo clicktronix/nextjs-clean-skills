@@ -14,7 +14,7 @@
     "Recognizes assets, messages and the runtime seed as legitimate content from their consumers; labels cohesion-tool output as advisory rather than a failed migration criterion"
   ],
   "anti_expectation": [
-    "Does NOT create empty segments or prescribe a file-count threshold for a scenario folder",
+    "Does NOT scaffold segments solely to complete a template or prescribe a file-count threshold for a scenario folder",
     "Does NOT delete valid private test/fixture directories to silence directory observations",
     "Does NOT move all helpers to a global shared utility bucket",
     "Does NOT invent missing authorization from filenames alone",
