@@ -2,44 +2,37 @@
 
 **Impact: HIGH** · **Scope: stack (capability modules)**
 
-## Two names, two jobs
+## Group by responsibility
 
-A folder names a product scenario (verb + object: `search-blogs`, `update-blog`); a file inside it
-names its architectural role. A complete scenario name may repeat the capability name; a private
-filename otherwise does not.
+Choose a file or folder for locality and reasons to change, not a production-file threshold.
+A scenario name such as `update-blog` and a role such as `map-row` can help navigation; neither
+is a required naming scheme. Read verbs such as `list` and `read` are suggestions, not policy.
+Do not add `application/` or ports merely to wrap a short CRUD path.
 
-Stay flat while a scenario has one production file (`server/update-blog.ts`). Promote to a folder
-only when a second file shares that reason to change — a colocated test never counts. After
-promotion a file names its role (`data.ts`, `map-row.ts`, `query.ts`, `mutation.ts`). The contract
-says a name describes a responsibility, not a template, so prefer a role or protocol name over
-`use-case.ts` (the folder already is the use case), bare `adapter.ts`/`service.ts`/`manager.ts`, or
-a generic bucket (`catalog/`, `filters/`) that is not an established product concept.
+Authorization belongs to the capability's trusted composition: `server.ts` or the same private
+composition used by its channels. Policy may live in `domain/` or `application/`; runtime auth
+checks belong on the server. `rsc.ts` need not forward through `server.ts` just to satisfy a
+layout. Inspect actual checks and callers rather than inferring safety from a `load-` prefix.
 
-A read scenario takes one verb about the data: `list-<object>` (many) or `read-<object>` (one).
-`load-` has been used to mean "already authorized", a policy fact in a filename. Authorization is
-neither a verb nor a private file: the trusted `server.ts` enforces the capability's policy and the
-root `rsc.ts` reads through it. Those are reserved root surfaces, never names inside a folder.
+## Keep support local
 
-## What else is cohesion
+Keep helpers beside their consumers: UI formatting with UI, browser lifecycle support with
+client code, and provider mapping with its server adapter. Introduce `lib.ts` or `lib/` only
+when it improves navigation; coexistence alone is not a defect. Pure product rules belong in
+`domain/`, while purity alone does not justify moving implementation support there.
 
-A directory that is empty, or holds only `__tests__/`, `__mocks__/`, test-support source, or a
-lone type, is not a product boundary; colocate with the production owner. Data, assets and styles
-are production wherever they sit — `fixtures/seed.json` keeps its folder. Tests live as `*.test.*`
-beside their owner or under `__tests__/`; probes and mocks never leave that boundary through a
-production surface.
+Private tests, mocks, and fixtures may use their own directories, including
+`server/publish/__tests__/` beside `server/publish.ts`. They do not create a product layer.
+Do not export test-only probes through production surfaces. Inspect consumers to distinguish
+runtime seed data from test fixtures; extensions and directory names do not prove that distinction.
 
-Never let `lib.ts` and `lib/` coexist under one owner — promote fully or not at all. `lib.ts` holds
-a few cohesive helpers; `lib/` holds helpers with distinct change reasons, named by behavior
-(`build-query.ts`, `map-row.ts`), never `helpers.ts`/`utils.ts`; the contract says which
-segment's `lib/` owns which kind of helper.
-
-Types are inferred from the schema that witnesses the contract; see
+Infer types from the schema that witnesses their contract unless they deliberately differ; see
 [Schema Kinds](../outbound/schema-kinds.md).
 
-## Mechanically enforced
+## Advisory inspection
 
-`check-module-cohesion.mjs` catches two properties above under every capability and shared root:
-an empty or test-support-only directory, and `lib.ts` beside `lib/`. Role naming and read verbs
-stay review-only — a static walk cannot tell a complete scenario name from a lazy one.
-
-Reference: folder shape follows change ownership; helpers and tests do not create product layers.
+`check-module-cohesion.mjs` reports naming-based observations across capabilities and shared
+roots: empty or apparently test-support-only directories and adjacent `lib.ts` / `lib/`.
+Recommendations exit 0; only configuration or execution errors fail. A reviewer turns an
+observation into a finding only after showing a concrete responsibility, navigation, or boundary
+problem. Do not make the report a migration gate or rearrange valid code to silence it.

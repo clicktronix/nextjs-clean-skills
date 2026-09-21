@@ -53,7 +53,7 @@ that now states it normatively:
 | 9 | Validation follows trust boundaries | [Validation](./runtime-boundaries.md#validation) |
 | 10 | Shared code has admission and reversal rules; admitted infrastructure is the named exception | [Shared Admission](./architecture-contract.md#shared-admission) |
 | 11 | Runtime poisoning needs two controls: path rules, and `server-only`/`client-only` proven by a production build | [Dependency Direction](./architecture-contract.md#dependency-direction) rules 10–11 |
-| 12 | The enforcement floor is invariant-based: eight properties, one failing mutation each | [Enforcement Floor](./adoption-and-enforcement.md#enforcement-floor), [`rules/README.md`](../rules/README.md) |
+| 12 | The enforcement floor is invariant-based: seven properties, one failing mutation each | [Enforcement Floor](./adoption-and-enforcement.md#enforcement-floor), [`rules/README.md`](../rules/README.md) |
 | 13 | Architecture acceptance and skill acceptance are separate gates | Validation, below |
 | 14 | Migration is semver-major and explicit; two topologies never mix inside one capability | [Incremental Migration](./adoption-and-enforcement.md#incremental-migration) |
 

@@ -100,43 +100,39 @@ A capability may use these reserved segments:
 | `client/` | browser async lifecycle, realtime, polling, and optimistic state | the browser owns that lifecycle |
 | `ui/` | reusable capability presentation and interaction | more than route-private rendering is required |
 
-Segments are optional. Empty segments and placeholder files are invalid. The smallest valid module
-may be one private server file plus one public server surface.
+Segments are optional; create them for actual responsibilities, not to fill a template. The smallest
+valid module may be one private server file plus one public server surface.
 
 Roles are architectural even when a tiny module keeps several roles in one file. Split a segment
 when the split makes a dependency rule or responsibility clearer, not to complete a template.
 
 ## Internal Cohesion
 
-Organize a segment around the product operation or lifecycle it implements. A folder is justified
-when its production files change together around one coherent behavior. A directory that exists
-only to hold tests, mocks, fixtures, or a single type is not a product boundary; colocate those
-artifacts with the production owner instead.
+Organize a segment around the operation or lifecycle it implements. Use a file or a folder according
+to locality and reasons to change, not a minimum file count. Private `tests/`, `__tests__/`, mocks,
+and fixtures may live beside their owner, including in a directory next to a same-named production
+file. A support directory is not an additional product boundary.
 
-Use the capability name at the module boundary, then omit it from private filenames when the parent
-path already supplies the context. Prefer a file that names its role or behavior (`query.ts`,
-`mutation.ts`, `map-row.ts`) over repeated `<capability>-*` prefixes or generic buckets such as
-`services/`, `utils/`, and `helpers/`. These names describe responsibilities rather than prescribe a
-fixed template; create only the files the implementation needs.
+Prefer names that make the responsibility clear. Scenario verbs and role names are examples, not a
+fixed vocabulary; neither a filename nor a folder establishes authorization. Avoid redundant
+prefixes when the parent path already supplies the context, but do not rename files without a
+navigation or responsibility benefit.
 
-Supporting code stays with the behavior it supports. Keep one or a few local helpers in `lib.ts`;
-use `lib/` when several helpers have independent tests or change reasons. Presentation-only labels,
-formatters, and copy belong under `ui/lib/`; browser cache and transport helpers belong under
-`client/lib/`; adapter mapping and provider configuration belong under `server/lib/`. Move a helper
-to `domain/` only when it expresses a pure product rule rather than implementation support.
+Keep helpers beside their consumers. Presentation-only formatting belongs with its UI; browser
+lifecycle helpers with client code; provider mapping with its private server adapter. `lib.ts` or
+`lib/` is optional when it improves navigation. Move code to `domain/` for a pure product rule,
+not merely because it has no I/O. Add `application/` and ports only for substantive policy,
+orchestration, or dependency inversion; a short CRUD path does not need those layers.
 
-Tests live beside their owner as `*.test.*` or under its `__tests__/`. Test-only probes, fixtures,
-and mocks stay in that test boundary and are never exported from production surfaces. When a runtime
-schema witnesses a TypeScript value, derive the type from that schema instead of maintaining a
-second handwritten shape; keep a manual type only when it deliberately expresses a broader or
+Test-only probes, fixtures, and mocks are not exported from production surfaces. Runtime fixtures
+are different: inspect their consumers, not just their names. When a runtime schema witnesses a
+TypeScript value, derive the type from that schema; a manual type may express a deliberately
 different contract.
 
-`rules/check-module-cohesion.mjs` mechanically enforces two of the properties above under every
-capability and every admitted shared root — a directory that is empty or holds nothing but test
-support, and `lib.ts` coexisting with `lib/` under one owner. Data, assets and styles count as
-production wherever they sit. Private-filename prefix repetition, role naming, and the rest of this
-section remain review-only; a static walk over the tree cannot tell a legitimate complete scenario
-name from a lazy one.
+`rules/check-module-cohesion.mjs` offers directory observations for review. It cannot establish
+semantic ownership or decide whether a layout needs changing, and its recommendations do not
+block migration acceptance. Empty directories are not represented in Git-tree check records;
+they are not part of the blocking evidence. Import and runtime boundaries remain enforced separately.
 
 ## Public Surfaces
 

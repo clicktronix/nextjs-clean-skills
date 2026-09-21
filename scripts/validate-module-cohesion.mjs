@@ -8,7 +8,8 @@ import { fail, root } from './_lib.mjs'
 
 const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'module-cohesion-')))
 const errors = []
-let mutations = 0
+let advisoryRuns = 0
+let errorRuns = 0
 let cleanRuns = 0
 
 function run() {
@@ -20,12 +21,12 @@ function run() {
 
 const outputOf = (result) => `${result.stdout}${result.stderr}`
 
-function expectFailure(label, expectedText, absentText) {
-  mutations += 1
+function expectAdvice(label, expectedText, absentText) {
+  advisoryRuns += 1
   const result = run()
   const output = outputOf(result)
-  if (result.status === 0 || !output.includes(expectedText)) {
-    errors.push(`${label}: expected failure containing "${expectedText}", received ${output.trim()}`)
+  if (result.status !== 0 || !output.includes('module cohesion advice') || !output.includes(expectedText)) {
+    errors.push(`${label}: expected nonblocking advice containing "${expectedText}", received ${output.trim()}`)
   }
   if (absentText && output.includes(absentText)) {
     errors.push(`${label}: output must not contain "${absentText}", received ${output.trim()}`)
@@ -85,41 +86,41 @@ try {
   write('src/shared/server/reporting.ts', 'export const report = () => {}\n')
   expectClean('clean fixture')
 
-  // (a) a scenario folder whose only content is its test — the production file was moved or
-  // deleted and the folder never followed. The leaf is reported; its ancestor `client/` is the
-  // consequence and is not reported a second time.
+  // (a) A folder can hold tests for the adjacent production file. The observation must
+  // not reject this valid layout or multiply messages across ancestors.
+  write('src/modules/work-items/client/search-work-items.ts', 'export const search = () => []\n')
   write('src/modules/work-items/client/search-work-items/__tests__/search-work-items.test.ts', 'export {}\n')
-  expectFailure(
+  expectAdvice(
     'test-only directory',
-    'client/search-work-items: holds only tests',
-    'work-items/client: holds only tests'
+    'client/search-work-items: looks like test support',
+    'work-items/client: looks like test support'
   )
   remove('src/modules/work-items/client')
   expectClean('clean again after (a)')
 
-  // (b) a plain `fixtures/` whose contents are all source files is test support, not production.
+  // (b) Source-only fixtures may be runtime data; their names cannot justify a failure.
   write('src/modules/work-items/client/fixtures/work-items.ts', 'export const rows = []\n')
-  expectFailure('source-only fixtures directory', 'client/fixtures: holds only tests')
+  expectAdvice('source-only fixtures directory', 'client/fixtures: looks like test support')
   remove('src/modules/work-items/client')
 
   // (c) an empty directory is named itself, not blamed on its parent.
   fs.mkdirSync(path.join(sandbox, 'src/modules/work-items/server/empty'), { recursive: true })
-  expectFailure('empty directory', 'server/empty: empty directory', 'work-items/server: holds only')
+  expectAdvice('empty directory', 'server/empty: empty directory', 'work-items/server: looks like')
   remove('src/modules/work-items/server/empty')
 
-  // (d) lib.ts and lib/ both present under server/ — neither promotion finished.
+  // (d) lib.ts and lib/ may have different responsibilities; this is advice only.
   write('src/modules/work-items/server/lib/build-query.ts', 'export const buildQuery = () => ({})\n')
-  expectFailure('lib.ts/lib split', 'lib.ts and lib/ coexist under one owner')
+  expectAdvice('lib.ts/lib split', 'lib.ts and lib/ coexist')
   remove('src/modules/work-items/server/lib')
 
   // (e) the same two properties under a shared root: shared/** has owners too.
   write('src/shared/server/lib.ts', 'export {}\n')
   write('src/shared/server/lib/a.ts', 'export {}\n')
-  expectFailure('shared lib split', 'shared/server: lib.ts and lib/ coexist')
+  expectAdvice('shared lib split', 'shared/server: lib.ts and lib/ coexist')
   remove('src/shared/server/lib')
   remove('src/shared/server/lib.ts')
   write('src/shared/client/__tests__/events.test.ts', 'export {}\n')
-  expectFailure('shared test-only directory', 'shared/client: holds only tests')
+  expectAdvice('shared test-only directory', 'shared/client: looks like test support')
   remove('src/shared/client')
   expectClean('clean again after (e)')
 
@@ -129,13 +130,20 @@ try {
     cwd: sandbox,
     encoding: 'utf8',
   })
-  mutations += 1
+  errorRuns += 1
   if (missing.status === 0 || !outputOf(missing).includes('does not exist — nothing was checked')) {
     errors.push(`missing moduleRoot: expected a failure naming the root, received ${outputOf(missing).trim()}`)
+  }
+  fs.renameSync(path.join(sandbox, 'src/modules-moved'), path.join(sandbox, 'src/modules'))
+  remove('rules/architecture-contract.json')
+  const missingContract = run()
+  errorRuns += 1
+  if (missingContract.status === 0 || !outputOf(missingContract).includes('architecture-contract.json')) {
+    errors.push('missing contract: expected configuration failure')
   }
 } finally {
   fs.rmSync(sandbox, { recursive: true, force: true })
 }
 
 fail(errors)
-console.log(`module cohesion tool ok (${cleanRuns} clean runs, ${mutations} failing mutations)`)
+console.log(`module cohesion tool ok (${cleanRuns} clean runs, ${advisoryRuns} advisory cases, ${errorRuns} configuration failures)`)

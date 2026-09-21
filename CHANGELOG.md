@@ -4,27 +4,29 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Internal cohesion is review guidance, not an eighth enforced property. Relative to 4.3.0,
+  directory-shape observations now exit 0; only configuration or execution errors fail.
+  The portable enforcement floor is consistently seven properties.
+- Private structure follows responsibility without a second-file threshold, mandatory `lib`
+  placement, or prescribed read verbs. Private test/fixture directories are allowed; trusted
+  authorization may use `server.ts` or shared private composition. Strict ownership, runtime,
+  private imports and public-surface constraints remain in force.
+- Migration uses one repository-selected check command. Cohesion advice is separate from
+  blocking evidence, which does not track empty directories.
+
 ### Fixed
 
-- `check-module-cohesion.mjs` walks the admitted shared roots as well as every capability; a plain
-  `fixtures/` or `tests/` directory is entered and judged file by file (data, assets and styles are
-  production, source files there are test support) instead of being skipped whole, so
-  `server/fixtures/seed.json` no longer makes `server/` test-only; an empty directory is named
-  itself instead of blaming its parent; only the deepest offending directory is reported; a missing
-  `moduleRoot` fails instead of printing `ok`. Seven mutations in the validator.
-- The enforcement floor counts eight properties in every document that lists it
-  (`rules/README.md`, `adoption-and-enforcement.md`, ADR 0001); 4.3.0 had added the eighth in one
-  place and left "seven" in four.
-- `placement/module-cohesion.md` no longer names `rsc.ts` as a private role inside a scenario
-  folder or puts an authorization wrapper in `server/**`: those names are reserved root surfaces,
-  and policy sits where the contract puts it. Its naming rules are stated as preferences under the
-  contract's "responsibility, not template" sentence, and its example matches the contract's.
-- The migration skill appends the cohesion checker to the target's check command, so the record
-  measures the two mechanical properties; 4.3.0 claimed this and only asked the reviewer to judge it.
+- Migration check snapshots work when `.nextjs-clean-migration/` is ignored, exclude even
+  tracked state, and preserve the real Git index. Regression cases cover command execution,
+  artifact binding and record freshness.
+- Cohesion diagnostics cover capabilities and shared roots without presenting naming heuristics
+  as proven ownership defects; the validator distinguishes recommendations from configuration errors.
 - `client-cache.md` states the promotion driver as the two consumers rule 9 requires, not the
   directive alone.
-- The 4.3.0 cohesion scenario is split into three, one reference each (cohesion, schema kinds,
-  query-key promotion), as `tests/scenarios/README.md` requires.
+- The 4.3.0 scenario is split by reference (cohesion, schema kinds, query-key promotion);
+  cohesion expectations now distinguish boundary defects from optional layout advice.
 
 ## [4.3.0] - 2026-09-17
 
