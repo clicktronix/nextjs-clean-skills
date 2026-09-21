@@ -14,7 +14,7 @@ try to infer business meaning from path names.
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
-| `check-module-cohesion.mjs` | test/mock/fixture-only directories and a `lib.ts`/`lib/` split under one owner |
+| `check-module-cohesion.mjs` | advisory directory observations under capabilities and shared roots; not an enforcement gate |
 
 `generatedRoot` is optional. Declare it and generated files may import one another, while external
 consumers may import them only from a capability's private `server/**` segment. Mapping provider
@@ -58,16 +58,22 @@ Add the capability graph check to the same CI command:
 node rules/check-module-cycles.mjs
 node rules/check-dependency-classification.mjs
 node rules/check-database-resources.mjs
+```
+
+For optional layout advice, run separately:
+
+```bash
 node rules/check-module-cohesion.mjs
 ```
 
-`check-module-cohesion.mjs` walks `moduleRoot` for two directory-shape properties import rules
-cannot see: a directory whose production content, recursively, is nothing but `__tests__/`,
-`__mocks__/`, fixtures, or dev-suffixed files (`*.test.ts`, `*.mock.ts`, …); and `lib.ts`
-coexisting with a sibling `lib/` under the same owner, which means neither promotion finished. It
-does not judge private-filename prefixes, role naming, or read-verb vocabulary — those stay a
-review concern because they require reading what a file means, not what a directory contains. See
-`designing-architecture/references/placement/module-cohesion.md`.
+The advisor walks capabilities under `moduleRoot` and admitted roots under `sharedRoot`.
+It reports empty directories, apparently test-support-only directories, and adjacent `lib.ts`
+/ `lib/`. These are naming heuristics: tests may belong to a neighbouring production file,
+and source files in `fixtures/` may run in production. Only the deepest observation is reported.
+Recommendations exit 0; configuration or execution errors (including a missing contract or
+`moduleRoot`) are nonzero. A successful run does not prove semantic cohesion. Do not use these
+observations as a migration acceptance gate; review consumers and responsibilities before changing
+anything. See `designing-architecture/references/placement/module-cohesion.md`.
 
 Before enabling the rules, classify every direct runtime dependency in
 `architecture-contract.json` as `purePackages` or `runtimePackages`. Run
@@ -168,8 +174,6 @@ The portable floor has seven named properties:
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
    calls use resources with declared owners and consumers.
-8. **Internal cohesion.** A directory's production content is not exhausted by its own tests,
-   mocks, and fixtures, and a `lib.ts`/`lib/` promotion is never left half-done in one owner.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.
@@ -200,6 +204,7 @@ prove one of these would create a false guarantee.
 `node scripts/validate-rules.mjs` builds temporary TypeScript projects and checks the default
 profile plus a nonstandard source root and alias. Every behaviour above carries both halves: a clean
 fixture that must pass and a mutation that must fail. `node scripts/validate-contract-tools.mjs`
-does the same for the standalone `check-*.mjs` tools, including the read/write distinction. The seven properties expand into multiple rule
-codes and mutations; exact current counts belong in validator output and `docs/evidence.md`, not in
+does the same for the enforced standalone tools, including the read/write distinction.
+`validate-module-cohesion.mjs` checks advisory output and configuration errors separately.
+The seven properties expand into multiple rule codes and mutations; exact current counts belong in validator output and `docs/evidence.md`, not in
 the architecture taxonomy.

@@ -123,6 +123,23 @@ try {
   check(!lib.recordFreshness(repo, rec.record).fresh, 'record: a changed tree makes the record stale')
   fs.writeFileSync(path.join(repo, 'src/features/index.ts'), 'export {}\n')
   check(lib.recordFreshness(repo, rec.record).fresh, 'record: restoring the tree restores freshness')
+  // State is often ignored by adopters, but can already be tracked in older checkouts.
+  // Neither form belongs in the check snapshot; the real index must remain byte-identical.
+  const indexPath = path.join(repo, '.git/index')
+  const originalIndex = fs.readFileSync(indexPath)
+  const originalIgnore = fs.existsSync(path.join(repo, '.gitignore')) ? fs.readFileSync(path.join(repo, '.gitignore')) : null
+  fs.writeFileSync(path.join(repo, '.gitignore'), '.nextjs-clean-migration/\n')
+  const ignoredState = await lib.runRecord(repo, 'ignored-state', 'echo command-ran; echo proof > "$NCS_ARTIFACTS/proof.txt"', { artifacts: ['proof.txt'] })
+  check(ignoredState.record.exitCode === 0 && fs.readFileSync(ignoredState.record.stdoutPath, 'utf8').includes('command-ran'), 'record: ignored state directory does not prevent command execution')
+  check(lib.boundArtifact(repo, ignoredState.record, 'proof.txt').ok && lib.recordFreshness(repo, ignoredState.record).fresh, 'record: ignored state artifacts remain bound and do not stale their own record')
+  check(fs.readFileSync(indexPath).equals(originalIndex), 'record: snapshot leaves the real index unchanged')
+  const snapshotFiles = spawnSync('git', ['-C', repo, 'ls-tree', '-r', '--name-only', ignoredState.record.tree.tree], { encoding: 'utf8' }).stdout
+  check(!snapshotFiles.includes('.nextjs-clean-migration/'), 'record: snapshot excludes previously tracked state entirely')
+  const trackedState = path.join(repo, '.nextjs-clean-migration/inventory.json')
+  fs.appendFileSync(trackedState, '\n')
+  check(lib.recordFreshness(repo, ignoredState.record).fresh, 'record: changes to tracked state are excluded as well')
+  if (originalIgnore === null) fs.rmSync(path.join(repo, '.gitignore'))
+  else fs.writeFileSync(path.join(repo, '.gitignore'), originalIgnore)
   // The two inputs a text-based hash got wrong: an untracked file git quotes in porcelain output
   // (its content then never reached the hash), and a diff larger than a child-process buffer.
   const quoted = path.join(repo, 'src', '\u0434\u0430\u043d\u043d\u044b\u0435.ts')

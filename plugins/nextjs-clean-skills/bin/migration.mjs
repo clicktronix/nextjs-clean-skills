@@ -303,7 +303,13 @@ export function treeState(repo) {
     const realIndex = path.resolve(repo, git(repo, ['rev-parse', '--git-path', 'index']))
     if (fs.existsSync(realIndex)) fs.copyFileSync(realIndex, index)
     else git(repo, ['read-tree', 'HEAD'], { env })
-    git(repo, ['add', '-A', '--', '.', `:!${STATE_DIR}`], { env })
+    // Drop even tracked state from this temporary index, never the repository's index.
+    git(repo, ['rm', '-f', '-r', '--cached', '--ignore-unmatch', '--', STATE_DIR], { env })
+    // Git can reject an ignored directory named by an exclusion's literal prefix. Making
+    // its leading dot a glob keeps the same exact match without that directory lookup.
+    // Exclude before adding so transient logs are not stored as Git objects either.
+    const stateGlob = `[.]${STATE_DIR.slice(1)}/**`
+    git(repo, ['add', '-A', '--', '.', `:(exclude,glob,top)${stateGlob}`], { env })
     const tree = git(repo, ['write-tree'], { env })
     return { head, tree }
   } finally {

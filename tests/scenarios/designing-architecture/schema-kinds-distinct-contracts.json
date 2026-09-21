@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "designing-architecture"
+  ],
+  "tests_reference": "references/outbound/schema-kinds.md#schema-kinds",
+  "query": "A blog module keeps handwritten TypeScript types that duplicate its Valibot schemas. Its moderation page lists campaigns from a provider row set that contains one malformed row and shows an unfiltered total, and a legacy storage column is nullable while the product treats the value as required. The input schema adds a protocol to a website field on save. Decide which schemas and types exist, which are derived from which, and what happens to the malformed row and the nullable column.",
+  "baseline_failure": "RED hypothesis: the agent collapses input, product record and provider row into one schema, widens the product type to storage nullability, and drops the malformed row with a log line while keeping the total.",
+  "expected_behavior": [
+    "Derives TypeScript types from the Valibot schemas unless a distinct contract is explicitly justified",
+    "Keeps provider row nullability separate from product record invariants and maps or rejects incompatible rows at the adapter",
+    "Rejects the malformed moderation page or explicitly models partial results and their effect on the total instead of silently dropping the row",
+    "Keeps the protocol-adding transform on the input schema only and does not rewrite stored values on read"
+  ],
+  "anti_expectation": [
+    "Does NOT derive every product invariant from storage permissiveness",
+    "Does NOT prescribe dropping invalid rows for every list",
+    "Does NOT treat a logged omission as a valid successful result"
+  ]
+}

@@ -45,7 +45,7 @@ that now states it normatively:
 | # | Decision | Stated in |
 | --- | --- | --- |
 | 1 | The module is the primary unit; route-private glue stays under `app/**` | [Physical Model](./architecture-contract.md#physical-model), [Capability Granularity](./architecture-contract.md#capability-granularity) |
-| 2 | Segments are reserved but optional; an empty segment is invalid | [Optional Internal Segments](./architecture-contract.md#optional-internal-segments) |
+| 2 | Segments are reserved but optional; introduce them for actual responsibilities | [Optional Internal Segments](./architecture-contract.md#optional-internal-segments) |
 | 3 | Public surfaces are runtime-specific root files; `export *` and forwarding wrappers are rejected; `actions.ts` is compiler-constrained | [Public Surfaces](./architecture-contract.md#public-surfaces) |
 | 4 | Dependency direction is small and module-aware; a type-only edge keeps ownership, not direction | [Dependency Direction](./architecture-contract.md#dependency-direction) |
 | 5 | Application behavior keeps the deletion test | [Application Operations](./architecture-contract.md#application-operations) |

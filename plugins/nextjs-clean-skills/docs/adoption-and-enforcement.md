@@ -93,10 +93,10 @@ Move a file only when ownership changes. A re-export does not launder an illegal
 2. Preserve existing schema, form, UI, cache, and provider libraries.
 3. Choose one complete capability as the pilot.
 4. Record its current files and the touch set for one ordinary follow-up change.
-5. Move product behavior under one module root without adding empty segments.
+5. Move product behavior under one module root; introduce only segments with actual responsibilities.
 6. Publish only the runtime surfaces used by real consumers.
 7. Enable module-boundary and server/client checks for the pilot.
-8. Run type, lint, unit/integration, production build, and the real workflow.
+8. Run the repository’s applicable checks (types, lint, tests, build) and the real workflow.
 9. Compare change radius, forwarding wrappers, auth/reporting duplication, and runtime behavior.
 10. Accept, revise, or reject the architecture before migrating another capability.
 

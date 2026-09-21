@@ -3,28 +3,21 @@
     "designing-architecture"
   ],
   "tests_reference": "references/placement/module-cohesion.md#module-cohesion",
-  "query": "Review a migrated blog module. It has client/campaign-blogs/__tests__ but no production files in campaign-blogs, a domain probe exported from client.ts only for tests, client/lib/offer-format-label.ts used only by UI, handwritten types duplicating Valibot schemas, and root query-cache.ts keys used only by browser queries. Private files repeat blog-* although the module path already says blog. It also has server/list-customer-campaigns/data.ts sitting beside a sibling server/load-customer-campaigns.ts, where load- means \"already wrapped with the auth context\" and both read the same rows. Propose the corrected tree and explain each move. The module also owns ui/assets/logo.svg and ui/messages/ru.json, a separate query-key factory shared by a server prefetch and browser query, a moderation page with an invalid provider row and an unfiltered total, and a nullable legacy storage field that must map to a non-null product value. Explain which structures and contracts must remain distinct.",
-  "baseline_failure": "RED hypothesis: the agent checks only layer imports and accepts the folders and public files because every individual import is legal, leaving test-only pseudo-boundaries, misplaced presentation helpers, duplicated schema types, and a browser-only root cache surface.",
+  "query": "Review a migrated blog module. It has client/campaign-blogs.ts beside client/campaign-blogs/__tests__, a domain probe exported from client.ts only for tests, client/lib/offer-format-label.ts used only by UI, and server/lib.ts next to a server/lib/ directory. Private files repeat blog-* although the module path already says blog. server/list-customer-campaigns/data.ts sits beside server/load-customer-campaigns.ts, where load- means \"already wrapped with the auth context\" and both read the same rows. rsc.ts and actions.ts call the same private server composition, which checks caller identity before I/O and applies a domain policy. The module also owns ui/assets/logo.svg, ui/messages/ru.json and server/fixtures/seed.ts consumed by a runtime initializer. Propose justified changes, distinguish confirmed defects from questions, and explain which existing arrangements can remain.",
+  "baseline_failure": "RED hypothesis: the agent treats folder shape and naming advice as mandatory architecture, rearranges valid tests/helpers, forces authorization through server.ts, or misses the test-only production export. This scenario has not been rerun against the revised guidance.",
   "expected_behavior": [
-    "Removes the test-only campaign-blogs owner directory and colocates its tests with the production behavior they exercise",
-    "Moves the schema probe behind a test boundary and removes it from client.ts",
-    "Moves the presentation-only formatter under ui/lib and groups other supporting helpers under the nearest lib.ts or lib directory",
-    "Derives TypeScript types from the Valibot schemas unless a distinct contract is explicitly justified",
-    "Moves browser-only query keys under client and reserves root query-cache.ts for a named server prefetch or hydration consumer plus a browser consumer",
-    "Drops redundant blog prefixes from private filenames when the parent path already supplies that context",
-    "Folds list-customer-campaigns and load-customer-campaigns into one scenario folder holding data.ts plus a named authorized role file, not two separate read scenarios",
-    "States that a read verb (list-/read-) must not encode an authorization role; authorization is a role inside the scenario folder, such as an rsc.ts wrapper over data.ts",
-    "Admits resource-only production directories and the shared neutral key factory without forcing them into runtime segments",
-    "Keeps provider row nullability separate from product record invariants and maps or rejects incompatible rows at the adapter",
-    "Rejects the malformed moderation page or explicitly models partial results and their bulk-operation consequences instead of silently dropping rows"
+    "Allows the private campaign-blogs test directory beside its production owner; does not infer a new product boundary from that folder",
+    "Removes the test-only probe from client.ts and keeps it accessible to tests privately",
+    "Keeps presentation formatting with its UI consumers without requiring a ui/lib folder; checks responsibilities before recommending consolidation of server/lib.ts and server/lib/",
+    "Treats private prefixes and list/read/load verbs as navigation guidance, inspects callers and policy before deciding whether the reads duplicate a responsibility",
+    "Accepts authorization through the shared private server composition; does not require an extra server.ts forwarding hop or application/ports for simple CRUD",
+    "Recognizes assets, messages and the runtime seed as legitimate content from their consumers; labels cohesion-tool output as advisory rather than a failed migration criterion"
   ],
   "anti_expectation": [
-    "Does NOT create empty domain, application, server, client, or ui segments to complete a template",
-    "Does NOT invent one file per type or one directory per test suite",
+    "Does NOT scaffold segments solely to complete a template or prescribe a file-count threshold for a scenario folder",
+    "Does NOT delete valid private test/fixture directories to silence directory observations",
     "Does NOT move all helpers to a global shared utility bucket",
-    "Does NOT claim static import checks alone prove that the root query cache has real consumers",
-    "Does NOT keep load-customer-campaigns as a second read verb or treat it as a scenario distinct from list-customer-campaigns",
-    "Does NOT infer that a directory without JS or TS is test-only",
-    "Does NOT derive every product invariant from storage permissiveness or prescribe dropping invalid rows for every list"
+    "Does NOT invent missing authorization from filenames alone",
+    "Does NOT infer production use or test-only ownership solely from an extension or directory name"
   ]
 }

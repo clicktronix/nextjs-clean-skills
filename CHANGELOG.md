@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Internal cohesion is review guidance, not an eighth enforced property. Relative to 4.3.0,
+  directory-shape observations now exit 0; only configuration or execution errors fail.
+  The portable enforcement floor is consistently seven properties.
+- Private structure follows responsibility without a second-file threshold, mandatory `lib`
+  placement, or prescribed read verbs. Private test/fixture directories are allowed; trusted
+  authorization may use `server.ts` or shared private composition. Strict ownership, runtime,
+  private imports and public-surface constraints remain in force.
+- The migration reviewer follows the advisory policy too: layout alone cannot produce a
+  must-fix finding or a revise verdict; evidence covers only the recorded command.
+- Migration uses one repository-selected check command. Cohesion advice is separate from
+  blocking evidence, which does not track empty directories.
+
+### Fixed
+
+- Migration check snapshots work when `.nextjs-clean-migration/` is ignored, exclude even
+  tracked state, and preserve the real Git index. Regression cases cover command execution,
+  artifact binding and record freshness.
+- Cohesion diagnostics cover capabilities and shared roots without presenting naming heuristics
+  as proven ownership defects; the validator distinguishes recommendations from configuration errors.
+- `client-cache.md` states the promotion driver as the two consumers rule 9 requires, not the
+  directive alone.
+- The 4.3.0 scenario is split by reference (cohesion, schema kinds, query-key promotion);
+  cohesion expectations now distinguish boundary defects from optional layout advice.
+
 ## [4.3.0] - 2026-09-17
 
 ### Added

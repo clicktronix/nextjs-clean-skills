@@ -10,8 +10,8 @@ export const meta = {
 // One record, two readers. The check command was run once by the session as its own
 // child process; its command, exit code and tree state are in the record. Neither agent
 // here runs the check again, waits for a file to appear, or judges from a file it did
-// not see written — the record is the evidence, and a record that no longer matches the
-// tree is refused before any agent is paid.
+// not see written. The calling skill checks record freshness before invoking this workflow;
+// this script receives the record path, not access to the filesystem.
 
 let ARGS = args || {}
 if (typeof args === 'string') {
@@ -74,7 +74,7 @@ const RADIUS_SCHEMA = {
 
 const RECORD_BLOCK =
   `## The check record\n${RECORD} — JSON with { id, command, exitCode, tree, stdoutPath }. Read it first and cite its \`id\` in your answer. ` +
-  'Its stdoutPath holds the full output of the target\'s own typecheck, lint, tests and production build. ' +
+  'Its stdoutPath holds the output of the recorded command. Read command to establish which checks ran; do not assume unlisted checks passed. ' +
   'Do NOT run those commands yourself, do NOT wait for any file, and do NOT infer a result from a file you did not see this record name.\n'
 
 phase('Verify')
@@ -86,10 +86,9 @@ const tasks = [
     'For each: does the migrated capability satisfy it, with file:line evidence? A finding restates nothing; it names a place and what is wrong.\n\n' +
     '## Also check\n- every moved file lost its obsolete old path in this same change;\n- no compatibility bucket, re-export tunnel, or eslint-disable was introduced;\n' +
     '- a declared channel change (Server Action → GET, etc.) has its behaviour risk named.\n\n' +
-    '## Module cohesion audit\n' +
-    '- no directory is justified only by tests, mocks, fixtures, or a lone type;\n' +
+    '## Boundary and test audit\n' +
+    'Private directory shape and helper filenames are advisory; they alone do not justify a must-fix finding or a revise verdict. Review actual responsibilities and consumers.\n' +
     '- test-only probes and fixtures remain behind test boundaries and production surfaces do not export them;\n' +
-    '- helpers sit with their owning behavior (`lib.ts` or `lib/`), and presentation formatting sits under `ui/`;\n' +
     '- runtime schemas and TypeScript types do not duplicate the same shape without an intentional contract distinction;\n' +
     '- every root `query-cache.ts` has a named server prefetch/hydration consumer and browser query consumer; otherwise its keys are private to the owning runtime;\n' +
     '- root surfaces keep policy, IO and substantial channel implementations private; small public-contract translation, runtime composition and admitted neutral behavior (such as query-key factories) have one owner;\n' +

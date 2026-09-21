@@ -22,7 +22,7 @@ Resolve the plugin root once: `$CLAUDE_PLUGIN_ROOT`, else the directory holding 
 ## Before anything runs
 
 Confirm the target is on a throwaway branch with a clean tree and green checks. Record the
-target's own check command (typecheck, lint, tests, production build) — that command, run by
+target's own check command (applicable type, lint, test and build checks) — that command, run by
 you, is the only behaviour evidence this procedure accepts. Record one ordinary follow-up
 change **inside the pilot capability**; a change elsewhere measures nothing. Tell the user the
 cost shape: at most six lens agents for inventory, one assignment agent, one mover per slice,
@@ -47,7 +47,10 @@ them yourself or ask the same agent about exactly those. Dead rules are a warnin
 ## Step 3 — Enable (you write, the census measures)
 
 Copy `$PLUGIN/rules/` into the target, draft `rules/architecture-contract.json` from the roots
-lens, and spread the two ESLint configs after the target's own. Install the census configuration
+lens, and spread the two ESLint configs after the target's own. Choose the repository's deciding
+check command once and reuse it in baseline and fix rounds. The optional
+`node rules/check-module-cohesion.mjs` reports advice separately; directory shape does not decide
+acceptance or trigger mandatory cleanup. Install the census configuration
 repo-wide so violations can be counted, but keep the **blocking** entry scoped to roots that are
 already migrated — widen it per accepted capability. The target's lint must stay judgeable as
 its own gate. Take the baseline with one record whose lint step also writes

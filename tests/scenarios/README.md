@@ -75,11 +75,13 @@ Rows marked `hypothesis` below have no accepted observed run.
 | security/dal-and-auth | defense-in-depth-ownership | predicate proven; placement rerun required |
 | caching/client-cache | rsc-hybrid-read | inconsistent historical baseline |
 | caching/client-cache | browser-owned-query-transport | hypothesis |
+| caching/client-cache | query-key-promotion-two-consumers | hypothesis |
 | seams/dependency-categories | port-over-local-engine | hypothesis |
 | use-cases/when-a-use-case-exists | crud-forwarding-use-cases | hypothesis |
 | use-cases/validation-once | validate-once-per-boundary | hypothesis |
 | use-cases/when-a-use-case-exists (Orchestrating Capability) | nested-composition-no-bypass | hypothesis |
 | outbound/row-vs-domain-types | select-derived-from-domain-schema | hypothesis |
+| outbound/schema-kinds | schema-kinds-distinct-contracts | hypothesis |
 | inbound/streaming | streaming-through-server-action | hypothesis |
 | inbound/route-handlers | framework-control-flow-not-swallowed | hypothesis |
 | errors/error-taxonomy | transport-neutral-error-mapping | hypothesis |

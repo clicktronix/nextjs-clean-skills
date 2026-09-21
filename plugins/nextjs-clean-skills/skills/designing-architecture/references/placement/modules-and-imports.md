@@ -12,8 +12,8 @@ Product behavior lives under `src/modules/<capability>`. Reserved internal segme
 | `client/` | browser async lifecycle | browser-safe own contracts, exact own actions, admitted `shared/client` |
 | `ui/` | reusable capability UI | own domain/client/action surfaces, admitted `shared/ui` |
 
-Do not create empty segments. A tiny capability may keep several roles in one private server file
-when no dependency rule needs a split.
+Introduce a segment for an actual responsibility, not to complete a template. A tiny capability
+may keep several roles in one private server file when no dependency rule needs a split.
 
 For the tree inside a segment, read [Module Cohesion](module-cohesion.md).
 
