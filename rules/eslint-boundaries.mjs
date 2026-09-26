@@ -702,7 +702,10 @@ const capabilityRule = {
       // ImportDeclaration visitor never sees them, so without this an `import type` that fails
       // ownership passed when rewritten in this form.
       TSImportType(node) {
-        const literal = node.argument?.type === 'TSLiteralType' ? node.argument.literal : null
+        // typescript-eslint 8.x moved the specifier from `argument` (a TSLiteralType) to `source`;
+        // read the new key first so the deprecated one is touched only on older parsers.
+        const literal =
+          node.source ?? (node.argument?.type === 'TSLiteralType' ? node.argument.literal : null)
         reportImport(literal ?? node, literal ? constantSpecifier(literal) : null, { typeOnly: true })
       },
 
