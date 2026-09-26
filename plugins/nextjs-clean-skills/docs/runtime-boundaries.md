@@ -56,9 +56,12 @@ reporting. Otherwise keep those duties in `rsc.ts`.
 
 Request identity contains:
 
-- actor identity and roles;
+- actor identity;
 - tenant or ownership scope;
 - request and trace identifiers.
+
+Roles are not part of it. The channel resolves the actor's roles for the operation it serves and
+passes them to that capability's policy; the role vocabulary belongs to the capability.
 
 Database clients, provider clients, reporter, clock, and other effects are dependencies, not
 identity. Keep them separate even when one runtime factory resolves both.

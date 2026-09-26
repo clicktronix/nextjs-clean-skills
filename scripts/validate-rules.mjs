@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
 
 import { fail, root } from './_lib.mjs'
-import { loadArchitecturePaths, moduleSpecifiers } from '../rules/contract-paths.mjs'
+import { loadArchitecturePaths, moduleEdges, moduleSpecifiers } from '../rules/contract-paths.mjs'
 
 const BASE = 'rules/eslint-boundaries.mjs'
 const STRICT = 'rules/eslint-boundaries-resolved.mjs'
@@ -249,6 +249,23 @@ export function createLabel() {
 const limit = 10
 export { limit }
 `,
+  // An object literal is not a function; Next.js lets it through the build and fails at load.
+  'src/modules/bad-action-object/actions.ts': `
+'use server'
+export const config = { retries: 3 } as const
+`,
+  // A higher-order wrapper produces the async function at runtime, which is what Next.js checks.
+  'src/modules/good-action-wrapped/actions.ts': `
+'use server'
+type Action<T> = (input: T) => Promise<{ ok: boolean }>
+const withAuth = <T,>(action: Action<T>): Action<T> => action
+const client = { action: <T,>(action: Action<T>): Action<T> => action }
+export const createLabel = withAuth(async (_name: string) => ({ ok: true }))
+export const renameLabel = client.action(async (_name: string) => ({ ok: true }))
+const archiveLabel = withAuth(async (_id: string) => ({ ok: true }))
+export { archiveLabel }
+export default withAuth(async (_id: string) => ({ ok: true }))
+`,
   // Every accepted shape of an async value export: declaration, const arrow, local export list,
   // type export, and a type-only re-export.
   'src/modules/good-actions/actions.ts': `
@@ -392,6 +409,16 @@ export type { WorkItem } from '../work-items/server.js'
 import { getWorkItems } from '../../work-items/server.js'
 export default getWorkItems
 `,
+  // The same borrowed internal type written as an import type node, which no import statement shows.
+  'src/modules/type-consumer/domain/bad-import-type.ts': `
+export type Borrowed = import('../../work-items/domain/model.js').WorkItem
+`,
+  // An import type node of a server surface from browser code is erased like import type.
+  'src/modules/type-consumer/client/import-type.ts': `
+'use client'
+export type Remote = import('../../work-items/server.js').WorkItem
+export type Surface = typeof import('../../work-items/server.js')
+`,
   'src/modules/type-consumer/domain/bad-type-internal.ts': `
 import type { WorkItem } from '../../work-items/domain/model.js'
 export type Borrowed = WorkItem
@@ -460,7 +487,7 @@ export const make = string
 import { store } from '../server/store.js'
 export const BadServerReach = () => store
 `,
-  // The marker guards value imports; an erased type import before it is not an ordering defect.
+  // Presence is the check; a marker after other imports still poisons the wrong runtime's graph.
   'src/modules/marker-type/server.ts': `
 import type { Card } from '../billing/contracts.js'
 import { type Model } from '../campaign/contracts.js'
@@ -518,6 +545,11 @@ import { unmarked } from './server.js'
 import 'server-only'
 export const late = unmarked
 `,
+  // A side-effect import of something else is not the marker.
+  'src/modules/marker/job.ts': `
+import './server.js'
+export const job = true
+`,
 
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
   // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
@@ -548,6 +580,7 @@ const expectedBase = new Map([
   ['src/modules/bad-action-late-directive/actions.ts', 'actionDirective'],
   ['src/modules/bad-action-sync/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-local-export/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-object/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
@@ -566,6 +599,7 @@ const expectedBase = new Map([
   // A type-only edge keeps the ownership rules: the coupling to a neighbour's private file and to
   // a capability's internals survives the compiler erasing the binding.
   ['src/modules/type-consumer/domain/bad-type-internal.ts', 'crossCapabilityInternal'],
+  ['src/modules/type-consumer/domain/bad-import-type.ts', 'crossCapabilityInternal'],
   ['src/app/bad-type-internal/page.ts', 'appInternal'],
   // The same import as a value is the runtime edge the type-only form is not.
   ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
@@ -584,8 +618,7 @@ const expectedBase = new Map([
 const expectedMarkers = new Map([
   ['src/modules/marker/server.ts', 'clean-runtime/runtime-markers'],
   ['src/modules/marker/client.ts', 'clean-runtime/runtime-markers'],
-  // Present but after the imports it is supposed to guard: the module body has already run them.
-  ['src/modules/marker/rsc.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker/job.ts', 'clean-runtime/runtime-markers'],
 ])
 
 const expectedStrict = new Map([
@@ -604,6 +637,7 @@ const clean = new Set([
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
   'src/modules/good-actions/actions.ts',
+  'src/modules/good-action-wrapped/actions.ts',
   'src/modules/work-items/application/list.ts',
   'src/modules/work-items/query-cache.ts',
   'src/modules/work-items/server.ts',
@@ -629,6 +663,7 @@ const clean = new Set([
   'src/modules/graph-b/server/use-a.ts',
   'src/modules/type-consumer/client/view.ts',
   'src/modules/type-consumer/client/inline-type.ts',
+  'src/modules/type-consumer/client/import-type.ts',
   'src/modules/type-consumer/client.ts',
   'src/modules/campaign/domain/model.ts',
   'src/modules/campaign/contracts.ts',
@@ -639,6 +674,7 @@ const clean = new Set([
   'src/modules/shapes/contracts.ts',
   'src/modules/agency/domain/alias-ok.ts',
   'src/modules/marker-type/server.ts',
+  'src/modules/marker/rsc.ts',
 ])
 
 if (ESLint) {
@@ -1030,6 +1066,16 @@ for (const [label, source, expected] of [
 ]) {
   const parsed = ts.createSourceFile(`${label}.ts`, source, ts.ScriptTarget.Latest, true)
   if (!moduleSpecifiers(parsed).includes(expected)) errors.push(`${label} was not extracted`)
+}
+for (const [label, source] of [
+  ['import type node', "type Offer = import('@/modules/a/contracts').Offer\n"],
+  ['typeof import type node', "type Messages = keyof typeof import('@/modules/a/contracts')\n"],
+]) {
+  const parsed = ts.createSourceFile(`${label}.ts`, source, ts.ScriptTarget.Latest, true)
+  const edges = moduleEdges(parsed)
+  if (!edges.some((edge) => edge.specifier === '@/modules/a/contracts' && edge.typeOnly)) {
+    errors.push(`${label} was not extracted as a type-only edge`)
+  }
 }
 {
   const parsed = ts.createSourceFile('ordinary-method.ts', "loader.require('@/not-an-edge')\n", ts.ScriptTarget.Latest, true)

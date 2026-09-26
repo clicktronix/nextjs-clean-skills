@@ -192,10 +192,12 @@ channel wrapper is valid only when it establishes real runtime behavior such as 
 validation, failure translation, or telemetry ownership.
 
 `actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
-must be an async function declared in that file. Import the private implementation and call it from
+must be an async function when the module loads — declared in the file or produced there by a
+wrapper such as `withAuth(async (input) => …)`. Import the private implementation and call it from
 the local action; do not value-re-export it. Type-only re-exports remain allowed. The base rule tier
-checks all three: the directive, the async shape of every value export, and the absence of value
-re-exports.
+checks all three: the directive, the absence of value re-exports, and every value export that syntax
+proves is not an async function (a literal, object, array, class or synchronous function). Next.js
+checks a wrapper's result at load time.
 
 `contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
 that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
@@ -267,16 +269,17 @@ Normative rules:
    invalid with consumers on only one side.
 10. `server-only` and `client-only` protect runtime modules in addition to path rules, and the
     resolved rule tier checks it: a `server.ts`, `rsc.ts`, `stream.ts`, or `job.ts` imports
-    `'server-only'`, and `client.ts` imports `'client-only'`, before its other imports. `actions.ts`
-    is excluded — it is the one surface browser code is meant to import.
+    `'server-only'`, and `client.ts` imports `'client-only'`. Position does not matter — the marker
+    works by resolving to a throwing module in the wrong runtime's graph — so the check is presence.
+    `actions.ts` is excluded — it is the one surface browser code is meant to import.
 11. A production build must fail when a Client Component imports a server surface.
 12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
     fail closed until the product updates its contract.
 13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
     `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
-14. A type-only edge — `import type`, `import { type X }`, `export type … from` — is erased by the
-    compiler, so it does not carry a runtime direction: the browser/server, purity and neutrality
-    rules do not apply to it. Ownership does. Importing a neighbour's private file as a type is the
+14. A type-only edge — `import type`, `import { type X }`, `export type … from`, or `import(…)` in a
+    type position — is erased by the compiler, so it does not carry a runtime direction: the
+    browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a neighbour's private file as a type is the
     same coupling as importing it as a value, and fails the same way.
 15. A table's *writes* belong to the owner of its invariants. `consumers` admits reads and the
     owner's public RPCs; an optional `writers` list narrows `insert`/`update`/`upsert`/`delete` to
@@ -332,11 +335,14 @@ Normative rules:
    filters. A request-scoped client, a reporter or an identity object never crosses into a cached
    function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
    to the next. The cached function obtains its store from the capability's own composition, not
-   from an argument.
+   from an argument. Without cookies that store is privileged or anonymous, so row-level security
+   does not scope it: the tenant argument, applied as a query predicate, is the isolation.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
 3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
    prerenderable cache; data one identity may see and another may not never enters it.
+   `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
+   across requests — only in browser memory — so it is request-time work, not a server cache.
 4. `cacheTag` and `cacheLife` are called inside the cached function. The tag vocabulary is a private
    `server/**` module; nothing outside the capability learns how its cache is keyed.
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.

@@ -17,7 +17,9 @@ executes them without handing the run to a controller it cannot see.
 
 Resolve the plugin root once: `$CLAUDE_PLUGIN_ROOT`, else the directory holding this file's
 `../..`. Call it `PLUGIN`. Every command below is
-`node $PLUGIN/bin/migration.mjs <command> --repo <target>`; run it, do not paraphrase it.
+`node $PLUGIN/bin/migration.mjs <command> --repo <target>`; run it, do not paraphrase it. The
+contract a migration lands on is `$PLUGIN/docs/architecture-contract.md` with
+`$PLUGIN/docs/runtime-boundaries.md`; a slice that disagrees with them is wrong, not the contract.
 
 ## Before anything runs
 

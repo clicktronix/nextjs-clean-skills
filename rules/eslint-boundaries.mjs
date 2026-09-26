@@ -285,7 +285,7 @@ const capabilityRule = {
       actionDirective:
         "actions.ts must open with the 'use server' directive. Without it the file is an ordinary server module, and the browser code that imports it bundles the server.",
       actionValueExport:
-        '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions; anything else fails the Next.js build.',
+        '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions: Next.js rejects a literal at build time and any other non-function when the module loads.',
       hiddenDynamicImport:
         'A computed import hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
     },
@@ -514,25 +514,46 @@ const capabilityRule = {
       }
     }
 
-    // `actions.ts` is compiler-constrained, not just path-constrained: Next.js accepts only async
-    // functions as value exports of a top-level `'use server'` module. The docs promised the check
-    // and only the re-export half of it was written; a sync export or a missing directive passed
-    // lint and failed the target's build.
-    const isAsyncFunctionNode = (node) =>
-      node != null &&
-      (node.type === 'FunctionDeclaration' ||
-        node.type === 'FunctionExpression' ||
-        node.type === 'ArrowFunctionExpression') &&
-      node.async === true
+    // `actions.ts` is compiler-constrained, not just path-constrained: every value export of a
+    // top-level `'use server'` module must be an async function when the module loads. Next.js
+    // rejects a literal at build time and checks everything else with `typeof` at runtime, so an
+    // export produced by a call — `withAuth(async () => …)`, next-safe-action's `client.action(…)`
+    // — is legal. The rule reports only what syntax proves is not an async function and leaves
+    // calls, member reads and imported bindings to that runtime check instead of guessing wrapper
+    // names.
+    const FUNCTION_NODES = new Set([
+      'FunctionDeclaration',
+      'FunctionExpression',
+      'ArrowFunctionExpression',
+    ])
+    const NON_FUNCTION_NODES = new Set([
+      'Literal',
+      'TemplateLiteral',
+      'ObjectExpression',
+      'ArrayExpression',
+      'ClassExpression',
+      'ClassDeclaration',
+      'TSEnumDeclaration',
+    ])
+    const TYPE_WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'])
 
-    const isAsyncBinding = (programNode, name) => {
+    const isKnownNonAction = (node) => {
+      if (node == null) return true
+      if (TYPE_WRAPPERS.has(node.type)) return isKnownNonAction(node.expression)
+      if (FUNCTION_NODES.has(node.type)) return node.async !== true
+      return NON_FUNCTION_NODES.has(node.type)
+    }
+
+    const isKnownNonActionBinding = (programNode, name) => {
       const sourceCode = context.sourceCode ?? context.getSourceCode()
       const scope = sourceCode.getScope(programNode)
       const variable = scope.set.get(name) ?? scope.childScopes[0]?.set.get(name)
       const definition = variable?.defs[0]
       if (!definition) return false
-      if (definition.type === 'FunctionName') return isAsyncFunctionNode(definition.node)
-      if (definition.type === 'Variable') return isAsyncFunctionNode(definition.node.init)
+      if (definition.type === 'FunctionName' || definition.type === 'ClassName') {
+        return isKnownNonAction(definition.node)
+      }
+      if (definition.type === 'Variable') return isKnownNonAction(definition.node.init)
       return false
     }
 
@@ -552,23 +573,23 @@ const capabilityRule = {
       for (const statement of programNode.body) {
         if (statement.type === 'ExportDefaultDeclaration') {
           const declaration = statement.declaration
-          if (isAsyncFunctionNode(declaration)) continue
-          if (declaration.type === 'Identifier' && isAsyncBinding(programNode, declaration.name)) continue
-          reportValue(statement, 'default')
+          const nonAction =
+            declaration.type === 'Identifier'
+              ? isKnownNonActionBinding(programNode, declaration.name)
+              : isKnownNonAction(declaration)
+          if (nonAction) reportValue(statement, 'default')
           continue
         }
         if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') continue
         const declaration = statement.declaration
         if (declaration) {
-          if (declaration.type === 'FunctionDeclaration') {
-            if (!declaration.async) reportValue(declaration, declaration.id?.name ?? 'function')
-          } else if (declaration.type === 'VariableDeclaration') {
+          if (declaration.type === 'VariableDeclaration') {
             for (const declarator of declaration.declarations) {
-              if (!isAsyncFunctionNode(declarator.init)) {
+              if (isKnownNonAction(declarator.init)) {
                 reportValue(declarator, declarator.id.name ?? 'binding')
               }
             }
-          } else if (declaration.type === 'ClassDeclaration' || declaration.type === 'TSEnumDeclaration') {
+          } else if (declaration.declare !== true && isKnownNonAction(declaration)) {
             reportValue(declaration, declaration.id?.name ?? 'value')
           }
           continue
@@ -579,7 +600,7 @@ const capabilityRule = {
           for (const specifier of statement.specifiers) {
             if (specifier.exportKind === 'type') continue
             const name = specifier.local.name ?? specifier.local.value
-            if (!isAsyncBinding(programNode, name)) reportValue(specifier, name)
+            if (isKnownNonActionBinding(programNode, name)) reportValue(specifier, name)
           }
         }
       }
@@ -675,6 +696,14 @@ const capabilityRule = {
 
       ImportExpression(node) {
         reportImport(node.source, constantSpecifier(node.source), { bindings: ['*'] })
+      },
+
+      // `type X = import('…').Y` and `typeof import('…')` name a module in a type position. The
+      // ImportDeclaration visitor never sees them, so without this an `import type` that fails
+      // ownership passed when rewritten in this form.
+      TSImportType(node) {
+        const literal = node.argument?.type === 'TSLiteralType' ? node.argument.literal : null
+        reportImport(literal ?? node, literal ? constantSpecifier(literal) : null, { typeOnly: true })
       },
 
       CallExpression(node) {
