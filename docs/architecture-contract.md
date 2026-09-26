@@ -194,8 +194,9 @@ must be an async function when the module loads — declared in the file or prod
 wrapper such as `withAuth(async (input) => …)`. Import the private implementation and call it from
 the local action; do not value-re-export it. Type-only re-exports remain allowed. The base rule tier
 checks all three: the directive, the absence of value re-exports, and every value export that syntax
-proves is not an async function (a literal, object, array, class or synchronous function). Next.js
-checks a wrapper's result at load time.
+proves is not an async function (a literal, object, array, class or synchronous function), and a
+binding imported from elsewhere and exported unchanged counts as a value re-export. Next.js checks a
+wrapper's result at load time.
 
 `contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
 that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
@@ -277,8 +278,9 @@ Normative rules:
     `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
 14. A type-only edge — `import type`, `import { type X }`, `export type … from`, or `import(…)` in a
     type position — is erased by the compiler, so it does not carry a runtime direction: the
-    browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a neighbour's private file as a type is the
-    same coupling as importing it as a value, and fails the same way.
+    browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a
+    neighbour's private file as a type is the same coupling as importing it as a value, and fails
+    the same way.
 15. A table's *writes* belong to the owner of its invariants. `consumers` admits reads and the
     owner's public RPCs; an optional `writers` list narrows `insert`/`update`/`upsert`/`delete` to
     the subjects that may decide what the table contains. A writer must already be a consumer.

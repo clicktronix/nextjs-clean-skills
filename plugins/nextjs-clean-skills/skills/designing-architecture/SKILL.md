@@ -14,9 +14,9 @@ structure, local state, forms, loading, styling, or accessibility, use `creating
 Preserve the project's stack, paths, and established architecture unless adoption or migration was
 requested. Fetch current Next.js documentation before relying on framework-specific behavior.
 
-The normative contract is [architecture contract](../../docs/architecture-contract.md) and
-[runtime boundaries](../../docs/runtime-boundaries.md); the references below explain how to apply
-it, and where one disagrees with the contract, the contract wins.
+Normative source: [architecture contract](../../docs/architecture-contract.md) and
+[runtime boundaries](../../docs/runtime-boundaries.md). The references below explain how to apply
+them; where a reference disagrees, the normative source wins.
 
 ## Decision Gate
 
@@ -80,7 +80,8 @@ helpers, test support, or filenames are unclear, read
 
 Publish a root surface only for a named external consumer. Use the project's admitted vocabulary;
 the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.ts`,
-`contracts.ts`, `query-cache.ts`, `stream.ts`, and `job.ts`. Keep implementations private and exports explicit.
+`contracts.ts`, `query-cache.ts`, `stream.ts`, and `job.ts`. Keep implementations private and
+exports explicit.
 
 Create `query-cache.ts` only when the same serializable key identity has both a server
 prefetch/hydration consumer and a browser query consumer. Otherwise keep the key private to its

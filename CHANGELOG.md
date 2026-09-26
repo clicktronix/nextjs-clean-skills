@@ -9,20 +9,21 @@ All notable changes to this project are documented in this file.
 - `actionValueExport` accepts a Server Action produced by a wrapper call
   (`export const x = withAuth(async () => …)`, next-safe-action's `client.action(…)`). It reports
   only what syntax proves is not an async function — a literal, object, array, class or synchronous
-  function — and leaves the rest to Next.js's load-time check (#33).
+  function — and leaves the rest to Next.js's load-time check. An imported binding exported
+  unchanged (`import { x } from …; export { x }`) is reported as the value re-export it is.
 - A module named in a type position — `import('…').X`, `typeof import('…')` — is a type-only edge
   for both the ESLint ownership rules and `moduleEdges`. Before, an internal import that failed as
-  `import type` passed in this form (#39).
+  `import type` passed in this form.
 - `runtime-markers` requires the `server-only`/`client-only` marker to be present, not first. The
-  marker works through module resolution, so its position never mattered (#38).
+  marker works through module resolution, so its position never mattered.
 - Cache Components guidance says a shared cached read runs on a privileged or anonymous store, so
   its tenant argument is the only isolation, and documents what `'use cache: private'` allows and
-  where it stores results (#35).
-- `RequestIdentity` no longer lists roles anywhere; the channel resolves them per operation (#36).
+  where it stores results.
+- `RequestIdentity` no longer lists roles anywhere; the channel resolves them per operation.
 - The port gate is the only rule in `dependency-categories.md`; the table now reports its usual
-  outcome instead of defaulting remote dependencies to a port (#37).
+  outcome instead of defaulting remote dependencies to a port.
 - Each skill names the normative contract it applies, and `contracts.ts` is described as on by
-  default everywhere it is listed (#34).
+  default everywhere it is listed.
 
 ## [4.4.0] - 2026-09-22
 

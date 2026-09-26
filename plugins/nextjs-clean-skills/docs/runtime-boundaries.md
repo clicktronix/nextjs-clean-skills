@@ -132,8 +132,9 @@ use framework control flow and must not be normalized as application failures.
 ## Server Actions
 
 `actions.ts` is a dedicated module with top-level `'use server'`. It is used for UI commands, not
-browser reads. Next.js requires every value export from that module to be an async function declared
-there; import and call a private implementation instead of value-re-exporting it.
+browser reads. Next.js requires every value export from that module to be an async function when
+the module loads — declared there or produced there by a wrapper such as `withAuth(async () => …)`;
+import and call a private implementation instead of value-re-exporting it.
 [Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server).
 
 The action:

@@ -19,9 +19,10 @@ For the tree inside a segment, read [Module Cohesion](module-cohesion.md).
 
 External consumers import only root surfaces: `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`,
 `ui.ts`, `contracts.ts`, `query-cache.ts`, `stream.ts`, or `job.ts`. Named re-exports may publish an
-explicit API; `export *` is forbidden. In top-level `'use server'` `actions.ts`, value exports are
-locally declared async functions rather than re-exports. A capability never imports another
-capability's internal directory, and the module graph remains acyclic.
+explicit API; `export *` is forbidden. In top-level `'use server'` `actions.ts`, every value export
+is an async function declared there or produced there by a wrapper, never a re-export. A
+capability never imports another capability's internal directory, and the module graph remains
+acyclic.
 
 `app/**` owns routes and route-private presentation. It composes public surfaces but does not own
 product policy.

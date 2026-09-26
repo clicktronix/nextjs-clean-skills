@@ -8,9 +8,11 @@ description: >-
 # Creating React Components
 
 Use this skill for UI structure. Keep the project's existing UI stack unless migration is requested.
-Fetch current React and Next.js docs for exact APIs. Runtime and trust rules for components come
-from [runtime boundaries](../../docs/runtime-boundaries.md) and
-[frontend composition](../../docs/frontend-composition.md); where a reference disagrees, those win.
+Fetch current React and Next.js docs for exact APIs.
+
+Normative source: [runtime boundaries](../../docs/runtime-boundaries.md) and
+[frontend composition](../../docs/frontend-composition.md). The references below explain how to
+apply them; where a reference disagrees, the normative source wins.
 
 ## Defaults
 

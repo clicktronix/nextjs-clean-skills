@@ -51,6 +51,31 @@ const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATE
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
+
+// `actions.ts` is compiler-constrained, not just path-constrained: every value export of a
+// top-level `'use server'` module must be an async function. Next.js rejects some other values at
+// build time and checks the rest with `typeof` when the module loads, so an export produced by a
+// call — `withAuth(async () => …)`, next-safe-action's `client.action(…)` — is legal. The rule
+// reports only what syntax proves is not an async function, including a class, which passes the
+// `typeof` check and then fails when called, and leaves calls and member reads to Next.js instead
+// of guessing wrapper names.
+const ACTION_FUNCTION_NODES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+])
+const ACTION_NON_FUNCTION_NODES = new Set([
+  'Literal',
+  'TemplateLiteral',
+  'ObjectExpression',
+  'ArrayExpression',
+  'ClassExpression',
+  'ClassDeclaration',
+  'TSEnumDeclaration',
+  'UnaryExpression',
+  'UpdateExpression',
+])
+const ACTION_TYPE_WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'])
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
 
 const stem = (value) => path.basename(value).replace(SOURCE_EXT, '')
@@ -285,7 +310,7 @@ const capabilityRule = {
       actionDirective:
         "actions.ts must open with the 'use server' directive. Without it the file is an ordinary server module, and the browser code that imports it bundles the server.",
       actionValueExport:
-        '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions: Next.js rejects a literal at build time and any other non-function when the module loads.',
+        '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions; Next.js rejects some other values at build time and the rest at runtime.',
       hiddenDynamicImport:
         'A computed import hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
     },
@@ -514,47 +539,31 @@ const capabilityRule = {
       }
     }
 
-    // `actions.ts` is compiler-constrained, not just path-constrained: every value export of a
-    // top-level `'use server'` module must be an async function when the module loads. Next.js
-    // rejects a literal at build time and checks everything else with `typeof` at runtime, so an
-    // export produced by a call — `withAuth(async () => …)`, next-safe-action's `client.action(…)`
-    // — is legal. The rule reports only what syntax proves is not an async function and leaves
-    // calls, member reads and imported bindings to that runtime check instead of guessing wrapper
-    // names.
-    const FUNCTION_NODES = new Set([
-      'FunctionDeclaration',
-      'FunctionExpression',
-      'ArrowFunctionExpression',
-    ])
-    const NON_FUNCTION_NODES = new Set([
-      'Literal',
-      'TemplateLiteral',
-      'ObjectExpression',
-      'ArrayExpression',
-      'ClassExpression',
-      'ClassDeclaration',
-      'TSEnumDeclaration',
-    ])
-    const TYPE_WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'])
-
-    const isKnownNonAction = (node) => {
-      if (node == null) return true
-      if (TYPE_WRAPPERS.has(node.type)) return isKnownNonAction(node.expression)
-      if (FUNCTION_NODES.has(node.type)) return node.async !== true
-      return NON_FUNCTION_NODES.has(node.type)
-    }
-
-    const isKnownNonActionBinding = (programNode, name) => {
+    // The export's shape, decided from syntax. `reexport` is a binding imported from elsewhere and
+    // published unchanged, which is the value re-export `actionReexport` names, written in two
+    // statements instead of one.
+    const classifyActionValue = (node, programNode, depth = 0) => {
+      if (node == null) return 'nonAction'
+      if (depth > 8) return 'unknown'
+      if (ACTION_TYPE_WRAPPERS.has(node.type)) {
+        return classifyActionValue(node.expression, programNode, depth + 1)
+      }
+      if (ACTION_FUNCTION_NODES.has(node.type)) return node.async === true ? 'unknown' : 'nonAction'
+      if (ACTION_NON_FUNCTION_NODES.has(node.type)) return 'nonAction'
+      if (node.type !== 'Identifier') return 'unknown'
       const sourceCode = context.sourceCode ?? context.getSourceCode()
       const scope = sourceCode.getScope(programNode)
-      const variable = scope.set.get(name) ?? scope.childScopes[0]?.set.get(name)
+      const variable = scope.set.get(node.name) ?? scope.childScopes[0]?.set.get(node.name)
       const definition = variable?.defs[0]
-      if (!definition) return false
+      if (!definition) return node.name === 'undefined' ? 'nonAction' : 'unknown'
+      if (definition.type === 'ImportBinding') return 'reexport'
       if (definition.type === 'FunctionName' || definition.type === 'ClassName') {
-        return isKnownNonAction(definition.node)
+        return classifyActionValue(definition.node, programNode, depth + 1)
       }
-      if (definition.type === 'Variable') return isKnownNonAction(definition.node.init)
-      return false
+      if (definition.type === 'Variable') {
+        return classifyActionValue(definition.node.init, programNode, depth + 1)
+      }
+      return 'unknown'
     }
 
     const checkActionExports = (programNode) => {
@@ -567,17 +576,17 @@ const capabilityRule = {
       }
       if (!prologueHasDirective) context.report({ node: programNode, messageId: 'actionDirective' })
 
-      const reportValue = (node, name) =>
-        context.report({ node, messageId: 'actionValueExport', data: { name } })
+      const reportValue = (node, name, value = node) => {
+        const kind = classifyActionValue(value, programNode)
+        if (kind === 'reexport') context.report({ node, messageId: 'actionReexport' })
+        else if (kind === 'nonAction') {
+          context.report({ node, messageId: 'actionValueExport', data: { name } })
+        }
+      }
 
       for (const statement of programNode.body) {
         if (statement.type === 'ExportDefaultDeclaration') {
-          const declaration = statement.declaration
-          const nonAction =
-            declaration.type === 'Identifier'
-              ? isKnownNonActionBinding(programNode, declaration.name)
-              : isKnownNonAction(declaration)
-          if (nonAction) reportValue(statement, 'default')
+          reportValue(statement, 'default', statement.declaration)
           continue
         }
         if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') continue
@@ -585,11 +594,9 @@ const capabilityRule = {
         if (declaration) {
           if (declaration.type === 'VariableDeclaration') {
             for (const declarator of declaration.declarations) {
-              if (isKnownNonAction(declarator.init)) {
-                reportValue(declarator, declarator.id.name ?? 'binding')
-              }
+              reportValue(declarator, declarator.id.name ?? 'binding', declarator.init)
             }
-          } else if (declaration.declare !== true && isKnownNonAction(declaration)) {
+          } else if (declaration.declare !== true) {
             reportValue(declaration, declaration.id?.name ?? 'value')
           }
           continue
@@ -600,7 +607,7 @@ const capabilityRule = {
           for (const specifier of statement.specifiers) {
             if (specifier.exportKind === 'type') continue
             const name = specifier.local.name ?? specifier.local.value
-            if (isKnownNonActionBinding(programNode, name)) reportValue(specifier, name)
+            reportValue(specifier, name, specifier.local)
           }
         }
       }

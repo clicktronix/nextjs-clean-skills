@@ -249,6 +249,20 @@ export function createLabel() {
 const limit = 10
 export { limit }
 `,
+  // An imported binding published unchanged is a value re-export written in two statements.
+  'src/modules/bad-action-import-reexport/actions.ts': `
+'use server'
+import { getWorkItems } from '../work-items/server.js'
+export { getWorkItems }
+export const alias = getWorkItems
+export default getWorkItems
+`,
+  // A negative number and undefined are not functions, and neither is a Literal node.
+  'src/modules/bad-action-unary/actions.ts': `
+'use server'
+export const offset = -1
+export const missing = undefined
+`,
   // An object literal is not a function; Next.js lets it through the build and fails at load.
   'src/modules/bad-action-object/actions.ts': `
 'use server'
@@ -487,14 +501,6 @@ export const make = string
 import { store } from '../server/store.js'
 export const BadServerReach = () => store
 `,
-  // Presence is the check; a marker after other imports still poisons the wrong runtime's graph.
-  'src/modules/marker-type/server.ts': `
-import type { Card } from '../billing/contracts.js'
-import { type Model } from '../campaign/contracts.js'
-import 'server-only'
-export const card: Card = { id: 'x' }
-export const model: Model = { id: 'y' }
-`,
 
   // Static module forms the ImportDeclaration visitor never sees.
   'src/modules/import-equals/domain/bad-internal.ts': `
@@ -540,10 +546,12 @@ export const unmarked = true
   'src/modules/marker/client.ts': `
 export const unmarkedClient = true
 `,
+  // Presence is the check: a marker after the imports it guards still poisons the wrong runtime's
+  // bundle graph, so this surface is clean.
   'src/modules/marker/rsc.ts': `
 import { unmarked } from './server.js'
 import 'server-only'
-export const late = unmarked
+export const afterImports = unmarked
 `,
   // A side-effect import of something else is not the marker.
   'src/modules/marker/job.ts': `
@@ -581,6 +589,8 @@ const expectedBase = new Map([
   ['src/modules/bad-action-sync/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-local-export/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-object/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-import-reexport/actions.ts', 'actionReexport'],
+  ['src/modules/bad-action-unary/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
@@ -673,7 +683,6 @@ const clean = new Set([
   'src/modules/shapes/domain/inner.ts',
   'src/modules/shapes/contracts.ts',
   'src/modules/agency/domain/alias-ok.ts',
-  'src/modules/marker-type/server.ts',
   'src/modules/marker/rsc.ts',
 ])
 
