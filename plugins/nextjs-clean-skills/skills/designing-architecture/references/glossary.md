@@ -14,7 +14,7 @@
 | Port | Application-owned capability contract independent of its technology. |
 | Adapter | Private translation from a runtime, store, or provider to a capability contract. |
 | Composition root | Outer channel or helper that establishes identity and supplies effects. |
-| Request identity | Actor, roles, tenant/ownership scope, request id, and trace id. |
+| Request identity | Actor, tenant/ownership scope, request id, and trace id; roles are resolved per operation by the channel. |
 | Effect | Database, provider, reporter, clock, cache, or other runtime dependency. |
 | Channel | RSC, Server Action, HTTP, stream, job, or browser lifecycle. |
 | Provider row | External stored or wire shape owned by a private adapter. |

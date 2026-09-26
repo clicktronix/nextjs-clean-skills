@@ -61,7 +61,7 @@ const runtimeMarkerRule = {
     schema: [],
     messages: {
       missingRuntimeMarker:
-        "{{surface}} must import '{{marker}}' before its other imports so the bundler, not a reviewer, refuses the wrong runtime.",
+        "{{surface}} must import '{{marker}}' so the bundler, not a reviewer, refuses the wrong runtime.",
     },
   },
   create(context) {
@@ -73,23 +73,16 @@ const runtimeMarkerRule = {
 
     return {
       Program(node) {
-        // The first import, not merely a present one: module bodies run in order, and a marker
-        // placed after the imports it is supposed to guard poisons the module too late to matter.
-        // Type-only imports are erased before the module body runs, so they cannot precede the
-        // marker in any order that matters; the first VALUE import is what must come after it.
-        const erased = (statement) =>
-          statement.importKind === 'type' ||
-          (statement.specifiers.length > 0 && statement.specifiers.every((s) => s.importKind === 'type'))
-        const firstImport = node.body.find(
-          (statement) => statement.type === 'ImportDeclaration' && !erased(statement)
+        // Presence, not position. The marker works through module resolution: under the wrong
+        // runtime condition the package resolves to a module that throws, so the bundle graph
+        // that contains the surface fails wherever in the file the import stands.
+        const marked = node.body.some(
+          (statement) =>
+            statement.type === 'ImportDeclaration' &&
+            statement.specifiers.length === 0 &&
+            statement.source.value === marker
         )
-        if (
-          firstImport &&
-          firstImport.specifiers.length === 0 &&
-          firstImport.source.value === marker
-        ) {
-          return
-        }
+        if (marked) return
         context.report({
           node,
           messageId: 'missingRuntimeMarker',

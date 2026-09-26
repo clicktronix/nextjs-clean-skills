@@ -19,6 +19,9 @@ Resolve the plugin root once: `$CLAUDE_PLUGIN_ROOT`, else the directory holding 
 `../..`. Call it `PLUGIN`. Every command below is
 `node $PLUGIN/bin/migration.mjs <command> --repo <target>`; run it, do not paraphrase it.
 
+Normative source: `$PLUGIN/docs/architecture-contract.md` and `$PLUGIN/docs/runtime-boundaries.md`.
+Where a slice or a reference disagrees, the normative source wins.
+
 ## Before anything runs
 
 Confirm the target is on a throwaway branch with a clean tree and green checks. Record the

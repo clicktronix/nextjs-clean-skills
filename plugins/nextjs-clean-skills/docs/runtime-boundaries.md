@@ -56,9 +56,12 @@ reporting. Otherwise keep those duties in `rsc.ts`.
 
 Request identity contains:
 
-- actor identity and roles;
+- actor identity;
 - tenant or ownership scope;
 - request and trace identifiers.
+
+Roles are not part of it. The channel resolves the actor's roles for the operation it serves and
+passes them to that capability's policy; the role vocabulary belongs to the capability.
 
 Database clients, provider clients, reporter, clock, and other effects are dependencies, not
 identity. Keep them separate even when one runtime factory resolves both.
@@ -129,8 +132,9 @@ use framework control flow and must not be normalized as application failures.
 ## Server Actions
 
 `actions.ts` is a dedicated module with top-level `'use server'`. It is used for UI commands, not
-browser reads. Next.js requires every value export from that module to be an async function declared
-there; import and call a private implementation instead of value-re-exporting it.
+browser reads. Next.js requires every value export from that module to be an async function when
+the module loads — declared there or produced there by a wrapper such as `withAuth(async () => …)`;
+import and call a private implementation instead of value-re-exporting it.
 [Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server).
 
 The action:

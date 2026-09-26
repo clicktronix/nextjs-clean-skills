@@ -218,6 +218,11 @@ export function moduleEdges(parsed) {
     if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
       push(node.moduleReference.expression, Boolean(node.isTypeOnly))
     }
+    // `import('./x').T` and `typeof import('./x')` in a type position are an ImportTypeNode, not a
+    // call. The compiler erases them, but the coupling survives, so they are type-only edges.
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      push(node.argument.literal, true)
+    }
     if (ts.isCallExpression(node)) {
       // `import(specifier, options)` is a two-argument call in current TypeScript; requiring exactly
       // one argument made the import-attributes form invisible.
