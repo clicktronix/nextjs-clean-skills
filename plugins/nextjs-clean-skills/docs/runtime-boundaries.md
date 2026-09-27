@@ -285,10 +285,10 @@ Every read path has one owner:
 
 Application operations may return ownership metadata, not call Next.js cache APIs. The channel root
 that performed the write calls its framework primitive — `updateTag` from `actions.ts`,
-`revalidateTag(tag, profile)` from a Route Handler or an in-server job, with the profile the
+`revalidateTag(tag, profile)` from a Route Handler or another Server Function, with the profile the
 operation needs — on tags the owner supplies; a neighbour's write goes through the invalidator the
-owner publishes for it. A worker outside the Next.js
-server cannot call either and notifies the owning app through a Route Handler instead. Cache keys
+owner publishes for it. A background job outside those contexts, even in the same Next.js process,
+calls an authenticated Route Handler of the owning app instead. Cache keys
 include the full user or tenant scope whenever authorization changes the result; a `'use cache'`
 function receives that scope as an argument
 ([Cache Components](./architecture-contract.md#cache-components)).

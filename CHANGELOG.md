@@ -12,8 +12,9 @@ All notable changes to this project are documented in this file.
   the neutral surface's import direction; the declaration classifier behind
   `contractSurfaceBehaviour` is removed.
 - Cache invalidation: the operation picks the `revalidateTag` profile (`'max'` or
-  `{ expire: 0 }`) instead of a fixed `'max'`; a worker outside the Next.js server notifies the
-  owning app through a Route Handler, since it cannot call `next/cache`; and a capability's
+  `{ expire: 0 }`) instead of a fixed `'max'`; a background job outside a Server Function or Route
+  Handler, even in the same Next.js process, calls an authenticated Route Handler of the owning app,
+  since `revalidateTag` has no context there; and a capability's
   `server.ts` publishes an invalidator that takes the writer's primitive when a neighbour or
   orchestrator writes through its operation, so the caller invalidates without learning the tags.
 

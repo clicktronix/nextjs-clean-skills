@@ -16,7 +16,7 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | public read | anonymous store, still under RLS as `anon` |
 | per-user data | `'use cache: private'`, or leave it uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
-| invalidation | the writer passes `updateTag` (action) or `revalidateTag(tag, 'max' \| { expire: 0 })` (handler) to the owner's invalidator; a worker outside Next.js calls the owner's handler |
+| invalidation | the writer passes `updateTag` (action) or `revalidateTag(tag, 'max' \| { expire: 0 })` (handler) to the owner's invalidator; a job outside a Server Function or Route Handler calls the owner's handler |
 | current-request read from `rsc.ts` | under `loading.tsx` or an inline `<Suspense>`; the build fails otherwise |
 
 ```ts
