@@ -282,10 +282,12 @@ Every read path has one owner:
 | shared server result | capability server cache |
 
 Application operations may return ownership metadata, not call Next.js cache APIs. The channel root
-that performed the write calls the framework primitive — `updateTag` from `actions.ts`,
-`revalidateTag(tag, 'max')` from a Route Handler or job — with a tag the capability's `server/**`
-names. Cache keys include the full user or tenant scope whenever authorization changes the result; a
-`'use cache'` function receives that scope as an argument
+that performed the write passes its framework primitive — `updateTag` from `actions.ts`,
+`revalidateTag(tag, profile)` from a Route Handler or an in-server job, with the profile the
+operation needs — to the owner's invalidator, which supplies the tags. A worker outside the Next.js
+server cannot call either and notifies the owning app through a Route Handler instead. Cache keys
+include the full user or tenant scope whenever authorization changes the result; a `'use cache'`
+function receives that scope as an argument
 ([Cache Components](./architecture-contract.md#cache-components)).
 
 When RSC prefetch hydrates a browser-owned TanStack Query cache, both sides use one serializable

@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `contracts.ts` may publish the pure functions of its capability's `domain/**`, not only types and
+  schemas, so one rule serves a neighbour's domain, the server and the browser. Purity is held by
+  the neutral surface's import direction; the declaration classifier behind
+  `contractSurfaceBehaviour` is removed.
+- Cache invalidation: the operation picks the `revalidateTag` profile (`'max'` or
+  `{ expire: 0 }`) instead of a fixed `'max'`; a worker outside the Next.js server notifies the
+  owning app through a Route Handler, since it cannot call `next/cache`; and a capability's
+  `server.ts` publishes an invalidator that takes the writer's primitive, so a neighbour or
+  orchestrator can invalidate without learning the tags.
+
 ### Fixed
 
 - `actionValueExport` accepts a Server Action produced by a wrapper call

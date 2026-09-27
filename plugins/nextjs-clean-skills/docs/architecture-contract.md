@@ -150,7 +150,7 @@ src/modules/work-items/
 ├── actions.ts         # top-level 'use server'; UI commands
 ├── client.ts          # browser-safe read or subscription surface
 ├── ui.ts              # reusable capability UI
-├── contracts.ts       # runtime-neutral vocabulary: types and the schemas that witness them
+├── contracts.ts       # runtime-neutral: types, schemas and pure domain functions
 ├── query-cache.ts     # shared serializable query-key identity for prefetch and hydration
 ├── stream.ts          # stream-channel contract
 └── job.ts             # worker contract
@@ -200,16 +200,16 @@ proves is not an async function (a literal, object, array, class or synchronous 
 binding imported from elsewhere and exported unchanged counts as a value re-export. Next.js checks a
 wrapper's result at load time.
 
-`contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
-that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
-about this capability without depending on how it works — depending on a published vocabulary is not
-depending on an implementation. It imports only its own `domain/**`, admitted `shared/kernel`, and
-packages the contract classifies as pure. Consumers take types from it freely; a value taken from it
-must be a schema *by declaration* (`export const X = <schema-package call>`, or a schema built from
-another schema in the file). An exported function or class on a contract surface is behaviour, and
-the checker rejects it whatever it is named — a name test admits
-`export function chargeCardSchema() { return fetch(…) }`, which is behaviour wearing a schema's
-name. Behaviour is taken from the owner's `server.ts` or restated as a port.
+`contracts.ts` publishes what other code may depend on without depending on how the capability
+works: its types, the schemas that witness them, and the pure functions of its `domain/**` — a price
+rule, a status-transition check. A neighbour's `domain/**` and `application/**`, a server operation
+and browser code may all import it, so one rule has one owner instead of a copy per runtime. It
+imports only its own `domain/**`, admitted `shared/kernel`, and packages the contract classifies as
+pure; everything it publishes is therefore pure by what it can import, and the direction rules
+check that rather than reading each declaration. IO, provider calls and runtime state never belong
+there: they come from the owner's `server.ts` or `client.ts`, or are restated as a port. A global
+such as `fetch` is invisible to import rules; review keeps it out of `contracts.ts` as it does out
+of `domain/**`.
 
 `query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
 only when the same serializable TanStack Query key identity has both a server prefetch/hydration
@@ -350,18 +350,28 @@ Normative rules:
 4. `cacheTag` and `cacheLife` are called inside the cached function. The tag vocabulary is a private
    `server/**` module; nothing outside the capability learns how its cache is keyed.
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
-5. Invalidation belongs to the channel that wrote. An `actions.ts` action calls `updateTag(tag)` so
-   the request that wrote reads its own write; a Route Handler or job calls
-   `revalidateTag(tag, 'max')`. `server.ts` operations return the affected scope, `server/**` names
-   the tag for it, and `application/**` and `domain/**` import nothing from `next/cache`. This is
-   the one answer; ADR 0001 §8 and Runtime Boundaries defer to it.
+5. Invalidation belongs to the channel that wrote, and the operation decides how fresh the next
+   read must be. An `actions.ts` action calls `updateTag(tag)`, so the request that wrote reads its
+   own write. A Route Handler, or a job running inside the Next.js server, calls
+   `revalidateTag(tag, profile)`: `'max'` when serving the previous result while it refreshes is
+   acceptable, `{ expire: 0 }` when it is not — an unpublish, a revoked grant. A worker outside the
+   Next.js server has no cache to call: it notifies the owning app through an authenticated Route
+   Handler that invalidates, or the cached read carries a `cacheLife` short enough to bound the
+   staleness.
+   Tags stay private to their owner. A write operation returns the affected scope, and the owner's
+   `server.ts` publishes an invalidator for it, `expire<Subject>(scope, expire)`, where `expire` is
+   the caller's primitive — `updateTag` in an action, `(tag) => revalidateTag(tag, profile)` in a
+   handler. A neighbour or orchestrator that writes through the owner's operation invalidates the
+   same way, without learning how the cache is keyed. `application/**` and `domain/**` import
+   nothing from `next/cache`. This is the one answer; ADR 0001 §8 and Runtime Boundaries defer to
+   it.
 6. A current-request read reached from `rsc.ts` or a page — `cookies()`, `headers()`,
    `searchParams`, an uncached store read — renders under a Suspense boundary: the segment's
    `loading.tsx` or an inline `<Suspense>` around the region. The build fails otherwise. The route
    owns the boundary; the capability owns which of its reads are current-request.
 
-The `work-items` fixture shows the invalidation half: `server/cache-tags.ts` names the tag, and
-`actions.ts` invalidates through the request scope after a successful create
+The `work-items` fixture shows the invalidation half: `server/cache-tags.ts` owns the tag and the
+invalidator, and `actions.ts` passes the request scope's primitive to it after a successful create
 ([fixture](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts)).
 
 ## Application Operations

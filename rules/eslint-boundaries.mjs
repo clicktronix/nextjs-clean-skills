@@ -11,8 +11,6 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
-  contractSurfaceExports,
-  existingSourceFile,
   isWithin,
   loadArchitecturePaths,
   posix,
@@ -37,14 +35,11 @@ const SERVER_SURFACES = new Set(contract.serverSurfaces)
 const SERVER_EXECUTION_SURFACES = new Set(contract.serverExecutionSurfaces)
 const CLIENT_SURFACES = new Set(contract.clientSurfaces)
 const NEUTRAL_SURFACES = new Set(contract.neutralSurfaces ?? [])
-// A contract surface publishes the capability's vocabulary — its types and the schemas that witness
-// them — and nothing that runs. A neighbour's `domain/` and `application/` may read it, because
-// depending on a published vocabulary is not depending on an implementation; every other surface of
-// that neighbour stays closed to them. The promise is enforced, not assumed: a value taken from a
-// contract surface must be a schema by declaration, so behaviour has to be taken from its owner or
-// restated as a port.
+// A contract surface publishes the capability's pure API — types, schemas and pure domain functions.
+// A neighbour's `domain/` and `application/` may read it; every other surface of that neighbour stays
+// closed to them. Purity is held by direction: as a neutral surface it imports only its own domain,
+// `shared/kernel` and pure packages, so it cannot hand a neighbour anything that performs IO.
 const CONTRACT_SURFACES = new Set(contract.contractSurfaces ?? [])
-const PURE_PACKAGES = Array.isArray(contract.purePackages) ? contract.purePackages : []
 // Optional and validated by contract-paths. A repository with no generated provider contracts
 // simply does not declare it; absent means "this project has none", not "unchecked".
 const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATED_ROOT, absolute)
@@ -187,55 +182,6 @@ function isTypeOnlyEdge(node) {
   )
 }
 
-// The names an import or a re-export binds as runtime values. A namespace, default or `export *`
-// binding takes the whole surface, so it is reported as `*`.
-function valueBindings(node) {
-  if (node.type === 'ExportAllDeclaration') return ['*']
-  return (node.specifiers ?? [])
-    .filter((specifier) => specifier.importKind !== 'type' && specifier.exportKind !== 'type')
-    .map((specifier) => {
-      if (specifier.type === 'ImportSpecifier') {
-        return specifier.imported.name ?? specifier.imported.value
-      }
-      if (specifier.type === 'ExportSpecifier') {
-        return specifier.local.name ?? specifier.local.value
-      }
-      return '*'
-    })
-}
-
-function edgeFacts(node) {
-  const typeOnly = isTypeOnlyEdge(node)
-  return { typeOnly, bindings: typeOnly ? [] : valueBindings(node) }
-}
-
-/**
- * The bindings this import takes from a contract surface that are behaviour by declaration. An
- * unreadable target yields null: the file not being there is `import/no-unresolved`'s report, not
- * this rule's.
- */
-function contractBehaviourNames(targetPath, bindings) {
-  const file = existingSourceFile(targetPath)
-  if (file === null) return null
-  const published = contractSurfaceExports(file, { paths, purePackages: PURE_PACKAGES })
-  if (!published) return null
-  const offending = []
-  for (const name of bindings) {
-    if (name !== '*') {
-      if ((published.kinds.get(name) ?? 'behaviour') === 'behaviour') offending.push(name)
-      continue
-    }
-    if (!published.complete) {
-      offending.push('*')
-      continue
-    }
-    for (const [exported, kind] of published.kinds) {
-      if (kind === 'behaviour') offending.push(exported)
-    }
-  }
-  return [...new Set(offending)]
-}
-
 /**
  * The specifier a node names, or null when the target is computed. A template literal with no
  * substitutions is a string written with different quotes — reporting it as a hidden target told
@@ -290,8 +236,6 @@ const capabilityRule = {
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
       generatedProviderLeak:
         'Generated provider contracts must stay inside generatedRoot or a capability private server segment.',
-      contractSurfaceBehaviour:
-        'A contract surface publishes vocabulary, not behaviour: {{names}} is a runtime value by declaration. Import it as a type, or take the behaviour from its owner.',
       neutralDirection:
         'A runtime-neutral surface may import only its own domain or admitted shared/kernel code.',
       sharedImportsModule:
@@ -325,7 +269,7 @@ const capabilityRule = {
     const sourceShared = sharedLocation(filename)
     let sourceIsClientDirective = false
 
-    const reportImport = (node, specifier, { typeOnly = false, bindings = [] } = {}) => {
+    const reportImport = (node, specifier, { typeOnly = false } = {}) => {
       if (typeof specifier !== 'string') {
         context.report({ node, messageId: 'hiddenDynamicImport' })
         return
@@ -363,17 +307,6 @@ const capabilityRule = {
       const targetShared = sharedLocation(targetPath)
       const targetLabel = posix(path.relative(PROJECT_ROOT, targetPath))
 
-      if (targetModule?.surface && CONTRACT_SURFACES.has(targetModule.surface) && bindings.length > 0) {
-        const behaviour = contractBehaviourNames(targetPath, bindings)
-        if (behaviour && behaviour.length > 0) {
-          context.report({
-            node,
-            messageId: 'contractSurfaceBehaviour',
-            data: { names: behaviour.join(', ') },
-          })
-          return
-        }
-      }
 
       if (!typeOnly && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
         const ownDomain =
@@ -666,7 +599,7 @@ const capabilityRule = {
       },
 
       ImportDeclaration(node) {
-        reportImport(node.source, node.source.value, edgeFacts(node))
+        reportImport(node.source, node.source.value, { typeOnly: isTypeOnlyEdge(node) })
       },
 
       // `import x = require('…')` is a static module edge that the ImportDeclaration visitor never
@@ -677,7 +610,6 @@ const capabilityRule = {
         const value = reference.expression?.value
         reportImport(reference.expression, typeof value === 'string' ? value : null, {
           typeOnly: node.importKind === 'type',
-          bindings: ['*'],
         })
       },
 
@@ -690,7 +622,7 @@ const capabilityRule = {
           ) {
             context.report({ node, messageId: 'actionReexport' })
           }
-          reportImport(node.source, node.source.value, edgeFacts(node))
+          reportImport(node.source, node.source.value, { typeOnly: isTypeOnlyEdge(node) })
         }
       },
 
@@ -700,11 +632,11 @@ const capabilityRule = {
         } else if (sourceModule?.surface) {
           context.report({ node, messageId: 'broadSurface' })
         }
-        reportImport(node.source, node.source.value, edgeFacts(node))
+        reportImport(node.source, node.source.value, { typeOnly: isTypeOnlyEdge(node) })
       },
 
       ImportExpression(node) {
-        reportImport(node.source, constantSpecifier(node.source), { bindings: ['*'] })
+        reportImport(node.source, constantSpecifier(node.source))
       },
 
       // `type X = import('…').Y` and `typeof import('…')` name a module in a type position. The
@@ -721,9 +653,7 @@ const capabilityRule = {
       CallExpression(node) {
         if (!isRequireCallee(node.callee)) return
         const argument = node.arguments[0]
-        reportImport(argument ?? node, argument ? constantSpecifier(argument) : null, {
-          bindings: ['*'],
-        })
+        reportImport(argument ?? node, argument ? constantSpecifier(argument) : null)
       },
     }
   },

@@ -81,7 +81,8 @@ helpers, test support, or filenames are unclear, read
 Publish a root surface only for a named external consumer. Use the project's admitted vocabulary;
 the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.ts`,
 `contracts.ts`, `query-cache.ts`, `stream.ts`, and `job.ts`. Keep implementations private and
-exports explicit.
+exports explicit. A pure rule that a neighbour's domain, a server operation and the browser all need
+goes out once, through `contracts.ts`.
 
 Create `query-cache.ts` only when the same serializable key identity has both a server
 prefetch/hydration consumer and a browser query consumer. Otherwise keep the key private to its

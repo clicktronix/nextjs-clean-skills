@@ -453,7 +453,7 @@ import type { WorkItem } from '@/modules/work-items/domain/model'
 export type PageItem = WorkItem
 `,
 
-  // A contract surface publishes vocabulary: types, and the schemas that witness them.
+  // A contract surface publishes types and the schemas that witness them to a neighbour's domain.
   'src/modules/campaign/domain/model.ts': `
 export type Campaign = { id: string }
 `,
@@ -469,43 +469,27 @@ import { CampaignSchema } from '../../campaign/contracts.js'
 export const schema = CampaignSchema
 export type Owned = Campaign
 `,
-  // The name is not the check: chargeCardSchema is a function, so it is behaviour whatever it is
-  // called, and a /Schema$/ name test admits exactly this shape.
-  'src/modules/billing/contracts.ts': `
-export type Card = { id: string }
-export function chargeCardSchema() {
-  return fetch('/charge')
+  // A contract surface may also publish its capability's pure API: a neighbour's domain, a server
+  // operation and the browser all take the same price rule from it.
+  'src/modules/pricing/domain/price.ts': `
+export type Line = { unitCents: number; quantity: number }
+export function totalCents(lines: readonly Line[]): number {
+  return lines.reduce((sum, line) => sum + line.unitCents * line.quantity, 0)
 }
 `,
-  'src/modules/agency/application/charge.ts': `
-import { chargeCardSchema } from '../../billing/contracts.js'
-export const charge = chargeCardSchema
+  'src/modules/pricing/contracts.ts': `
+export type { Line } from './domain/price.js'
+export { totalCents } from './domain/price.js'
 `,
-
-  // Shapes a name test or a one-pass classifier gets wrong: an alias of a schema, a schema derived
-  // from one imported from a sibling file, and a bare schema-package constructor re-exported.
-  'src/modules/shapes/domain/inner.ts': `
-import * as v from 'valibot'
-export const InnerSchema = v.object({ id: v.string() })
+  'src/modules/checkout/domain/quote.ts': `
+import { totalCents, type Line } from '../../pricing/contracts.js'
+export const quote = (lines: readonly Line[]) => ({ totalCents: totalCents(lines) })
 `,
-  'src/modules/shapes/contracts.ts': `
-import { string } from 'valibot'
-import { InnerSchema } from './domain/inner.js'
-import { InnerSchema as ImportAlias } from './domain/inner.js'
-export { InnerSchema as AliasSchema }
-export { ImportAlias }
-export const DerivedSchema = InnerSchema
-export { string }
-`,
-  'src/modules/agency/domain/alias-ok.ts': `
-import { AliasSchema, DerivedSchema, ImportAlias } from '../../shapes/contracts.js'
-export const a = AliasSchema
-export const b = DerivedSchema
-export const c = ImportAlias
-`,
-  'src/modules/agency/domain/bad-constructor.ts': `
-import { string } from '../../shapes/contracts.js'
-export const make = string
+  // Purity is held by direction, not by reading declarations: a contract surface that imports a
+  // runtime package is not a neutral surface.
+  'src/modules/billing/contracts.ts': `
+import { cookies } from 'next/headers'
+export const session = cookies
 `,
   // A Server Component under ui/** reads rsc.ts, not the private server segment behind it.
   'src/modules/work-items/ui/BadServerReach.tsx': `
@@ -635,8 +619,7 @@ const expectedBase = new Map([
   ['src/app/bad-type-internal/page.ts', 'appInternal'],
   // The same import as a value is the runtime edge the type-only form is not.
   ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
-  ['src/modules/agency/application/charge.ts', 'contractSurfaceBehaviour'],
-  ['src/modules/agency/domain/bad-constructor.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/billing/contracts.ts', 'neutralDirection'],
   ['src/modules/work-items/ui/BadServerReach.tsx', 'serverUiReach'],
   ['src/modules/import-equals/domain/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/import-equals/domain/bad-module-require.ts', 'domainDirection'],
@@ -702,11 +685,11 @@ const clean = new Set([
   'src/modules/campaign/domain/model.ts',
   'src/modules/campaign/contracts.ts',
   'src/modules/agency/domain/policy.ts',
+  'src/modules/pricing/domain/price.ts',
+  'src/modules/pricing/contracts.ts',
+  'src/modules/checkout/domain/quote.ts',
   'src/modules/work-items/domain/template-import.ts',
   'src/modules/work-items/ui/ServerList.tsx',
-  'src/modules/shapes/domain/inner.ts',
-  'src/modules/shapes/contracts.ts',
-  'src/modules/agency/domain/alias-ok.ts',
   'src/modules/marker/rsc.ts',
 ])
 
@@ -813,17 +796,6 @@ if (ESLint) {
     const baseResults = await lint('eslint.config.base.mjs')
     const strictResults = await lint('eslint.config.strict.mjs')
 
-    // A classification depends on the files it follows: rewriting the schema's source file, not
-    // the contract file, must change the verdict inside the same process.
-    const innerPath = path.join(sandbox, 'src/modules/shapes/domain/inner.ts')
-    const innerSource = fs.readFileSync(innerPath, 'utf8')
-    fs.writeFileSync(innerPath, "export function InnerSchema() {\n  return fetch('/x')\n}\n")
-    const afterDependencyChange = await lint('eslint.config.base.mjs')
-    fs.writeFileSync(innerPath, innerSource)
-    const aliasMessages = afterDependencyChange.get('src/modules/agency/domain/alias-ok.ts') ?? []
-    if (!aliasMessages.some((m) => m.messageId === 'contractSurfaceBehaviour')) {
-      errors.push('contract classification served a stale verdict after a dependency file changed in the same process')
-    }
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',

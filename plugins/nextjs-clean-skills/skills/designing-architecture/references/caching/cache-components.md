@@ -11,12 +11,12 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | where | `server/**`, after identity and client are resolved |
 | what crosses in | ids, tenant, filters: serializable values only |
 | what never crosses | client, reporter, identity object, request context |
-| store access | from the capability's own composition, not an argument; there are no cookies, so no user session |
-| tenant-private read | privileged store: row-level security is bypassed, so the channel authorizes first and the tenant argument is a query predicate |
-| public read | anonymous store: row-level security still applies under the `anon` role and returns only what its policies allow |
+| store access | the capability's own composition, not an argument; no cookies, so no user session |
+| tenant-private read | privileged store bypasses RLS: authorize first, filter by the tenant argument |
+| public read | anonymous store, still under RLS as `anon` |
 | per-user data | `'use cache: private'`, or leave it uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
-| invalidation | the channel that wrote: `updateTag` in `actions.ts`, `revalidateTag(tag, 'max')` in a handler or job |
+| invalidation | the writer passes `updateTag` (action) or `revalidateTag(tag, 'max' \| { expire: 0 })` (handler) to the owner's invalidator; a worker outside Next.js calls the owner's handler |
 | current-request read from `rsc.ts` | under `loading.tsx` or an inline `<Suspense>`; the build fails otherwise |
 
 ```ts
