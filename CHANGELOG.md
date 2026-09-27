@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-09-27
+
 ### Changed
 
 - `contracts.ts` may publish the pure functions of its capability's `domain/**`, not only types and
