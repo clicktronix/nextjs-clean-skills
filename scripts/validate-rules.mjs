@@ -263,10 +263,14 @@ export default getWorkItems
 export const offset = -1
 export const missing = undefined
 `,
-  // Arithmetic and an enum are provably not functions, whatever the wrapper rule admits.
-  'src/modules/bad-action-binary-enum/actions.ts': `
+  // Arithmetic is provably not a function, whatever the wrapper rule admits.
+  'src/modules/bad-action-binary/actions.ts': `
 'use server'
 export const answer = 1 + 2
+`,
+  // Neither is an enum exported through a local binding.
+  'src/modules/bad-action-enum/actions.ts': `
+'use server'
 enum Status { Pending, Done }
 export { Status }
 `,
@@ -607,7 +611,8 @@ const expectedBase = new Map([
   ['src/modules/bad-action-object/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-import-reexport/actions.ts', 'actionReexport'],
   ['src/modules/bad-action-unary/actions.ts', 'actionValueExport'],
-  ['src/modules/bad-action-binary-enum/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-binary/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-enum/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
