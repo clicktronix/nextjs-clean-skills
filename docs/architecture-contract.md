@@ -205,9 +205,11 @@ and browser code may all import it, so one rule has one owner instead of a copy 
 imports only its own `domain/**`, admitted `shared/kernel`, and packages the contract classifies as
 pure; everything it publishes is therefore pure by what it can import, and the direction rules
 check that rather than reading each declaration. IO, provider calls and runtime state never belong
-there: they come from the owner's `server.ts` or `client.ts`, or are restated as a port. A global
-such as `fetch` is invisible to import rules; review keeps it out of `contracts.ts` as it does out
-of `domain/**`.
+there: they come from the owner's `server.ts` or `client.ts`, or are restated as a port. Time,
+randomness and other changing inputs arrive as arguments, and nothing keeps module-level state. A
+result the browser computes with these functions is a preview: the server recomputes it before it
+acts on a command. A global such as `fetch` or `Date.now()` is invisible to import rules; review
+keeps it out of `contracts.ts` as it does out of `domain/**`.
 
 `query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
 only when the same serializable TanStack Query key identity has both a server prefetch/hydration
@@ -356,11 +358,12 @@ Normative rules:
    Next.js server has no cache to call: it notifies the owning app through an authenticated Route
    Handler that invalidates, or the cached read carries a `cacheLife` short enough to bound the
    staleness.
-   Tags stay private to their owner. A write operation returns the affected scope, and the owner's
-   `server.ts` publishes an invalidator for it, `expire<Subject>(scope, expire)`, where `expire` is
-   the caller's primitive — `updateTag` in an action, `(tag) => revalidateTag(tag, profile)` in a
-   handler. A neighbour or orchestrator that writes through the owner's operation invalidates the
-   same way, without learning how the cache is keyed. `application/**` and `domain/**` import
+   Tags stay private to their owner, and a write operation returns the affected scope. Inside the
+   capability the channel takes the tag from `server/**`. Only when a neighbour or orchestrator
+   writes through the owner's operation does the owner's `server.ts` publish an invalidator for
+   that write, `expire<Subject>(scope, expire)`, where `expire` is the caller's primitive —
+   `updateTag` in an action, `(tag) => revalidateTag(tag, profile)` in a handler — so the caller
+   invalidates without learning how the cache is keyed. `application/**` and `domain/**` import
    nothing from `next/cache`. This is the one answer; ADR 0001 §8 and Runtime Boundaries defer to
    it.
 6. A current-request read reached from `rsc.ts` or a page — `cookies()`, `headers()`,
