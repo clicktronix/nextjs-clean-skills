@@ -337,8 +337,10 @@ Normative rules:
    filters. A request-scoped client, a reporter or an identity object never crosses into a cached
    function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
    to the next. The cached function obtains its store from the capability's own composition, not
-   from an argument. Without cookies that store is privileged or anonymous, so row-level security
-   does not scope it: the tenant argument, applied as a query predicate, is the isolation.
+   from an argument. Without cookies there is no user session. A tenant-private read therefore uses
+   a privileged store, which bypasses row-level security: the channel authorizes first, and the
+   tenant argument, applied as a query predicate, is the isolation. An anonymous store stays under
+   row-level security as the `anon` role and serves only data its policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
 3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,

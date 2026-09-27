@@ -16,10 +16,12 @@ All notable changes to this project are documented in this file.
   `import type` passed in this form.
 - `runtime-markers` requires the `server-only`/`client-only` marker to be present, not first. The
   marker works through module resolution, so its position never mattered.
-- Cache Components guidance says a shared cached read runs on a privileged or anonymous store, so
-  its tenant argument is the only isolation, and documents what `'use cache: private'` allows and
-  where it stores results.
-- `RequestIdentity` no longer lists roles anywhere; the channel resolves them per operation.
+- Cache Components guidance separates the two stores a shared cached read can use: a privileged
+  store bypasses row-level security, so the channel authorizes first and the tenant argument is the
+  isolation; an anonymous store stays under RLS and serves only public data. It also documents
+  what `'use cache: private'` allows and where it stores results.
+- `RequestIdentity` no longer lists roles anywhere, including the `work-items` runtime pilot; the
+  owning capability resolves them per operation.
 - The port gate is the only rule in `dependency-categories.md`; the table now reports its usual
   outcome instead of defaulting remote dependencies to a port.
 - Each skill names the normative contract it applies, and `contracts.ts` is described as on by

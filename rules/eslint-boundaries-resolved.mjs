@@ -75,10 +75,12 @@ const runtimeMarkerRule = {
       Program(node) {
         // Presence, not position. The marker works through module resolution: under the wrong
         // runtime condition the package resolves to a module that throws, so the bundle graph
-        // that contains the surface fails wherever in the file the import stands.
+        // that contains the surface fails wherever in the file the import stands. A type-only
+        // import is erased before bundling and so is no marker at all.
         const marked = node.body.some(
           (statement) =>
             statement.type === 'ImportDeclaration' &&
+            statement.importKind !== 'type' &&
             statement.specifiers.length === 0 &&
             statement.source.value === marker
         )

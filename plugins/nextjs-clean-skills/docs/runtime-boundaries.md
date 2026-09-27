@@ -60,8 +60,9 @@ Request identity contains:
 - tenant or ownership scope;
 - request and trace identifiers.
 
-Roles are not part of it. The channel resolves the actor's roles for the operation it serves and
-passes them to that capability's policy; the role vocabulary belongs to the capability.
+Roles are not part of it. The role vocabulary belongs to the capability that decides with it: its
+channel or trusted server operation resolves the actor's roles for that operation and passes them
+to its policy.
 
 Database clients, provider clients, reporter, clock, and other effects are dependencies, not
 identity. Keep them separate even when one runtime factory resolves both.

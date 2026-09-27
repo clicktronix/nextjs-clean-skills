@@ -11,8 +11,9 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | where | `server/**`, after identity and client are resolved |
 | what crosses in | ids, tenant, filters: serializable values only |
 | what never crosses | client, reporter, identity object, request context |
-| store access | from the capability's own composition, not an argument; without cookies it is a privileged or anonymous store |
-| tenant isolation | the tenant argument's predicate in the query, the only guard left: row-level security has no session to apply |
+| store access | from the capability's own composition, not an argument; there are no cookies, so no user session |
+| tenant-private read | privileged store: row-level security is bypassed, so the channel authorizes first and the tenant argument is a query predicate |
+| public read | anonymous store: row-level security still applies under the `anon` role and returns only what its policies allow |
 | per-user data | `'use cache: private'`, or leave it uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
 | invalidation | the channel that wrote: `updateTag` in `actions.ts`, `revalidateTag(tag, 'max')` in a handler or job |
@@ -30,7 +31,8 @@ export async function listForTenant(tenantId: string, filter: Filter) {
 
 The channel resolves identity first and passes `identity.tenantId`, never `identity`. A privileged
 store inside the cache carries the obligations of [Supabase RLS](../outbound/supabase-rls.md): the
-channel authorized the actor, and the query filters by the scope it was given.
+channel authorized the actor, and the query filters by the scope it was given. An anonymous store
+never serves a tenant-private read.
 
 A result that differs per user is not a shared cache. `'use cache: private'` may call `cookies()`
 and `headers()`; its result is never stored on the server across requests, only in browser memory

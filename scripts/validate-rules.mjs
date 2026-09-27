@@ -263,6 +263,13 @@ export default getWorkItems
 export const offset = -1
 export const missing = undefined
 `,
+  // Arithmetic and an enum are provably not functions, whatever the wrapper rule admits.
+  'src/modules/bad-action-binary-enum/actions.ts': `
+'use server'
+export const answer = 1 + 2
+enum Status { Pending, Done }
+export { Status }
+`,
   // An object literal is not a function; Next.js lets it through the build and fails at load.
   'src/modules/bad-action-object/actions.ts': `
 'use server'
@@ -553,6 +560,15 @@ import { unmarked } from './server.js'
 import 'server-only'
 export const afterImports = unmarked
 `,
+  // A type-only import of the marker is erased before bundling, so it marks nothing.
+  'src/modules/marker-type/server.ts': `
+import type {} from 'server-only'
+export const secret = 's'
+`,
+  'src/modules/marker-type/client.ts': `
+import type {} from 'client-only'
+export const browserOnly = true
+`,
   // A side-effect import of something else is not the marker.
   'src/modules/marker/job.ts': `
 import './server.js'
@@ -591,6 +607,7 @@ const expectedBase = new Map([
   ['src/modules/bad-action-object/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-import-reexport/actions.ts', 'actionReexport'],
   ['src/modules/bad-action-unary/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-binary-enum/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
@@ -629,6 +646,8 @@ const expectedMarkers = new Map([
   ['src/modules/marker/server.ts', 'clean-runtime/runtime-markers'],
   ['src/modules/marker/client.ts', 'clean-runtime/runtime-markers'],
   ['src/modules/marker/job.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker-type/server.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker-type/client.ts', 'clean-runtime/runtime-markers'],
 ])
 
 const expectedStrict = new Map([

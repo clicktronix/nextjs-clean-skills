@@ -5,6 +5,8 @@ import { createHttpWorkItemSource, createWorkItemStore, type WorkItemsFetcher } 
 export type WorkItemsRuntimeOptions = {
   baseUrl: string
   fetcher?: WorkItemsFetcher
+  // How this deployment answers "which work-items roles does this actor hold in this tenant".
+  rolesOf: WorkItemsServerDependencies['access']['rolesOf']
 }
 
 export function createWorkItemsServer(dependencies: WorkItemsServerDependencies): WorkItemsServer {
@@ -14,8 +16,13 @@ export function createWorkItemsServer(dependencies: WorkItemsServerDependencies)
   }
 }
 
-export function createWorkItemsRuntime({ baseUrl, fetcher }: WorkItemsRuntimeOptions): WorkItemsServer {
+export function createWorkItemsRuntime({
+  baseUrl,
+  fetcher,
+  rolesOf,
+}: WorkItemsRuntimeOptions): WorkItemsServer {
   return createWorkItemsServer({
+    access: { rolesOf },
     store: createWorkItemStore(createHttpWorkItemSource({ baseUrl, fetcher })),
   })
 }

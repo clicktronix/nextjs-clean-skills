@@ -1,17 +1,17 @@
 import { forbidden, type Forbidden } from '../../../shared/kernel/failure.js'
 import type { RequestIdentity } from '../../../shared/kernel/request-identity.js'
 import type { CreateWorkItemInput, WorkItem } from '../domain/work-item.js'
-import type { WorkItemsServerDependencies } from './contracts.js'
+import type { WorkItemsRole, WorkItemsServerDependencies } from './contracts.js'
 
-function canManageWorkItems(identity: RequestIdentity): boolean {
-  return identity.roles.includes('admin')
+function canManageWorkItems(roles: readonly WorkItemsRole[]): boolean {
+  return roles.includes('manager')
 }
 
 export async function listAuthorizedWorkItems(
   identity: RequestIdentity,
   dependencies: WorkItemsServerDependencies
 ): Promise<WorkItem[] | Forbidden> {
-  if (!canManageWorkItems(identity)) return forbidden()
+  if (!canManageWorkItems(await dependencies.access.rolesOf(identity))) return forbidden()
   return dependencies.store.list(identity.tenantId)
 }
 
@@ -20,6 +20,6 @@ export async function createAuthorizedWorkItem(
   input: CreateWorkItemInput,
   dependencies: WorkItemsServerDependencies
 ): Promise<WorkItem | Forbidden> {
-  if (!canManageWorkItems(identity)) return forbidden()
+  if (!canManageWorkItems(await dependencies.access.rolesOf(identity))) return forbidden()
   return dependencies.store.create(identity.tenantId, input)
 }

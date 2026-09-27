@@ -74,6 +74,7 @@ const ACTION_NON_FUNCTION_NODES = new Set([
   'TSEnumDeclaration',
   'UnaryExpression',
   'UpdateExpression',
+  'BinaryExpression',
 ])
 const ACTION_TYPE_WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'])
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
@@ -557,6 +558,7 @@ const capabilityRule = {
       const definition = variable?.defs[0]
       if (!definition) return node.name === 'undefined' ? 'nonAction' : 'unknown'
       if (definition.type === 'ImportBinding') return 'reexport'
+      if (definition.type === 'TSEnumName') return 'nonAction'
       if (definition.type === 'FunctionName' || definition.type === 'ClassName') {
         return classifyActionValue(definition.node, programNode, depth + 1)
       }

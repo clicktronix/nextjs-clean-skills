@@ -70,8 +70,11 @@ async function testWorkItems(load) {
       updated_at: '2026-01-01T00:00:00.000Z',
     },
   ]
+  // Roles are the capability's vocabulary, answered by its own lookup, not carried by identity.
   const runtimeOptions = {
     baseUrl: 'https://provider.test',
+    rolesOf: async ({ actorId, tenantId }) =>
+      actorId === 'actor-a' && tenantId === 'tenant-a' ? ['manager'] : ['viewer'],
     fetcher: async (input, init) => {
       const url = new URL(String(input))
       if (init?.method === 'POST') {
@@ -89,9 +92,8 @@ async function testWorkItems(load) {
     actorId: 'actor-a',
     tenantId: 'tenant-a',
     requestId: 'request-a',
-    roles: ['admin'],
   }
-  const viewer = { ...identity, actorId: 'actor-b', requestId: 'request-b', roles: [] }
+  const viewer = { ...identity, actorId: 'actor-b', requestId: 'request-b' }
   const reports = createReporter()
   const invalidated = []
   // The stand-in for the framework's request scope: cookies(), headers() and updateTag in Next.js.
