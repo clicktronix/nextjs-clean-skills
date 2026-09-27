@@ -10,7 +10,9 @@ known. Correct an objective plan error in a separate commit with an explanation.
 A `revisions` entry on a fixture records a later change to its base inventory that is not a
 measured scenario. The 2026-09-11 revision of `work-items` reconciled the example with the contract
 (the action resolves request scope itself, identity lives in `shared/kernel`, refusal is a typed
-value); the measurements in `results.json` stay bound to the commits they were taken at.
+value); the 2026-09-27 revision moved roles out of `RequestIdentity` into the capability's own
+access dependency, and the action now hands its invalidation primitive to the owner's invalidator.
+The measurements in `results.json` stay bound to the commits they were taken at.
 
 [`RESULTS.md`](./RESULTS.md) summarizes the observed candidate and baseline results and their current
 limits. `results.json` binds candidate observations to exact local commits and records the exact

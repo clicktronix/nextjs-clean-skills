@@ -11,17 +11,17 @@ Ask:
 3. Does inversion protect real volatility, ownership, or isolation?
 4. Is there a production consumer now?
 
-If any answer is no, keep the concrete dependency private to `server/`.
+If any answer is no, keep the concrete dependency private to `server/`. The gate is the only rule;
+the table says where each kind of dependency usually lands once it has been applied.
 
-| Dependency | Default |
+| Dependency | Usual outcome |
 | --- | --- |
 | pure in-process calculation | direct import |
 | local store from checked-in migrations | private server store; real-engine tests |
-| owned remote service | application port plus private adapter |
-| third-party provider | application port plus private adapter |
+| owned remote service, third-party provider | private adapter; a port when all four answers are yes |
 
-These are defaults, not bans. A local engine may need a port when real application policy must run
-independently of it. A remote provider may need a port with one implementation.
+A local engine may pass the gate when real application policy must run independently of it, and a
+remote provider may pass it with one implementation.
 
 Adapter count and test mocks are evidence, not gates. Repository-per-table is rejected because it
 mirrors storage rather than naming a capability.

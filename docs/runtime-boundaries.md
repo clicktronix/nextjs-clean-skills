@@ -54,9 +54,13 @@ reporting. Otherwise keep those duties in `rsc.ts`.
 
 Request identity contains:
 
-- actor identity and roles;
+- actor identity;
 - tenant or ownership scope;
 - request and trace identifiers.
+
+Roles are not part of it. The role vocabulary belongs to the capability that decides with it: its
+channel or trusted server operation resolves the actor's roles for that operation and passes them
+to its policy.
 
 Database clients, provider clients, reporter, clock, and other effects are dependencies, not
 identity. Keep them separate even when one runtime factory resolves both.
@@ -127,8 +131,9 @@ use framework control flow and must not be normalized as application failures.
 ## Server Actions
 
 `actions.ts` is a dedicated module with top-level `'use server'`. It is used for UI commands, not
-browser reads. Next.js requires every value export from that module to be an async function declared
-there; import and call a private implementation instead of value-re-exporting it.
+browser reads. Next.js requires every value export from that module to be an async function when
+the module loads — declared there or produced there by a wrapper such as `withAuth(async () => …)`;
+import and call a private implementation instead of value-re-exporting it.
 [Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server).
 
 The action:
@@ -277,10 +282,13 @@ Every read path has one owner:
 | shared server result | capability server cache |
 
 Application operations may return ownership metadata, not call Next.js cache APIs. The channel root
-that performed the write calls the framework primitive — `updateTag` from `actions.ts`,
-`revalidateTag(tag, 'max')` from a Route Handler or job — with a tag the capability's `server/**`
-names. Cache keys include the full user or tenant scope whenever authorization changes the result; a
-`'use cache'` function receives that scope as an argument
+that performed the write calls its framework primitive — `updateTag` from `actions.ts`,
+`revalidateTag(tag, profile)` from a Route Handler or another Server Function, with the profile the
+operation needs — on tags the owner supplies; a neighbour's write goes through the invalidator the
+owner publishes for it. A background job outside those contexts, even in the same Next.js process,
+calls an authenticated Route Handler of the owning app instead. Cache keys
+include the full user or tenant scope whenever authorization changes the result; a `'use cache'`
+function receives that scope as an argument
 ([Cache Components](./architecture-contract.md#cache-components)).
 
 When RSC prefetch hydrates a browser-owned TanStack Query cache, both sides use one serializable

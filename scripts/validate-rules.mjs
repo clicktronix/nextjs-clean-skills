@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
 
 import { fail, root } from './_lib.mjs'
-import { loadArchitecturePaths, moduleSpecifiers } from '../rules/contract-paths.mjs'
+import { loadArchitecturePaths, moduleEdges, moduleSpecifiers } from '../rules/contract-paths.mjs'
 
 const BASE = 'rules/eslint-boundaries.mjs'
 const STRICT = 'rules/eslint-boundaries-resolved.mjs'
@@ -249,6 +249,48 @@ export function createLabel() {
 const limit = 10
 export { limit }
 `,
+  // An imported binding published unchanged is a value re-export written in two statements.
+  'src/modules/bad-action-import-reexport/actions.ts': `
+'use server'
+import { getWorkItems } from '../work-items/server.js'
+export { getWorkItems }
+export const alias = getWorkItems
+export default getWorkItems
+`,
+  // A negative number and undefined are not functions, and neither is a Literal node.
+  'src/modules/bad-action-unary/actions.ts': `
+'use server'
+export const offset = -1
+export const missing = undefined
+`,
+  // Arithmetic is provably not a function, whatever the wrapper rule admits.
+  'src/modules/bad-action-binary/actions.ts': `
+'use server'
+export const answer = 1 + 2
+`,
+  // Neither is an enum exported through a local binding.
+  'src/modules/bad-action-enum/actions.ts': `
+'use server'
+enum Status { Pending, Done }
+export { Status }
+`,
+  // An object literal is not a function; Next.js lets it through the build and fails at load.
+  'src/modules/bad-action-object/actions.ts': `
+'use server'
+export const config = { retries: 3 } as const
+`,
+  // A higher-order wrapper produces the async function at runtime, which is what Next.js checks.
+  'src/modules/good-action-wrapped/actions.ts': `
+'use server'
+type Action<T> = (input: T) => Promise<{ ok: boolean }>
+const withAuth = <T,>(action: Action<T>): Action<T> => action
+const client = { action: <T,>(action: Action<T>): Action<T> => action }
+export const createLabel = withAuth(async (_name: string) => ({ ok: true }))
+export const renameLabel = client.action(async (_name: string) => ({ ok: true }))
+const archiveLabel = withAuth(async (_id: string) => ({ ok: true }))
+export { archiveLabel }
+export default withAuth(async (_id: string) => ({ ok: true }))
+`,
   // Every accepted shape of an async value export: declaration, const arrow, local export list,
   // type export, and a type-only re-export.
   'src/modules/good-actions/actions.ts': `
@@ -392,6 +434,16 @@ export type { WorkItem } from '../work-items/server.js'
 import { getWorkItems } from '../../work-items/server.js'
 export default getWorkItems
 `,
+  // The same borrowed internal type written as an import type node, which no import statement shows.
+  'src/modules/type-consumer/domain/bad-import-type.ts': `
+export type Borrowed = import('../../work-items/domain/model.js').WorkItem
+`,
+  // An import type node of a server surface from browser code is erased like import type.
+  'src/modules/type-consumer/client/import-type.ts': `
+'use client'
+export type Remote = import('../../work-items/server.js').WorkItem
+export type Surface = typeof import('../../work-items/server.js')
+`,
   'src/modules/type-consumer/domain/bad-type-internal.ts': `
 import type { WorkItem } from '../../work-items/domain/model.js'
 export type Borrowed = WorkItem
@@ -401,7 +453,7 @@ import type { WorkItem } from '@/modules/work-items/domain/model'
 export type PageItem = WorkItem
 `,
 
-  // A contract surface publishes vocabulary: types, and the schemas that witness them.
+  // A contract surface publishes types and the schemas that witness them to a neighbour's domain.
   'src/modules/campaign/domain/model.ts': `
 export type Campaign = { id: string }
 `,
@@ -417,56 +469,32 @@ import { CampaignSchema } from '../../campaign/contracts.js'
 export const schema = CampaignSchema
 export type Owned = Campaign
 `,
-  // The name is not the check: chargeCardSchema is a function, so it is behaviour whatever it is
-  // called, and a /Schema$/ name test admits exactly this shape.
-  'src/modules/billing/contracts.ts': `
-export type Card = { id: string }
-export function chargeCardSchema() {
-  return fetch('/charge')
+  // A contract surface may also publish its capability's pure API: a neighbour's domain, a server
+  // operation and the browser all take the same price rule from it.
+  'src/modules/pricing/domain/price.ts': `
+export type Line = { unitCents: number; quantity: number }
+export function totalCents(lines: readonly Line[]): number {
+  return lines.reduce((sum, line) => sum + line.unitCents * line.quantity, 0)
 }
 `,
-  'src/modules/agency/application/charge.ts': `
-import { chargeCardSchema } from '../../billing/contracts.js'
-export const charge = chargeCardSchema
+  'src/modules/pricing/contracts.ts': `
+export type { Line } from './domain/price.js'
+export { totalCents } from './domain/price.js'
 `,
-
-  // Shapes a name test or a one-pass classifier gets wrong: an alias of a schema, a schema derived
-  // from one imported from a sibling file, and a bare schema-package constructor re-exported.
-  'src/modules/shapes/domain/inner.ts': `
-import * as v from 'valibot'
-export const InnerSchema = v.object({ id: v.string() })
+  'src/modules/checkout/domain/quote.ts': `
+import { totalCents, type Line } from '../../pricing/contracts.js'
+export const quote = (lines: readonly Line[]) => ({ totalCents: totalCents(lines) })
 `,
-  'src/modules/shapes/contracts.ts': `
-import { string } from 'valibot'
-import { InnerSchema } from './domain/inner.js'
-import { InnerSchema as ImportAlias } from './domain/inner.js'
-export { InnerSchema as AliasSchema }
-export { ImportAlias }
-export const DerivedSchema = InnerSchema
-export { string }
-`,
-  'src/modules/agency/domain/alias-ok.ts': `
-import { AliasSchema, DerivedSchema, ImportAlias } from '../../shapes/contracts.js'
-export const a = AliasSchema
-export const b = DerivedSchema
-export const c = ImportAlias
-`,
-  'src/modules/agency/domain/bad-constructor.ts': `
-import { string } from '../../shapes/contracts.js'
-export const make = string
+  // Purity is held by direction, not by reading declarations: a contract surface that imports a
+  // runtime package is not a neutral surface.
+  'src/modules/billing/contracts.ts': `
+import { cookies } from 'next/headers'
+export const session = cookies
 `,
   // A Server Component under ui/** reads rsc.ts, not the private server segment behind it.
   'src/modules/work-items/ui/BadServerReach.tsx': `
 import { store } from '../server/store.js'
 export const BadServerReach = () => store
-`,
-  // The marker guards value imports; an erased type import before it is not an ordering defect.
-  'src/modules/marker-type/server.ts': `
-import type { Card } from '../billing/contracts.js'
-import { type Model } from '../campaign/contracts.js'
-import 'server-only'
-export const card: Card = { id: 'x' }
-export const model: Model = { id: 'y' }
 `,
 
   // Static module forms the ImportDeclaration visitor never sees.
@@ -513,10 +541,26 @@ export const unmarked = true
   'src/modules/marker/client.ts': `
 export const unmarkedClient = true
 `,
+  // Presence is the check: a marker after the imports it guards still poisons the wrong runtime's
+  // bundle graph, so this surface is clean.
   'src/modules/marker/rsc.ts': `
 import { unmarked } from './server.js'
 import 'server-only'
-export const late = unmarked
+export const afterImports = unmarked
+`,
+  // A type-only import of the marker is erased before bundling, so it marks nothing.
+  'src/modules/marker-type/server.ts': `
+import type {} from 'server-only'
+export const secret = 's'
+`,
+  'src/modules/marker-type/client.ts': `
+import type {} from 'client-only'
+export const browserOnly = true
+`,
+  // A side-effect import of something else is not the marker.
+  'src/modules/marker/job.ts': `
+import './server.js'
+export const job = true
 `,
 
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
@@ -548,6 +592,11 @@ const expectedBase = new Map([
   ['src/modules/bad-action-late-directive/actions.ts', 'actionDirective'],
   ['src/modules/bad-action-sync/actions.ts', 'actionValueExport'],
   ['src/modules/bad-action-local-export/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-object/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-import-reexport/actions.ts', 'actionReexport'],
+  ['src/modules/bad-action-unary/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-binary/actions.ts', 'actionValueExport'],
+  ['src/modules/bad-action-enum/actions.ts', 'actionValueExport'],
   ['src/modules/work-items/repository.ts', 'unknownSurface'],
   ['src/modules/exports/server.ts', 'broadSurface'],
   ['src/shared/utils/date.ts', 'invalidSharedRoot'],
@@ -566,11 +615,11 @@ const expectedBase = new Map([
   // A type-only edge keeps the ownership rules: the coupling to a neighbour's private file and to
   // a capability's internals survives the compiler erasing the binding.
   ['src/modules/type-consumer/domain/bad-type-internal.ts', 'crossCapabilityInternal'],
+  ['src/modules/type-consumer/domain/bad-import-type.ts', 'crossCapabilityInternal'],
   ['src/app/bad-type-internal/page.ts', 'appInternal'],
   // The same import as a value is the runtime edge the type-only form is not.
   ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
-  ['src/modules/agency/application/charge.ts', 'contractSurfaceBehaviour'],
-  ['src/modules/agency/domain/bad-constructor.ts', 'contractSurfaceBehaviour'],
+  ['src/modules/billing/contracts.ts', 'neutralDirection'],
   ['src/modules/work-items/ui/BadServerReach.tsx', 'serverUiReach'],
   ['src/modules/import-equals/domain/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/import-equals/domain/bad-module-require.ts', 'domainDirection'],
@@ -584,8 +633,9 @@ const expectedBase = new Map([
 const expectedMarkers = new Map([
   ['src/modules/marker/server.ts', 'clean-runtime/runtime-markers'],
   ['src/modules/marker/client.ts', 'clean-runtime/runtime-markers'],
-  // Present but after the imports it is supposed to guard: the module body has already run them.
-  ['src/modules/marker/rsc.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker/job.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker-type/server.ts', 'clean-runtime/runtime-markers'],
+  ['src/modules/marker-type/client.ts', 'clean-runtime/runtime-markers'],
 ])
 
 const expectedStrict = new Map([
@@ -604,6 +654,7 @@ const clean = new Set([
   'src/modules/labels/server.ts',
   'src/modules/labels/actions.ts',
   'src/modules/good-actions/actions.ts',
+  'src/modules/good-action-wrapped/actions.ts',
   'src/modules/work-items/application/list.ts',
   'src/modules/work-items/query-cache.ts',
   'src/modules/work-items/server.ts',
@@ -629,16 +680,17 @@ const clean = new Set([
   'src/modules/graph-b/server/use-a.ts',
   'src/modules/type-consumer/client/view.ts',
   'src/modules/type-consumer/client/inline-type.ts',
+  'src/modules/type-consumer/client/import-type.ts',
   'src/modules/type-consumer/client.ts',
   'src/modules/campaign/domain/model.ts',
   'src/modules/campaign/contracts.ts',
   'src/modules/agency/domain/policy.ts',
+  'src/modules/pricing/domain/price.ts',
+  'src/modules/pricing/contracts.ts',
+  'src/modules/checkout/domain/quote.ts',
   'src/modules/work-items/domain/template-import.ts',
   'src/modules/work-items/ui/ServerList.tsx',
-  'src/modules/shapes/domain/inner.ts',
-  'src/modules/shapes/contracts.ts',
-  'src/modules/agency/domain/alias-ok.ts',
-  'src/modules/marker-type/server.ts',
+  'src/modules/marker/rsc.ts',
 ])
 
 if (ESLint) {
@@ -744,17 +796,6 @@ if (ESLint) {
     const baseResults = await lint('eslint.config.base.mjs')
     const strictResults = await lint('eslint.config.strict.mjs')
 
-    // A classification depends on the files it follows: rewriting the schema's source file, not
-    // the contract file, must change the verdict inside the same process.
-    const innerPath = path.join(sandbox, 'src/modules/shapes/domain/inner.ts')
-    const innerSource = fs.readFileSync(innerPath, 'utf8')
-    fs.writeFileSync(innerPath, "export function InnerSchema() {\n  return fetch('/x')\n}\n")
-    const afterDependencyChange = await lint('eslint.config.base.mjs')
-    fs.writeFileSync(innerPath, innerSource)
-    const aliasMessages = afterDependencyChange.get('src/modules/agency/domain/alias-ok.ts') ?? []
-    if (!aliasMessages.some((m) => m.messageId === 'contractSurfaceBehaviour')) {
-      errors.push('contract classification served a stale verdict after a dependency file changed in the same process')
-    }
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',
@@ -1030,6 +1071,16 @@ for (const [label, source, expected] of [
 ]) {
   const parsed = ts.createSourceFile(`${label}.ts`, source, ts.ScriptTarget.Latest, true)
   if (!moduleSpecifiers(parsed).includes(expected)) errors.push(`${label} was not extracted`)
+}
+for (const [label, source] of [
+  ['import type node', "type Offer = import('@/modules/a/contracts').Offer\n"],
+  ['typeof import type node', "type Messages = keyof typeof import('@/modules/a/contracts')\n"],
+]) {
+  const parsed = ts.createSourceFile(`${label}.ts`, source, ts.ScriptTarget.Latest, true)
+  const edges = moduleEdges(parsed)
+  if (!edges.some((edge) => edge.specifier === '@/modules/a/contracts' && edge.typeOnly)) {
+    errors.push(`${label} was not extracted as a type-only edge`)
+  }
 }
 {
   const parsed = ts.createSourceFile('ordinary-method.ts', "loader.require('@/not-an-edge')\n", ts.ScriptTarget.Latest, true)

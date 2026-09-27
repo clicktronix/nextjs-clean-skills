@@ -8,7 +8,7 @@ import {
   WorkItemInputError,
   type WorkItem,
 } from './domain/work-item.js'
-import { workItemsListTag } from './server/cache-tags.js'
+import { expireWorkItems } from './server/cache-tags.js'
 import { workItemsServer } from './server/composition.js'
 
 export type CreateWorkItemActionState =
@@ -28,8 +28,8 @@ export async function createWorkItemAction(
     const input = parseCreateWorkItemInput(fieldsOf(formData))
     const created = await workItemsServer().create(scope.identity, input)
     if (isForbidden(created)) return { ok: false, code: 'FORBIDDEN' }
-    // Read-your-writes for the request that wrote: the action channel invalidates the tag it owns.
-    await scope.invalidate(workItemsListTag(scope.identity.tenantId))
+    // Read-your-writes for the request that wrote: the action passes its primitive, the owner the tags.
+    await expireWorkItems(scope.identity.tenantId, (tag) => scope.invalidate(tag))
     return { ok: true, item: created }
   } catch (error) {
     if (error instanceof WorkItemInputError) return { ok: false, code: 'INVALID_INPUT' }

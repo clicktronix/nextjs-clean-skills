@@ -13,8 +13,9 @@ Each Server Action validates its payload, derives identity and tenant from trust
 the command, calls capability behavior, and returns a public-safe result.
 
 An importable action module starts with top-level `'use server'`. It defines UI commands, not browser
-reads. Every value export must be a locally declared async function; call private behavior instead
-of re-exporting it.
+reads. Every value export must be an async function when the module loads — declared there or
+returned by a wrapper such as `withAuth(async () => …)`; call private behavior instead of
+re-exporting it.
 
 Handle expected typed outcomes explicitly, then invoke `redirect()`, `permanentRedirect()`, or
 `notFound()`. Do not catch unexpected exceptions into form state; let them reach the single outer

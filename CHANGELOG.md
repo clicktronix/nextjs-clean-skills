@@ -4,6 +4,43 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- `contracts.ts` may publish the pure functions of its capability's `domain/**`, not only types and
+  schemas, so one rule serves a neighbour's domain, the server and the browser. Changing inputs
+  arrive as arguments and a browser result is a preview the server recomputes. Purity is held by
+  the neutral surface's import direction; the declaration classifier behind
+  `contractSurfaceBehaviour` is removed.
+- Cache invalidation: the operation picks the `revalidateTag` profile (`'max'` or
+  `{ expire: 0 }`) instead of a fixed `'max'`; a background job outside a Server Function or Route
+  Handler, even in the same Next.js process, calls an authenticated Route Handler of the owning app,
+  since `revalidateTag` has no context there; and a capability's
+  `server.ts` publishes an invalidator that takes the writer's primitive when a neighbour or
+  orchestrator writes through its operation, so the caller invalidates without learning the tags.
+
+### Fixed
+
+- `actionValueExport` accepts a Server Action produced by a wrapper call
+  (`export const x = withAuth(async () => …)`, next-safe-action's `client.action(…)`). It reports
+  only what syntax proves is not an async function — a literal, object, array, class or synchronous
+  function — and leaves the rest to Next.js's load-time check. An imported binding exported
+  unchanged (`import { x } from …; export { x }`) is reported as the value re-export it is.
+- A module named in a type position — `import('…').X`, `typeof import('…')` — is a type-only edge
+  for both the ESLint ownership rules and `moduleEdges`. Before, an internal import that failed as
+  `import type` passed in this form.
+- `runtime-markers` requires the `server-only`/`client-only` marker to be present, not first. The
+  marker works through module resolution, so its position never mattered.
+- Cache Components guidance separates the two stores a shared cached read can use: a privileged
+  store bypasses row-level security, so the channel authorizes first and the tenant argument is the
+  isolation; an anonymous store stays under RLS and serves only public data. It also documents
+  what `'use cache: private'` allows and where it stores results.
+- `RequestIdentity` no longer lists roles anywhere, including the `work-items` runtime pilot; the
+  owning capability resolves them per operation.
+- The port gate is the only rule in `dependency-categories.md`; the table now reports its usual
+  outcome instead of defaulting remote dependencies to a port.
+- Each skill names the normative contract it applies, and `contracts.ts` is described as on by
+  default everywhere it is listed.
+
 ## [4.4.0] - 2026-09-22
 
 ### Changed

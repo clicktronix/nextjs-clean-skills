@@ -150,7 +150,7 @@ src/modules/work-items/
 ├── actions.ts         # top-level 'use server'; UI commands
 ├── client.ts          # browser-safe read or subscription surface
 ├── ui.ts              # reusable capability UI
-├── contracts.ts       # runtime-neutral vocabulary: types and the schemas that witness them
+├── contracts.ts       # runtime-neutral: types, schemas and pure domain functions
 ├── query-cache.ts     # shared serializable query-key identity for prefetch and hydration
 ├── stream.ts          # stream-channel contract
 └── job.ts             # worker contract
@@ -192,21 +192,26 @@ channel wrapper is valid only when it establishes real runtime behavior such as 
 validation, failure translation, or telemetry ownership.
 
 `actions.ts` is a compiler-constrained exception. With top-level `'use server'`, every value export
-must be an async function declared in that file. Import the private implementation and call it from
+must be an async function when the module loads — declared in the file or produced there by a
+wrapper such as `withAuth(async (input) => …)`. Import the private implementation and call it from
 the local action; do not value-re-export it. Type-only re-exports remain allowed. The base rule tier
-checks all three: the directive, the async shape of every value export, and the absence of value
-re-exports.
+checks all three: the directive, the absence of value re-exports, and every value export that syntax
+proves is not an async function (a literal, object, array, class or synchronous function), and a
+binding imported from elsewhere and exported unchanged counts as a value re-export. Next.js checks a
+wrapper's result at load time.
 
-`contracts.ts` publishes the capability's vocabulary and nothing that runs: types, and the schemas
-that witness those types. It exists so a neighbour's `domain/**` and `application/**` can speak
-about this capability without depending on how it works — depending on a published vocabulary is not
-depending on an implementation. It imports only its own `domain/**`, admitted `shared/kernel`, and
-packages the contract classifies as pure. Consumers take types from it freely; a value taken from it
-must be a schema *by declaration* (`export const X = <schema-package call>`, or a schema built from
-another schema in the file). An exported function or class on a contract surface is behaviour, and
-the checker rejects it whatever it is named — a name test admits
-`export function chargeCardSchema() { return fetch(…) }`, which is behaviour wearing a schema's
-name. Behaviour is taken from the owner's `server.ts` or restated as a port.
+`contracts.ts` publishes what other code may depend on without depending on how the capability
+works: its types, the schemas that witness them, and the pure functions of its `domain/**` — a price
+rule, a status-transition check. A neighbour's `domain/**` and `application/**`, a server operation
+and browser code may all import it, so one rule has one owner instead of a copy per runtime. It
+imports only its own `domain/**`, admitted `shared/kernel`, and packages the contract classifies as
+pure; everything it publishes is therefore pure by what it can import, and the direction rules
+check that rather than reading each declaration. IO, provider calls and runtime state never belong
+there: they come from the owner's `server.ts` or `client.ts`, or are restated as a port. Time,
+randomness and other changing inputs arrive as arguments, and nothing keeps module-level state. A
+result the browser computes with these functions is a preview: the server recomputes it before it
+acts on a command. A global such as `fetch` or `Date.now()` is invisible to import rules; review
+keeps it out of `contracts.ts` as it does out of `domain/**`.
 
 `query-cache.ts` is the one runtime-neutral exception to the channel-specific vocabulary. It exists
 only when the same serializable TanStack Query key identity has both a server prefetch/hydration
@@ -267,17 +272,19 @@ Normative rules:
    invalid with consumers on only one side.
 10. `server-only` and `client-only` protect runtime modules in addition to path rules, and the
     resolved rule tier checks it: a `server.ts`, `rsc.ts`, `stream.ts`, or `job.ts` imports
-    `'server-only'`, and `client.ts` imports `'client-only'`, before its other imports. `actions.ts`
-    is excluded — it is the one surface browser code is meant to import.
+    `'server-only'`, and `client.ts` imports `'client-only'`. Position does not matter — the marker
+    works by resolving to a throwing module in the wrong runtime's graph — so the check is presence.
+    `actions.ts` is excluded — it is the one surface browser code is meant to import.
 11. A production build must fail when a Client Component imports a server surface.
 12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
     fail closed until the product updates its contract.
 13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
     `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
-14. A type-only edge — `import type`, `import { type X }`, `export type … from` — is erased by the
-    compiler, so it does not carry a runtime direction: the browser/server, purity and neutrality
-    rules do not apply to it. Ownership does. Importing a neighbour's private file as a type is the
-    same coupling as importing it as a value, and fails the same way.
+14. A type-only edge — `import type`, `import { type X }`, `export type … from`, or `import(…)` in a
+    type position — is erased by the compiler, so it does not carry a runtime direction: the
+    browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a
+    neighbour's private file as a type is the same coupling as importing it as a value, and fails
+    the same way.
 15. A table's *writes* belong to the owner of its invariants. `consumers` admits reads and the
     owner's public RPCs; an optional `writers` list narrows `insert`/`update`/`upsert`/`delete` to
     the subjects that may decide what the table contains. A writer must already be a consumer.
@@ -332,26 +339,43 @@ Normative rules:
    filters. A request-scoped client, a reporter or an identity object never crosses into a cached
    function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
    to the next. The cached function obtains its store from the capability's own composition, not
-   from an argument.
+   from an argument. Without cookies there is no user session. A tenant-private read therefore uses
+   a privileged store, which bypasses row-level security: the channel authorizes first, and the
+   tenant argument, applied as a query predicate, is the isolation. An anonymous store stays under
+   row-level security as the `anon` role and serves only data its policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
 3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
    prerenderable cache; data one identity may see and another may not never enters it.
+   `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
+   across requests — only in browser memory — so it is request-time work, not a server cache.
 4. `cacheTag` and `cacheLife` are called inside the cached function. The tag vocabulary is a private
    `server/**` module; nothing outside the capability learns how its cache is keyed.
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
-5. Invalidation belongs to the channel that wrote. An `actions.ts` action calls `updateTag(tag)` so
-   the request that wrote reads its own write; a Route Handler or job calls
-   `revalidateTag(tag, 'max')`. `server.ts` operations return the affected scope, `server/**` names
-   the tag for it, and `application/**` and `domain/**` import nothing from `next/cache`. This is
-   the one answer; ADR 0001 §8 and Runtime Boundaries defer to it.
+5. Invalidation belongs to the channel that wrote, and the operation decides how fresh the next
+   read must be. An `actions.ts` action calls `updateTag(tag)`, so the request that wrote reads its
+   own write. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
+   `'max'` when serving the previous result while it refreshes is acceptable, `{ expire: 0 }` when
+   it is not — an unpublish, a revoked grant. Those are the only contexts Next.js supports for it.
+   A background job outside them — a separate worker, or a task in the same Next.js process that
+   no Server Function or Route Handler is serving — calls an authenticated Route Handler of the
+   owning app that invalidates, or the cached read carries a `cacheLife` short enough to bound the
+   staleness.
+   Tags stay private to their owner, and a write operation returns the affected scope. Inside the
+   capability the channel takes the tag from `server/**`. Only when a neighbour or orchestrator
+   writes through the owner's operation does the owner's `server.ts` publish an invalidator for
+   that write, `expire<Subject>(scope, expire)`, where `expire` is the caller's primitive —
+   `updateTag` in an action, `(tag) => revalidateTag(tag, profile)` in a handler — so the caller
+   invalidates without learning how the cache is keyed. `application/**` and `domain/**` import
+   nothing from `next/cache`. This is the one answer; ADR 0001 §8 and Runtime Boundaries defer to
+   it.
 6. A current-request read reached from `rsc.ts` or a page — `cookies()`, `headers()`,
    `searchParams`, an uncached store read — renders under a Suspense boundary: the segment's
    `loading.tsx` or an inline `<Suspense>` around the region. The build fails otherwise. The route
    owns the boundary; the capability owns which of its reads are current-request.
 
-The `work-items` fixture shows the invalidation half: `server/cache-tags.ts` names the tag, and
-`actions.ts` invalidates through the request scope after a successful create
+The `work-items` fixture shows the invalidation half: `server/cache-tags.ts` owns the tag and the
+invalidator, and `actions.ts` passes the request scope's primitive to it after a successful create
 ([fixture](https://github.com/clicktronix/nextjs-clean-skills/blob/main/tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts)).
 
 ## Application Operations

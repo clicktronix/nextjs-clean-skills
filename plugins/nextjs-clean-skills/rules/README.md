@@ -97,39 +97,24 @@ replace RLS/grant tests.
 
 ## Contract Surfaces
 
-Add `contracts` to `contractSurfaces`, `publicSurfaces` and `neutralSurfaces` and a capability may
-publish `contracts.ts`: its types, and the schemas that witness them. A neighbour's `domain/**` and
-`application/**` may import from a foreign contract surface — the one hole in their otherwise closed
-direction rules — because depending on a published vocabulary is not depending on an implementation.
+`contracts` is listed in `contractSurfaces`, `publicSurfaces` and `neutralSurfaces` by default, so a
+capability may publish `contracts.ts`: its types, the schemas that witness them, and the pure
+functions of its `domain/**`. A project that does not want the surface removes it from all three
+lists. A neighbour's `domain/**` and `application/**` may import from a foreign contract surface —
+the one hole in their otherwise closed direction rules.
 
-The value half is checked structurally, not by name. The rule opens the target contract file and
-reads the declaration behind each imported binding:
-
-- a type alias, an interface or a type-only binding is admitted;
-- `export const X = <call>` is admitted when the callee's root binding was imported from a package
-  listed in `purePackages`, or is another schema declared in the same file;
-- an alias of a schema (`export { X as Y }`, `export const Y = X`), in the file or re-exported
-  from a sibling it can read, is that schema;
-- a binding imported bare from a schema package (`string`, `object`) is a constructor, so
-  re-exporting it is behaviour: only a call rooted in it yields a schema;
-- everything else is behaviour, including every declaration the reader cannot follow — an
-  unreadable file, an unresolvable re-export, a value built by an unclassified call. The
-  classification fails closed. The reader caches by file content, so a rewrite is seen even
-  within one ESLint process.
-
-This is deliberately not a `/Schema$/` name test: such a test admits
-`export function chargeCardSchema() { return fetch(…) }`, reproduced under a real project's config.
-What the structural check still cannot prove is that a schema value is *pure* — `purePackages` is a
-product decision, and a call to something listed there is trusted to be a schema constructor. It
-proves the declaration's shape, not the callee's behaviour.
+Purity is enforced by direction, not by reading declarations: `neutralDirection` admits only the
+surface's own `domain/**`, `shared/kernel` and `purePackages`, and `domainDirection` holds the same
+line for the domain it re-exports. A global such as `fetch` is outside what import rules see, in
+`contracts.ts` as in `domain/**`.
 
 ## Runtime Markers
 
 `server-only` and `client-only` are the part of the floor that the bundler enforces rather than a
-reviewer. The resolved tier requires the marker to be the **first** import of the surface it guards
-— module bodies run in order, and a marker placed after the imports it is meant to guard poisons
-the module too late to matter. Type-only imports are erased before the body runs, so a marker
-after them is still first:
+reviewer. The resolved tier requires the marker to be present in the surface it guards. Its
+position does not matter: under the wrong runtime condition the package resolves to a module that
+throws, so any bundle graph containing the surface fails. Putting it first is a readable
+convention, not a check:
 
 | Surface | Marker |
 | --- | --- |
@@ -142,8 +127,9 @@ tier will also report them unresolved.
 
 ## Type-Only Edges
 
-`import type`, `import { type X }` and `export type … from` are erased by the compiler, so they
-carry no runtime direction. The runtime and purity rules — `browserServer`, `serverClient`,
+`import type`, `import { type X }`, `export type … from` and an import type node
+(`import('…').X`, `typeof import('…')`) are erased by the compiler, so they carry no runtime
+direction. The runtime and purity rules — `browserServer`, `serverClient`,
 `domainDirection`, `applicationDirection`, `neutralDirection`, `sharedKernelDirection` — do not
 apply to them. The ownership rules do: `appInternal`, `crossCapabilityInternal`,
 `sharedImportsModule`, `generatedProviderLeak` and `privateServerBackedge` report a type-only edge
@@ -166,10 +152,10 @@ The portable floor has seven named properties:
    classified by its `'use client'` directive, not by its directory: without one it is a Server
    Component and may read its own capability's `rsc.ts`.
 5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
-   are allowed, `export *` is not, `actions.ts` opens with `'use server'` and exports only async
-   functions declared there (`actionDirective`, `actionValueExport`, `actionReexport`), `query-cache.ts` remains
-   runtime-neutral, and a contract surface publishes types and schema declarations, never
-   behaviour.
+   are allowed, `export *` is not, `actions.ts` opens with `'use server'`, re-exports no values, and
+   exports nothing syntax proves is not an async function (`actionDirective`, `actionReexport`,
+   `actionValueExport`; a wrapper call is left to Next.js's load-time check), `query-cache.ts` remains
+   runtime-neutral, and a contract surface imports only pure code.
 6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
