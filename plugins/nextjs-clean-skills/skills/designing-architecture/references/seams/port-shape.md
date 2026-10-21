@@ -1,6 +1,6 @@
 # Port Shape
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 A port describes what its owning application operation needs, not the API behind it.
 
@@ -32,5 +32,3 @@ Ports own application-facing types. External wire and provider types remain in t
 A port includes every fact its caller must know: invariants, ordering, failures, configuration, and
 relevant performance limits, not only TypeScript types. A useful port keeps implementation changes
 local and gives callers more behavior than concepts they must learn.
-
-Reference: role interfaces and purposeful conversations at a capability seam.

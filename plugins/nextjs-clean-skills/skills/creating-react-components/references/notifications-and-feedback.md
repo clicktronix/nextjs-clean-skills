@@ -1,6 +1,6 @@
 # Notifications And Feedback
 
-**Impact: MEDIUM** · **Scope: stack (TanStack Query)**
+**Scope: stack (TanStack Query)**
 
 The runtime channel maps semantic application failures to public results that the presenter can
 format. See
@@ -33,7 +33,7 @@ user just took.
 Use an app-level notifier for mutations whose default failure UX is global. Mutations with inline or
 rollback UX opt out through typed metadata; local handlers still own that work.
 
-Configure the public mutation-error callback; do not infer failures from cache subscription events:
+Configure the public mutation-error callback; do not infer failures from cache subscription events. The callback's parameter list is version-specific; confirm it against the installed TanStack Query types:
 
 ```ts
 const mutationCache = new MutationCache({

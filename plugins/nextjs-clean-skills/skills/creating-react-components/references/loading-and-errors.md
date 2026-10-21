@@ -1,6 +1,6 @@
 # Loading And Errors
 
-**Impact: HIGH** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 Routes own framework files; capabilities own the UI they describe.
 
@@ -19,15 +19,14 @@ Use inline `<Suspense>` for the smallest independent slow region. Layouts and pa
 parallel. Within one component, sequential awaits create a waterfall; start independent requests
 before awaiting them.
 
-Choose one RSC capture owner: framework instrumentation or the Client boundary. Do not report from
-both. See
-[failure ownership](../../designing-architecture/references/errors/failure-at-the-boundary.md).
-Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
+An RSC failure has one capture owner, settled in
+[Runtime Boundaries](../../../docs/runtime-boundaries.md#failures-and-reporting). Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
 nested or parallel route with `error.tsx`, or the project's component Error Boundary.
 
 Use the callback from the installed `ErrorInfo` type. `reset()` clears the boundary and rerenders
-its children, which suits a temporary render failure. Next.js 16.3 stabilises `retry()`, which
-also refreshes the route; prefer it when recovery must refetch RSC data.
+its children, which suits a temporary render failure. When the installed Next.js version offers
+`retry()`, it also refreshes the route; prefer it when recovery must refetch RSC data. Verify
+availability against the installed version.
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict
 states, or map them to deliberate framework control flow. Do not swallow `redirect` or `notFound()`

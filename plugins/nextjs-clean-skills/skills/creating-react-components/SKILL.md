@@ -1,20 +1,30 @@
 ---
 name: creating-react-components
 description: >-
-  Use when creating or refactoring Next.js 16 App Router UI: Server/Client boundaries, Hooks, state,
-  forms and actions, loading and errors, styling, i18n, feedback, accessibility, or tests.
+  Use when creating or refactoring a component, page UI or form in a Next.js 16 App Router project.
+  Structures Server vs Client Components, Hooks, component state, forms and the Server Action calls
+  they make, loading and error surfaces, styling, i18n, accessibility and component tests. Not for
+  deciding which capability owns a mutation or which channel carries it (use designing-architecture),
+  nor for moving a repository onto capability-first (use migrating-architecture).
 ---
 
 # Creating React Components
 
 Use this skill for UI structure. Keep the project's existing UI stack unless migration is requested.
-Fetch current React and Next.js docs for exact APIs.
+For exact APIs, read the documentation of the React and Next.js versions the project has installed.
 
 Normative source: [runtime boundaries](../../docs/runtime-boundaries.md) and
 [frontend composition](../../docs/frontend-composition.md). The references below explain how to
-apply them; where a reference disagrees, the normative source wins.
+apply them; where a reference disagrees, the normative source wins. Each document opens with a table
+that routes a decision to its section.
 
 ## Defaults
+
+The `modules/<capability>/ui` and `ui.ts` placements below assume a repository that has adopted the
+capability-first contract or asked to migrate to it. Anywhere else, put the component where its
+neighbours live and keep the repository's naming; do not introduce `modules/`, `shared/ui`, or a
+root surface to place one component. Take from this skill only what holds in any App Router
+project: the Server/Client split, state ownership, and the action shape.
 
 - Start with a Server Component.
 - Add `'use client'` only for events, client-only Hooks, refs, browser APIs, or browser-owned async
@@ -33,31 +43,20 @@ For a non-obvious split, read [Server/Client Boundary](references/server-client-
 
 ## State Placement
 
-| State | Owner |
-| --- | --- |
-| initial server-rendered data | RSC values |
-| realtime, polling, optimistic, infinite, or shared browser cache | capability `client/` |
-| URL-shareable filters, tabs, or paging | URL |
-| controlled form state and field errors | form boundary |
-| component-local interaction | owning component or named Hook |
-| compound component state | focused colocated provider |
-| global theme or locale | application provider |
-| identity and tenant | server request context |
-| derived value | calculate; do not store |
-
-Do not copy server-owned data into `useState`, Context, or an external store unless it is an
-explicit editable draft. Do not use a client cache in a Server Component.
+[Frontend Composition § State Placement](../../docs/frontend-composition.md#state-placement) owns the
+table of state kinds and their owners. Do not use a client cache in a Server Component.
 
 For state or browser cache ownership, read [State Placement](references/state-placement.md) or
 [Client Cache Lifecycle](../designing-architecture/references/caching/client-cache.md).
 
 ## Component Structure
 
-Call named Hooks directly from named components or named custom Hooks. Do not pass Hooks as values
-or hide them in higher-order helpers; React and the Hooks linter must see the call.
+Do not pass Hooks as values or hide them in higher-order helpers; React and the Hooks linter must
+see the call.
 
-Extract `WorkItemsView` when independent rendering tests or server reuse justify it, and keep both
-in one file while that stays readable.
+Extract `WorkItemsView` when independent rendering tests or server reuse justify it. It shares its
+controller's `'use client'` file only while that stays readable and no Server Component reuses it;
+otherwise give it a file without the directive.
 
 Do not add `memo`, `useMemo`, or `useCallback` by default. Keep them for a measured identity or
 rerender requirement.
@@ -82,8 +81,8 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component. Use its installed `ErrorInfo`: `reset` retries a temporary
-  render failure; in Next.js 16.3+, prefer `retry` when recovery must refetch RSC data.
+- `error.tsx` is a Client Component that recovers through the callbacks of its installed
+  `ErrorInfo` (`reset`, and `retry` where the installed version has it).
 - `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.
@@ -99,18 +98,11 @@ For boundary details, read [Loading And Errors](references/loading-and-errors.md
 - Field errors stay associated with their controls.
 - Non-field action feedback uses the product's semantic inline or notification surface.
 - Raw provider messages never become user copy.
-- Unexpected failures are reported once at the action or channel boundary.
+- Unexpected failures have one capture owner; see
+  [Runtime Boundaries § Failures And Reporting](../../docs/runtime-boundaries.md#failures-and-reporting).
 
 For presentation details, read [Styling, Text, And Accessibility](references/styling-and-i18n.md) or
 [Notifications And Feedback](references/notifications-and-feedback.md).
-
-## Adoption Boundary
-
-The `modules/<capability>/ui` and `ui.ts` placements above assume a repository that has adopted the
-capability-first contract or asked to migrate to it. Anywhere else, put the component where its
-neighbours live and keep the repository's naming. Take from this skill only what holds in any App
-Router project: the Server/Client split, state ownership, and the action shape. Do not introduce
-`modules/`, `shared/ui`, or a root surface to place one component.
 
 ## Decision Gate
 
@@ -126,7 +118,9 @@ runtime imports:   server-safe | browser-safe
 verification:      type | lint | component | e2e | visual | accessibility
 ```
 
-If the answer is "Client because it is easier," name the event, Hook, ref, browser API, or client
+Defaults when the change does not force otherwise: route-private owner, Server Component, RSC
+value, no local state, no mutation, server-safe imports, component-level verification. Each
+departure names its reason. If the answer is "Client because it is easier," name the event, Hook, ref, browser API, or client
 lifecycle that requires it.
 
 For verification details, read [Component Testing](references/component-testing.md).

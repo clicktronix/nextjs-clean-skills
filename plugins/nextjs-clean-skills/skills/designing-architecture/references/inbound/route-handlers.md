@@ -1,6 +1,6 @@
 # Route Handlers As HTTP Boundaries
 
-**Impact: HIGH** · **Scope: stack (Next.js)**
+**Scope: stack (Next.js)**
 
 Route Handlers live in `app/**` and own HTTP, not product policy.
 
@@ -46,12 +46,12 @@ export async function POST(request: Request) {
     const item = await createWorkItem(command)
     return Response.json({ id: item.id }, { status: 201 })
   } catch (error) {
-    return toHttpResponse(error)
+    return toHttpResponse(error, reportUnexpected)
   }
 }
 ```
 
-Never expose raw exception or provider text. For Server Action navigation and framework control
+`toHttpResponse` is the handler's own mapper: an expected failure becomes its public status and
+body; an unexpected one is passed to `reportUnexpected` once and becomes a generic 5xx. Never
+expose raw exception or provider text. For Server Action navigation and framework control
 flow, use the forms-and-actions reference instead of copying an HTTP mapper.
-
-Reference: Next.js Route Handlers as public HTTP boundaries over capability behavior.

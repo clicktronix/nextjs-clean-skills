@@ -1,8 +1,8 @@
 # Observability And Sentry
 
-**Impact: HIGH** · **Scope: stack (Sentry)**
+**Scope: stack (Sentry)**
 
-Fetch current Sentry docs for setup. Keep SDK configuration in runtime infrastructure; domain and
+Follow the installed Sentry SDK's documentation for setup. Keep SDK configuration in runtime infrastructure; domain and
 application operations import no telemetry SDK.
 
 ## Instrumentation First
@@ -15,10 +15,10 @@ Do not silently swallow a failed SDK import.
 The outer runtime channel reports an unexpected failure once with request/trace context. Inner
 trusted `server.ts` surfaces, operations, and private adapters do not report the same error again.
 
-When a channel reports and rethrows, automatic instrumentation may observe the same exception.
-Either make that instrumentation the sole capture owner, or preserve an already-reported marker so
-the second observer does not capture it again. Expected validation, conflict, and authorization
-outcomes are structured product events, not exception telemetry.
+When a channel reports and rethrows, Sentry's automatic instrumentation may observe the same
+exception; [Runtime Boundaries](../../../../docs/runtime-boundaries.md#failures-and-reporting)
+settles who captures it. Expected validation, conflict, and authorization outcomes are structured
+product events, not exception telemetry.
 
 ## Privacy
 
@@ -28,5 +28,3 @@ outcomes are structured product events, not exception telemetry.
 - identify users by stable id, not email or token;
 - clear user and scope tags on logout;
 - configure replay sampling and scrubbing explicitly.
-
-Reference: runtime-channel report ownership plus current Sentry Next.js instrumentation.

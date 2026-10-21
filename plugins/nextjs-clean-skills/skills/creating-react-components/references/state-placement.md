@@ -1,11 +1,11 @@
 # State Placement
 
-**Impact: HIGH** · **Scope: stack (React)**
+**Scope: stack (React)**
 
-Put state where its owner lives. Do not pick a store by preference. The canonical state-kind table
-lives in [SKILL.md](../SKILL.md). This file covers escalation and decomposition.
+Put state where its owner lives. Do not pick a store by preference. The state-kind table lives in
+[Frontend Composition](../../../docs/frontend-composition.md#state-placement). This file covers
+escalation and decomposition.
 
-Do not copy server data into Context, a store, or `useState` unless creating an explicit draft.
 Browser-owned server data belongs to the capability's `client/` lifecycle. Do not use a server-state
 library for local UI state. Selectors, persistence, or measured update pressure must justify an
 external store. Compute derived values; do not synchronize them into state with an Effect.
@@ -41,5 +41,3 @@ when measurements justify it.
 Split when the shared contract admits invalid prop combinations or mode branches spread through
 data loading, Hooks, or presentation. Prop guard comments, repeated non-null assertions, and a
 materially heavier variant are evidence, not a numeric threshold.
-
-Reference: [State Placement](../SKILL.md#state-placement).

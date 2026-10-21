@@ -1,6 +1,6 @@
 # Row Types Are Not Domain Types
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 A provider row and a product value change for different reasons. Keep the external schema and
 mapping in the private adapter that reads it.
@@ -31,5 +31,3 @@ leave the capability's private server adapter.
 A row schema is one of three schema kinds a capability owns, and the other two — the input schema
 at a channel boundary and the record schema the product reasons about — are not interchangeable
 with it; see [Schema Kinds](schema-kinds.md).
-
-Reference: external contracts and product models have independent reasons to change.

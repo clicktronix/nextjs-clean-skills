@@ -1,9 +1,12 @@
 ---
 name: designing-architecture
 description: >-
-  Use when a Next.js 16 App Router task requires deciding product capability ownership, module
-  placement, runtime channels or trust boundaries, public surfaces, or cross-capability dependency
-  direction. Do not use for routine component work that leaves those boundaries unchanged.
+  Use when a task adds or moves behaviour across Next.js 16 App Router boundaries, including a new
+  Server Action or Route Handler whose owner or channel is unsettled. Decides capability ownership,
+  module placement, public surfaces, runtime channel (RSC, Server Action, Route Handler, stream, job),
+  trust boundaries, caching, failure ownership and dependency direction. Not for component structure,
+  state, forms or styling (use creating-react-components), nor for moving a repository onto this
+  architecture (use migrating-architecture).
 ---
 
 # Designing Architecture
@@ -12,11 +15,14 @@ Use this skill for architecture decisions, not ordinary component implementation
 structure, local state, forms, loading, styling, or accessibility, use `creating-react-components`.
 
 Preserve the project's stack, paths, and established architecture unless adoption or migration was
-requested. Fetch current Next.js documentation before relying on framework-specific behavior.
+requested. Check the documentation of the installed Next.js version before relying on
+framework-specific behavior.
 
 Normative source: [architecture contract](../../docs/architecture-contract.md) and
 [runtime boundaries](../../docs/runtime-boundaries.md). The references below explain how to apply
-them; where a reference disagrees, the normative source wins.
+them; where a reference disagrees, the normative source wins. Each document opens with a table that
+routes a decision to its section: ownership, surfaces, dependency direction and cache rules are in
+the contract; channels, identity, failures, validation and transactions are in runtime boundaries.
 
 ## Decision Gate
 
@@ -92,7 +98,7 @@ Use an application operation, port, or orchestrator only when its deletion test 
 that otherwise leaks into callers. Adapter count, test mocks, and possible future providers are
 evidence, not gates.
 
-For CRUD against one local store, start with the channel entry calling a private server data module.
+For CRUD against one local store, start with the outer channel calling a server service.
 Authentication, input validation, row mapping, cache invalidation, failure translation, and the names
 `list`, `create`, or `rename` do not by themselves justify `application/` or one wrapper per action.
 Add an operation only when it owns product policy or coordination beyond that direct flow.

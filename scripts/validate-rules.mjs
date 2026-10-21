@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 import { fail, root } from './_lib.mjs'
@@ -13,6 +14,8 @@ const STRICT = 'rules/eslint-boundaries-resolved.mjs'
 const CONTRACT = 'rules/architecture-contract.json'
 const PATHS = 'rules/contract-paths.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
+const CENSUS = 'rules/census-scope.mjs'
+const SEVERITY = { warn: 1, error: 2 }
 const errors = []
 
 let sandboxSummary = 'sandbox skipped'
@@ -699,7 +702,7 @@ if (ESLint) {
   try {
     fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
     fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
-    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES]) {
+    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES, CENSUS]) {
       fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
     }
     // `generatedRoot` is deliberately absent from the shipped contract: declared there, every repo
@@ -772,6 +775,12 @@ if (ESLint) {
       `${parser}import boundaries from './eslint-boundaries.mjs'\nimport strict from './eslint-boundaries-resolved.mjs'\nexport default [ts, ...boundaries, ...strict]\n`
     )
 
+    // The census layout of the migration procedure: warn everywhere, error only under work-items.
+    fs.writeFileSync(
+      path.join(sandbox, 'eslint.config.census.mjs'),
+      `${parser}import boundaries from './eslint-boundaries.mjs'\nimport strict from './eslint-boundaries-resolved.mjs'\nimport { censusScope } from './census-scope.mjs'\nexport default [ts, ...censusScope([...boundaries, ...strict], ['src/modules/work-items/**'])]\n`
+    )
+
     for (const [relative, source] of Object.entries(files)) {
       const absolute = path.join(sandbox, relative)
       fs.mkdirSync(path.dirname(absolute), { recursive: true })
@@ -795,6 +804,63 @@ if (ESLint) {
     const posix = (value) => value.split(path.sep).join('/')
     const baseResults = await lint('eslint.config.base.mjs')
     const strictResults = await lint('eslint.config.strict.mjs')
+
+    const censusResults = await lint('eslint.config.census.mjs')
+    const severityOf = (file, ruleId) =>
+      censusResults.get(file)?.find((message) => message.ruleId === ruleId)?.severity
+    for (const [file, ruleId, severity] of [
+      ['src/modules/work-items/domain/bad-server.ts', 'clean-architecture/boundaries', SEVERITY.error],
+      ['src/modules/board/server/bad-internal.ts', 'clean-architecture/boundaries', SEVERITY.warn],
+      ['src/app/bad-internal/page.ts', 'clean-architecture/boundaries', SEVERITY.warn],
+    ]) {
+      if (severityOf(file, ruleId) !== severity) {
+        errors.push(`census scope: ${file} expected severity ${severity} for ${ruleId}; received ${severityOf(file, ruleId)}`)
+      }
+    }
+
+    // censusScope on its own with core rules: the cases the boundary fixture cannot reach.
+    const syntheticFiles = {
+      'census-synthetic/modules/a.js': 'debugger;\nalert("x");',
+      'census-synthetic/modules/a.test.js': 'debugger;',
+      'census-synthetic/modules/ignored.js': 'var x = 1;\nx;',
+      'census-synthetic/other/b.js': 'debugger;',
+    }
+    for (const [relative, source] of Object.entries(syntheticFiles)) {
+      const absolute = path.join(sandbox, relative)
+      fs.mkdirSync(path.dirname(absolute), { recursive: true })
+      fs.writeFileSync(absolute, `${source}\n`)
+    }
+    const syntheticConfigs = [
+      { files: ['**/*.js'], rules: { 'no-debugger': 'error', 'no-alert': 'off' } },
+      { files: ['**/*.test.js'], rules: { 'no-debugger': 'off' } },
+      { files: ['**/*.js'], ignores: ['**/ignored.js'], settings: { marker: 1 }, languageOptions: { sourceType: 'module' }, rules: { 'no-var': 'error' } },
+    ]
+    const { censusScope } = await import(pathToFileURL(path.join(sandbox, 'census-scope.mjs')).href)
+    const lintSynthetic = async (blockingFiles) => {
+      const eslint = new ESLint({ cwd: sandbox, overrideConfigFile: true, overrideConfig: censusScope(syntheticConfigs, blockingFiles) })
+      const results = await eslint.lintFiles(['census-synthetic'])
+      return new Map(results.map((result) => [posix(path.relative(sandbox, result.filePath)), result.messages]))
+    }
+    const syntheticSeverity = (results, file, ruleId) =>
+      results.get(`census-synthetic/${file}`)?.find((message) => message.ruleId === ruleId)?.severity
+    const scoped = await lintSynthetic(['census-synthetic/modules/**'])
+    const warnOnly = await lintSynthetic([])
+    for (const [label, results, file, ruleId, expected] of [
+      ['blocking glob', scoped, 'modules/a.js', 'no-debugger', SEVERITY.error],
+      ['outside the blocking glob', scoped, 'other/b.js', 'no-debugger', SEVERITY.warn],
+      ['test-file exemption under the blocking glob', scoped, 'modules/a.test.js', 'no-debugger', undefined],
+      ['an off rule stays off', scoped, 'modules/a.js', 'no-alert', undefined],
+      ['an ignored file stays ignored in the gate', scoped, 'modules/ignored.js', 'no-var', undefined],
+      ['empty blocking list: census only', warnOnly, 'modules/a.js', 'no-debugger', SEVERITY.warn],
+      ['empty blocking list: an off rule stays off', warnOnly, 'modules/a.js', 'no-alert', undefined],
+    ]) {
+      const received = syntheticSeverity(results, file, ruleId)
+      if (received !== expected) errors.push(`census scope (${label}): ${file} ${ruleId} expected ${expected}; received ${received}`)
+    }
+    const gate = censusScope(syntheticConfigs, ['census-synthetic/modules/**']).slice(syntheticConfigs.length)
+    if (!gate.some((entry) => entry.settings?.marker === 1 && entry.languageOptions?.sourceType === 'module' && entry.ignores?.length === 1)) {
+      errors.push('census scope: the blocking layer must carry each config\'s ignores, settings and languageOptions')
+    }
 
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,

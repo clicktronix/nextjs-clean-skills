@@ -15,9 +15,7 @@
 
 This record holds the decision, why it was taken, and how it was validated. The rules it produced
 live once, in [Architecture Contract](./architecture-contract.md) and
-[Runtime Boundaries](./runtime-boundaries.md). Until 2026-09-11 this document restated the
-contract in fourteen sections; the restatement had drifted in four places (who invalidates, the
-re-export conditions, the identity type, the carrier for `forbidden`), so it was removed. Where an
+[Runtime Boundaries](./runtime-boundaries.md). Where an
 older copy of this record and the contract differ, the contract is normative.
 
 ## Context
@@ -130,6 +128,5 @@ Costs and risks:
 - public surfaces can drift without executable export checks;
 - server/client colocation needs additional poisoning checks;
 - `shared/**` requires active demotion, not only promotion;
-- migration from 1.x is a breaking topology change. Released 1.x remains installable; the
-  layer-first 2.0 implementation is withdrawn as a release candidate and retained as a research
-  control.
+- migration from layer-first placement is a breaking topology change; the layer-first 2.0
+  implementation is withdrawn as a release candidate and retained as a research control.

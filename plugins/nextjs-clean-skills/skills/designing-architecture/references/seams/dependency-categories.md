@@ -1,6 +1,6 @@
 # Dependency Categories
 
-**Impact: CRITICAL** · **Scope: portable**
+**Scope: portable**
 
 Decide whether application behavior needs a port before naming an adapter.
 
@@ -25,5 +25,3 @@ remote provider may pass it with one implementation.
 
 Adapter count and test mocks are evidence, not gates. Repository-per-table is rejected because it
 mirrors storage rather than naming a capability.
-
-Reference: Cockburn's purposeful ports; this project's admission gate.

@@ -1,6 +1,6 @@
 # Validate Once Per Trust Boundary
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Validate each trust transition once:
 
@@ -25,5 +25,3 @@ at the adapter that understands the provider.
 
 Authorization-sensitive joins must distinguish visible, missing, and forbidden references without
 enumerating protected data. Validate completeness before creating the public projection.
-
-Reference: trust transitions, not folder count, determine validation ownership.

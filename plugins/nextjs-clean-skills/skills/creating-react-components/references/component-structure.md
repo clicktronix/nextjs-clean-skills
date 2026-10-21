@@ -1,6 +1,6 @@
 # Component Structure
 
-**Impact: HIGH** · **Scope: stack (React)**
+**Scope: stack (React)**
 
 Call Hooks directly from named Client Components or named custom Hooks. Do not pass Hooks through a
 generic higher-order helper.

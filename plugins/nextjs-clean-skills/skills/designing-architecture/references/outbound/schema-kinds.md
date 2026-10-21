@@ -1,6 +1,6 @@
 # Schema Kinds
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Infer a TypeScript type from the schema that actually witnesses its values. Input, product and
 provider contracts have different authorities; reuse a schema only when those contracts coincide.
@@ -22,6 +22,3 @@ Logging a dropped row does not by itself make a partial result a valid success.
 
 Do not normalize saved values with an input transform on every read. A website field that adds a
 protocol on input must not silently rewrite the stored projection or reject allowed historical data.
-
-Reference: schemas witness distinct contracts; adapters own representation changes and scenarios
-own the consequences of incomplete data.

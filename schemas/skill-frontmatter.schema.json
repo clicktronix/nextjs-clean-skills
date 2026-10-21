@@ -16,7 +16,7 @@
       "type": "string",
       "minLength": 80,
       "maxLength": 1024,
-      "description": "Agent Skills spec caps this at 1024. validate-skill-frontmatter.mjs applies a stricter 500-char repo convention on top, and checks description + when_to_use against Claude Code's 1,536-char listing cap."
+      "description": "Agent Skills spec caps this at 1024. validate-skill-frontmatter.mjs applies a stricter 700-char repo convention on top, requires the text to start with \"Use when\" and to contain a \"Not for X (use Y)\" clause, and checks description + when_to_use against Claude Code's 1,536-char listing cap."
     },
     "when_to_use": { "type": "string" },
     "license": { "type": "string" },

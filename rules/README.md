@@ -8,6 +8,7 @@ try to infer business meaning from path names.
 | `architecture-contract.json` | reserved surfaces, dependency classes, and database ownership |
 | `contract-paths.mjs` | validated source roots, aliases, and import resolution shared by every check |
 | `eslint-boundaries.mjs` | capability ownership, purity, and server/client direction |
+| `census-scope.mjs` | `censusScope(configs, blockingFiles)`: warn everywhere, error only under the listed globs |
 | `eslint-boundaries-resolved.mjs` | unresolved-import, file-cycle and `server-only`/`client-only` marker canaries |
 | `check-module-cycles.mjs` | capability-level cycle detection across all source files |
 | `check-dependency-classification.mjs` | exhaustive direct dependency classification |
@@ -92,6 +93,30 @@ on other receivers. It catches undeclared and cross-capability string-level coup
 import rules cannot see. Standard dependency, build-output, coverage, test, and generated directories
 are excluded when `sourceRoot` is the project root. The checker does not trace aliases, parse SQL, or
 replace RLS/grant tests.
+
+## Census Scope
+
+Both configs set every rule to `error`. In a half-migrated repository that makes the target's own
+lint red for code nobody has moved yet. `censusScope` returns the configs as two layers: every rule
+demoted to `warn` on the files each config already targets, so ESLint's JSON output counts the
+violations repo-wide, and the original severities again on the files that match both the config's
+own `files` and `blockingFiles`, so test-file exemptions survive. An empty list keeps the census
+warn-only.
+
+```js
+import boundaries from './rules/eslint-boundaries.mjs'
+import resolved from './rules/eslint-boundaries-resolved.mjs'
+import { censusScope } from './rules/census-scope.mjs'
+
+export default [
+  // framework and TypeScript configs
+  ...censusScope([...boundaries, ...resolved], ['src/modules/orders/**']),
+]
+```
+
+`validate-rules.mjs` lints a fixture with this layout: the same violation is an error under the
+blocking glob and a warning outside it. Once every capability is migrated, spread `boundaries` and
+`resolved` directly.
 
 ## Contract Surfaces
 
@@ -185,6 +210,7 @@ prove one of these would create a false guarantee.
 
 ## Verification
 
+The validators named here live in the source repository and are not shipped in the plugin.
 `node scripts/validate-rules.mjs` builds temporary TypeScript projects and checks the default
 profile plus a nonstandard source root and alias. Every behaviour above carries both halves: a clean
 fixture that must pass and a mutation that must fail. `node scripts/validate-contract-tools.mjs`

@@ -1,6 +1,6 @@
 # Cache Components
 
-**Impact: HIGH** · **Scope: stack (Next.js 16 Cache Components)**
+**Scope: stack (Next.js 16 Cache Components)**
 
 A shared `'use cache'` function runs outside the request. Inside it there is no `cookies()`,
 `headers()` or request-scoped client, and every argument is part of the key, so every argument must
@@ -14,9 +14,9 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | store access | the capability's own composition, not an argument; no cookies, so no user session |
 | tenant-private read | privileged store bypasses RLS: authorize first, filter by the tenant argument |
 | public read | anonymous store, still under RLS as `anon` |
-| per-user data | `'use cache: private'`, or leave it uncached |
+| per-user data | `'use cache: private'` or uncached (contract rule 3) |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
-| invalidation | the writer passes `updateTag` (action) or `revalidateTag(tag, 'max' \| { expire: 0 })` (handler) to the owner's invalidator; a job outside a Server Function or Route Handler calls the owner's handler |
+| invalidation | [Architecture Contract § Cache Components](../../../../docs/architecture-contract.md#cache-components), rule 5 |
 | current-request read from `rsc.ts` | under `loading.tsx` or an inline `<Suspense>`; the build fails otherwise |
 
 ```ts
@@ -34,12 +34,8 @@ store inside the cache carries the obligations of [Supabase RLS](../outbound/sup
 channel authorized the actor, and the query filters by the scope it was given. An anonymous store
 never serves a tenant-private read.
 
-A result that differs per user is not a shared cache. `'use cache: private'` may call `cookies()`
-and `headers()`; its result is never stored on the server across requests, only in browser memory
-for the `stale` time, runs at request time outside the static shell, and takes no custom cache
-handler. Use it or read the data uncached under a Suspense boundary.
+A result that differs per user is not a shared cache. For `'use cache: private'` or an uncached read
+under a Suspense boundary, follow rule 3 of the contract section above.
 
 `query-cache.ts` carries TanStack Query keys only; Next.js tags stay private to `server/**`.
 Application and domain code import nothing from `next/cache`.
-
-Reference: the cache boundary sits below the identity boundary, and the writer invalidates.

@@ -1,6 +1,6 @@
 # Security, Capability Surfaces, And Auth
 
-**Impact: CRITICAL** · **Scope: stack (Next.js)**
+**Scope: stack (Next.js)**
 
 Proxy, middleware, layouts, and hidden UI do not authorize data. Every protected outer channel
 authenticates the caller. A trusted `server.ts` composition surface accepts established explicit
@@ -34,5 +34,3 @@ Client validation and bound/hidden form fields are not authority. TypeScript arg
 runtime barrier.
 
 Use `server-only` on trusted server surfaces and verify with a production build.
-
-Reference: Next.js per-entrypoint authorization with capability and store defense in depth.

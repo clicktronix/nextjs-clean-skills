@@ -4,6 +4,49 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `rules/census-scope.mjs` exports `censusScope(configs, blockingFiles)`: every boundary rule as a
+  warning repo-wide for the census, as an error only under the migrated roots. The migration
+  procedure told the agent to keep the blocking entry scoped, but the shipped configs set `error`
+  everywhere. `validate-rules.mjs` lints a fixture with that layout.
+- `migrating-architecture/references/plan-shape.md` documents the plan `plan-check` accepts;
+  `validate-migration-lib.mjs` runs its example and compares its problem kinds with the script's,
+  and does the same for the `recommend` input in `acceptance.md`.
+
+### Changed
+
+- Skill descriptions open with `Use when` (the trigger), say what the skill covers, and end with
+  which sibling to use instead (`Not for X (use Y)`); the frontmatter validator requires the
+  opening and the clause and allows 700 characters. `migrating-architecture` no longer opens with
+  a process list.
+- `validate-migration-lib.mjs` signals its slow-check fixtures once the check reports readiness
+  instead of after a fixed sleep, which raced the wrapper's startup and failed intermittently.
+  Its force-added-file case also rewrote the file with same-length content, which git can miss within one
+  timestamp tick; it now changes the length. Unrelated to the audit; fixed because it blocked a green
+  `npm run validate`.
+- `screenPlan` problem kinds are exported as `PROBLEM_KINDS`; the validator compares them with
+  `plan-shape.md` instead of parsing the function source.
+- One owner per rule: the state-kind table (Frontend Composition), cache invalidation (Architecture
+  Contract, Cache Components), report-once and the capture owner (Runtime Boundaries). References
+  and skills point to them. Reference headers carry only `Scope`; the `Impact` field ranked
+  nothing and is gone.
+- Decisions before their actions in `migrating-architecture` (pilot choice, plan shape, acceptance
+  input); `acceptance.md` lists the gate order the script applies, and shared-root rows are
+  described as the script treats them.
+- Version-specific platform claims (`retry`, async Server Component testing, `MutationCache`
+  callback signature, `'use cache: private'`) say to verify against the installed version.
+  Terminology: one name each for application operation, server service, outer channel;
+  `<moduleRoot>` and `<sharedRoot>` replace hard-coded `src/` paths in references.
+- Removed paraphrase-only `Reference:` lines, an eval-fitted example, history from ADR 0001 and
+  the closing prohibition list of `migrating-architecture`.
+
+### Fixed
+
+- A check record went on reading as fresh after a same-size edit made in the same second as the
+  last `git add`: `treeState` copied the index with a new mtime, so git trusted the entry's old
+  stat data instead of rehashing it. The copy now keeps the real index's mtime.
+
 ## [4.5.0] - 2026-09-27
 
 ### Changed

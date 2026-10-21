@@ -4,6 +4,13 @@ Architecture is a contract plus evidence that a project follows it. Human docs, 
 portable checks, enabled project configuration, production builds, and existing debt are separate
 facts.
 
+| Question | Section |
+| --- | --- |
+| which file wins | [Sources Of Truth](#sources-of-truth) |
+| what tools enforce and what they cannot | [Enforcement Floor](#enforcement-floor), [What Static Rules Cannot Prove](#what-static-rules-cannot-prove), [Boundary Violations](#boundary-violations) |
+| adopting or migrating a repository | [Adopt In An Existing Project](#adopt-in-an-existing-project), [Incremental Migration](#incremental-migration), [Product Profile](#product-profile) |
+| reviewing or changing the architecture | [Review A Change](#review-a-change), [Architecture Change](#architecture-change) |
+
 ## Sources Of Truth
 
 | Surface | Authority |
@@ -102,7 +109,7 @@ Do not combine adoption with an unrequested framework or library migration.
 
 ## Incremental Migration
 
-Released 1.x uses layer-first placement. Capability-first adoption is semver-major.
+Capability-first placement replaces a layer-first one. Plan it as a breaking topology change.
 
 During migration:
 

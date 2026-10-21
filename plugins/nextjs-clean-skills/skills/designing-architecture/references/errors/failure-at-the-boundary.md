@@ -1,6 +1,6 @@
 # Failure At Runtime Boundaries
 
-**Impact: CRITICAL** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 Share semantics, not one universal carrier:
 
@@ -29,12 +29,9 @@ map provider errors to semantic failures but do not report an error the outer ch
 Do not catch `redirect`, `permanentRedirect`, or `notFound` in a generic application catch. Invoke
 framework navigation after a typed result is known.
 
-For every rethrown channel failure, choose one capture owner. If framework instrumentation can
-observe an exception already reported by the channel, preserve an already-reported marker or let
-the instrumentation own the capture instead.
+A rethrown channel failure has one capture owner; see
+[Runtime Boundaries](../../../../docs/runtime-boundaries.md#failures-and-reporting).
 
 A returned union and a typed throw can both represent expected outcomes. Choose the carrier from the
 channel's serialization and control-flow needs; do not force it into domain functions or every
 adapter.
-
-Reference: one report per runtime operation with channel-native outcomes.

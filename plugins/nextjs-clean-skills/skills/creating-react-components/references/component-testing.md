@@ -1,6 +1,6 @@
 # Component Testing
 
-**Impact: MEDIUM** · **Scope: stack (Next.js + React)**
+**Scope: stack (Next.js + React)**
 
 A UI test asserts what a user can perceive and do. If it breaks when internals are refactored
 without changing behavior, it was testing internals.
@@ -22,9 +22,9 @@ can support a behavior assertion; it is not the behavior.
 
 Do not duplicate framework tests. Verify the route, fallback, or action contract your code adds.
 
-A synchronous Server Component can be unit-tested. Vitest does not yet support async Server
-Components, so Next.js recommends E2E coverage through the route. Test their capability logic
-directly.
+A synchronous Server Component can be unit-tested. Whether the installed test runner supports async
+Server Components is version-specific; verify it against the installed versions, and where it does
+not, cover them by E2E through the route. Test their capability logic directly.
 
 Reference: [Testing with Vitest](https://nextjs.org/docs/app/guides/testing/vitest),
 [Testing Library queries](https://testing-library.com/docs/queries/about/).

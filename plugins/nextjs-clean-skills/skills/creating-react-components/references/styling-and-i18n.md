@@ -1,6 +1,6 @@
 # Styling, Text, And Accessibility
 
-**Impact: MEDIUM** · **Scope: stack (React + web)**
+**Scope: stack (React + web)**
 
 Styling and text follow project conventions so components stay consistent and replaceable.
 
@@ -36,7 +36,7 @@ Accessibility is a component contract, not a review afterthought:
 - pair color with text or another programmatically determinable cue.
 - honor reduced-motion preferences.
 
-Fetch current component-library and i18n docs for syntax. Preserve the project's styling and
+Check the installed component library's and i18n package's documentation for syntax. Preserve the project's styling and
 translation systems.
 
 Reference: [status messages](https://www.w3.org/WAI/WCAG21/Understanding/status-messages.html),

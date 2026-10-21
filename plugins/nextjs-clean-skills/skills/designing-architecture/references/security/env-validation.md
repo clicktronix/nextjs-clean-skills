@@ -1,12 +1,12 @@
 # Validate Environment Variables
 
-**Impact: HIGH** · **Scope: stack (Next.js)**
+**Scope: stack (Next.js)**
 
 Centralize capability-neutral environment access under runtime-specific shared modules:
 
 ```text
-src/shared/server/env.ts
-src/shared/client/env.ts
+<sharedRoot>/server/env.ts
+<sharedRoot>/client/env.ts
 ```
 
 The server module validates secrets and imports `server-only`. The client module exposes only
@@ -20,6 +20,4 @@ do not.
 Never prefix secrets with `NEXT_PUBLIC_`. A Client Component importing server environment code must
 fail the production build.
 
-Fetch current Next.js and provider documentation for variable names and runtime behavior.
-
-Reference: runtime-specific environment contracts with build-time server/client poisoning.
+Check the installed Next.js version's and the provider's documentation for variable names and runtime behavior.

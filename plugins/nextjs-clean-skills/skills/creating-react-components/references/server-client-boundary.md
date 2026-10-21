@@ -1,6 +1,6 @@
 # Server/Client Boundary
 
-**Impact: HIGH** · **Scope: stack (Next.js + React)**
+**Scope: stack (Next.js + React)**
 
 Start with a Server Component. Add `'use client'` only when the boundary owns event handlers,
 client-only Hooks, refs, browser APIs, or browser async lifecycle.

@@ -3,6 +3,15 @@
 This document defines UI ownership inside the capability architecture. It does not create a second
 data path around [Runtime Boundaries](./runtime-boundaries.md).
 
+| Decision | Section |
+| --- | --- |
+| Server or Client Component | [Server First](#server-first) |
+| route composition; where state lives | [Page Composition](#page-composition), [State Placement](#state-placement) |
+| form and Server Action wiring | [Forms And Actions](#forms-and-actions) |
+| Hooks, view splits, ownership | [Component Structure](#component-structure), [Component Ownership](#component-ownership) |
+| browser-owned data | [Client Data](#client-data) |
+| styling, copy, accessibility; proof | [Styling, Content, And Accessibility](#styling-content-and-accessibility), [UI Verification](#ui-verification) |
+
 ## Server First
 
 Server Components are the default. Add a Client Component only for browser state, effects,
@@ -72,6 +81,7 @@ first consumer.
 | form input, dirty state, and field errors | form boundary |
 | local disclosure or selection | owning component |
 | one compound component's shared state | focused provider |
+| global theme or locale | application provider |
 | identity and tenant scope | server request context |
 | derived value | compute; do not store |
 

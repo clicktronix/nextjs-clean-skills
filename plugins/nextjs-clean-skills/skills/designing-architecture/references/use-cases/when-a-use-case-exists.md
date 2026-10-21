@@ -1,6 +1,6 @@
 # When An Application Operation Exists
 
-**Impact: CRITICAL** · **Scope: portable**
+**Scope: portable**
 
 `application/` is optional. Keep an operation only when deleting it moves meaningful complexity
 into callers.
@@ -49,5 +49,3 @@ is required only when the mapping carries policy. Source capabilities never impo
 or one another. Sequence calls when a later input depends on an earlier result. An
 authorization-sensitive join returns a complete result for visible, missing, and forbidden
 references; do not silently omit a reference when policy requires rejection.
-
-Reference: project deletion test, motivated by measured forwarding modules.

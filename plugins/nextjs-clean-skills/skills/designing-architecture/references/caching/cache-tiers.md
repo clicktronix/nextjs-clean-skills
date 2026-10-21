@@ -1,6 +1,6 @@
 # Cache Tiers And Read Ownership
 
-**Impact: HIGH** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 Every cache tier in a read path has one owner:
 
@@ -33,5 +33,3 @@ A browser cache may be seeded from an RSC value with an explicit freshness decis
 
 Before adding a shared server cache, name its key, tenant/user scope, invalidator, and stale-data
 cost. Missing answers mean the tier is premature.
-
-Reference: one owner per cache tier and explicit ownership at every handoff.

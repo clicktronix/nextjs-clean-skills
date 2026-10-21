@@ -31,7 +31,7 @@ Structural measurements were anchored on 2026-07-26:
 The three codebases are private, so their names and commits are not published here. Every number in
 this document was measured on those private repositories at the anchor date and is recorded as a
 finding; a reader cannot reproduce it from this repository. What a reader can reproduce is the
-measurement itself: `scripts/measure-evidence.mjs` takes a commit of their own codebase, reads it,
+measurement itself: `scripts/measure-evidence.mjs` (source repository only) takes a commit of their own codebase, reads it,
 and rejects an empty application inventory.
 
 ### Forwarding Application Modules
