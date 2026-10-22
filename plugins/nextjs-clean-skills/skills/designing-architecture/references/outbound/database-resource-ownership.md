@@ -1,6 +1,6 @@
 # Database Resource Ownership
 
-**Impact: HIGH** · **Scope: stack (Supabase)**
+**Scope: stack (Supabase)**
 
 Capability imports do not expose SQL coupling hidden inside string literals. A private store in one
 capability can call `.from('another_table')` without importing another TypeScript module.
@@ -42,5 +42,3 @@ The check is a narrow lexical Supabase canary. It does not trace client aliases 
 for raw SQL, an ORM, views, migrations, or provider wrappers, and it does not replace explicit
 grants, RLS, or integration tests. Migration files remain globally ordered; name the capability
 owner in the migration comment when a migration changes more than one resource.
-
-Reference: database names are a second dependency graph and require explicit product ownership.

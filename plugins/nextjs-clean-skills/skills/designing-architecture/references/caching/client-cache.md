@@ -1,6 +1,6 @@
 # Capability Client Cache
 
-**Impact: HIGH** · **Scope: stack (Next.js + TanStack Query)**
+**Scope: stack (Next.js + TanStack Query)**
 
 Use TanStack Query only when the browser owns async lifecycle: realtime, polling, infinite loading,
 optimistic updates, or a cache shared by several client islands.
@@ -8,8 +8,8 @@ optimistic updates, or a cache shared by several client islands.
 Place that behavior under:
 
 ```text
-src/modules/<capability>/client/
-src/modules/<capability>/client.ts
+<moduleRoot>/<capability>/client/
+<moduleRoot>/<capability>/client.ts
 ```
 
 Typical private files are keys, queries, mutations, subscriptions, and optional prefetch helpers.
@@ -20,12 +20,10 @@ serializable key identity to root `query-cache.ts` after naming both consumers: 
 prefetch/hydration path and one browser query path. Server-only tags, fetchers, invalidation, and
 provider details remain private to their runtime even when the identity is shared.
 
-The server prefetch is what makes the second consumer: a layout that reads the key only to seed
-`dehydrate()`, never running the query itself, is still a server consumer of that identity, and
-`client.ts` is browser code that cannot hand a value to it. That pair — one browser query, one
-server prefetch — is exactly what `query-cache.ts` exists for, so do not flag it as an
-unjustified promotion. With no browser query the key stays private to the server; with no server
-reader it stays under `client/`.
+The server prefetch is the second consumer: a layout that reads the key only to seed `dehydrate()`
+is a server consumer of that identity, and `client.ts` is browser code that cannot hand a value to
+it. One browser query plus one server prefetch is what `query-cache.ts` exists for. With no
+browser query the key stays private to the server; with no server reader it stays under `client/`.
 
 Browser reads call a `GET` Route Handler with an explicit HTTP cache policy, or a stream, through
 `client.ts`. They do not call Server Actions, private stores, provider adapters, or server surfaces.
@@ -41,5 +39,3 @@ time. For several prefetched queries or nested consumers, use `dehydrate()` and
 
 Keep cache access out of presentation components. Views consume the capability client contract or
 receive values as props.
-
-Reference: TanStack Query as one capability's browser lifecycle, not a global architectural layer.

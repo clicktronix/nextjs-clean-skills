@@ -1,0 +1,38 @@
+{
+  "designing-architecture": {
+    "should_fire": [
+      "Where should the order-cancellation rule live in our Next.js 16 app, and should it be a Server Action or a Route Handler?",
+      "Add a webhook endpoint that updates a subscription; which module owns it and how do we keep the handler thin?",
+      "Decide the cache invalidation owner for the product list after a mutation in a different module."
+    ],
+    "should_not_fire": [
+      "Split this 400-line client component into smaller components and move the form state into a hook.",
+      "Migrate this repository to the capability-first architecture, one module at a time.",
+      "Style this card with Tailwind and add i18n keys for its labels."
+    ]
+  },
+  "creating-react-components": {
+    "should_fire": [
+      "Refactor this page into Server and Client Components and add a loading and error boundary.",
+      "Build a settings form that calls an existing Server Action and shows field errors.",
+      "Write component tests for this dialog and fix its keyboard accessibility."
+    ],
+    "should_not_fire": [
+      "Which capability should own the billing mutation, and which channel carries it?",
+      "Convert our src/features folders to src/modules capabilities and run the ESLint boundary rules.",
+      "Design the Supabase RLS policies for the orders table."
+    ]
+  },
+  "migrating-architecture": {
+    "should_fire": [
+      "Migrate this existing Next.js repo to the capability-first architecture.",
+      "Continue the migration: the orders capability is moved, take the next one and verify it.",
+      "Adopt these boundary ESLint rules in our half-migrated repository without turning lint red."
+    ],
+    "should_not_fire": [
+      "Where does a new notifications feature belong in our module layout?",
+      "Make this button component accessible and add a Storybook-free unit test.",
+      "Upgrade Next.js from 15 to 16."
+    ]
+  }
+}

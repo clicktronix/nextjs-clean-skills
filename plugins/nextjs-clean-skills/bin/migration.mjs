@@ -173,6 +173,24 @@ export function destination(move, { moduleRoot, capability, segments, surfaces }
   return `${moduleRoot}/${capability}/${move.role}/${name}`
 }
 
+// Every `kind` screenPlan can report; plan-shape.md documents this set and validate-migration-lib.mjs
+// compares the two.
+export const PROBLEM = Object.freeze({
+  unsafeRoots: 'unsafe-roots',
+  malformedChannelChange: 'malformed-channel-change',
+  invalidMove: 'invalid-move',
+  unknownSurface: 'unknown-surface',
+  duplicateSurface: 'duplicate-surface',
+  destinationCollision: 'destination-collision',
+  duplicateSource: 'duplicate-source',
+  unplannedFile: 'unplanned-file',
+  unknownSource: 'unknown-source',
+  strayConsumer: 'stray-consumer',
+  ungroundedSurface: 'ungrounded-surface',
+  emptySurface: 'empty-surface',
+})
+export const PROBLEM_KINDS = Object.values(PROBLEM)
+
 // ─── plan screening ───
 // Pure: decides what would be written and what the mover is told. Rejects rather than
 // filters — a malformed entry that a filter dropped was a risk the planner reported and
@@ -181,23 +199,23 @@ export function screenPlan(plan, ctx) {
   const { moduleRoot, capability, segments, surfaces, assignedFiles, consumers } = ctx
   const problems = []
   const rootProblems = safeRoots({ moduleRoot, capability })
-  if (rootProblems.length > 0) return { ok: false, problems: [{ kind: 'unsafe-roots', detail: rootProblems }] }
+  if (rootProblems.length > 0) return { ok: false, problems: [{ kind: PROBLEM.unsafeRoots, detail: rootProblems }] }
   const channelChanges = plan.channelChanges || []
   const malformedChannels = channelChanges.filter(
     (c) => !c || !c.what || !c.from || !c.to || !String(c.behaviourRisk || '').trim()
   )
-  if (malformedChannels.length > 0) problems.push({ kind: 'malformed-channel-change', count: malformedChannels.length })
+  if (malformedChannels.length > 0) problems.push({ kind: PROBLEM.malformedChannelChange, count: malformedChannels.length })
 
   const resolved = (plan.moves || []).map((mv) => ({ ...mv, dest: destination(mv, { moduleRoot, capability, segments, surfaces }) }))
   const invalid = resolved.filter((r) => r.role !== 'stay' && r.role !== 'delete' && !r.dest)
-  if (invalid.length > 0) problems.push({ kind: 'invalid-move', files: invalid.map((r) => r.file) })
+  if (invalid.length > 0) problems.push({ kind: PROBLEM.invalidMove, files: invalid.map((r) => r.file) })
 
   const declaredSurfaces = plan.surfaces || []
   const badSurfaces = declaredSurfaces.filter((s) => !surfaces.includes(s.surface))
-  if (badSurfaces.length > 0) problems.push({ kind: 'unknown-surface', surfaces: badSurfaces.map((s) => s.surface) })
+  if (badSurfaces.length > 0) problems.push({ kind: PROBLEM.unknownSurface, surfaces: badSurfaces.map((s) => s.surface) })
   const surfaceSeen = new Set()
   const duplicateSurfaces = declaredSurfaces.filter((s) => (surfaceSeen.has(s.surface) ? true : (surfaceSeen.add(s.surface), false)))
-  if (duplicateSurfaces.length > 0) problems.push({ kind: 'duplicate-surface', surfaces: duplicateSurfaces.map((s) => s.surface) })
+  if (duplicateSurfaces.length > 0) problems.push({ kind: PROBLEM.duplicateSurface, surfaces: duplicateSurfaces.map((s) => s.surface) })
 
   const usedSurfaces = declaredSurfaces.filter((s) => (s.consumers || []).length > 0)
   const usedNames = usedSurfaces.map((s) => s.surface)
@@ -209,7 +227,7 @@ export function screenPlan(plan, ctx) {
   const byDest = new Map()
   for (const r of moving) byDest.set(r.dest, [...(byDest.get(r.dest) || []), r.file])
   const collisions = [...byDest].filter(([, sources]) => sources.length > 1).map(([dest, sources]) => ({ dest, sources }))
-  if (collisions.length > 0) problems.push({ kind: 'destination-collision', collisions })
+  if (collisions.length > 0) problems.push({ kind: PROBLEM.destinationCollision, collisions })
 
   const sourceSeen = new Set()
   const duplicateSources = []
@@ -217,11 +235,11 @@ export function screenPlan(plan, ctx) {
     if (sourceSeen.has(mv.file)) duplicateSources.push(mv.file)
     sourceSeen.add(mv.file)
   }
-  if (duplicateSources.length > 0) problems.push({ kind: 'duplicate-source', files: duplicateSources })
+  if (duplicateSources.length > 0) problems.push({ kind: PROBLEM.duplicateSource, files: duplicateSources })
   const unplanned = assignedFiles.filter((f) => !sourceSeen.has(f))
-  if (unplanned.length > 0) problems.push({ kind: 'unplanned-file', files: unplanned })
+  if (unplanned.length > 0) problems.push({ kind: PROBLEM.unplannedFile, files: unplanned })
   const unknownSources = (plan.moves || []).filter((mv) => mv.role !== 'stay' && !assignedFiles.includes(mv.file)).map((mv) => mv.file)
-  if (unknownSources.length > 0) problems.push({ kind: 'unknown-source', files: unknownSources })
+  if (unknownSources.length > 0) problems.push({ kind: PROBLEM.unknownSource, files: unknownSources })
 
   // A surface is grounded by a concrete consumer, or by another surface that is; a loop of
   // surfaces citing each other grounds nothing.
@@ -259,10 +277,10 @@ export function screenPlan(plan, ctx) {
     }
   }
   const ungrounded = usedSurfaces.filter((s) => !grounded.has(s.surface)).map((s) => s.surface)
-  if (stray.length > 0) problems.push({ kind: 'stray-consumer', stray })
-  if (ungrounded.length > 0) problems.push({ kind: 'ungrounded-surface', surfaces: ungrounded })
+  if (stray.length > 0) problems.push({ kind: PROBLEM.strayConsumer, stray })
+  if (ungrounded.length > 0) problems.push({ kind: PROBLEM.ungroundedSurface, surfaces: ungrounded })
   const emptyExports = usedSurfaces.filter((s) => (s.exports || []).length === 0).map((s) => s.surface)
-  if (emptyExports.length > 0) problems.push({ kind: 'empty-surface', surfaces: emptyExports })
+  if (emptyExports.length > 0) problems.push({ kind: PROBLEM.emptySurface, surfaces: emptyExports })
 
   return {
     ok: problems.length === 0,
@@ -301,7 +319,14 @@ export function treeState(repo) {
     // ignored. Then stage the working tree; the tool's own state directory is excluded
     // because it is not part of the tree a check ran against.
     const realIndex = path.resolve(repo, git(repo, ['rev-parse', '--git-path', 'index']))
-    if (fs.existsSync(realIndex)) fs.copyFileSync(realIndex, index)
+    if (fs.existsSync(realIndex)) {
+      // Keep the real index's mtime on the copy. Git rehashes an entry whose mtime is not older
+      // than its index ("racily clean"); a copy stamped "now" makes a same-size edit made in the
+      // same second as the last `git add` look clean, and a stale record would read as fresh.
+      const { atime, mtime } = fs.statSync(realIndex)
+      fs.copyFileSync(realIndex, index)
+      fs.utimesSync(index, atime, mtime)
+    }
     else git(repo, ['read-tree', 'HEAD'], { env })
     // Drop even tracked state from this temporary index, never the repository's index.
     git(repo, ['rm', '-f', '-r', '--cached', '--ignore-unmatch', '--', STATE_DIR], { env })

@@ -69,7 +69,8 @@ and no agent transcribes a manifest.
 
 ## Tests
 
-`scripts/validate-workflows.mjs` runs both scripts under a stub runtime as scenarios: the
+The scripts named here live in the source repository and are not shipped in the plugin.
+`scripts/validate-workflows.mjs` runs both workflow scripts under a stub runtime as scenarios: the
 inventory agent count does not change between a 10-file and a 3000-file inventory and no prompt
 carries a file list; both verify readers receive the same record path and a missing
 `recordPath` argument is refused before any agent (the file's existence and freshness are the

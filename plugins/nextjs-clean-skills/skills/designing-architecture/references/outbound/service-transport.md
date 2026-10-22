@@ -1,6 +1,6 @@
 # Owned Service Transport
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Keep one transport per remote service inside the owning capability's private `server/` adapter.
 Application code sees a capability-shaped port, not HTTP or SDK mechanics.
@@ -33,5 +33,3 @@ When the remote service is authoritative, keep its business invariants and orche
 The frontend server may own presentation contracts, aggregation, cache, browser lifecycle, and BFF
 policy. Do not mirror the service domain or create forwarding operations to complete a local folder
 model; optional domain and application segments may be absent.
-
-Reference: one private transport per service with explicit lifecycle and identity semantics.

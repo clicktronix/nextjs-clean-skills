@@ -1,6 +1,6 @@
 # Testing By Capability Surface
 
-**Impact: HIGH** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 Tests cross the same surface as production callers:
 
@@ -26,5 +26,3 @@ Do not fake a local engine when its query, policy, or transaction is the behavio
 
 An operation with no observable policy to assert fails the deletion test. Test the private store or
 public surface instead.
-
-Reference: capability interfaces are test surfaces; runtime lifecycle gets channel-native tests.

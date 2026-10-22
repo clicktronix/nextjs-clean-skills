@@ -4,6 +4,15 @@ This document defines how work enters a capability, where trust is established, 
 and which runtime surface is public. Placement and compile-time ownership remain defined by
 [Architecture Contract](./architecture-contract.md).
 
+| Decision | Section |
+| --- | --- |
+| which channel carries a read, write, or stream | [Choose The Channel](#choose-the-channel) |
+| identity, tenant scope, effects | [Request Context And Effects](#request-context-and-effects) |
+| RSC, Server Action, Route Handler, stream, job behavior | [RSC Reads](#rsc-reads), [Server Actions](#server-actions), [HTTP And Browser Reads](#http-and-browser-reads), [Streams](#streams), [Jobs](#jobs) |
+| expected vs unexpected failure; who reports | [Failures And Reporting](#failures-and-reporting) |
+| input validation; read ownership; transactions | [Validation](#validation), [Cache Ownership](#cache-ownership), [Authority And Transactions](#authority-and-transactions) |
+| what to test at each channel | [Testing Contract](#testing-contract) |
+
 ## System Context
 
 Browsers and external callers enter through Next.js framework boundaries. Framework adapters call
@@ -249,6 +258,11 @@ framework control flow        -> framework boundary
 | stream | pre-commit response or in-band event | report once at the owning stream boundary |
 | job | retry/drop/dead-letter result | report once at the worker boundary |
 
+"Report once" means one capture owner per failure. When a channel reports and rethrows,
+framework instrumentation may observe the same exception. Either that instrumentation is the sole
+capture owner and the channel does not report, or the channel reports and marks the error as
+already reported so the second observer skips it. A channel uses one of the two, not both.
+
 Provider errors are mapped where the provider is understood. Public channels expose stable safe
 codes, never raw provider messages. Inner operations and adapters do not report an error that the
 outer channel will report.
@@ -282,11 +296,9 @@ Every read path has one owner:
 | shared server result | capability server cache |
 
 Application operations may return ownership metadata, not call Next.js cache APIs. The channel root
-that performed the write calls its framework primitive — `updateTag` from `actions.ts`,
-`revalidateTag(tag, profile)` from a Route Handler or another Server Function, with the profile the
-operation needs — on tags the owner supplies; a neighbour's write goes through the invalidator the
-owner publishes for it. A background job outside those contexts, even in the same Next.js process,
-calls an authenticated Route Handler of the owning app instead. Cache keys
+that performed the write invalidates the read owner; which primitive, on whose tags, and what a
+background job does are settled once in
+[Cache Components](./architecture-contract.md#cache-components) rule 5. Cache keys
 include the full user or tenant scope whenever authorization changes the result; a `'use cache'`
 function receives that scope as an argument
 ([Cache Components](./architecture-contract.md#cache-components)).

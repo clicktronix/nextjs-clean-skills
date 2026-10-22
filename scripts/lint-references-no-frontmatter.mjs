@@ -9,7 +9,7 @@ const files = listFiles('plugins/nextjs-clean-skills/skills', (file) =>
 // store, or vendor; "stack (...)" does not. The distinction is load-bearing: a rule tagged
 // portable that names a vendor is either mis-tagged or secretly stack-specific, and adopters on
 // a different stack will either follow it wrongly or discard the portable part with it.
-const SCOPE_RE = /^\*\*Impact: [A-Z]+\*\* · \*\*Scope: (portable|stack \([^)]+\))\*\*$/m
+const SCOPE_RE = /^\*\*Scope: (portable|stack \([^)]+\))\*\*$/m
 // Vendor names AND framework concepts: a portable rule stated as "Route Handler only" is just as
 // stack-bound as one that says "Next.js", and the first form is the one that slips through review.
 const VENDOR_RE =
@@ -25,7 +25,7 @@ for (const file of files) {
   const scope = SCOPE_RE.exec(text)
   if (!scope) {
     errors.push(
-      `${file}: missing "**Impact: X** · **Scope: portable|stack (...)**" line under the heading`
+      `${file}: missing "**Scope: portable|stack (...)**" line under the heading`
     )
   } else if (scope[1] === 'portable') {
     // Scan examples too. Stripping fences let a portable rule state itself in framework

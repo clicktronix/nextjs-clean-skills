@@ -1,6 +1,6 @@
 # Supabase And Row-Level Security
 
-**Impact: CRITICAL** · **Scope: stack (Supabase / Postgres)**
+**Scope: stack (Supabase / Postgres)**
 
 Keep Supabase clients inside capability-private `server/` stores or admitted server infrastructure.
 Browser UI and application operations do not import the server client.
@@ -45,6 +45,3 @@ Escape filter input once in one tested helper; escape backslash before later rep
 Sources: [SSR](https://supabase.com/docs/guides/auth/server-side/advanced-guide),
 [RLS and API security](https://supabase.com/docs/guides/api/securing-your-api),
 [functions](https://supabase.com/docs/guides/database/functions).
-
-Reference: Supabase as a private store adapter with explicit identity mode, grants, and
-defense-in-depth RLS.

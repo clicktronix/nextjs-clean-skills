@@ -1,6 +1,6 @@
 # Inventory And Assignment
 
-**Impact: HIGH** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 The inventory is a file the script wrote: `.nextjs-clean-migration/inventory.json` with
 `sourceRoot`, `count`, `listHash` and a sorted `files` array. Lenses cite paths from it. If a
@@ -29,15 +29,10 @@ A `file` rule beats every prefix; the longest prefix wins among prefixes; order 
   yet complete, nothing more.
 - `deadRules` — rules matching no file. Usually a stale path; a warning.
 - `strayUnassigned` — unassigned entries naming no inventory file.
-- `shared` outside the configured shared root — kept in the rows with the placement it was
-  given; the plan step marks it undeliverable for the capability workflow and you move it in a
-  separate reviewed change.
-
-## Pilot choice
-
-Score capabilities by completeness, real consumers and few inbound dependencies. Pick one the
-ordinary follow-up change lives in; otherwise the radius comparison is about a different
-capability and proves nothing about this one.
+- `shared` rows outside the configured shared root — kept in the rows with the placement they
+  were given. `expand` does not check the shared root and `plan-check` only plans rows whose
+  placement is `capability` and whose capability is the one named, so such a row is never part
+  of a capability plan; you move it in a separate reviewed change.
 
 Before assigning destinations, audit folder ownership, helper locality, test-support boundaries,
 schema-derived types, and root query-cache consumers against

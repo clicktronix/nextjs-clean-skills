@@ -1,6 +1,6 @@
 # Authority And Transactions
 
-**Impact: CRITICAL** · **Scope: portable**
+**Scope: portable**
 
 Decide who commits and enforces the write:
 
@@ -23,5 +23,3 @@ When authority is in the application, the operation owns transaction intent but 
 mechanics stay in a private server adapter.
 
 Provider rows and errors are mapped before leaving the private adapter.
-
-Reference: the transaction belongs to the authority that can commit it atomically.

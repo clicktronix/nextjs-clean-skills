@@ -6,6 +6,13 @@ Architecture is a contract plus evidence that a project follows it. Human docs, 
 portable checks, enabled project configuration, production builds, and existing debt are separate
 facts.
 
+| Question | Section |
+| --- | --- |
+| which file wins | [Sources Of Truth](#sources-of-truth) |
+| what tools enforce and what they cannot | [Enforcement Floor](#enforcement-floor), [What Static Rules Cannot Prove](#what-static-rules-cannot-prove), [Boundary Violations](#boundary-violations) |
+| adopting or migrating a repository | [Adopt In An Existing Project](#adopt-in-an-existing-project), [Incremental Migration](#incremental-migration), [Product Profile](#product-profile) |
+| reviewing or changing the architecture | [Review A Change](#review-a-change), [Architecture Change](#architecture-change) |
+
 ## Sources Of Truth
 
 | Surface | Authority |
@@ -95,7 +102,8 @@ Move a file only when ownership changes. A re-export does not launder an illegal
 4. Record its current files and the touch set for one ordinary follow-up change.
 5. Move product behavior under one module root; introduce only segments with actual responsibilities.
 6. Publish only the runtime surfaces used by real consumers.
-7. Enable module-boundary and server/client checks for the pilot.
+7. Enable module-boundary and server/client checks for the pilot. In a half-migrated repository,
+   warn everywhere and error only on migrated roots ([`rules/README.md`](../rules/README.md#census-scope)).
 8. Run the repository’s applicable checks (types, lint, tests, build) and the real workflow.
 9. Compare change radius, forwarding wrappers, auth/reporting duplication, and runtime behavior.
 10. Accept, revise, or reject the architecture before migrating another capability.
@@ -104,7 +112,7 @@ Do not combine adoption with an unrequested framework or library migration.
 
 ## Incremental Migration
 
-Released 1.x uses layer-first placement. Capability-first adoption is semver-major.
+Capability-first placement replaces a layer-first one. Plan it as a breaking topology change.
 
 During migration:
 

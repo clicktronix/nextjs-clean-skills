@@ -1,6 +1,6 @@
 # Streaming Responses
 
-**Impact: CRITICAL** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
 A long-lived HTTP response is its own channel. Use a Route Handler and a capability `stream.ts`
 surface, never a Server Action.
@@ -47,5 +47,3 @@ channels intentionally use the same semantics.
 
 Tests cover clean completion, failure before commit, failure after commit, disconnect/cancellation,
 idle timeout, and resume. Cancellation passes only when upstream observes the abort.
-
-Reference: streaming lifecycle and committed-response semantics.

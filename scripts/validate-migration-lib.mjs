@@ -158,9 +158,21 @@ try {
   // A signal to the wrapper reaches the check and the wrapper waits for it to end — even when
   // the check ignores the signal — before a record is written. Nothing here searches the machine
   // for processes by name: the record carries the child's pid, and that is what is checked.
+  // The signal goes out only once the check says it is running: a fixed sleep raced the wrapper's
+  // startup (tree state, signal handlers) and killed it before it could write a record.
+  const untilRunning = async (label) => {
+    const recordsDir = path.join(repo, '.nextjs-clean-migration/records')
+    for (let i = 0; i < 200; i += 1) {
+      const entries = fs.existsSync(recordsDir) ? fs.readdirSync(recordsDir) : []
+      const ready = entries.some((d) => d.includes(`-${label}-`) && d.endsWith('.artifacts') && fs.existsSync(path.join(recordsDir, d, 'ready')))
+      if (ready) return
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    throw new Error(`check "${label}" never signalled readiness within 10 s`)
+  }
   const token = `ncs-${process.pid}-${Date.now()}`
-  const slow = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'slow', '--kill-after', '500', '--', `trap '' TERM; sleep 30; echo ${token}`], { stdio: ['ignore', 'pipe', 'pipe'] })
-  await new Promise((r) => setTimeout(r, 700))
+  const slow = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'slow', '--kill-after', '500', '--', `trap '' TERM; echo up > "$NCS_ARTIFACTS/ready"; sleep 30; echo ${token}`], { stdio: ['ignore', 'pipe', 'pipe'] })
+  await untilRunning('slow')
   const beforeSignal = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-slow-') && f.endsWith('.json'))
   check(beforeSignal.length === 0, 'record: no record exists while the check is still running')
   slow.kill('SIGTERM')
@@ -176,8 +188,8 @@ try {
   check(slowMs >= 500 && slowMs < 5000, `record: the wrapper waited for the grace period and then escalated — not for the check to finish on its own (${slowMs} ms)`)
 
   // The leader itself ignoring the signal is the case a leader-exit trigger never reaches.
-  const lead = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'lead', '--kill-after', '500', '--', "trap '' TERM; sleep 30"], { stdio: ['ignore', 'pipe', 'pipe'] })
-  await new Promise((r) => setTimeout(r, 700))
+  const lead = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'lead', '--kill-after', '500', '--', "trap '' TERM; echo up > \"$NCS_ARTIFACTS/ready\"; sleep 30"], { stdio: ['ignore', 'pipe', 'pipe'] })
+  await untilRunning('lead')
   const leadStart = Date.now()
   lead.kill('SIGTERM')
   await Promise.race([new Promise((r) => lead.on('exit', () => r())), new Promise((r) => setTimeout(r, 6000))])
@@ -195,7 +207,10 @@ try {
   fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'a\n')
   spawnSync('git', ['-C', repo, 'add', '-f', 'gen/x.ts'])
   const withForced = await lib.runRecord(repo, 'check', 'true')
+  // Same length, checked a second later: the case a copied index stamped "now" missed, because
+  // git then trusted the entry's unchanged size and second-granular mtime.
   fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'b\n')
+  await new Promise((r) => setTimeout(r, 1100))
   check(!lib.recordFreshness(repo, withForced.record).fresh, 'record: editing a force-added ignored file makes the record stale')
   fs.writeFileSync(path.join(repo, 'gen/x.ts'), 'a\n')
 
@@ -226,9 +241,9 @@ try {
   // A grandchild that ignores the signal outlives the shell leader; the record waits for the
   // whole group, escalating to SIGKILL, and is written only once nothing in the group answers.
   const gcToken = `ncs-gc-${process.pid}-${Date.now()}`
-  const gc = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'gc', '--kill-after', '500', '--', `${JSON.stringify(process.execPath)} -e "process.on('SIGTERM',()=>{});setTimeout(()=>{},20000)" & wait`], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const gc = spawn(process.execPath, [LIB, 'record', '--repo', repo, '--label', 'gc', '--kill-after', '500', '--', `${JSON.stringify(process.execPath)} -e "process.on('SIGTERM',()=>{});require('fs').writeFileSync(process.env.NCS_ARTIFACTS+'/ready','up');setTimeout(()=>{},20000)" & wait`], { stdio: ['ignore', 'pipe', 'pipe'] })
   void gcToken
-  await new Promise((r) => setTimeout(r, 700))
+  await untilRunning('gc')
   gc.kill('SIGTERM')
   await new Promise((r) => gc.on('exit', () => r()))
   const gcRecords = fs.readdirSync(path.join(repo, '.nextjs-clean-migration/records')).filter((f) => f.includes('-gc-') && f.endsWith('.json'))
@@ -314,6 +329,79 @@ try {
   fs.rmSync(link)
 } finally {
   fs.rmSync(repo, { recursive: true, force: true })
+}
+
+// ─── the references that describe this script ───
+// A reference that tells an agent what `plan-check` and `recommend` accept is a claim about this
+// file. The JSON examples must pass the code they illustrate, and the documented problem kinds and
+// roles must be the ones the code can produce.
+const refDir = path.join(root, 'plugins/nextjs-clean-skills/skills/migrating-architecture/references')
+const section = (text, heading) => {
+  const start = text.indexOf(`\n## ${heading}\n`)
+  if (start === -1) throw new Error(`reference has no "## ${heading}" section`)
+  const rest = text.slice(start + 1)
+  const next = rest.indexOf('\n## ', 1)
+  return next === -1 ? rest : rest.slice(0, next)
+}
+const jsonExample = (file) => {
+  const fence = /```json\n([\s\S]*?)\n```/.exec(fs.readFileSync(path.join(refDir, file), 'utf8'))
+  if (!fence) throw new Error(`${file} has no json example`)
+  return JSON.parse(fence[1])
+}
+{
+  const planDoc = fs.readFileSync(path.join(refDir, 'plan-shape.md'), 'utf8')
+  const example = jsonExample('plan-shape.md')
+  const planCtx = {
+    moduleRoot: 'src/modules',
+    capability: 'orders',
+    segments: contract.segments,
+    surfaces: contract.publicSurfaces,
+    assignedFiles: example.moves.map((m) => m.file),
+    consumers: example.surfaces.flatMap((s) => s.consumers),
+  }
+  const verdict = lib.screenPlan(example, planCtx)
+  check(verdict.ok, `plan-shape.md example is rejected by screenPlan: ${JSON.stringify(verdict.problems)}`)
+  // A problem kind is a backticked name in the lead of a bullet (the text before the em dash).
+  const documented = new Set(
+    section(planDoc, 'Problems')
+      .split('\n- ')
+      .slice(1)
+      .flatMap((bullet) => [...bullet.split(' — ')[0].matchAll(/`([a-z]+(?:-[a-z]+)+)`/g)].map((m) => m[1]))
+  )
+  const produced = new Set(lib.PROBLEM_KINDS)
+  check(
+    [...documented].sort().join() === [...produced].sort().join(),
+    `plan-shape.md problem kinds ${[...documented].sort().join()} differ from PROBLEM_KINDS ${[...produced].sort().join()}`
+  )
+  // The behaviours the document states about stay, delete and self-citing surfaces.
+  const kindsOf = (plan, overrides = {}) =>
+    lib.screenPlan(plan, { ...planCtx, ...overrides }).problems.map((p) => p.kind)
+  const withMoves = (extra) => ({ ...example, moves: [...example.moves, ...extra] })
+  check(
+    !kindsOf(withMoves([{ file: 'src/features/orders/elsewhere.ts', role: 'stay' }])).includes('unknown-source'),
+    'plan-shape.md: a stay move outside the assigned set must not be unknown-source'
+  )
+  check(
+    kindsOf(withMoves([{ file: 'src/features/orders/elsewhere.ts', role: 'ui' }])).includes('unknown-source'),
+    'plan-shape.md: a non-stay move outside the assigned set must be unknown-source'
+  )
+  const deleted = 'src/app/orders/old.tsx'
+  const onlyDeleted = {
+    ...withMoves([{ file: deleted, role: 'delete' }]),
+    surfaces: [{ surface: 'server', exports: ['listOrders'], consumers: [deleted] }],
+  }
+  check(
+    kindsOf(onlyDeleted, { assignedFiles: [...planCtx.assignedFiles, deleted], consumers: [deleted] }).includes('ungrounded-surface'),
+    'plan-shape.md: a deleted file must not ground a consumer'
+  )
+  const selfCited = { ...example, surfaces: [{ surface: 'server', exports: ['listOrders'], consumers: ['src/modules/orders/server.ts'] }] }
+  check(kindsOf(selfCited).includes('stray-consumer'), 'plan-shape.md: a surface naming itself as consumer must be stray-consumer')
+  for (const role of [...contract.segments, 'surface', 'stay', 'delete']) check(planDoc.includes(`\`${role}\``), `plan-shape.md does not name role ${role}`)
+  const accept = lib.recommend(jsonExample('acceptance.md'))
+  check(accept.gate === 'accept', `acceptance.md example must recommend accept, got ${accept.gate}`)
+  check(lib.recommend({ ...jsonExample('acceptance.md'), fixLoopExit: 'cap-reached' }).gate === 'revise', 'acceptance.md: cap-reached must recommend revise')
+  const silentReject = lib.recommend({ ...jsonExample('acceptance.md'), behaviour: undefined, review: { verdict: 'reject', findings: [] } })
+  check(silentReject.gate === 'inconclusive', 'acceptance.md: a missing axis outranks a review reject')
 }
 
 fail(errors)

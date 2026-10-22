@@ -9,7 +9,7 @@ architecture and React Server/Client Component rules.
 | --- | --- | --- |
 | `nextjs-clean-skills` | `designing-architecture`, `creating-react-components`, `migrating-architecture` | Design full-stack Next.js capability modules and React components with explicit architecture and rendering boundaries; migrate an existing repository to them one capability at a time. |
 
-Both skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
+All three skills are model-invoked: Claude Code and Codex can select them automatically when a task matches the skill frontmatter `description`.
 
 ## Claude Code Install
 

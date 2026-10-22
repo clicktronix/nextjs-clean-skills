@@ -1,6 +1,6 @@
 # Composition Without A DI Container
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Runtime channel surfaces are composition roots. They establish request identity, resolve concrete
 effects, and pass only the dependencies an operation needs. A trusted `server.ts` composition API
@@ -38,5 +38,3 @@ explicit factories. Name the concrete problem it solves. Ports alone do not just
 
 Do not inject pure domain functions. Importing them directly keeps the dependency visible and
 compile-time checked.
-
-Reference: explicit capability-local composition with closures and typed factories.

@@ -7,6 +7,15 @@ surfaces. Runtime behavior is specified in [Runtime Boundaries](./runtime-bounda
 The default profile is Next.js App Router with TypeScript. Existing projects keep equivalent
 libraries and names unless a migration is explicitly requested.
 
+| Decision | Section |
+| --- | --- |
+| which capability owns behavior; how big a capability is | [Physical Model](#physical-model), [Capability Granularity](#capability-granularity) |
+| folders inside a capability | [Optional Internal Segments](#optional-internal-segments), [Internal Cohesion](#internal-cohesion) |
+| what a capability publishes; who may import what | [Public Surfaces](#public-surfaces), [Dependency Direction](#dependency-direction) |
+| `'use cache'`, tags, invalidation | [Cache Components](#cache-components) |
+| whether an operation or port is warranted | [Application Operations](#application-operations), [Ports](#ports) |
+| work spanning capabilities; what may enter `shared/**` | [Cross-Capability Workflows](#cross-capability-workflows), [Shared Admission](#shared-admission) |
+
 ## Quality Goals
 
 | Goal | Architectural response |
@@ -347,6 +356,7 @@ Normative rules:
    prerenderable cache; data one identity may see and another may not never enters it.
    `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
    across requests — only in browser memory — so it is request-time work, not a server cache.
+   Verify its availability and limits against the installed Next.js version.
 4. `cacheTag` and `cacheLife` are called inside the cached function. The tag vocabulary is a private
    `server/**` module; nothing outside the capability learns how its cache is keyed.
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.

@@ -1,6 +1,6 @@
 # Error Taxonomy
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Use a small closed set of semantic failure codes. Channels translate them; providers do not define
 them.
@@ -36,5 +36,3 @@ A stream may carry the same semantic code in-band after commit. The transport ch
 does not.
 
 Keep the set closed. Adding a kind requires updating every relevant channel mapping and tests.
-
-Reference: application-owned semantic failures with channel-native transport mapping.

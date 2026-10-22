@@ -97,12 +97,20 @@ for (const skillName of fs.readdirSync(skillsRoot)) {
     }
   }
 
+  // The trigger comes first because the selector sees nothing else; "Not for X (use Y)" breaks a tie
+  // with the sibling skills whose triggers overlap.
   if (!frontmatter.description.startsWith('Use when ')) {
     errors.push(`${skillName}/SKILL.md frontmatter.description must start with "Use when "`)
   }
+  if (!frontmatter.description.includes('Not for ')) {
+    errors.push(`${skillName}/SKILL.md frontmatter.description must contain "Not for "`)
+  }
+  if (!/\(use [a-z-]+[),]/.test(frontmatter.description)) {
+    errors.push(`${skillName}/SKILL.md frontmatter.description must name the sibling skill to use instead: "(use <skill>)"`)
+  }
 
-  if (frontmatter.description.length > 500) {
-    errors.push(`${skillName}/SKILL.md frontmatter.description is ${frontmatter.description.length} chars; keep it <= 500`)
+  if (frontmatter.description.length > 700) {
+    errors.push(`${skillName}/SKILL.md frontmatter.description is ${frontmatter.description.length} chars; keep it <= 700`)
   }
 
   // Claude Code truncates the combined description and when_to_use text at 1,536 characters in the

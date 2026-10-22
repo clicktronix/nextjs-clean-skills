@@ -1,6 +1,6 @@
 # Forms And Actions
 
-**Impact: HIGH** · **Scope: stack (Next.js)**
+**Scope: stack (Next.js)**
 
 Mutation forms are UI boundaries around server commands, not business logic containers.
 

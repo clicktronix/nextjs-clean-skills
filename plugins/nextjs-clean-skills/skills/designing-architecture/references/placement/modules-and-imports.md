@@ -1,8 +1,8 @@
 # Modules And Imports
 
-**Impact: CRITICAL** · **Scope: stack (Next.js App Router)**
+**Scope: stack (Next.js App Router)**
 
-Product behavior lives under `src/modules/<capability>`. Reserved internal segments are optional:
+Product behavior lives under `<moduleRoot>/<capability>`. Reserved internal segments are optional:
 
 | Segment | Owns | May depend on |
 | --- | --- | --- |
@@ -33,8 +33,8 @@ exact Server Action imported from top-level `'use server'` `actions.ts`.
 Runtime calls and compile-time imports are different graphs:
 
 ```text
-RSC route  -> rsc.ts     -> private server composition -> store
-UI command -> actions.ts -> private server composition -> store
+RSC route  -> rsc.ts     -> server service -> store
+UI command -> actions.ts -> server service -> store
 Browser    -> GET handler -> server.ts
 Worker     -> job.ts     -> application operation -> provider adapter
 ```
@@ -44,5 +44,3 @@ call server code directly, never their own Route Handler over HTTP.
 
 Use `server-only` and `client-only` markers, path checks, and a production build. Path legality and
 bundle safety are separate guarantees.
-
-Reference: capability-first ownership with optional, direction-bearing internal roles.

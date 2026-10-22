@@ -1,6 +1,6 @@
 # Capability Granularity
 
-**Impact: HIGH** · **Scope: portable**
+**Scope: portable**
 
 Name the capability before creating files. Start from the terms product docs, code, and the task
 already use; if one term names different concepts, separate them by observable behavior first. Test
@@ -23,9 +23,9 @@ Split a module only when at least one boundary is real now:
 4. a public contract narrower and more stable than shared internals.
 
 CRUD operations, a dedicated table, route, provider, or repeated role check do not satisfy the gate
-by themselves. Size and file count are warning signals, not boundary tests. For example, price types
-and price categories normally belong to one pricing-taxonomy capability unless the product gives
-them independent workflows or policy.
+by themselves. Size and file count are warning signals, not boundary tests. For example, two reference-data
+kinds edited by the same actor under one policy and lifecycle normally belong to one capability
+unless the product gives them independent workflows or policy.
 
 **Verification: review-only.** Name the actor goal, business outcome, policy, lifecycle, change
 authority, and public contract used to keep or split the concepts. Reject a boundary justified only

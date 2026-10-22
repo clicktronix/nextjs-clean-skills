@@ -1,6 +1,6 @@
 # Module Cohesion
 
-**Impact: HIGH** · **Scope: stack (capability modules)**
+**Scope: stack (capability modules)**
 
 ## Group by responsibility
 
