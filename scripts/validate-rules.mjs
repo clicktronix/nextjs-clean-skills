@@ -958,14 +958,17 @@ if (ESLint) {
       ['trailing-slash base', './census-bp/src/', 'census-bp/src/migrated/**', 'census-bp/src/migrated/a.js', SEVERITY.error],
       ['glob outside the base', 'census-bp/src/modules', 'census-bp/other/**', 'census-bp/src/modules/orders/a.js', SEVERITY.warn],
       ['own ignores stay relative to the base', 'census-bp/src', 'census-bp/src/**', 'census-bp/src/legacy/a.js', undefined, ['legacy/**']],
+      ['negation-only files, a file outside src', 'census-bp/src/modules', '**/*', 'census-bp/outside/a.js', undefined, undefined, ['!**/excluded.js']],
+      ['negation-only files, a sibling of the base', 'census-bp/src/modules', '**/*', 'census-bp/src/other/a.js', undefined, undefined, ['!**/excluded.js']],
+      ['negation-only files, a file in the base', 'census-bp/src/modules', '**/*', 'census-bp/src/modules/orders/a.js', SEVERITY.error, undefined, ['!**/excluded.js']],
     ]
     for (const [, , , file] of basePathCases) {
       fs.mkdirSync(path.join(sandbox, path.dirname(file)), { recursive: true })
       fs.writeFileSync(path.join(sandbox, file), 'debugger;\n')
     }
-    for (const [label, basePath, blocking, file, expected, ignores] of basePathCases) {
+    for (const [label, basePath, blocking, file, expected, ignores, files = ['**/*.js']] of basePathCases) {
       const results = await lintOrder(
-        [{ basePath, files: ['**/*.js'], ...(ignores ? { ignores } : {}), rules: { 'no-debugger': 'error' } }],
+        [{ basePath, files, ...(ignores ? { ignores } : {}), rules: { 'no-debugger': 'error' } }],
         [blocking],
         file,
       )

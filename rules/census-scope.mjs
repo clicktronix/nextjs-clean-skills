@@ -55,9 +55,12 @@ export function censusScope(configs, blockingFiles = []) {
     )
 
     // A nested array in `files` is an AND: the entry applies to a file only if it matches both
-    // globs, so the config's own `files` (test-file exemptions) stay in the intersection.
+    // globs, so the config's own `files` (test-file exemptions) stay in the intersection. Without
+    // `basePath` the copy needs its own positive bound on that directory: a prefixed negation such
+    // as `!base/**/x.js` still matches every file outside it.
+    const inBase = prefix === '' ? [] : [`${prefix}**/*`]
     const restore = {
-      files: blockingFiles.flatMap((glob) => own.map((patterns) => [glob, ...patterns])),
+      files: blockingFiles.flatMap((glob) => own.map((patterns) => [glob, ...inBase, ...patterns])),
       ...(config.ignores ? { ignores: config.ignores.map((pattern) => rooted(prefix, pattern)) } : {}),
       rules: config.rules,
     }

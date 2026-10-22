@@ -104,9 +104,10 @@ own `files` and `blockingFiles`, so test-file exemptions survive. An empty list 
 warn-only. The configs are emitted once, in their original order: each rule-bearing entry is followed
 by its restoring copy, and every other entry (global ignores, parser, settings, plugins) stays in
 place, so later overrides keep their meaning and only severity changes. `blockingFiles` are
-repository-relative. For an entry with `basePath`, the restoring copy carries the entry's own `files`
-and `ignores` prefixed with that directory instead, so any blocking glob keeps its meaning; a
-`basePath` that is absolute, leaves the config directory or contains glob characters throws.
+repository-relative. For an entry with `basePath`, the restoring copy instead carries a positive
+bound on that directory and the entry's own `files` and `ignores` prefixed with it, so any blocking
+glob keeps its meaning; a `basePath` that is absolute, leaves the config directory or contains glob
+characters throws.
 
 ```js
 import boundaries from './rules/eslint-boundaries.mjs'
