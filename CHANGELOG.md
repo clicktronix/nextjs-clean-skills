@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-10-22
+
 ### Added
 
 - `rules/census-scope.mjs` exports `censusScope(configs, blockingFiles)`: every boundary rule as a
