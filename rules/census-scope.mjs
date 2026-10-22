@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 /**
  * Migration census scope: every boundary rule as `warn` repo-wide, original severities only where
  * the code has moved. Usage and semantics: `rules/README.md`, "Census Scope".
@@ -11,19 +13,28 @@ const demote = (setting) => {
 
 const GLOB_CHARS = /[*?[\]{}()!]/
 
-// Blocking globs are repository-relative; an entry with `basePath` reads its `files` relative to
-// that directory, so the globs are re-expressed against it. A glob outside the directory cannot
-// match anything there and is dropped.
-function relativeToBase(glob, basePath) {
-  const base = basePath.replace(/^\.\//, '').replace(/\/+$/, '')
-  if (base === '' || base === '.') return glob
-  if (glob.startsWith('**')) return glob
-  if (glob.startsWith(`${base}/`)) return glob.slice(base.length + 1)
-  const first = glob.split('/')[0]
-  if (GLOB_CHARS.test(first)) {
-    throw new Error(`censusScope: cannot translate blocking glob "${glob}" against basePath "${basePath}"; start it with a literal directory or "**"`)
+// The restoring copy is written in repository coordinates. An entry with `basePath` reads its own
+// `files` and `ignores` relative to that directory, so those patterns are prefixed with it: a
+// literal prefix is exact for any glob, which rebasing the blocking globs onto it is not.
+function rootPrefix(basePath) {
+  if (basePath === undefined) return ''
+  if (typeof basePath !== 'string' || basePath.startsWith('/')) {
+    throw new Error(`censusScope: basePath "${basePath}" is not supported; use a path relative to the config directory`)
   }
-  return null
+  const base = path.posix.normalize(basePath).replace(/\/+$/, '')
+  if (base === '.') return ''
+  if (base === '..' || base.startsWith('../') || GLOB_CHARS.test(base)) {
+    throw new Error(`censusScope: basePath "${basePath}" must be a literal directory inside the config directory`)
+  }
+  return `${base}/`
+}
+
+function rooted(prefix, pattern) {
+  if (prefix === '') return pattern
+  if (typeof pattern !== 'string') throw new Error('censusScope: only string patterns can be re-rooted from a basePath')
+  const negated = pattern.startsWith('!')
+  const glob = (negated ? pattern.slice(1) : pattern).replace(/^\.\//, '')
+  return `${negated ? '!' : ''}${prefix}${glob}`
 }
 
 export function censusScope(configs, blockingFiles = []) {
@@ -38,22 +49,16 @@ export function censusScope(configs, blockingFiles = []) {
       rules: Object.fromEntries(Object.entries(config.rules).map(([id, setting]) => [id, demote(setting)])),
     }
     if (blockingFiles.length === 0) return [warn]
-    if (typeof config.basePath === 'string' && config.basePath.startsWith('/')) {
-      throw new Error(`censusScope: absolute basePath "${config.basePath}" is not supported; use a path relative to the config directory`)
-    }
-    const globs = blockingFiles
-      .map((glob) => (config.basePath ? relativeToBase(glob, config.basePath) : glob))
-      .filter((glob) => glob !== null)
-    if (globs.length === 0) return [warn]
+    const prefix = rootPrefix(config.basePath)
+    const own = (config.files ?? ['**/*']).map((pattern) =>
+      Array.isArray(pattern) ? pattern.map((part) => rooted(prefix, part)) : [rooted(prefix, pattern)]
+    )
 
     // A nested array in `files` is an AND: the entry applies to a file only if it matches both
     // globs, so the config's own `files` (test-file exemptions) stay in the intersection.
     const restore = {
-      ...(config.basePath ? { basePath: config.basePath } : {}),
-      files: globs.flatMap((glob) =>
-        (config.files ?? ['**/*']).map((own) => [glob, ...(Array.isArray(own) ? own : [own])])
-      ),
-      ...(config.ignores ? { ignores: config.ignores } : {}),
+      files: blockingFiles.flatMap((glob) => own.map((patterns) => [glob, ...patterns])),
+      ...(config.ignores ? { ignores: config.ignores.map((pattern) => rooted(prefix, pattern)) } : {}),
       rules: config.rules,
     }
     return [warn, restore]

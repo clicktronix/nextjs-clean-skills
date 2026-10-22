@@ -945,6 +945,35 @@ if (ESLint) {
       }
     }
 
+    // A blocking glob and a basePath can overlap in any glob shape: a parent directory, a wildcard
+    // segment, a leading globstar that swallows the base, a non-canonical base. Each file is checked
+    // against the severity a root-level blocker gives it.
+    const basePathCases = [
+      ['parent root', 'census-bp/src/modules', 'census-bp/src/**', 'census-bp/src/modules/orders/a.js', SEVERITY.error],
+      ['parent capability root', 'census-bp/src/modules/orders/ui', 'census-bp/src/modules/orders/**', 'census-bp/src/modules/orders/ui/a.js', SEVERITY.error],
+      ['wildcard segment', 'census-bp/src/modules/orders', 'census-bp/src/*/orders/**', 'census-bp/src/modules/orders/a.js', SEVERITY.error],
+      ['leading globstar over the base', 'census-bp/src', '**/src/migrated/**', 'census-bp/src/migrated/a.js', SEVERITY.error],
+      ['leading globstar over a capability', 'census-bp/src/modules/orders', '**/orders/**', 'census-bp/src/modules/orders/a.js', SEVERITY.error],
+      ['non-canonical base', './census-bp/src/../src', 'census-bp/src/migrated/**', 'census-bp/src/migrated/a.js', SEVERITY.error],
+      ['trailing-slash base', './census-bp/src/', 'census-bp/src/migrated/**', 'census-bp/src/migrated/a.js', SEVERITY.error],
+      ['glob outside the base', 'census-bp/src/modules', 'census-bp/other/**', 'census-bp/src/modules/orders/a.js', SEVERITY.warn],
+      ['own ignores stay relative to the base', 'census-bp/src', 'census-bp/src/**', 'census-bp/src/legacy/a.js', undefined, ['legacy/**']],
+    ]
+    for (const [, , , file] of basePathCases) {
+      fs.mkdirSync(path.join(sandbox, path.dirname(file)), { recursive: true })
+      fs.writeFileSync(path.join(sandbox, file), 'debugger;\n')
+    }
+    for (const [label, basePath, blocking, file, expected, ignores] of basePathCases) {
+      const results = await lintOrder(
+        [{ basePath, files: ['**/*.js'], ...(ignores ? { ignores } : {}), rules: { 'no-debugger': 'error' } }],
+        [blocking],
+        file,
+      )
+      if (orderSeverity(results, file, 'no-debugger') !== expected) {
+        errors.push(`census scope (basePath, ${label}): ${file} no-debugger expected ${expected}; received ${orderSeverity(results, file, 'no-debugger')}`)
+      }
+    }
+
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',
