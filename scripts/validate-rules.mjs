@@ -857,9 +857,92 @@ if (ESLint) {
       const received = syntheticSeverity(results, file, ruleId)
       if (received !== expected) errors.push(`census scope (${label}): ${file} ${ruleId} expected ${expected}; received ${received}`)
     }
-    const gate = censusScope(syntheticConfigs, ['census-synthetic/modules/**']).slice(syntheticConfigs.length)
-    if (!gate.some((entry) => entry.settings?.marker === 1 && entry.languageOptions?.sourceType === 'module' && entry.ignores?.length === 1)) {
-      errors.push('census scope: the blocking layer must carry each config\'s ignores, settings and languageOptions')
+    // Override order and meaning: severity is the only thing censusScope may change. Each case lints
+    // real ESLint output, with the order-sensitive entry placed after the rule-bearing one.
+    const orderFiles = {
+      'census-order/modules/p.js': 'export const v = 1;\ndebugger;',
+      'census-order/other/p.js': 'export const v = 1;\ndebugger;',
+      'census-order/modules/s.js': 'const v = 1;',
+      'census-order/other/s.js': 'const v = 1;',
+      'census-order/ignored/i.js': 'debugger;',
+      'census-order/bp/migrated/b.js': 'debugger;',
+      'census-order/bp/legacy/b.js': 'debugger;',
+    }
+    for (const [relative, source] of Object.entries(orderFiles)) {
+      const absolute = path.join(sandbox, relative)
+      fs.mkdirSync(path.dirname(absolute), { recursive: true })
+      fs.writeFileSync(absolute, `${source}\n`)
+    }
+    const probePlugin = {
+      rules: {
+        policy: {
+          meta: { type: 'problem', schema: [], messages: { bad: 'Policy violation.' } },
+          create: (context) => ({ Program: (node) => { if (context.settings.enforcePolicy) context.report({ node, messageId: 'bad' }) } }),
+        },
+      },
+    }
+    const lintOrder = async (configs, blockingFiles, target) => {
+      const eslint = new ESLint({ cwd: sandbox, overrideConfigFile: true, overrideConfig: censusScope(configs, blockingFiles) })
+      const results = await eslint.lintFiles([target])
+      return new Map(results.map((result) => [posix(path.relative(sandbox, result.filePath)), result.messages]))
+    }
+    const orderSeverity = (results, file, ruleId) => results.get(file)?.find((message) => message.ruleId === ruleId)?.severity
+    const orderBlocking = ['census-order/modules/**']
+    const orderCases = [
+      {
+        label: 'a later rule-free sourceType override survives',
+        configs: [
+          { files: ['**/*.js'], languageOptions: { sourceType: 'script' }, rules: { 'no-debugger': 'error' } },
+          { files: ['**/*.js'], languageOptions: { sourceType: 'module' } },
+        ],
+        target: 'census-order/modules/p.js',
+        other: 'census-order/other/p.js',
+        ruleId: 'no-debugger',
+      },
+      {
+        label: 'a later rule-free settings override survives',
+        configs: [
+          { files: ['**/*.js'], plugins: { probe: probePlugin }, settings: { enforcePolicy: false }, rules: { 'probe/policy': 'error' } },
+          { files: ['**/*.js'], settings: { enforcePolicy: true } },
+        ],
+        target: 'census-order/modules/s.js',
+        other: 'census-order/other/s.js',
+        ruleId: 'probe/policy',
+      },
+    ]
+    for (const { label, configs, target, other, ruleId } of orderCases) {
+      const folder = target.slice(0, target.indexOf('/modules/') + 1)
+      const results = await lintOrder(configs, orderBlocking, folder)
+      for (const file of [target, other]) {
+        if (results.get(file)?.some((message) => message.fatal)) errors.push(`census scope (${label}): ${file} no longer parses`)
+      }
+      if (orderSeverity(results, target, ruleId) !== SEVERITY.error) {
+        errors.push(`census scope (${label}): ${target} ${ruleId} expected ${SEVERITY.error}; received ${orderSeverity(results, target, ruleId)}`)
+      }
+      if (orderSeverity(results, other, ruleId) !== SEVERITY.warn) {
+        errors.push(`census scope (${label}): ${other} ${ruleId} expected ${SEVERITY.warn}; received ${orderSeverity(results, other, ruleId)}`)
+      }
+    }
+
+    const ignoreResults = await lintOrder(
+      [{ ignores: ['census-order/ignored/**'] }, { files: ['**/*.js'], rules: { 'no-debugger': 'error' } }],
+      ['census-order/ignored/**', 'census-order/other/**'],
+      'census-order/',
+    )
+    if (ignoreResults.has('census-order/ignored/i.js')) errors.push('census scope (global ignores): an ignored file was linted')
+    if (orderSeverity(ignoreResults, 'census-order/other/p.js', 'no-debugger') !== SEVERITY.error) {
+      errors.push('census scope (global ignores): a non-ignored file under a blocking glob must stay an error')
+    }
+
+    const basePathResults = await lintOrder(
+      [{ basePath: 'census-order/bp', files: ['**/*.js'], rules: { 'no-debugger': 'error' } }],
+      ['census-order/bp/migrated/**'],
+      'census-order/bp/',
+    )
+    for (const [file, expected] of [['census-order/bp/migrated/b.js', SEVERITY.error], ['census-order/bp/legacy/b.js', SEVERITY.warn]]) {
+      if (orderSeverity(basePathResults, file, 'no-debugger') !== expected) {
+        errors.push(`census scope (basePath): ${file} no-debugger expected ${expected}; received ${orderSeverity(basePathResults, file, 'no-debugger')}`)
+      }
     }
 
     const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {

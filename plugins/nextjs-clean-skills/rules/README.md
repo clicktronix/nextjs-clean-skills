@@ -103,7 +103,11 @@ lint red for code nobody has moved yet. `censusScope` returns the configs as two
 demoted to `warn` on the files each config already targets, so ESLint's JSON output counts the
 violations repo-wide, and the original severities again on the files that match both the config's
 own `files` and `blockingFiles`, so test-file exemptions survive. An empty list keeps the census
-warn-only.
+warn-only. The configs are emitted once, in their original order: each rule-bearing entry is followed
+by its restoring copy, and every other entry (global ignores, parser, settings, plugins) stays in
+place, so later overrides keep their meaning and only severity changes. `blockingFiles` are
+repository-relative; for an entry with `basePath` they are re-expressed against it (globs outside
+that directory are dropped, an absolute `basePath` or a glob with a wildcard first segment throws).
 
 ```js
 import boundaries from './rules/eslint-boundaries.mjs'
