@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-10-23
+
 ### Fixed
 
 - `eslint-boundaries.mjs` judged a file by the contract root it sits in, so a file outside `app/`,
@@ -26,8 +28,18 @@ All notable changes to this project are documented in this file.
   surface and says the normative sources do not lift it; `frontend-composition.md` says the same.
 - `cache-components.md` did not say it needs `cacheComponents: true`; its first line now does and
   points a project without the flag to the installed version's guide.
-- Contract rule 5 and `forms-and-actions.md` covered tag invalidation only. A write to data no
-  `'use cache'` read holds calls `refresh()` for the current route or `revalidatePath` for another.
+- A development artifact (`*.mock.*`, `*.stories.*`, a file under `mocks/`, `fixtures/`, `__tests__/`
+  and the like) is exempt from ownership, so production code could import a private capability file
+  through it. A production file importing one is now reported as `devArtifactInProduction`. The
+  check classifies the file an import resolves to (a directory's `index`, a directory entered through
+  `package.json`, a specifier ending in `/`), counts only private folders as development directories
+  under `app/` (`app/tests/page.ts` is a route), and starts below the capability, so a capability
+  named `mocks` stays production. A production file that deliberately imports a mock (for example
+  `instrumentation.ts` starting MSW) now sees this error.
+- Contract rule 5 and `forms-and-actions.md` covered tag invalidation only. A write to data no server
+  cache holds (no `'use cache'`, no `force-cache`, `next.revalidate` or `next.tags` fetch, no
+  `unstable_cache`) calls `refresh()` for the current route or `revalidatePath` for another;
+  `refresh()` does not expire the server cache, so a tagged cached read keeps its tag invalidation.
 
 ## [4.6.0] - 2026-10-22
 
