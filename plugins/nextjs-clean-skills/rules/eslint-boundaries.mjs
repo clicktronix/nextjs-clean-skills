@@ -137,7 +137,19 @@ function isUnownedFile(absolute) {
   if (!parts || isFrameworkRootFile(absolute)) return false
   if ([MODULE_ROOT, APP_ROOT, SHARED_ROOT].some((root) => isWithin(root, absolute))) return false
   if (isGeneratedFile(absolute) || /\.d\.[cm]?ts$/.test(absolute)) return false
-  return !(isDevelopmentArtifactFile(absolute) || parts.slice(0, -1).some(isDevelopmentArtifactDirectory))
+  return !isDevelopmentArtifactPath(absolute)
+}
+
+/**
+ * A development artifact by name or directory. Below the module root the filter starts under the
+ * capability, because a capability may be called `mocks`.
+ */
+function isDevelopmentArtifactPath(absolute) {
+  const parts = relativeParts(MODULE_ROOT, absolute)?.slice(1) ?? relativeParts(SOURCE_ROOT, absolute)
+  if (!parts) return false
+  // An import specifier usually carries no extension, and the suffix test is anchored on one.
+  const named = SOURCE_EXT.test(absolute) ? absolute : `${absolute}.ts`
+  return isDevelopmentArtifactFile(named) || parts.slice(0, -1).some(isDevelopmentArtifactDirectory)
 }
 
 // Composition reads capabilities through their root public surfaces: `app/**`, the framework root
@@ -258,6 +270,8 @@ const capabilityRule = {
     messages: {
       appInternal:
         'app/** and files outside the contract roots may import {{capability}} only through a root public surface, not {{target}}.',
+      devArtifactInProduction:
+        'Production code must not import the development artifact {{target}}. A fixture or mock a production file reaches is runtime code: move it to an owned location, or keep the import in a test.',
       unknownRoot:
         '{{path}} sits outside the contract roots ({{roots}}). Move it into a capability, an app segment or an admitted shared root; only framework root files ({{frameworkFiles}}) may stay at the source root.',
       crossCapabilityInternal:
@@ -346,6 +360,19 @@ const capabilityRule = {
       const targetModule = moduleLocation(targetPath)
       const targetShared = sharedLocation(targetPath)
       const targetLabel = posix(path.relative(PROJECT_ROOT, targetPath))
+
+      // Exempting development artifacts by name left a bridge — `mocks/bridge.ts` re-exporting a
+      // private file, imported by a route — outside every check: the bridge was unowned but
+      // exempt, and the route saw an import from outside the module roots. Whether a fixture is
+      // test-only is decided by its consumers, so a production file may not import one.
+      if (!isDevelopmentArtifactPath(filename) && isDevelopmentArtifactPath(targetPath)) {
+        context.report({
+          node,
+          messageId: 'devArtifactInProduction',
+          data: { target: targetLabel },
+        })
+        return
+      }
 
 
       if (!typeOnly && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {

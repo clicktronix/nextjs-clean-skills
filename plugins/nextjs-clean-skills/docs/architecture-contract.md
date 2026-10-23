@@ -136,7 +136,9 @@ not merely because it has no I/O. Add `application/` and ports only for substant
 orchestration, or dependency inversion; a short CRUD path does not need those layers.
 
 Test-only probes, fixtures, and mocks are not exported from production surfaces. Runtime fixtures
-are different: inspect their consumers, not just their names. When a runtime schema witnesses a
+are different: inspect their consumers, not just their names. A production file that imports a
+fixture, mock or story file by name or directory is reported, since a development artifact it reaches
+is runtime code. When a runtime schema witnesses a
 TypeScript value, derive the type from that schema; a manual type may express a deliberately
 different contract.
 

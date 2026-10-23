@@ -594,6 +594,24 @@ declare const BUILD_ID: string
   'src/mocks/handlers.ts': `
 export const handlers = []
 `,
+  // A bridge that launders a private import: the bridge file is a development artifact by name,
+  // but a production route consumes it, so the route is where the violation is reported.
+  'src/mocks/bridge.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-mocks/page.ts': `
+export { secret as default } from '@/mocks/bridge'
+`,
+  'src/lib/bridge.mock.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-mock-suffix/page.ts': `
+export { secret as default } from '@/lib/bridge.mock'
+`,
+  // Legal: a development artifact importing another one, and a test-only fixture nobody ships.
+  'src/mocks/composed.ts': `
+export { secret } from './bridge'
+`,
 
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
   // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
@@ -660,6 +678,8 @@ const expectedBase = new Map([
   ['src/modules/work-items/ui/ClientList.tsx', 'browserServer'],
   ['src/lib/helper.ts', 'unknownRoot'],
   ['src/proxy.ts', 'appInternal'],
+  ['src/app/via-mocks/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-mock-suffix/page.ts', 'devArtifactInProduction'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
@@ -730,6 +750,9 @@ const clean = new Set([
   'src/instrumentation.ts',
   'src/types/env.d.ts',
   'src/mocks/handlers.ts',
+  'src/mocks/bridge.ts',
+  'src/lib/bridge.mock.ts',
+  'src/mocks/composed.ts',
 ])
 
 if (ESLint) {
