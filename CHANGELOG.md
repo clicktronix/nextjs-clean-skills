@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `eslint-boundaries.mjs` judged a file by the contract root it sits in, so a file outside `app/`,
+  `modules/` and `shared/` matched no rule: `src/lib/helper.ts` or `src/proxy.ts` could deep-import a
+  capability, and `app/**` could import the result through it cleanly. Such a file is now reported as
+  `unknownRoot`, except the files Next.js finds by name at the source root (`proxy`, `middleware`,
+  `instrumentation`, `instrumentation-client`, `mdx-components`, `next.config`), declaration files and
+  development artifacts. Root files and unowned files import capabilities only through public
+  surfaces (`appInternal`). A repository with code under `src/lib` or a similar root sees new errors
+  and moves that code into a capability or an admitted shared root. `validate-rules.mjs` carries a
+  clean fixture and a failing mutation for each half.
+- `creating-react-components` told `error.tsx` to recover through `retry` from `ErrorInfo`. In
+  Next.js 16.2 `error.tsx` receives `unstable_retry`, and `ErrorInfo` is the fallback type of
+  `unstable_catchError`. The skill and `loading-and-errors.md` name both, use `unstable_catchError`
+  for a component-level boundary, and say to check whether the `unstable_` prefix was dropped in the
+  installed version.
+- The adoption condition in `creating-react-components` covered `modules/<capability>/ui` and `ui.ts`
+  only, and "the normative source wins" let `frontend-composition.md` bring `rsc.ts`, `client.ts` and
+  `actions.ts` into a repository that had not adopted the contract. The condition now names every
+  surface and says the normative sources do not lift it; `frontend-composition.md` says the same.
+- `cache-components.md` did not say it needs `cacheComponents: true`; its first line now does and
+  points a project without the flag to the installed version's guide.
+- Contract rule 5 and `forms-and-actions.md` covered tag invalidation only. A write to data no
+  `'use cache'` read holds calls `refresh()` for the current route or `revalidatePath` for another.
+
 ## [4.6.0] - 2026-10-22
 
 ### Added

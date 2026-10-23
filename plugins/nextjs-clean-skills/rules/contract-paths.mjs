@@ -124,13 +124,16 @@ export function relativeParts(root, candidate) {
   return relative ? relative.split('/') : []
 }
 
+// A specifier ending in `/`, `.` or `..` names a directory, never a file beside it; the resolved
+// path keeps a trailing separator so that intent survives path.resolve.
 export function resolveProjectImport(paths, importer, specifier) {
-  if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier)
+  const directory = /(^|\/)\.{0,2}$/.test(specifier) ? path.sep : ''
+  if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier) + directory
   const alias = paths.importAliases.find(([prefix]) => specifier.startsWith(prefix))
   if (!alias) return null
   // The remainder cannot begin with a separator, and so cannot make path.resolve discard
   // the alias target: prefixes are required to end with one (see aliases()).
-  return path.resolve(alias[1], specifier.slice(alias[0].length))
+  return path.resolve(alias[1], specifier.slice(alias[0].length)) + directory
 }
 
 // Every extension a project source file can carry. ESLint and cycle detection share this inventory.

@@ -566,6 +566,96 @@ import './server.js'
 export const job = true
 `,
 
+  // Ownership covers every source file, not only the three roots. A file outside app/, modules/
+  // and shared/ matched none of the checks, so it could deep-import a capability and app/** could
+  // then import the laundered value through it cleanly.
+  'src/lib/helper.ts': `
+import { getWorkItems } from '@/modules/work-items/server/store'
+export const helper = getWorkItems
+`,
+  'src/app/laundered/page.ts': `
+import { helper } from '@/lib/helper'
+export default helper
+`,
+  // A framework root file may sit outside the roots, because Next.js finds it only there, but it is
+  // composition like app/** and reads capabilities through their public surfaces.
+  'src/proxy.ts': `
+import { getWorkItems } from '@/modules/work-items/server/store'
+export const proxy = getWorkItems
+`,
+  'src/instrumentation.ts': `
+import { getWorkItems } from '@/modules/work-items/server'
+export const register = getWorkItems
+`,
+  // Neither a declaration file nor a development artifact is product code that needs an owner.
+  'src/types/env.d.ts': `
+declare const BUILD_ID: string
+`,
+  'src/mocks/handlers.ts': `
+export const handlers = []
+`,
+  // A bridge that launders a private import: the bridge file is a development artifact by name,
+  // but a production route consumes it, so the route is where the violation is reported.
+  'src/mocks/bridge.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-mocks/page.ts': `
+export { secret as default } from '@/mocks/bridge'
+`,
+  'src/lib/bridge.mock.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-mock-suffix/page.ts': `
+export { secret as default } from '@/lib/bridge.mock'
+`,
+  // A directory import resolves to the bridge's index, and a route segment named after a test
+  // folder still ships: both consumers are production.
+  'src/mocks/index.ts': `
+export { secret } from './bridge'
+`,
+  'src/app/via-mocks-index/page.ts': `
+export { secret as default } from '@/mocks'
+`,
+  'src/app/tests/page.ts': `
+export { secret as default } from '@/mocks/bridge'
+`,
+  // A directory entered through its package.json is still that directory.
+  'src/fixtures/package.json': `{ "main": "bridge.ts" }
+`,
+  'src/fixtures/bridge.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-fixtures-package/page.ts': `
+export { secret as default } from '@/fixtures'
+`,
+  // A trailing slash names the directory even when an owned file of the same name sits beside it;
+  // without the slash the import is that owned file and stays clean.
+  'src/modules/work-items/server/fixtures.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/fixtures/package.json': `{ "main": "bridge.ts" }
+`,
+  'src/modules/work-items/server/fixtures/bridge.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/reads/from-fixtures-directory.ts': `
+export { seed } from '../fixtures/'
+`,
+  'src/modules/work-items/server/reads/from-fixtures-file.ts': `
+export { seed } from '../fixtures'
+`,
+  // Legal: a development artifact importing another one, a test-only fixture nobody ships, and an
+  // owned directory whose name only looks like a mock.
+  'src/mocks/composed.ts': `
+export { secret } from './bridge'
+`,
+  'src/modules/work-items/server/data.mock/index.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/seeded.ts': `
+export { seed } from './data.mock'
+`,
+
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
   // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
   // import parser could still see imports into it. The two halves of the floor disagreed about what
@@ -629,6 +719,14 @@ const expectedBase = new Map([
   ['src/modules/work-items/domain/bad-subpath.ts', 'domainDirection'],
   ['src/modules/work-items/server/hidden-template.ts', 'hiddenDynamicImport'],
   ['src/modules/work-items/ui/ClientList.tsx', 'browserServer'],
+  ['src/lib/helper.ts', 'unknownRoot'],
+  ['src/proxy.ts', 'appInternal'],
+  ['src/app/via-mocks/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-mock-suffix/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-mocks-index/page.ts', 'devArtifactInProduction'],
+  ['src/app/tests/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-fixtures-package/page.ts', 'devArtifactInProduction'],
+  ['src/modules/work-items/server/reads/from-fixtures-directory.ts', 'devArtifactInProduction'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
@@ -694,6 +792,19 @@ const clean = new Set([
   'src/modules/work-items/domain/template-import.ts',
   'src/modules/work-items/ui/ServerList.tsx',
   'src/modules/marker/rsc.ts',
+  // The permitting half of unknownRoot and the widened appInternal: a framework root file reading a
+  // public surface, and the files outside the roots that have no product owner to find.
+  'src/instrumentation.ts',
+  'src/types/env.d.ts',
+  'src/mocks/handlers.ts',
+  'src/mocks/bridge.ts',
+  'src/lib/bridge.mock.ts',
+  'src/mocks/composed.ts',
+  'src/mocks/index.ts',
+  'src/modules/work-items/server/data.mock/index.ts',
+  'src/modules/work-items/server/seeded.ts',
+  'src/modules/work-items/server/fixtures.ts',
+  'src/modules/work-items/server/reads/from-fixtures-file.ts',
 ])
 
 if (ESLint) {

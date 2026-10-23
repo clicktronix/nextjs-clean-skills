@@ -11,6 +11,8 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
+  isDevelopmentArtifactDirectory,
+  isDevelopmentArtifactFile,
   isWithin,
   loadArchitecturePaths,
   posix,
@@ -24,6 +26,7 @@ const paths = loadArchitecturePaths(import.meta.url)
 const {
   contract,
   projectRoot: PROJECT_ROOT,
+  sourceRoot: SOURCE_ROOT,
   moduleRoot: MODULE_ROOT,
   appRoot: APP_ROOT,
   sharedRoot: SHARED_ROOT,
@@ -106,6 +109,76 @@ function sharedLocation(absolute) {
 function isAppFile(absolute) {
   return relativeParts(APP_ROOT, absolute) !== null
 }
+
+// Files Next.js finds by name directly under the source root, so they cannot move into a contract
+// root. `next.config.*` is linted only when the source root is the project root.
+const FRAMEWORK_ROOT_FILES = new Set([
+  'proxy',
+  'middleware',
+  'instrumentation',
+  'instrumentation-client',
+  'mdx-components',
+  'next.config',
+])
+
+function isFrameworkRootFile(absolute) {
+  const parts = relativeParts(SOURCE_ROOT, absolute)
+  return parts?.length === 1 && FRAMEWORK_ROOT_FILES.has(stem(parts[0]))
+}
+
+/**
+ * A source file under no contract root. Every rule keys on the root a file sits in, so such a file
+ * matched none of them: `src/lib/helper.ts` could deep-import a capability, and `app/**` could then
+ * import the result through it cleanly. Declaration files carry no runtime behaviour, and development
+ * artifacts are outside the production graph by the same definition the cycle check uses.
+ */
+function isUnownedFile(absolute) {
+  const parts = relativeParts(SOURCE_ROOT, absolute)
+  if (!parts || isFrameworkRootFile(absolute)) return false
+  if ([MODULE_ROOT, APP_ROOT, SHARED_ROOT].some((root) => isWithin(root, absolute))) return false
+  if (isGeneratedFile(absolute) || /\.d\.[cm]?ts$/.test(absolute)) return false
+  return !isDevelopmentArtifactPath(absolute)
+}
+
+/**
+ * A development artifact by name or directory, judged on the file an import actually resolves to.
+ * Below the module root the filter starts under the capability, because a capability may be called
+ * `mocks`. Under the app root a plain directory is a route segment, so `app/tests/page.ts` ships;
+ * only private (`__mocks__`) folders count there.
+ */
+function isDevelopmentArtifactPath(absolute) {
+  const file = resolveSourceFile(absolute)
+  const parts = relativeParts(MODULE_ROOT, file)?.slice(1) ?? relativeParts(SOURCE_ROOT, file)
+  if (!parts) return false
+  const folders = (names) => (fs.statSync(file, { throwIfNoEntry: false })?.isDirectory() ? names : names.slice(0, -1))
+  const directories = isAppFile(file)
+    ? folders(relativeParts(APP_ROOT, file)).filter((name) => name.startsWith('_'))
+    : folders(parts)
+  return isDevelopmentArtifactFile(file) || directories.some(isDevelopmentArtifactDirectory)
+}
+
+// The file a resolved specifier names: itself, the same path with a source extension (or with its
+// `.js` swapped for one), or a directory's index; a directory specifier (trailing separator) names
+// only the index. Anything else is returned unchanged, so a directory the resolver enters some
+// other way (`package.json` `main`) is judged as a directory.
+function resolveSourceFile(absolute) {
+  const stripped = absolute.replace(SOURCE_EXT, '')
+  const index = SOURCE_EXTENSIONS.map((extension) => path.join(absolute, `index.${extension}`))
+  const candidates = absolute.endsWith(path.sep)
+    ? index
+    : [
+        absolute,
+        ...SOURCE_EXTENSIONS.map((extension) => `${absolute}.${extension}`),
+        ...SOURCE_EXTENSIONS.map((extension) => `${stripped}.${extension}`),
+        ...index,
+      ]
+  return candidates.find((candidate) => fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) ?? absolute
+}
+
+// Composition reads capabilities through their root public surfaces: `app/**`, the framework root
+// files and any unowned file, which would otherwise launder a deep import for `app/**`.
+const isCompositionFile = (absolute) =>
+  isAppFile(absolute) || isFrameworkRootFile(absolute) || isUnownedFile(absolute)
 
 // A package's identity is its name, and a scoped name is two segments. Returning `@scope` made
 // every subpath of a forbidden `@scope/pkg` inherit the class of the *scope*, so `@scope/pkg/sub`
@@ -219,7 +292,11 @@ const capabilityRule = {
     schema: [],
     messages: {
       appInternal:
-        'app/** may import {{capability}} only through a root public surface, not {{target}}.',
+        'app/** and files outside the contract roots may import {{capability}} only through a root public surface, not {{target}}.',
+      devArtifactInProduction:
+        'Production code must not import the development artifact {{target}}. A fixture or mock a production file reaches is runtime code: move it to an owned location, or keep the import in a test.',
+      unknownRoot:
+        '{{path}} sits outside the contract roots ({{roots}}). Move it into a capability, an app segment or an admitted shared root; only framework root files ({{frameworkFiles}}) may stay at the source root.',
       crossCapabilityInternal:
         '{{source}} may import {{targetCapability}} only through a root public surface, not {{target}}.',
       domainDirection:
@@ -307,6 +384,18 @@ const capabilityRule = {
       const targetShared = sharedLocation(targetPath)
       const targetLabel = posix(path.relative(PROJECT_ROOT, targetPath))
 
+      // Exempting development artifacts by name left a bridge — `mocks/bridge.ts` re-exporting a
+      // private file, imported by a route — outside every check: the bridge was unowned but
+      // exempt, and the route saw an import from outside the module roots. Whether a fixture is
+      // test-only is decided by its consumers, so a production file may not import one.
+      if (!isDevelopmentArtifactPath(filename) && isDevelopmentArtifactPath(targetPath)) {
+        context.report({
+          node,
+          messageId: 'devArtifactInProduction',
+          data: { target: targetLabel },
+        })
+        return
+      }
 
       if (!typeOnly && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
         const ownDomain =
@@ -341,7 +430,7 @@ const capabilityRule = {
 
       if (
         targetModule &&
-        isAppFile(filename) &&
+        isCompositionFile(filename) &&
         (!targetModule.surface || !PUBLIC_SURFACES.has(targetModule.surface))
       ) {
         context.report({
@@ -558,6 +647,20 @@ const capabilityRule = {
         )
 
         if (sourceModule?.surface === 'actions') checkActionExports(node)
+
+        if (isUnownedFile(filename)) {
+          context.report({
+            node,
+            messageId: 'unknownRoot',
+            data: {
+              path: posix(path.relative(PROJECT_ROOT, filename)),
+              roots: [MODULE_ROOT, APP_ROOT, SHARED_ROOT]
+                .map((root) => posix(path.relative(PROJECT_ROOT, root)))
+                .join(', '),
+              frameworkFiles: [...FRAMEWORK_ROOT_FILES].join(', '),
+            },
+          })
+        }
 
         if (sourceModule?.surface && !PUBLIC_SURFACES.has(sourceModule.surface)) {
           context.report({

@@ -21,12 +21,12 @@ before awaiting them.
 
 An RSC failure has one capture owner, settled in
 [Runtime Boundaries](../../../docs/runtime-boundaries.md#failures-and-reporting). Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
-nested or parallel route with `error.tsx`, or the project's component Error Boundary.
+nested or parallel route with `error.tsx`, or wrap one component with `unstable_catchError(fallback)`
+from `next/error`.
 
-Use the callback from the installed `ErrorInfo` type. `reset()` clears the boundary and rerenders
-its children, which suits a temporary render failure. When the installed Next.js version offers
-`retry()`, it also refreshes the route; prefer it when recovery must refetch RSC data. Verify
-availability against the installed version.
+In Next.js 16.2, `error.tsx` and the fallback receive `error`, `reset` and `unstable_retry`. Prefer
+`unstable_retry()`, which refetches the boundary's Server Component data; `reset()` does not. Check whether the `unstable_` prefix was dropped in the installed
+version (canary documents `retry` and `catchError`).
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict
 states, or map them to deliberate framework control flow. Do not swallow `redirect` or `notFound()`

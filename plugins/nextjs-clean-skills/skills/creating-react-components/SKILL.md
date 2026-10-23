@@ -20,11 +20,13 @@ that routes a decision to its section.
 
 ## Defaults
 
-The `modules/<capability>/ui` and `ui.ts` placements below assume a repository that has adopted the
-capability-first contract or asked to migrate to it. Anywhere else, put the component where its
-neighbours live and keep the repository's naming; do not introduce `modules/`, `shared/ui`, or a
-root surface to place one component. Take from this skill only what holds in any App Router
-project: the Server/Client split, state ownership, and the action shape.
+Every capability name in this skill and its normative sources — `modules/<capability>/ui`, `ui.ts`,
+`rsc.ts`, `client.ts`, `actions.ts`, `shared/ui` — assumes a repository that has adopted the
+capability-first contract or asked to migrate to it. The normative sources describe that layout;
+they do not lift this condition. Anywhere else, put the component where its neighbours live, call the
+repository's existing data and action modules, and keep its naming; do not introduce `modules/`,
+`shared/ui`, or a root surface to place one component. Take from this skill only what holds in any
+App Router project: the Server/Client split, state ownership, and the action shape.
 
 - Start with a Server Component.
 - Add `'use client'` only for events, client-only Hooks, refs, browser APIs, or browser-owned async
@@ -81,8 +83,10 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component that recovers through the callbacks of its installed
-  `ErrorInfo` (`reset`, and `retry` where the installed version has it).
+- `error.tsx` is a Client Component. In Next.js 16.2 it receives `error`, `reset` and
+  `unstable_retry`; call `unstable_retry()` when recovery must refetch RSC data, since `reset()`
+  rerenders without refetching. Isolate a component-level failure with `unstable_catchError` from
+  `next/error`. Check whether the `unstable_` prefix was dropped in the installed version.
 - `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.

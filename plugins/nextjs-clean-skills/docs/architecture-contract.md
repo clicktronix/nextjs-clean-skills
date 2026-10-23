@@ -46,6 +46,8 @@ src/modules/<capability>/
 
 Framework routes, metadata, layouts, and route-private presentation remain under `src/app/**`.
 Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
+Nothing else lives under `src/` except the files Next.js finds there by name (`proxy.ts`,
+`instrumentation.ts` and their kin), which compose capabilities the way `app/**` does.
 These are default paths, not hidden assumptions in the tooling. A product records `sourceRoot`,
 `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
 `rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`. Alias
@@ -134,7 +136,9 @@ not merely because it has no I/O. Add `application/` and ports only for substant
 orchestration, or dependency inversion; a short CRUD path does not need those layers.
 
 Test-only probes, fixtures, and mocks are not exported from production surfaces. Runtime fixtures
-are different: inspect their consumers, not just their names. When a runtime schema witnesses a
+are different: inspect their consumers, not just their names. A production file that imports a
+fixture, mock or story file by name or directory is reported, since a development artifact it reaches
+is runtime code. When a runtime schema witnesses a
 TypeScript value, derive the type from that schema; a manual type may express a deliberately
 different contract.
 
@@ -364,7 +368,11 @@ Normative rules:
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
 5. Invalidation belongs to the channel that wrote, and the operation decides how fresh the next
    read must be. An `actions.ts` action calls `updateTag(tag)`, so the request that wrote reads its
-   own write. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
+   own write. A write to data that no server cache holds — no `'use cache'`, no `force-cache`, `next.revalidate`
+   or `next.tags` fetch, no `unstable_cache` — has no tag to expire: the action calls `refresh()`
+   from `next/cache` to rerender the current route, or `revalidatePath(path)` when the data shows on
+   another route. `refresh()` does not expire the server cache, so a tagged cached read keeps its tag
+   invalidation, with or without `cacheComponents`. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
    `'max'` when serving the previous result while it refreshes is acceptable, `{ expire: 0 }` when
    it is not — an unpublish, a revoked grant. Those are the only contexts Next.js supports for it.
    A background job outside them — a separate worker, or a task in the same Next.js process that
