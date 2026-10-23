@@ -15,6 +15,11 @@ All notable changes to this project are documented in this file.
   surfaces (`appInternal`). A repository with code under `src/lib` or a similar root sees new errors
   and moves that code into a capability or an admitted shared root. `validate-rules.mjs` carries a
   clean fixture and a failing mutation for each half.
+- `creating-react-components` told `error.tsx` to recover through `retry` from `ErrorInfo`. In
+  Next.js 16.2 `error.tsx` receives `unstable_retry`, and `ErrorInfo` is the fallback type of
+  `unstable_catchError`. The skill and `loading-and-errors.md` name both, use `unstable_catchError`
+  for a component-level boundary, and say to check whether the `unstable_` prefix was dropped in the
+  installed version.
 
 ## [4.6.0] - 2026-10-22
 
