@@ -11,6 +11,8 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
+  isDevelopmentArtifactDirectory,
+  isDevelopmentArtifactFile,
   isWithin,
   loadArchitecturePaths,
   posix,
@@ -24,6 +26,7 @@ const paths = loadArchitecturePaths(import.meta.url)
 const {
   contract,
   projectRoot: PROJECT_ROOT,
+  sourceRoot: SOURCE_ROOT,
   moduleRoot: MODULE_ROOT,
   appRoot: APP_ROOT,
   sharedRoot: SHARED_ROOT,
@@ -106,6 +109,41 @@ function sharedLocation(absolute) {
 function isAppFile(absolute) {
   return relativeParts(APP_ROOT, absolute) !== null
 }
+
+// Files Next.js finds by name directly under the source root, so they cannot move into a contract
+// root. `next.config.*` is linted only when the source root is the project root.
+const FRAMEWORK_ROOT_FILES = new Set([
+  'proxy',
+  'middleware',
+  'instrumentation',
+  'instrumentation-client',
+  'mdx-components',
+  'next.config',
+])
+
+function isFrameworkRootFile(absolute) {
+  const parts = relativeParts(SOURCE_ROOT, absolute)
+  return parts?.length === 1 && FRAMEWORK_ROOT_FILES.has(stem(parts[0]))
+}
+
+/**
+ * A source file under no contract root. Every rule keys on the root a file sits in, so such a file
+ * matched none of them: `src/lib/helper.ts` could deep-import a capability, and `app/**` could then
+ * import the result through it cleanly. Declaration files carry no runtime behaviour, and development
+ * artifacts are outside the production graph by the same definition the cycle check uses.
+ */
+function isUnownedFile(absolute) {
+  const parts = relativeParts(SOURCE_ROOT, absolute)
+  if (!parts || isFrameworkRootFile(absolute)) return false
+  if ([MODULE_ROOT, APP_ROOT, SHARED_ROOT].some((root) => isWithin(root, absolute))) return false
+  if (isGeneratedFile(absolute) || /\.d\.[cm]?ts$/.test(absolute)) return false
+  return !(isDevelopmentArtifactFile(absolute) || parts.slice(0, -1).some(isDevelopmentArtifactDirectory))
+}
+
+// Composition reads capabilities through their root public surfaces: `app/**`, the framework root
+// files and any unowned file, which would otherwise launder a deep import for `app/**`.
+const isCompositionFile = (absolute) =>
+  isAppFile(absolute) || isFrameworkRootFile(absolute) || isUnownedFile(absolute)
 
 // A package's identity is its name, and a scoped name is two segments. Returning `@scope` made
 // every subpath of a forbidden `@scope/pkg` inherit the class of the *scope*, so `@scope/pkg/sub`
@@ -219,7 +257,9 @@ const capabilityRule = {
     schema: [],
     messages: {
       appInternal:
-        'app/** may import {{capability}} only through a root public surface, not {{target}}.',
+        'app/** and files outside the contract roots may import {{capability}} only through a root public surface, not {{target}}.',
+      unknownRoot:
+        '{{path}} sits outside the contract roots ({{roots}}). Move it into a capability, an app segment or an admitted shared root; only framework root files ({{frameworkFiles}}) may stay at the source root.',
       crossCapabilityInternal:
         '{{source}} may import {{targetCapability}} only through a root public surface, not {{target}}.',
       domainDirection:
@@ -341,7 +381,7 @@ const capabilityRule = {
 
       if (
         targetModule &&
-        isAppFile(filename) &&
+        isCompositionFile(filename) &&
         (!targetModule.surface || !PUBLIC_SURFACES.has(targetModule.surface))
       ) {
         context.report({
@@ -558,6 +598,20 @@ const capabilityRule = {
         )
 
         if (sourceModule?.surface === 'actions') checkActionExports(node)
+
+        if (isUnownedFile(filename)) {
+          context.report({
+            node,
+            messageId: 'unknownRoot',
+            data: {
+              path: posix(path.relative(PROJECT_ROOT, filename)),
+              roots: [MODULE_ROOT, APP_ROOT, SHARED_ROOT]
+                .map((root) => posix(path.relative(PROJECT_ROOT, root)))
+                .join(', '),
+              frameworkFiles: [...FRAMEWORK_ROOT_FILES].join(', '),
+            },
+          })
+        }
 
         if (sourceModule?.surface && !PUBLIC_SURFACES.has(sourceModule.surface)) {
           context.report({

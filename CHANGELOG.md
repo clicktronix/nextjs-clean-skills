@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `eslint-boundaries.mjs` judged a file by the contract root it sits in, so a file outside `app/`,
+  `modules/` and `shared/` matched no rule: `src/lib/helper.ts` or `src/proxy.ts` could deep-import a
+  capability, and `app/**` could import the result through it cleanly. Such a file is now reported as
+  `unknownRoot`, except the files Next.js finds by name at the source root (`proxy`, `middleware`,
+  `instrumentation`, `instrumentation-client`, `mdx-components`, `next.config`), declaration files and
+  development artifacts. Root files and unowned files import capabilities only through public
+  surfaces (`appInternal`). A repository with code under `src/lib` or a similar root sees new errors
+  and moves that code into a capability or an admitted shared root. `validate-rules.mjs` carries a
+  clean fixture and a failing mutation for each half.
+
 ## [4.6.0] - 2026-10-22
 
 ### Added

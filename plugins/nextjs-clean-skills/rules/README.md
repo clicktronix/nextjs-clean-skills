@@ -172,7 +172,13 @@ compiler dropping the binding. A partly type-only import (`import { type A, b }`
 The portable floor has seven named properties:
 
 1. **Ownership.** `app/**` and other capabilities use root public surfaces; private server code
-   points inward, and a private segment cannot shadow a same-named root surface.
+   points inward, and a private segment cannot shadow a same-named root surface. Every source file
+   has an owner: a file under `sourceRoot` but outside the module, app, shared and generated roots
+   is reported (`unknownRoot`), except the files Next.js finds by name at the source root
+   (`proxy`, `middleware`, `instrumentation`, `instrumentation-client`, `mdx-components`,
+   `next.config`), declaration files, and development artifacts. Those root files, like `app/**`,
+   import capabilities only through public surfaces (`appInternal`), so no file can launder a deep
+   import for a route.
 2. **Acyclic resolution.** Literal imports resolve, computed targets fail closed, and both file and
    capability graphs remain acyclic.
 3. **Purity.** `domain/**` and `application/**` reject runtime packages and wrong-direction imports;

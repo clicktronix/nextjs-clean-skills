@@ -44,6 +44,8 @@ src/modules/<capability>/
 
 Framework routes, metadata, layouts, and route-private presentation remain under `src/app/**`.
 Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
+Nothing else lives under `src/` except the files Next.js finds there by name (`proxy.ts`,
+`instrumentation.ts` and their kin), which compose capabilities the way `app/**` does.
 These are default paths, not hidden assumptions in the tooling. A product records `sourceRoot`,
 `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
 `rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`. Alias

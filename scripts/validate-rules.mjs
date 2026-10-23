@@ -566,6 +566,35 @@ import './server.js'
 export const job = true
 `,
 
+  // Ownership covers every source file, not only the three roots. A file outside app/, modules/
+  // and shared/ matched none of the checks, so it could deep-import a capability and app/** could
+  // then import the laundered value through it cleanly.
+  'src/lib/helper.ts': `
+import { getWorkItems } from '@/modules/work-items/server/store'
+export const helper = getWorkItems
+`,
+  'src/app/laundered/page.ts': `
+import { helper } from '@/lib/helper'
+export default helper
+`,
+  // A framework root file may sit outside the roots, because Next.js finds it only there, but it is
+  // composition like app/** and reads capabilities through their public surfaces.
+  'src/proxy.ts': `
+import { getWorkItems } from '@/modules/work-items/server/store'
+export const proxy = getWorkItems
+`,
+  'src/instrumentation.ts': `
+import { getWorkItems } from '@/modules/work-items/server'
+export const register = getWorkItems
+`,
+  // Neither a declaration file nor a development artifact is product code that needs an owner.
+  'src/types/env.d.ts': `
+declare const BUILD_ID: string
+`,
+  'src/mocks/handlers.ts': `
+export const handlers = []
+`,
+
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
   // glob listed js/jsx/ts/tsx only — so this file was outside the architecture entirely while the
   // import parser could still see imports into it. The two halves of the floor disagreed about what
@@ -629,6 +658,8 @@ const expectedBase = new Map([
   ['src/modules/work-items/domain/bad-subpath.ts', 'domainDirection'],
   ['src/modules/work-items/server/hidden-template.ts', 'hiddenDynamicImport'],
   ['src/modules/work-items/ui/ClientList.tsx', 'browserServer'],
+  ['src/lib/helper.ts', 'unknownRoot'],
+  ['src/proxy.ts', 'appInternal'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
@@ -694,6 +725,11 @@ const clean = new Set([
   'src/modules/work-items/domain/template-import.ts',
   'src/modules/work-items/ui/ServerList.tsx',
   'src/modules/marker/rsc.ts',
+  // The permitting half of unknownRoot and the widened appInternal: a framework root file reading a
+  // public surface, and the files outside the roots that have no product owner to find.
+  'src/instrumentation.ts',
+  'src/types/env.d.ts',
+  'src/mocks/handlers.ts',
 ])
 
 if (ESLint) {
