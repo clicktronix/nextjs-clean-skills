@@ -141,15 +141,32 @@ function isUnownedFile(absolute) {
 }
 
 /**
- * A development artifact by name or directory. Below the module root the filter starts under the
- * capability, because a capability may be called `mocks`.
+ * A development artifact by name or directory, judged on the file an import actually resolves to.
+ * Below the module root the filter starts under the capability, because a capability may be called
+ * `mocks`. Under the app root a plain directory is a route segment, so `app/tests/page.ts` ships;
+ * only private (`__mocks__`) folders count there.
  */
 function isDevelopmentArtifactPath(absolute) {
-  const parts = relativeParts(MODULE_ROOT, absolute)?.slice(1) ?? relativeParts(SOURCE_ROOT, absolute)
+  const file = resolveSourceFile(absolute)
+  const parts = relativeParts(MODULE_ROOT, file)?.slice(1) ?? relativeParts(SOURCE_ROOT, file)
   if (!parts) return false
-  // An import specifier usually carries no extension, and the suffix test is anchored on one.
-  const named = SOURCE_EXT.test(absolute) ? absolute : `${absolute}.ts`
-  return isDevelopmentArtifactFile(named) || parts.slice(0, -1).some(isDevelopmentArtifactDirectory)
+  const directories = isAppFile(file)
+    ? relativeParts(APP_ROOT, file).slice(0, -1).filter((name) => name.startsWith('_'))
+    : parts.slice(0, -1)
+  return isDevelopmentArtifactFile(file) || directories.some(isDevelopmentArtifactDirectory)
+}
+
+// The file a resolved specifier names: itself, the same path with a source extension (or with its
+// `.js` swapped for one), or a directory's index. A path that names no file is returned unchanged.
+function resolveSourceFile(absolute) {
+  const stripped = absolute.replace(SOURCE_EXT, '')
+  const candidates = [
+    absolute,
+    ...SOURCE_EXTENSIONS.map((extension) => `${absolute}.${extension}`),
+    ...SOURCE_EXTENSIONS.map((extension) => `${stripped}.${extension}`),
+    ...SOURCE_EXTENSIONS.map((extension) => path.join(absolute, `index.${extension}`)),
+  ]
+  return candidates.find((candidate) => fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) ?? absolute
 }
 
 // Composition reads capabilities through their root public surfaces: `app/**`, the framework root

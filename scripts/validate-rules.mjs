@@ -608,9 +608,27 @@ export { getWorkItems as secret } from '@/modules/work-items/server/store'
   'src/app/via-mock-suffix/page.ts': `
 export { secret as default } from '@/lib/bridge.mock'
 `,
-  // Legal: a development artifact importing another one, and a test-only fixture nobody ships.
+  // A directory import resolves to the bridge's index, and a route segment named after a test
+  // folder still ships: both consumers are production.
+  'src/mocks/index.ts': `
+export { secret } from './bridge'
+`,
+  'src/app/via-mocks-index/page.ts': `
+export { secret as default } from '@/mocks'
+`,
+  'src/app/tests/page.ts': `
+export { secret as default } from '@/mocks/bridge'
+`,
+  // Legal: a development artifact importing another one, a test-only fixture nobody ships, and an
+  // owned directory whose name only looks like a mock.
   'src/mocks/composed.ts': `
 export { secret } from './bridge'
+`,
+  'src/modules/work-items/server/data.mock/index.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/seeded.ts': `
+export { seed } from './data.mock'
 `,
 
   // A NodeNext-extension file is a source file. The rules only see what their glob matches, and the
@@ -680,6 +698,8 @@ const expectedBase = new Map([
   ['src/proxy.ts', 'appInternal'],
   ['src/app/via-mocks/page.ts', 'devArtifactInProduction'],
   ['src/app/via-mock-suffix/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-mocks-index/page.ts', 'devArtifactInProduction'],
+  ['src/app/tests/page.ts', 'devArtifactInProduction'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
@@ -753,6 +773,9 @@ const clean = new Set([
   'src/mocks/bridge.ts',
   'src/lib/bridge.mock.ts',
   'src/mocks/composed.ts',
+  'src/mocks/index.ts',
+  'src/modules/work-items/server/data.mock/index.ts',
+  'src/modules/work-items/server/seeded.ts',
 ])
 
 if (ESLint) {
