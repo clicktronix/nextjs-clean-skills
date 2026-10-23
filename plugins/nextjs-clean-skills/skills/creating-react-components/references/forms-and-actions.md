@@ -10,7 +10,8 @@ Mutation forms are UI boundaries around server commands, not business logic cont
 
 Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority.
 Each Server Action validates its payload, derives identity and tenant from trusted state, authorizes
-the command, calls capability behavior, and returns a public-safe result.
+the command, calls capability behavior, invalidates (contract rule 5; uncached data: `refresh()` or
+`revalidatePath`), and returns a public-safe result.
 
 An importable action module starts with top-level `'use server'`. It defines UI commands, not browser
 reads. Every value export must be an async function when the module loads — declared there or

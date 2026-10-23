@@ -364,7 +364,9 @@ Normative rules:
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
 5. Invalidation belongs to the channel that wrote, and the operation decides how fresh the next
    read must be. An `actions.ts` action calls `updateTag(tag)`, so the request that wrote reads its
-   own write. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
+   own write. A write to data no `'use cache'` read holds has no tag to expire: the action calls
+   `refresh()` from `next/cache` to rerender the current route, or `revalidatePath(path)` when the
+   data shows on another route. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
    `'max'` when serving the previous result while it refreshes is acceptable, `{ expire: 0 }` when
    it is not — an unpublish, a revoked grant. Those are the only contexts Next.js supports for it.
    A background job outside them — a separate worker, or a task in the same Next.js process that

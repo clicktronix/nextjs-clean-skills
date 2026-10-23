@@ -26,6 +26,8 @@ All notable changes to this project are documented in this file.
   surface and says the normative sources do not lift it; `frontend-composition.md` says the same.
 - `cache-components.md` did not say it needs `cacheComponents: true`; its first line now does and
   points a project without the flag to the installed version's guide.
+- Contract rule 5 and `forms-and-actions.md` covered tag invalidation only. A write to data no
+  `'use cache'` read holds calls `refresh()` for the current route or `revalidatePath` for another.
 
 ## [4.6.0] - 2026-10-22
 
