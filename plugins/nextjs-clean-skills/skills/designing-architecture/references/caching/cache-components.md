@@ -2,6 +2,10 @@
 
 **Scope: stack (Next.js 16 Cache Components)**
 
+Applies only when `next.config` sets `cacheComponents: true`, the flag that enables `'use cache'`,
+`cacheLife` and `cacheTag`. Without it, follow the installed version's guide to caching without
+Cache Components instead of this page; the invalidation rule in the contract still applies.
+
 A shared `'use cache'` function runs outside the request. Inside it there is no `cookies()`,
 `headers()` or request-scoped client, and every argument is part of the key, so every argument must
 be serializable. The cache boundary therefore sits below the identity boundary.

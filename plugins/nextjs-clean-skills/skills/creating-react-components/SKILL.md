@@ -20,11 +20,13 @@ that routes a decision to its section.
 
 ## Defaults
 
-The `modules/<capability>/ui` and `ui.ts` placements below assume a repository that has adopted the
-capability-first contract or asked to migrate to it. Anywhere else, put the component where its
-neighbours live and keep the repository's naming; do not introduce `modules/`, `shared/ui`, or a
-root surface to place one component. Take from this skill only what holds in any App Router
-project: the Server/Client split, state ownership, and the action shape.
+Every capability name in this skill and its normative sources — `modules/<capability>/ui`, `ui.ts`,
+`rsc.ts`, `client.ts`, `actions.ts`, `shared/ui` — assumes a repository that has adopted the
+capability-first contract or asked to migrate to it. The normative sources describe that layout;
+they do not lift this condition. Anywhere else, put the component where its neighbours live, call the
+repository's existing data and action modules, and keep its naming; do not introduce `modules/`,
+`shared/ui`, or a root surface to place one component. Take from this skill only what holds in any
+App Router project: the Server/Client split, state ownership, and the action shape.
 
 - Start with a Server Component.
 - Add `'use client'` only for events, client-only Hooks, refs, browser APIs, or browser-owned async

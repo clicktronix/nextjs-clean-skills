@@ -1,7 +1,9 @@
 # Frontend Composition
 
 This document defines UI ownership inside the capability architecture. It does not create a second
-data path around [Runtime Boundaries](./runtime-boundaries.md).
+data path around [Runtime Boundaries](./runtime-boundaries.md). Its surface names (`rsc.ts`,
+`client.ts`, `actions.ts`, `ui.ts`, `modules/<capability>/ui`) apply only in a repository that has
+adopted the contract; elsewhere, use the repository's existing equivalents.
 
 | Decision | Section |
 | --- | --- |

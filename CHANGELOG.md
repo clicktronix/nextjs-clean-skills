@@ -20,6 +20,12 @@ All notable changes to this project are documented in this file.
   `unstable_catchError`. The skill and `loading-and-errors.md` name both, use `unstable_catchError`
   for a component-level boundary, and say to check whether the `unstable_` prefix was dropped in the
   installed version.
+- The adoption condition in `creating-react-components` covered `modules/<capability>/ui` and `ui.ts`
+  only, and "the normative source wins" let `frontend-composition.md` bring `rsc.ts`, `client.ts` and
+  `actions.ts` into a repository that had not adopted the contract. The condition now names every
+  surface and says the normative sources do not lift it; `frontend-composition.md` says the same.
+- `cache-components.md` did not say it needs `cacheComponents: true`; its first line now does and
+  points a project without the flag to the installed version's guide.
 
 ## [4.6.0] - 2026-10-22
 
