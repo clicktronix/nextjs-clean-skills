@@ -628,6 +628,22 @@ export { getWorkItems as secret } from '@/modules/work-items/server/store'
   'src/app/via-fixtures-package/page.ts': `
 export { secret as default } from '@/fixtures'
 `,
+  // A trailing slash names the directory even when an owned file of the same name sits beside it;
+  // without the slash the import is that owned file and stays clean.
+  'src/modules/work-items/server/fixtures.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/fixtures/package.json': `{ "main": "bridge.ts" }
+`,
+  'src/modules/work-items/server/fixtures/bridge.ts': `
+export const seed = []
+`,
+  'src/modules/work-items/server/reads/from-fixtures-directory.ts': `
+export { seed } from '../fixtures/'
+`,
+  'src/modules/work-items/server/reads/from-fixtures-file.ts': `
+export { seed } from '../fixtures'
+`,
   // Legal: a development artifact importing another one, a test-only fixture nobody ships, and an
   // owned directory whose name only looks like a mock.
   'src/mocks/composed.ts': `
@@ -710,6 +726,7 @@ const expectedBase = new Map([
   ['src/app/via-mocks-index/page.ts', 'devArtifactInProduction'],
   ['src/app/tests/page.ts', 'devArtifactInProduction'],
   ['src/app/via-fixtures-package/page.ts', 'devArtifactInProduction'],
+  ['src/modules/work-items/server/reads/from-fixtures-directory.ts', 'devArtifactInProduction'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,
@@ -786,6 +803,8 @@ const clean = new Set([
   'src/mocks/index.ts',
   'src/modules/work-items/server/data.mock/index.ts',
   'src/modules/work-items/server/seeded.ts',
+  'src/modules/work-items/server/fixtures.ts',
+  'src/modules/work-items/server/reads/from-fixtures-file.ts',
 ])
 
 if (ESLint) {

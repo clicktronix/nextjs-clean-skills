@@ -158,16 +158,20 @@ function isDevelopmentArtifactPath(absolute) {
 }
 
 // The file a resolved specifier names: itself, the same path with a source extension (or with its
-// `.js` swapped for one), or a directory's index. Anything else is returned unchanged, so a
-// directory the resolver enters some other way (`package.json` `main`) is judged as a directory.
+// `.js` swapped for one), or a directory's index; a directory specifier (trailing separator) names
+// only the index. Anything else is returned unchanged, so a directory the resolver enters some
+// other way (`package.json` `main`) is judged as a directory.
 function resolveSourceFile(absolute) {
   const stripped = absolute.replace(SOURCE_EXT, '')
-  const candidates = [
-    absolute,
-    ...SOURCE_EXTENSIONS.map((extension) => `${absolute}.${extension}`),
-    ...SOURCE_EXTENSIONS.map((extension) => `${stripped}.${extension}`),
-    ...SOURCE_EXTENSIONS.map((extension) => path.join(absolute, `index.${extension}`)),
-  ]
+  const index = SOURCE_EXTENSIONS.map((extension) => path.join(absolute, `index.${extension}`))
+  const candidates = absolute.endsWith(path.sep)
+    ? index
+    : [
+        absolute,
+        ...SOURCE_EXTENSIONS.map((extension) => `${absolute}.${extension}`),
+        ...SOURCE_EXTENSIONS.map((extension) => `${stripped}.${extension}`),
+        ...index,
+      ]
   return candidates.find((candidate) => fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) ?? absolute
 }
 
