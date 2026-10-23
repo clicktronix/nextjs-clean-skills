@@ -374,7 +374,6 @@ const capabilityRule = {
         return
       }
 
-
       if (!typeOnly && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
         const ownDomain =
           targetModule?.capability === sourceModule.capability && targetModule.segment === 'domain'
