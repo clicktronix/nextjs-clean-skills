@@ -619,6 +619,15 @@ export { secret as default } from '@/mocks'
   'src/app/tests/page.ts': `
 export { secret as default } from '@/mocks/bridge'
 `,
+  // A directory entered through its package.json is still that directory.
+  'src/fixtures/package.json': `{ "main": "bridge.ts" }
+`,
+  'src/fixtures/bridge.ts': `
+export { getWorkItems as secret } from '@/modules/work-items/server/store'
+`,
+  'src/app/via-fixtures-package/page.ts': `
+export { secret as default } from '@/fixtures'
+`,
   // Legal: a development artifact importing another one, a test-only fixture nobody ships, and an
   // owned directory whose name only looks like a mock.
   'src/mocks/composed.ts': `
@@ -700,6 +709,7 @@ const expectedBase = new Map([
   ['src/app/via-mock-suffix/page.ts', 'devArtifactInProduction'],
   ['src/app/via-mocks-index/page.ts', 'devArtifactInProduction'],
   ['src/app/tests/page.ts', 'devArtifactInProduction'],
+  ['src/app/via-fixtures-package/page.ts', 'devArtifactInProduction'],
 ])
 
 // The runtime markers live in the resolved tier: they are a build guarantee about a whole module,

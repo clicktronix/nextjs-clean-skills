@@ -150,14 +150,16 @@ function isDevelopmentArtifactPath(absolute) {
   const file = resolveSourceFile(absolute)
   const parts = relativeParts(MODULE_ROOT, file)?.slice(1) ?? relativeParts(SOURCE_ROOT, file)
   if (!parts) return false
+  const folders = (names) => (fs.statSync(file, { throwIfNoEntry: false })?.isDirectory() ? names : names.slice(0, -1))
   const directories = isAppFile(file)
-    ? relativeParts(APP_ROOT, file).slice(0, -1).filter((name) => name.startsWith('_'))
-    : parts.slice(0, -1)
+    ? folders(relativeParts(APP_ROOT, file)).filter((name) => name.startsWith('_'))
+    : folders(parts)
   return isDevelopmentArtifactFile(file) || directories.some(isDevelopmentArtifactDirectory)
 }
 
 // The file a resolved specifier names: itself, the same path with a source extension (or with its
-// `.js` swapped for one), or a directory's index. A path that names no file is returned unchanged.
+// `.js` swapped for one), or a directory's index. Anything else is returned unchanged, so a
+// directory the resolver enters some other way (`package.json` `main`) is judged as a directory.
 function resolveSourceFile(absolute) {
   const stripped = absolute.replace(SOURCE_EXT, '')
   const candidates = [
