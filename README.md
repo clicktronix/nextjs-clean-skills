@@ -171,7 +171,7 @@ never by the number of files.
 
 ## Versioning
 
-`version.json` is the single source of truth for the release version. The plugin name and folder are intentionally fixed as `nextjs-clean-skills`. Run `npm run sync-version` after changing the release version.
+`version.json` is the single source of truth for the release version. The plugin name and folder are intentionally fixed as `nextjs-clean-skills`. Releases are cut by release-please: a merged `feat`, `fix` or `docs` commit opens a release PR that bumps `version.json`, `package.json`, both plugin manifests, the marketplace and both contract copies together. `npm run sync-version` repairs any drift by hand.
 
 Semver:
 - major for breaking skill names, plugin names, or behavior expectations
