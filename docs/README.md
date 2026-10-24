@@ -7,24 +7,15 @@ Human-facing documentation for `nextjs-clean-skills`.
 
 ## Reading Path
 
-1. Start with [Architecture Contract](./architecture-contract.md) for capability placement,
-   optional segments, operations, ports, public surfaces, dependency direction, and Cache
-   Components.
-2. Read [Runtime Boundaries](./runtime-boundaries.md) for request flow, trust, failures, state,
-   transactions, observability, and testing.
-3. Read [Frontend Composition](./frontend-composition.md) for RSC, Client Components, forms, state,
-   and component ownership.
-4. Use [Adoption And Enforcement](./adoption-and-enforcement.md) when applying the contract to an
-   existing repository or reviewing a change against it.
-5. Open [Evidence](./evidence.md) when reviewing or challenging a rule.
+Read in this order; open Evidence only when reviewing or challenging a rule.
 
 | Document | Purpose |
 | --- | --- |
+| [Architecture Contract](./architecture-contract.md) | normative placement and dependency model: capabilities, segments, operations, ports, public surfaces, Cache Components |
+| [Runtime Boundaries](./runtime-boundaries.md) | request flow, trust, failures, transactions, and testing |
+| [Frontend Composition](./frontend-composition.md) | RSC, Client Components, forms, state, and component ownership |
+| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, review order, and known gaps; use it when applying the contract to an existing repository or reviewing a change |
 | [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) | accepted decision, pilots, and evaluation gates |
-| [Architecture Contract](./architecture-contract.md) | normative placement and dependency model |
-| [Runtime Boundaries](./runtime-boundaries.md) | runtime authority and cross-cutting invariants |
-| [Frontend Composition](./frontend-composition.md) | human UI architecture |
-| [Adoption And Enforcement](./adoption-and-enforcement.md) | rollout, enforcement status, review order, and known gaps |
 | [Evidence](./evidence.md) | sources, measurements, and explicit judgement |
 | [`rules/`](../rules/) | executable portion of the contract |
 

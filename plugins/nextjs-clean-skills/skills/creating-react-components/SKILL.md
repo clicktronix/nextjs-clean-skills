@@ -15,18 +15,16 @@ For exact APIs, read the documentation of the React and Next.js versions the pro
 
 Normative source: [runtime boundaries](../../docs/runtime-boundaries.md) and
 [frontend composition](../../docs/frontend-composition.md). The references below explain how to
-apply them; where a reference disagrees, the normative source wins. Each document opens with a table
-that routes a decision to its section.
+apply them; where a reference disagrees, the normative source wins. Each document opens with a
+decision-to-section table.
 
 ## Defaults
 
-Every capability name in this skill and its normative sources — `modules/<capability>/ui`, `ui.ts`,
-`rsc.ts`, `client.ts`, `actions.ts`, `shared/ui` — assumes a repository that has adopted the
-capability-first contract or asked to migrate to it. The normative sources describe that layout;
-they do not lift this condition. Anywhere else, put the component where its neighbours live, call the
-repository's existing data and action modules, and keep its naming; do not introduce `modules/`,
-`shared/ui`, or a root surface to place one component. Take from this skill only what holds in any
-App Router project: the Server/Client split, state ownership, and the action shape.
+The names `modules/<capability>/ui`, `ui.ts`, `rsc.ts`, `client.ts`, `actions.ts` and `shared/ui`
+apply only in a repository that has adopted the capability-first contract or asked to migrate to it.
+Elsewhere, put the component where its neighbours live, call the repository's existing data and
+action modules, and introduce no `modules/`, `shared/ui` or root surface. What holds in any App
+Router project: the Server/Client split, state ownership, and the action shape.
 
 - Start with a Server Component.
 - Add `'use client'` only for events, client-only Hooks, refs, browser APIs, or browser-owned async
@@ -34,9 +32,8 @@ App Router project: the Server/Client split, state ownership, and the action sha
 - Call Hooks directly from named components or named custom Hooks.
 - Keep route-private UI under `app/<route>/_components`.
 - Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
-- Promote capability-neutral UI to `shared/ui` only when at least two capabilities need identical
-  meaning and lifecycle, no capability naturally owns it, coordination is cheaper than duplication,
-  and a maintainer plus demotion condition are named.
+- Promote capability-neutral UI to `shared/ui` only through
+  [Shared Admission](../../docs/architecture-contract.md#shared-admission).
 - Pass React-serializable props from RSC to Client Components.
 - Use a dedicated top-level `'use server'` module for UI commands.
 
@@ -52,9 +49,6 @@ For state or browser cache ownership, read [State Placement](references/state-pl
 [Client Cache Lifecycle](../designing-architecture/references/caching/client-cache.md).
 
 ## Component Structure
-
-Do not pass Hooks as values or hide them in higher-order helpers; React and the Hooks linter must
-see the call.
 
 Extract `WorkItemsView` when independent rendering tests or server reuse justify it. It shares its
 controller's `'use client'` file only while that stays readable and no Server Component reuses it;
@@ -83,10 +77,8 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component. In Next.js 16.2 it receives `error`, `reset` and
-  `unstable_retry`; call `unstable_retry()` when recovery must refetch RSC data, since `reset()`
-  rerenders without refetching. Isolate a component-level failure with `unstable_catchError` from
-  `next/error`. Check whether the `unstable_` prefix was dropped in the installed version.
+- `error.tsx` is a Client Component. Retry that must refetch RSC data calls `unstable_retry()`, not
+  `reset()`; version caveats and `unstable_catchError` are in the reference below.
 - `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.
@@ -124,7 +116,6 @@ verification:      type | lint | component | e2e | visual | accessibility
 
 Defaults when the change does not force otherwise: route-private owner, Server Component, RSC
 value, no local state, no mutation, server-safe imports, component-level verification. Each
-departure names its reason. If the answer is "Client because it is easier," name the event, Hook, ref, browser API, or client
-lifecycle that requires it.
+departure names its reason.
 
 For verification details, read [Component Testing](references/component-testing.md).

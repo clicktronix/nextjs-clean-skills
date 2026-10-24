@@ -71,10 +71,12 @@ Review and focused tests still decide:
   lifecycle, no natural capability owner, a named maintainer, and a lower coordination cost than
   duplication;
 - whether auth policy is correct;
+- whether validation happens exactly once per trust transition;
 - whether one failure is reported once;
 - whether cache ownership is singular and a runtime-neutral query cache has both a server
   prefetch/hydration consumer and a browser query consumer;
-- whether a stream handles commit, cancellation, and resume correctly.
+- whether a stream handles commit, cancellation, and resume correctly;
+- whether code admitted to `shared/**` should be demoted as its consumers diverge.
 
 Do not add a syntactic proxy merely to claim these properties are linted.
 

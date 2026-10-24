@@ -2,13 +2,8 @@
 
 **Scope: portable**
 
-Validate each trust transition once:
-
-| Transition | Owner |
-| --- | --- |
-| unknown transport input to typed command/query | channel boundary |
-| provider or database output to trusted value | private adapter |
-| internal value to external serialized contract | public channel surface |
+Validate each trust transition once; the transition-to-owner table is in
+[Runtime Boundaries § Validation](../../../../docs/runtime-boundaries.md#validation).
 
 Authentication and transport decoding are not duplicate schema validation. They establish different
 facts.
@@ -20,8 +15,5 @@ typed value.
 Client validation provides feedback only. The server repeats the authoritative check because the
 client is untrusted.
 
-Keep provider rows and public/domain values separate when naming or semantics differ. Parse and map
-at the adapter that understands the provider.
-
-Authorization-sensitive joins must distinguish visible, missing, and forbidden references without
-enumerating protected data. Validate completeness before creating the public projection.
+Parse and map provider rows at the adapter that understands the provider. For authorization-sensitive
+joins, validate completeness before creating the public projection.

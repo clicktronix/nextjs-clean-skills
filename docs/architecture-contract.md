@@ -27,9 +27,6 @@ libraries and names unless a migration is explicitly requested.
 | security | enforce identity, policy, and store predicates at their own boundaries |
 | evolvability | keep framework and provider details outside domain and application policy |
 
-Folders do not produce these properties automatically. A rule is useful only when its failure mode
-and verification are named.
-
 Two rules are verified by review rather than by machine: the capability boundary and public API
 admission. Machine checks enforce a boundary once chosen; they cannot discover the right capability
 or public contract.
@@ -110,10 +107,8 @@ A capability may use these reserved segments:
 | `ui/` | reusable capability presentation and interaction | more than route-private rendering is required |
 
 Segments are optional; create them for actual responsibilities, not to fill a template. The smallest
-valid module may be one private server file plus one public server surface.
-
-Roles are architectural even when a tiny module keeps several roles in one file. Split a segment
-when the split makes a dependency rule or responsibility clearer, not to complete a template.
+valid module may be one private server file plus one public server surface. Roles are architectural
+even when a tiny module keeps several roles in one file.
 
 ## Internal Cohesion
 
@@ -140,10 +135,9 @@ is runtime code. When a runtime schema witnesses a
 TypeScript value, derive the type from that schema; a manual type may express a deliberately
 different contract.
 
-`rules/check-module-cohesion.mjs` offers directory observations for review. It cannot establish
-semantic ownership or decide whether a layout needs changing, and its recommendations do not
-block migration acceptance. Empty directories are not represented in Git-tree check records;
-they are not part of the blocking evidence. Import and runtime boundaries remain enforced separately.
+`rules/check-module-cohesion.mjs` offers advisory directory observations only; they never block
+migration acceptance (see [module cohesion](../plugins/nextjs-clean-skills/skills/designing-architecture/references/placement/module-cohesion.md)).
+Import and runtime boundaries remain enforced separately.
 
 ## Public Surfaces
 
@@ -281,16 +275,15 @@ Normative rules:
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
-10. `server-only` and `client-only` protect runtime modules in addition to path rules, and the
-    resolved rule tier checks it: a `server.ts`, `rsc.ts`, `stream.ts`, or `job.ts` imports
-    `'server-only'`, and `client.ts` imports `'client-only'`. Position does not matter — the marker
-    works by resolving to a throwing module in the wrong runtime's graph — so the check is presence.
-    `actions.ts` is excluded — it is the one surface browser code is meant to import.
+10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
+    `actions.ts` is excluded. Mechanics: [Runtime Markers](../rules/README.md#runtime-markers).
 11. A production build must fail when a Client Component imports a server surface.
 12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
     fail closed until the product updates its contract.
 13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
-    `.from()`/`.rpc()` calls fail the portable Supabase ownership canary.
+    `.from()`/`.rpc()` calls fail the portable Supabase ownership canary; what it sees and misses is
+    in [`rules/README.md`](../rules/README.md). RLS, grants, migration review and integration tests
+    remain separate guarantees.
 14. A type-only edge — `import type`, `import { type X }`, `export type … from`, or `import(…)` in a
     type position — is erased by the compiler, so it does not carry a runtime direction: the
     browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a
@@ -308,18 +301,6 @@ adapter is required only when the mapping carries policy (see Cross-Capability W
 
 The `actions.ts` import from browser code is a deliberate framework boundary, not permission to
 import arbitrary server modules.
-
-The dependency classifier is exhaustive for direct `package.json` dependencies. The runtime list is
-still project-owned because static analysis cannot infer whether a package is pure. This turns a new
-provider package into a required decision instead of silently allowing it into domain/application.
-
-The database resource check sees literal Supabase `.from()` and `.rpc()` calls only when the
-receiver contains an identifier listed in `databaseClientIdentifiers`. This avoids treating every
-same-named method as Supabase while keeping the canary explicit and reviewable. It does not trace
-renamed clients, parse raw SQL, ORM queries, views reached indirectly, migrations, or dynamic
-provider abstractions. It tells a read from a write by the method chained onto `.from(name)`, which
-is syntax, not semantics: a write routed through a helper the checker cannot follow is not seen. RLS, explicit grants, migration review, and integration tests remain
-separate guarantees.
 
 ## Cache Components
 
@@ -350,10 +331,12 @@ Normative rules:
    filters. A request-scoped client, a reporter or an identity object never crosses into a cached
    function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
    to the next. The cached function obtains its store from the capability's own composition, not
-   from an argument. Without cookies there is no user session. A tenant-private read therefore uses
-   a privileged store, which bypasses row-level security: the channel authorizes first, and the
-   tenant argument, applied as a query predicate, is the isolation. An anonymous store stays under
-   row-level security as the `anon` role and serves only data its policies make public.
+   from an argument.
+   Without cookies there is no user session, so the store is one of two:
+   - a tenant-private read uses a privileged store, which bypasses row-level security: the channel
+     authorizes first, and the tenant argument, applied as a query predicate, is the isolation;
+   - an anonymous store stays under row-level security as the `anon` role and serves only data its
+     policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
 3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
@@ -365,26 +348,29 @@ Normative rules:
    `server/**` module; nothing outside the capability learns how its cache is keyed.
    `query-cache.ts` carries TanStack Query keys and never a Next.js tag.
 5. Invalidation belongs to the channel that wrote, and the operation decides how fresh the next
-   read must be. An `actions.ts` action calls `updateTag(tag)`, so the request that wrote reads its
-   own write. A write to data that no server cache holds — no `'use cache'`, no `force-cache`, `next.revalidate`
-   or `next.tags` fetch, no `unstable_cache` — has no tag to expire: the action calls `refresh()`
-   from `next/cache` to rerender the current route, or `revalidatePath(path)` when the data shows on
-   another route. `refresh()` does not expire the server cache, so a tagged cached read keeps its tag
-   invalidation, with or without `cacheComponents`. A Route Handler or another Server Function calls `revalidateTag(tag, profile)`:
-   `'max'` when serving the previous result while it refreshes is acceptable, `{ expire: 0 }` when
-   it is not — an unpublish, a revoked grant. Those are the only contexts Next.js supports for it.
-   A background job outside them — a separate worker, or a task in the same Next.js process that
-   no Server Function or Route Handler is serving — calls an authenticated Route Handler of the
-   owning app that invalidates, or the cached read carries a `cacheLife` short enough to bound the
-   staleness.
+   read must be:
+   - an `actions.ts` action over a tagged cache calls `updateTag(tag)`, so the request that wrote
+     reads its own write;
+   - an action writing data that no server cache holds (no `'use cache'`, no `force-cache`,
+     `next.revalidate` or `next.tags` fetch, no `unstable_cache`) has no tag to expire: it calls
+     `refresh()` from `next/cache` to rerender the current route, or `revalidatePath(path)` when the
+     data shows on another route. `refresh()` does not expire the server cache, so a tagged cached
+     read keeps its tag invalidation, with or without `cacheComponents`;
+   - a Route Handler or another Server Function calls `revalidateTag(tag, profile)`: `'max'` when
+     serving the previous result while it refreshes is acceptable, `{ expire: 0 }` when it is not
+     (an unpublish, a revoked grant). Those are the only contexts Next.js supports for it;
+   - a background job outside them (a separate worker, or a task in the same Next.js process that
+     no Server Function or Route Handler is serving) calls an authenticated Route Handler of the
+     owning app that invalidates, or the cached read carries a `cacheLife` short enough to bound the
+     staleness.
+
    Tags stay private to their owner, and a write operation returns the affected scope. Inside the
    capability the channel takes the tag from `server/**`. Only when a neighbour or orchestrator
    writes through the owner's operation does the owner's `server.ts` publish an invalidator for
    that write, `expire<Subject>(scope, expire)`, where `expire` is the caller's primitive —
    `updateTag` in an action, `(tag) => revalidateTag(tag, profile)` in a handler — so the caller
    invalidates without learning how the cache is keyed. `application/**` and `domain/**` import
-   nothing from `next/cache`. This is the one answer; ADR 0001 §8 and Runtime Boundaries defer to
-   it.
+   nothing from `next/cache`.
 6. A current-request read reached from `rsc.ts` or a page — `cookies()`, `headers()`,
    `searchParams`, an uncached store read — renders under a Suspense boundary: the segment's
    `loading.tsx` or an inline `<Suspense>` around the region. The build fails otherwise. The route
@@ -478,16 +464,14 @@ it): the compiler erases the edge, and the public surface is already the ownersh
 orchestrator's vocabulary plus a private mapping adapter is required only when the deletion test
 names policy in the mapping — a rename the callers depend on, a reshaped value, a decision about
 the sibling's data. An adapter whose body is `(t) => source.listForBoard(t)` is the forwarding
-wrapper ADR 0001 rejects, and the `board-workflow` fixture no longer carries two of them.
+wrapper ADR 0001 rejects.
 
 Source capabilities do not import the orchestrator or one another. Their trusted `server.ts`
 surfaces accept explicit identity, enforce their own policy, and remain silent so the outer runtime
 channel owns the one unexpected-error report.
 
 Sequence dependent calls. If label IDs come from work-items, load work-items before labels.
-Authorization-sensitive joins require a complete resolution result that distinguishes visible,
-missing, and forbidden references without exposing sensitive existence. Silent omission is not a
-valid substitute for a required rejection.
+Authorization-sensitive joins follow [Runtime Boundaries § Validation](./runtime-boundaries.md#validation).
 
 ## Shared Admission
 

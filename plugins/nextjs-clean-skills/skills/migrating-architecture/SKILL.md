@@ -17,7 +17,7 @@ executes them without handing the run to a controller it cannot see.
 
 Resolve the plugin root once: `$CLAUDE_PLUGIN_ROOT`, else the directory holding this file's
 `../..`. Call it `PLUGIN`. Every command below is
-`node $PLUGIN/bin/migration.mjs <command> --repo <target>`; run it, do not paraphrase it.
+`node $PLUGIN/bin/migration.mjs <command> --repo <target>`.
 
 Normative source: `$PLUGIN/docs/architecture-contract.md` and `$PLUGIN/docs/runtime-boundaries.md`.
 Where a slice or a reference disagrees, the normative source wins.
@@ -49,10 +49,8 @@ shape and the meaning of each expansion field.
    agent about exactly those. Dead rules are a warning you read. A `shared` row outside the shared
    root is never part of a capability plan; the reference says how it moves.
 3. Pick the pilot: score capabilities by completeness, real consumers and few inbound
-   dependencies, and take one that an ordinary follow-up change lives in; otherwise the radius
-   comparison is about a different capability.
-4. Record that follow-up change and the files it touches (the `baselineRadius` of Step 6). A
-   change outside the pilot measures nothing.
+   dependencies, and take one that an ordinary follow-up change lives in.
+4. Record that follow-up change and the files it touches (the `baselineRadius` of Step 6).
 
 ## Step 3 — Enable (you write, the census measures)
 
@@ -105,14 +103,15 @@ or move it yourself; independent slices continue. Before accepting any slice rea
 
 `record --label check --artifact lint.json -- '<the same check command>'`; `record-fresh` before
 anyone reads it; `census --record <path> --lint-json lint.json --contract … --capability <name>
---baseline <baseline census>`. The record's exit code is evidence about
-those checks, not a proof that product behaviour is preserved; the reviewer and the real user
-path cover the rest.
+--baseline <baseline census>`.
 `Workflow({ name: 'nextjs-clean-skills:verify', args: { repo, capability, recordPath, diffBase,
-contractSource: PLUGIN, ordinaryChange, baselineRadius } })`. Behaviour is the record's exit
-code; architecture is `census` over a JSON lint record; the workflow returns the review and an
-advisory radius. Nobody re-runs the check to form an opinion, and nobody waits for a file to
-appear. A change that affects the check invalidates the record: take a new one.
+contractSource: PLUGIN, ordinaryChange, baselineRadius } })` returns the review and an advisory
+radius.
+
+Behaviour evidence is the record's exit code; it covers the checks, not product behaviour, which the
+reviewer and the real user path cover. Architecture evidence is `census` over a JSON lint record.
+Nobody re-runs the check to form an opinion. A change that affects the check invalidates the record:
+take a new one.
 
 ## Step 7 — Fix or hand back
 
