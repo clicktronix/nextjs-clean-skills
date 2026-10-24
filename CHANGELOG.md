@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-10-25
+
+### Changed
+
+- Skills, references, the contract and the rules README state each rule once, at its canonical
+  owner, and point there instead of restating it; version history and incident narrative are cut
+  to the reason they give. No rule, check or mirror file was added or removed (#46).
+
 ## [4.7.0] - 2026-10-23
 
 ### Fixed
