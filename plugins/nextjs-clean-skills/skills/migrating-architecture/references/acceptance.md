@@ -24,8 +24,7 @@ order:
    measurement is not a zero), `review` without a verdict.
 2. Otherwise `review.verdict: "reject"` is `reject`.
 3. Otherwise `fixLoopExit: "cap-reached"` is `revise`, reported as a budget, not as a red result.
-   That is the only value the code reads. Omit the field (it defaults to `not-entered`) or write any
-   other string, such as the example's `converged`, when the budget held.
+   Only `cap-reached` is read; omit the field otherwise.
 4. Otherwise red behaviour, a capability counter above zero, a counter above `census` (except
    keys listed in `vacuous`), a must-fix finding, or a `revise` verdict is `revise`.
 5. Otherwise `accept`.
@@ -40,9 +39,8 @@ A grown radius is a note and never flips accept; should-fix findings are listed 
 - instruction files that now point at deleted paths — you list them, the team rewrites them;
 - whether the real user path was exercised in the running app, by whom.
 
-Then the one decision: accept the ownership model, revise this migration, or reject the model.
-The next capability waits on it. After that decision, a further question is warranted only when
-a finding requires changing the agreed policy or someone's authority.
+Then the one decision of the skill's Decision Gate: accept the ownership model, revise this
+migration, or reject the model. The next capability waits on it.
 
 ## Widening the blocking rules
 

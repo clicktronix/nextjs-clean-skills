@@ -3,7 +3,6 @@
 - Status: Accepted
 - Date: 2026-07-27
 - Accepted: 2026-07-28
-- Compressed: 2026-09-11
 - Decision owner: nextjs-clean-skills maintainers
 - Baseline: `tests/architecture-pilots/baseline.json`
 - Candidate plan: `tests/architecture-pilots/candidate-plan.json`
@@ -74,10 +73,8 @@ files, test files, architecture roots, duplicated auth/wiring/cache blocks, boun
 public surfaces were counted after.
 
 The layer-first replay is published at `fullstack-ai-template@research/layer-first-baseline-replays`.
-It invalidated the first provider-swap comparison because the candidate selected its concrete
-provider in the runtime harness; the corrected replay adds a capability-owned composition control:
-swapping the source changes the public server composition and private adapter, but not RSC,
-action, or HTTP callers.
+In the provider-swap replay, swapping the source changes the public server composition and private
+adapter, but not RSC, action, or HTTP callers.
 
 A real App Router pilot at `fullstack-ai-template@research/capability-next-pilot` (`0a3eeca`)
 complements the fixtures. Its Server Action accepts `FormData`, identity and provider effects are

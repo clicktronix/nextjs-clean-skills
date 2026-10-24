@@ -19,5 +19,3 @@ do not.
 
 Never prefix secrets with `NEXT_PUBLIC_`. A Client Component importing server environment code must
 fail the production build.
-
-Check the installed Next.js version's and the provider's documentation for variable names and runtime behavior.

@@ -114,16 +114,8 @@ their local equivalents unless the task requests a migration.
 ## Human Architecture Docs
 
 The skills are intentionally concise and operational. For team onboarding, rationale, and visual
-maps, use the human-facing docs:
-
-- [Architecture Contract](docs/architecture-contract.md) — capability ownership, optional
-  segments, dependency direction, operations, ports, and public surfaces.
-- [Runtime Boundaries](docs/runtime-boundaries.md) — request flow, trust, failures, cache ownership,
-  transactions, observability, and tests.
-- [Frontend Composition](docs/frontend-composition.md) — RSC, Client Components, forms, state, and
-  component ownership.
-- [Adoption And Enforcement](docs/adoption-and-enforcement.md) — rollout, executable coverage,
-  review order, and known gaps.
+maps, use the human-facing docs. Start at the [documentation index](docs/README.md): Architecture Contract, Runtime Boundaries,
+Frontend Composition, and Adoption And Enforcement.
 
 These docs are not loaded by Claude Code or Codex automatically; they exist to explain the
 contract behind the skills without bloating skill context.
