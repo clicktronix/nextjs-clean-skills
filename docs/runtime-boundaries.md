@@ -140,10 +140,9 @@ use framework control flow and must not be normalized as application failures.
 ## Server Actions
 
 `actions.ts` is a dedicated module with top-level `'use server'`. It is used for UI commands, not
-browser reads. Next.js requires every value export from that module to be an async function when
-the module loads — declared there or produced there by a wrapper such as `withAuth(async () => …)`;
-import and call a private implementation instead of value-re-exporting it.
-[Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server).
+browser reads. Its export constraints are in
+[Public Surfaces](./architecture-contract.md#public-surfaces)
+([Next.js reference](https://nextjs.org/docs/app/api-reference/directives/use-server)).
 
 The action:
 
@@ -280,9 +279,10 @@ Validate once per trust transition:
 Do not re-parse a typed internal value because it crossed a directory. Keep provider rows distinct
 from domain/public values when naming or semantics differ.
 
-For authorization-sensitive joins, distinguish visible, missing, and forbidden references using a
-non-enumerating result. A combined workflow may reject the whole result; it must not silently omit a
-forbidden reference when product policy requires rejection.
+For authorization-sensitive joins, require a complete resolution result that distinguishes visible,
+missing, and forbidden references without exposing sensitive existence. A combined workflow may
+reject the whole result; silent omission of a forbidden reference is not a substitute when product
+policy requires rejection.
 
 ## Cache Ownership
 
@@ -318,18 +318,7 @@ Next.js cache tags and invalidation remain private server concerns.
 
 ## Testing Contract
 
-| Surface | Test |
-| --- | --- |
-| domain | pure inputs, outputs, and invariants |
-| application operation | policy outcomes with narrow dependency fakes |
-| private local store | real engine and migrations |
-| remote-provider adapter | provider contract or fake server |
-| trusted `server.ts` surface | explicit identity, policy, mapping, and silent failure propagation |
-| RSC, Route Handler, or action | channel decoding, native outcome, and report-once behavior |
-| stream | pre/post-commit failure, cancellation, idle timeout, and resume |
-| job | retry, deadline, idempotency, and dead-letter policy |
-| end to end | real route, auth, data, browser, and production build |
-
 Test through the same public surface as production callers. Replace remote capabilities with test
 adapters; do not replace a local engine when its query, policy, or transaction is the behavior
-under test.
+under test. What to assert per surface, and against what:
+[Testing By Capability Surface](../plugins/nextjs-clean-skills/skills/designing-architecture/references/quality/testing-by-capability.md).

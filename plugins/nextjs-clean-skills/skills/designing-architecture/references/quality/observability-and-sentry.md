@@ -2,8 +2,8 @@
 
 **Scope: stack (Sentry)**
 
-Follow the installed Sentry SDK's documentation for setup. Keep SDK configuration in runtime infrastructure; domain and
-application operations import no telemetry SDK.
+Keep SDK configuration in runtime infrastructure; domain and application operations import no
+telemetry SDK.
 
 ## Instrumentation First
 

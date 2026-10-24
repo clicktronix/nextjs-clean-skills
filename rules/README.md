@@ -15,13 +15,14 @@ try to infer business meaning from path names.
 | `check-database-resources.mjs` | literal Supabase table/function ownership |
 | `check-module-cohesion.mjs` | advisory directory observations under capabilities and shared roots; not an enforcement gate |
 
-`generatedRoot` is optional. Declare it and generated files may import one another, while external
-consumers may import them only from a capability's private `server/**` segment. Mapping provider
-values at the adapter boundary remains a review concern; the path rule does not infer which server
-file performs that mapping. Leave the root out and the rule is inert. Like every configured root, it
-must be project-relative, remain inside `sourceRoot`, and stay disjoint from `moduleRoot`, `appRoot`,
-and `sharedRoot`. A broad generated root would classify ordinary consumers as generated and
-silence the boundary it is meant to enforce.
+`generatedRoot` is optional; leave it out and the rule is inert.
+
+- Effect: generated files may import one another, and external consumers may import them only from a
+  capability's private `server/**` segment. Mapping provider values at the adapter boundary remains
+  a review concern; the path rule does not infer which server file performs that mapping.
+- Constraints: like every configured root, it is project-relative, inside `sourceRoot`, and
+  disjoint from `moduleRoot`, `appRoot` and `sharedRoot`. A broad generated root would classify
+  ordinary consumers as generated and silence the boundary it is meant to enforce.
 
 ## Install
 
@@ -84,30 +85,37 @@ For Supabase projects, list the identifiers used for Supabase clients in
 `databaseResources`, and run `check-database-resources.mjs`. `consumers` is read-and-RPC
 permission. A resource may also declare `writers`: with it present, an `insert`, `update`, `upsert`
 or `delete` chained onto `.from(name)` is allowed only from a listed subject, and the owner is
-always a writer. Absent, `consumers` keeps its previous meaning and nothing changes, because
-narrowing it silently would turn every declared consumer of an existing contract into a violation.
-A writer must already be a consumer. Read and write are told apart by the method chained onto the
-same expression — syntax, not semantics: a write routed through a helper the checker cannot follow
-is not seen. The checker ignores same-named methods
-on other receivers. It catches undeclared and cross-capability string-level coupling that TypeScript
-import rules cannot see. Standard dependency, build-output, coverage, test, and generated directories
-are excluded when `sourceRoot` is the project root. The checker does not trace aliases, parse SQL, or
-replace RLS/grant tests.
+always a writer. Without `writers`, `consumers` alone governs writes. A writer must already be a
+consumer.
+
+The checker catches undeclared and cross-capability string-level coupling that TypeScript import
+rules cannot see. It sees a `.from()` or `.rpc()` call only when the receiver contains an
+identifier from `databaseClientIdentifiers`, and ignores same-named methods on other receivers. It
+tells a read from a write by the method chained onto `.from(name)`: syntax, not semantics, so a
+write routed through a helper it cannot follow is not seen. It does not trace renamed clients or
+aliases, parse raw SQL, ORM queries, views, migrations or dynamic provider abstractions, and it
+does not replace RLS, grant, migration review or integration tests. Standard dependency,
+build-output, coverage, test, and generated directories are excluded when `sourceRoot` is the
+project root.
 
 ## Census Scope
 
 Both configs set every rule to `error`. In a half-migrated repository that makes the target's own
-lint red for code nobody has moved yet. `censusScope` returns the configs as two layers: every rule
-demoted to `warn` on the files each config already targets, so ESLint's JSON output counts the
-violations repo-wide, and the original severities again on the files that match both the config's
-own `files` and `blockingFiles`, so test-file exemptions survive. An empty list keeps the census
-warn-only. The configs are emitted once, in their original order: each rule-bearing entry is followed
-by its restoring copy, and every other entry (global ignores, parser, settings, plugins) stays in
-place, so later overrides keep their meaning and only severity changes. `blockingFiles` are
-repository-relative. For an entry with `basePath`, the restoring copy instead carries a positive
-bound on that directory and the entry's own `files` and `ignores` prefixed with it, so any blocking
-glob keeps its meaning; a `basePath` that is absolute, leaves the config directory or contains glob
-characters throws.
+lint red for code nobody has moved yet. `censusScope` returns the configs as two layers:
+
+- every rule demoted to `warn` on the files each config already targets, so ESLint's JSON output
+  counts the violations repo-wide;
+- the original severities again on the files that match both the config's own `files` and
+  `blockingFiles`, so test-file exemptions survive.
+
+Each rule-bearing entry is followed by its restoring copy, in the original order. Every other entry
+(global ignores, parser, settings, plugins) stays in place, so later overrides keep their meaning and
+only severity changes. Edge cases:
+
+- `blockingFiles` are repository-relative; an empty list keeps the census warn-only;
+- for an entry with `basePath`, the restoring copy carries a positive bound on that directory and the
+  entry's own `files` and `ignores` prefixed with it, so any blocking glob keeps its meaning;
+- a `basePath` that is absolute, leaves the config directory or contains glob characters throws.
 
 ```js
 import boundaries from './rules/eslint-boundaries.mjs'
@@ -120,9 +128,7 @@ export default [
 ]
 ```
 
-`validate-rules.mjs` lints a fixture with this layout: the same violation is an error under the
-blocking glob and a warning outside it. Once every capability is migrated, spread `boundaries` and
-`resolved` directly.
+Once every capability is migrated, spread `boundaries` and `resolved` directly.
 
 ## Contract Surfaces
 
@@ -132,10 +138,9 @@ functions of its `domain/**`. A project that does not want the surface removes i
 lists. A neighbour's `domain/**` and `application/**` may import from a foreign contract surface —
 the one hole in their otherwise closed direction rules.
 
-Purity is enforced by direction, not by reading declarations: `neutralDirection` admits only the
-surface's own `domain/**`, `shared/kernel` and `purePackages`, and `domainDirection` holds the same
-line for the domain it re-exports. A global such as `fetch` is outside what import rules see, in
-`contracts.ts` as in `domain/**`.
+Purity is enforced by direction: `neutralDirection` admits only the surface's own `domain/**`,
+`shared/kernel` and `purePackages`, and `domainDirection` holds the same line for the domain it
+re-exports (rationale: [Public Surfaces](../docs/architecture-contract.md#public-surfaces)).
 
 ## Runtime Markers
 
@@ -156,41 +161,39 @@ tier will also report them unresolved.
 
 ## Type-Only Edges
 
-`import type`, `import { type X }`, `export type … from` and an import type node
-(`import('…').X`, `typeof import('…')`) are erased by the compiler, so they carry no runtime
-direction. The runtime and purity rules — `browserServer`, `serverClient`,
-`domainDirection`, `applicationDirection`, `neutralDirection`, `sharedKernelDirection` — do not
-apply to them. The ownership rules do: `appInternal`, `crossCapabilityInternal`,
-`sharedImportsModule`, `generatedProviderLeak` and `privateServerBackedge` report a type-only edge
-exactly as they report a value edge, because the coupling to a neighbour's private file survives the
-compiler dropping the binding. A partly type-only import (`import { type A, b }`) is a value edge.
+Type-only edges (rule 14 of the [contract](../docs/architecture-contract.md#dependency-direction);
+`import type`, `import { type X }`, `export type … from`, `import('…').X`, `typeof import('…')`)
+skip the runtime and purity rules: `browserServer`, `serverClient`, `domainDirection`,
+`applicationDirection`, `neutralDirection`, `sharedKernelDirection`. The ownership rules report them
+exactly as they report a value edge: `appInternal`, `crossCapabilityInternal`, `sharedImportsModule`,
+`generatedProviderLeak` and `privateServerBackedge`. A partly type-only import
+(`import { type A, b }`) is a value edge.
 
 ## Enforced Invariants
 
-The portable floor has seven named properties:
+The seven properties of the [Enforcement Floor](../docs/adoption-and-enforcement.md#enforcement-floor),
+with the rule codes and tool details that implement them:
 
-1. **Ownership.** `app/**` and other capabilities use root public surfaces; private server code
-   points inward, and a private segment cannot shadow a same-named root surface. Every source file
-   has an owner: a file under `sourceRoot` but outside the module, app, shared and generated roots
-   is reported (`unknownRoot`), except the files Next.js finds by name at the source root
-   (`proxy`, `middleware`, `instrumentation`, `instrumentation-client`, `mdx-components`,
-   `next.config`), declaration files, and development artifacts. Those root files, like `app/**`,
-   import capabilities only through public surfaces (`appInternal`), so no file can launder a deep
-   import for a route.
+1. **Ownership.** `app/**`, other capabilities and the files Next.js finds by name at the source
+   root (`proxy`, `middleware`, `instrumentation`, `instrumentation-client`, `mdx-components`,
+   `next.config`) use root public surfaces only (`appInternal`), so no file can launder a deep
+   import for a route. Private server code points inward, and a private segment cannot shadow a
+   same-named root surface. A file under `sourceRoot` outside the module, app, shared and generated
+   roots is reported (`unknownRoot`), except those root files, declaration files, and development
+   artifacts.
 2. **Acyclic resolution.** Literal imports resolve, computed targets fail closed, and both file and
    capability graphs remain acyclic.
 3. **Purity.** `domain/**` and `application/**` reject runtime packages and wrong-direction imports;
    domain admits only its own domain, `shared/kernel`, and classified pure packages.
-4. **Runtime separation.** Browser-safe code cannot import server surfaces, server code cannot
-   import browser surfaces, `actions.ts` is the explicit browser-to-server mutation boundary, and
-   the runtime-bound surfaces carry their `server-only`/`client-only` marker. A `ui/**` file is
-   classified by its `'use client'` directive, not by its directory: without one it is a Server
-   Component and may read its own capability's `rsc.ts`.
+4. **Runtime separation.** Browser-safe code cannot import server surfaces and server code cannot
+   import browser surfaces; `actions.ts` is the explicit browser-to-server mutation boundary; the
+   runtime-bound surfaces carry their marker. A `ui/**` file is classified by its `'use client'`
+   directive, not by its directory.
 5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
-   are allowed, `export *` is not, `actions.ts` opens with `'use server'`, re-exports no values, and
+   are allowed, `export *` is not. `actions.ts` opens with `'use server'`, re-exports no values, and
    exports nothing syntax proves is not an async function (`actionDirective`, `actionReexport`,
-   `actionValueExport`; a wrapper call is left to Next.js's load-time check), `query-cache.ts` remains
-   runtime-neutral, and a contract surface imports only pure code.
+   `actionValueExport`; a wrapper call is left to Next.js's load-time check). `query-cache.ts`
+   remains runtime-neutral, and a contract surface imports only pure code.
 6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a
    product capability.
 7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
@@ -201,32 +204,13 @@ files; the strict tier disables only cycle checking for them.
 
 ## Deliberately Not Enforced
 
-Static imports cannot prove:
+The properties static imports cannot prove are listed in
+[What Static Rules Cannot Prove](../docs/adoption-and-enforcement.md#what-static-rules-cannot-prove).
+Review them against the human contract and test them at runtime; a path rule that claims to prove one
+would create a false guarantee. Tool-specific additions:
 
-- whether an application operation passes the deletion test;
-- whether a public surface narrows enough to justify itself;
-- whether shared code has two real capability consumers with identical meaning and lifecycle;
-- whether a runtime-neutral surface has real consumers on both runtimes;
-- authorization and defense-in-depth predicates;
-- validation exactly once per trust transition;
-- cache ownership, report-once behavior, or stream/job lifecycle semantics;
-- whether a package should be classified as pure or runtime-bound, and therefore whether a value
-  built by a call into it is really a schema rather than behaviour with a schema's shape;
-- which of a table's writes preserve its invariants — `writers` says who may write, not whether a
+- whether a package is pure or runtime-bound, and so whether a value built by a call into it is
+  really a schema rather than behaviour with a schema's shape;
+- which of a table's writes preserve its invariants: `writers` says who may write, not whether a
   given write is correct;
-- resource ownership hidden in raw SQL, ORM expressions, migrations, or provider wrappers;
-- whether code admitted to `shared/**` should later be demoted as its consumers diverge.
-
-Review those against the human contract and test them at runtime. Adding a path rule that claims to
-prove one of these would create a false guarantee.
-
-## Verification
-
-The validators named here live in the source repository and are not shipped in the plugin.
-`node scripts/validate-rules.mjs` builds temporary TypeScript projects and checks the default
-profile plus a nonstandard source root and alias. Every behaviour above carries both halves: a clean
-fixture that must pass and a mutation that must fail. `node scripts/validate-contract-tools.mjs`
-does the same for the enforced standalone tools, including the read/write distinction.
-`validate-module-cohesion.mjs` checks advisory output and configuration errors separately.
-The seven properties expand into multiple rule codes and mutations; exact current counts belong in validator output and `docs/evidence.md`, not in
-the architecture taxonomy.
+- resource ownership hidden in raw SQL, ORM expressions, migrations, or provider wrappers.

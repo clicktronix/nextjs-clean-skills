@@ -11,18 +11,13 @@ description: >-
 
 # Designing Architecture
 
-Use this skill for architecture decisions, not ordinary component implementation. For component
-structure, local state, forms, loading, styling, or accessibility, use `creating-react-components`.
-
-Preserve the project's stack, paths, and established architecture unless adoption or migration was
-requested. Check the documentation of the installed Next.js version before relying on
-framework-specific behavior.
+Check the documentation of the installed Next.js version before relying on framework-specific
+behavior.
 
 Normative source: [architecture contract](../../docs/architecture-contract.md) and
 [runtime boundaries](../../docs/runtime-boundaries.md). The references below explain how to apply
-them; where a reference disagrees, the normative source wins. Each document opens with a table that
-routes a decision to its section: ownership, surfaces, dependency direction and cache rules are in
-the contract; channels, identity, failures, validation and transactions are in runtime boundaries.
+them; where a reference disagrees, the normative source wins. Each document opens with a
+decision-to-section table.
 
 ## Decision Gate
 
@@ -69,14 +64,10 @@ ui/           reusable capability UI
 Create only segments required by current behavior. Do not add forwarding operations, mirrored
 repository ports, empty folders, or broad barrels to make the tree look complete.
 
-Keep capability-specific pure helpers and transformations inside the owning capability, not in a
-global utility bucket. Put domain invariants and calculations in `domain/**`; keep provider-row and
-wire-format mapping beside the private adapter in `server/**`.
-
-Within a segment, group files by responsibility and keep helpers beside their consumers. Private
-test and fixture directories are allowed; file counts and `lib` naming do not decide ownership.
-Do not export test-only support through production surfaces. Derive TypeScript types from the
-runtime schema that witnesses them unless the type intentionally represents a different contract.
+Keep capability-specific helpers inside the owning capability, not in a global utility bucket:
+domain invariants and calculations in `domain/**`, provider-row and wire-format mapping beside the
+private adapter in `server/**`, everything else beside its consumers. File counts and `lib` naming
+do not decide ownership; details are in module cohesion below.
 
 Read only the reference needed for the current decision:
 [modules and imports](references/placement/modules-and-imports.md) or
@@ -90,18 +81,16 @@ the bundled contract uses `server.ts`, `rsc.ts`, `actions.ts`, `client.ts`, `ui.
 exports explicit. A pure rule that a neighbour's domain, a server operation and the browser all need
 goes out once, through `contracts.ts`.
 
-Create `query-cache.ts` only when the same serializable key identity has both a server
-prefetch/hydration consumer and a browser query consumer. Otherwise keep the key private to its
-runtime owner.
+Create `query-cache.ts` only when one serializable key identity has both a server
+prefetch/hydration consumer and a browser query consumer; otherwise keep the key private.
 
 Use an application operation, port, or orchestrator only when its deletion test identifies policy
 that otherwise leaks into callers. Adapter count, test mocks, and possible future providers are
 evidence, not gates.
 
 For CRUD against one local store, start with the outer channel calling a server service.
-Authentication, input validation, row mapping, cache invalidation, failure translation, and the names
+Authentication, validation, row mapping, cache invalidation, failure translation, and the names
 `list`, `create`, or `rename` do not by themselves justify `application/` or one wrapper per action.
-Add an operation only when it owns product policy or coordination beyond that direct flow.
 
 For a non-obvious operation or dependency seam, read only the relevant reference:
 [operation gate](references/use-cases/when-a-use-case-exists.md),

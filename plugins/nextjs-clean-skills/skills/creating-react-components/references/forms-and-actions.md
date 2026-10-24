@@ -13,10 +13,8 @@ Each Server Action validates its payload, derives identity and tenant from trust
 the command, calls capability behavior, invalidates (contract rule 5: tags; `refresh()` only for
 uncached data), and returns a public-safe result.
 
-An importable action module starts with top-level `'use server'`. It defines UI commands, not browser
-reads. Every value export must be an async function when the module loads — declared there or
-returned by a wrapper such as `withAuth(async () => …)`; call private behavior instead of
-re-exporting it.
+An action module defines UI commands, not browser reads; its export constraints are in
+[Public Surfaces](../../../docs/architecture-contract.md#public-surfaces).
 
 Handle expected typed outcomes explicitly, then invoke `redirect()`, `permanentRedirect()`, or
 `notFound()`. Do not catch unexpected exceptions into form state; let them reach the single outer

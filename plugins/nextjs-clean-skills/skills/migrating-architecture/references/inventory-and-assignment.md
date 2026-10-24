@@ -29,10 +29,9 @@ A `file` rule beats every prefix; the longest prefix wins among prefixes; order 
   yet complete, nothing more.
 - `deadRules` — rules matching no file. Usually a stale path; a warning.
 - `strayUnassigned` — unassigned entries naming no inventory file.
-- `shared` rows outside the configured shared root — kept in the rows with the placement they
-  were given. `expand` does not check the shared root and `plan-check` only plans rows whose
-  placement is `capability` and whose capability is the one named, so such a row is never part
-  of a capability plan; you move it in a separate reviewed change.
+- `shared` rows outside the configured shared root stay as assigned: `expand` does not flag them
+  and `plan-check` plans only `capability` rows of the named capability, so you move such a row in a
+  separate reviewed change.
 
 Before assigning destinations, audit folder ownership, helper locality, test-support boundaries,
 schema-derived types, and root query-cache consumers against

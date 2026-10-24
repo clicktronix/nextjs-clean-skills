@@ -36,8 +36,7 @@ Accessibility is a component contract, not a review afterthought:
 - pair color with text or another programmatically determinable cue.
 - honor reduced-motion preferences.
 
-Check the installed component library's and i18n package's documentation for syntax. Preserve the project's styling and
-translation systems.
+Preserve the project's styling and translation systems.
 
 Reference: [status messages](https://www.w3.org/WAI/WCAG21/Understanding/status-messages.html),
 [dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/),
