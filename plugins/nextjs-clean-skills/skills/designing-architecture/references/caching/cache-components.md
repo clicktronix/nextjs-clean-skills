@@ -18,7 +18,7 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | store access | the capability's own composition, not an argument; no cookies, so no user session |
 | tenant-private read | privileged store bypasses RLS: authorize first, filter by the tenant argument |
 | public read | anonymous store, still under RLS as `anon` |
-| per-user data | `'use cache: private'` or uncached (contract rule 3) |
+| identity or tenant data that misses a condition of contract rule 3 | `'use cache: private'` or uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
 | invalidation | [Architecture Contract § Cache Components](../../../../docs/architecture-contract.md#cache-components), rule 5 |
 | current-request read from `rsc.ts` | under `loading.tsx` or an inline `<Suspense>`; the build fails otherwise |
@@ -38,8 +38,9 @@ store inside the cache carries the obligations of [Supabase RLS](../outbound/sup
 channel authorized the actor, and the query filters by the scope it was given. An anonymous store
 never serves a tenant-private read.
 
-A result that differs per user is not a shared cache. For `'use cache: private'` or an uncached read
-under a Suspense boundary, follow rule 3 of the contract section above.
+A result that differs per user enters a plain `'use cache'` only under rule 3 of the contract
+section above. Otherwise follow that rule to `'use cache: private'` or an uncached read under a
+Suspense boundary.
 
 `query-cache.ts` carries TanStack Query keys only; Next.js tags stay private to `server/**`.
 Application and domain code import nothing from `next/cache`.

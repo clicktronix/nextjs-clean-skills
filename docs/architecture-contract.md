@@ -259,10 +259,10 @@ Normative rules:
 1. `app/**` imports module root surfaces, not module internals.
 2. A capability imports another capability only through its root public surface.
 3. Module dependencies are acyclic.
-4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, or dependencies
-   explicitly classified by the product as pure.
-5. `application/**` imports its domain, pure helpers, and capability-owned port types. It imports
-   no Next.js, React, database SDK, provider SDK, or concrete adapter.
+4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, a neighbour's
+   `contracts.ts`, or dependencies explicitly classified by the product as pure.
+5. `application/**` imports its domain, pure helpers, capability-owned port types, and a neighbour's
+   `contracts.ts`. It imports no Next.js, React, database SDK, provider SDK, or concrete adapter.
 6. `server/**` implements server-side driving and driven adapters for its capability.
    It does not import its own root public surfaces; `server.ts`, `rsc.ts`, and `actions.ts` depend
    inward on private server implementation.
@@ -273,6 +273,9 @@ Normative rules:
    the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
    publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
+   A `ui.ts` that publishes such a file is imported only by server code. A Client Component that
+   imports it fails the build through `server-only`, even for a client export of the same `ui.ts`.
+   The import checker sees only the direct target, so the production build is the check (rule 11).
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
@@ -339,8 +342,10 @@ Normative rules:
      policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
-3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
-   prerenderable cache; data one identity may see and another may not never enters it.
+3. Data that depends on identity or tenant enters plain `'use cache'` only after the channel has
+   authorized the caller and only when every scope that changes what is visible is an argument
+   (rules 1 and 2). Otherwise it uses `'use cache: private'` or stays uncached. Plain `'use cache'`
+   is shared across callers, so its arguments are the only isolation.
    `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
    across requests — only in browser memory — so it is request-time work, not a server cache.
    Verify its availability and limits against the installed Next.js version.

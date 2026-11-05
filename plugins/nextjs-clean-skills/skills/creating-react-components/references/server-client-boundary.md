@@ -22,7 +22,8 @@ Do not move a whole page to the client because one child is interactive. Create 
 island. Pass only public-safe values: no class instances, unsupported functions, secrets, or raw
 provider rows. Client-visible identity or permission hints are never authority.
 
-Client code never imports capability `server.ts`, `rsc.ts`, or `server/**`. Mark trusted code with
-`server-only` and verify the boundary with a production build.
+Client code never imports capability `server.ts`, `rsc.ts`, or `server/**`, or a `ui.ts` that
+publishes a Server Component ([rule 8](../../../docs/architecture-contract.md#dependency-direction)).
+Mark trusted code with `server-only` and verify the boundary with a production build.
 
 Reference: [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).
