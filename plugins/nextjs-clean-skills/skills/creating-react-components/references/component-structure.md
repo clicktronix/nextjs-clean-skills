@@ -6,7 +6,8 @@ Call Hooks directly from named Client Components or named custom Hooks. Do not p
 generic higher-order helper.
 
 Controllers own Hook calls and events; Views render props. A named custom Hook owns one browser
-lifecycle. Keep types colocated until reused.
+lifecycle ([complex ones](../../../docs/frontend-composition.md#component-structure)). Keep types
+colocated until reused.
 
 ```tsx
 'use client'

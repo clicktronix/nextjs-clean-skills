@@ -2,10 +2,11 @@
 
 **Scope: portable**
 
-Use a small closed set of semantic failure codes. Channels translate them; providers do not define
-them.
+Use a small closed set of semantic failure kinds. Channels translate them; providers do not define
+them. Product codes, their mapping to a kind, and their text belong to the capability that produces
+them. Shared code holds only the mechanism.
 
-| Kind | Meaning | Internal carrier |
+| Kind | Meaning | Carrier at the outer channel |
 | --- | --- | --- |
 | `validation` | untrusted input is invalid | typed expected value |
 | `unauthorized` | no valid caller identity | typed expected value |
@@ -26,13 +27,13 @@ Do not attach a raw provider error as `cause` to an expected semantic failure th
 adapter. Record only approved diagnostic context inside the adapter, then return or throw a clean
 semantic failure. An unrecognized unexpected exception may propagate to the one outer capture owner.
 
-Expected product outcomes are typed values. Unexpected contract violations, defects, and
-infrastructure outages use the exception path and are reported once by the outer channel. That
-channel maps the exception to a stable public `contract`, `unavailable`, or `unknown` code. Inner
+Expected product outcomes leave the outer channel as typed values. Unexpected contract violations,
+defects, and infrastructure outages use the exception path and are reported once by the outer channel. That
+channel maps the exception to a stable public `contract`, `unavailable`, or `unknown` kind. Inner
 operations do not return infrastructure outages as ordinary expected values merely because the
-public response uses a semantic code.
+public response uses a semantic kind.
 
-A stream may carry the same semantic code in-band after commit. The transport changes; the meaning
+A stream may carry the same kind in-band after commit. The transport changes; the meaning
 does not.
 
 Keep the set closed. Adding a kind requires updating every relevant channel mapping and tests.

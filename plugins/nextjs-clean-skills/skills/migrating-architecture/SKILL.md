@@ -109,7 +109,9 @@ contractSource: PLUGIN, ordinaryChange, baselineRadius } })` returns the review 
 radius.
 
 Behaviour evidence is the record's exit code; it covers the checks, not product behaviour, which the
-reviewer and the real user path cover. Architecture evidence is `census` over a JSON lint record.
+reviewer and the real user path cover. Moved logic also needs the proof in
+[Testing By Capability Surface](../designing-architecture/references/quality/testing-by-capability.md).
+Architecture evidence is `census` over a JSON lint record.
 Nobody re-runs the check to form an opinion. A change that affects the check invalidates the record:
 take a new one.
 
