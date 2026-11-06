@@ -23,9 +23,9 @@ An RSC failure has one capture owner, settled in
 nested or parallel route with `error.tsx`, or wrap one component with `catchError(fallback)` from
 `next/error`.
 
-`error.tsx` receives `{ error, reset, retry }` as props; a `catchError` fallback receives them second,
-`fallback(props, { error, reset, retry })`. Prefer `retry()`, which refetches the boundary's Server
-Component data; `reset()` does not. Before Next.js 16.3 the names were
+`error.tsx` receives `{ error, reset, retry }` as props; a `catchError` fallback gets them as its
+second argument. Prefer `retry()`, which refetches the boundary's Server Component data; `reset()`
+does not. Before Next.js 16.3 the names were
 `unstable_retry` and `unstable_catchError`.
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict
