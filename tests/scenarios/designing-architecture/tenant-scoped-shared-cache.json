@@ -7,13 +7,13 @@
   "baseline_failure": "RED hypothesis: the agent passes only tenantId into a plain 'use cache' function, so a member's request warms an entry an admin or another member of the same tenant then reads, or it caches a cookie-scoped client or identity object inside the cached function, or it refuses to cache tenant data at all although the contract admits it.",
   "expected_behavior": [
     "Resolves and authorizes the caller in rsc.ts before calling the cached function, on every request, so a cache hit never skips authorization",
-    "Passes every scope that changes what is visible as a serializable argument: the tenant id and the role or the visible project ids, not the tenant id alone",
+    "Passes every scope that changes what is visible as a serializable argument: the tenant id and the caller's visible project ids in a stable order, or an explicit all-projects value for an admin",
     "Obtains the privileged store inside the cached server/** function from the capability's composition and filters the query by those arguments",
     "Calls cacheTag inside the cached function and updateTag from the payment action"
   ],
   "anti_expectation": [
     "Does NOT pass a request-scoped client, an identity object or a reporter into the cached function",
     "Does NOT read cookies() or headers() inside the plain 'use cache' function",
-    "Does NOT key the shared cache by tenant alone while visibility differs by role inside the tenant"
+    "Does NOT key the shared cache by tenant alone or by tenant and role, since two members with one role can see different projects"
   ]
 }
