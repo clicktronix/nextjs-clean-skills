@@ -23,7 +23,8 @@ island. Pass only public-safe values: no class instances, unsupported functions,
 provider rows. Client-visible identity or permission hints are never authority.
 
 Client code never imports capability `server.ts`, `rsc.ts`, or `server/**`, or a `ui.ts` that
-publishes a Server Component ([rule 8](../../../docs/architecture-contract.md#dependency-direction)).
+publishes a Server Component ([rule 8](../../../docs/architecture-contract.md#dependency-direction)):
+a Server Component passes such a `ui.ts` export to it as `children` or a prop.
 Mark trusted code with `server-only` and verify the boundary with a production build.
 
 Reference: [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).

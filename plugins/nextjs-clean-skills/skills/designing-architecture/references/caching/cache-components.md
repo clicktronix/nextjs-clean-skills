@@ -18,7 +18,7 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | store access | the capability's own composition, not an argument; no cookies, so no user session |
 | tenant-private read | privileged store bypasses RLS: authorize first, filter by the tenant argument |
 | public read | anonymous store, still under RLS as `anon` |
-| identity or tenant data that misses a condition of contract rule 3 | `'use cache: private'` or uncached |
+| identity or tenant data that misses a condition of contract rule 3, or must not be stored on the server | `'use cache: private'` or uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
 | invalidation | [Architecture Contract § Cache Components](../../../../docs/architecture-contract.md#cache-components), rule 5 |
 | current-request read from `rsc.ts` | under `loading.tsx` or an inline `<Suspense>`; the build fails otherwise |

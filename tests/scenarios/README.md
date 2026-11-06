@@ -76,6 +76,7 @@ Rows marked `hypothesis` below have no accepted observed run.
 | caching/client-cache | rsc-hybrid-read | inconsistent historical baseline |
 | caching/client-cache | browser-owned-query-transport | hypothesis |
 | caching/client-cache | query-key-promotion-two-consumers | hypothesis |
+| caching/cache-components | tenant-scoped-shared-cache | hypothesis |
 | seams/dependency-categories | port-over-local-engine | hypothesis |
 | use-cases/when-a-use-case-exists | crud-forwarding-use-cases | hypothesis |
 | use-cases/validation-once | validate-once-per-boundary | hypothesis |

@@ -77,8 +77,8 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component. Retry that must refetch RSC data calls `retry()`, not
-  `reset()`; `catchError` and the names before Next.js 16.3 are in the reference below.
+- `error.tsx` is a Client Component. Retry that must refetch RSC data calls `retry()`
+  (`unstable_retry()` before Next.js 16.3), not `reset()`; `catchError` is in the reference below.
 - `global-error.tsx` is the root-only last resort.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.
