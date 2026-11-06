@@ -276,8 +276,8 @@ Normative rules:
    publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
    A `ui.ts` that publishes such a file has server importers only: a Client Component importing any
-   of its exports fails the build on `server-only`, so a Server Component passes it the export as
-   `children` or a prop. The checker sees only direct imports; the production build enforces this
+   of its exports fails the build on `server-only`, so a Server Component renders the export and
+   passes the element, such as `<Badge />`, as `children` or a prop. The checker sees only direct imports; the production build enforces this
    (rule 11).
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.

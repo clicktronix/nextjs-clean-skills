@@ -24,7 +24,7 @@ provider rows. Client-visible identity or permission hints are never authority.
 
 Client code never imports a capability's `server.ts`, `rsc.ts`, `server/**`, or a `ui.ts` that
 publishes a Server Component ([rule 8](../../../docs/architecture-contract.md#dependency-direction));
-it receives such an export from a Server Component as `children` or a prop.
+a Server Component renders such an export and passes the element as `children` or a prop.
 Mark trusted code with `server-only` and verify the boundary with a production build.
 
 Reference: [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).
