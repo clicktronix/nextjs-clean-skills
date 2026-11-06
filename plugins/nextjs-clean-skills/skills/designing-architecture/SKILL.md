@@ -120,7 +120,7 @@ entry and provider output when it becomes trusted. Public channels may mark thes
 
 Return expected product outcomes as typed values. Let unexpected failures reach one outer capture
 owner. Keep redirect and not-found control flow outside generic catches.
-A `catch` they can still pass through calls `unstable_rethrow(error)` first
+Where they can still reach a `catch`, it calls `unstable_rethrow(error)` first
 ([RSC Reads](../../docs/runtime-boundaries.md#rsc-reads)).
 
 When Next.js is a BFF for an authoritative backend, keep remote policy authoritative instead of

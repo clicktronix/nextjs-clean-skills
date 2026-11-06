@@ -38,9 +38,5 @@ store inside the cache carries the obligations of [Supabase RLS](../outbound/sup
 channel authorized the actor, and the query filters by the scope it was given. An anonymous store
 never serves a tenant-private read.
 
-A result that differs per user enters a plain `'use cache'` only under rule 3 of the contract
-section above. Otherwise follow that rule to `'use cache: private'` or an uncached read under a
-Suspense boundary.
-
 `query-cache.ts` carries TanStack Query keys only; Next.js tags stay private to `server/**`.
 Application and domain code import nothing from `next/cache`.

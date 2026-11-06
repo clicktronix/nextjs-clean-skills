@@ -19,7 +19,7 @@ Trusted `server.ts` composition surfaces and application operations report nothi
 map provider errors to semantic failures but do not report an error the outer channel will report.
 
 Do not catch `redirect`, `permanentRedirect`, or `notFound` in a generic application catch. Invoke
-framework navigation after a typed result is known. A `catch` they can still pass through follows
+framework navigation after a typed result is known. Where they can still reach a `catch`, follow
 [RSC Reads](../../../../docs/runtime-boundaries.md#rsc-reads).
 
 A rethrown channel failure has one capture owner; see

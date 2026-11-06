@@ -273,10 +273,10 @@ Normative rules:
    the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
    publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
-   A `ui.ts` that publishes such a file is imported only by server code. A Client Component that
-   imports it fails the build through `server-only`, even for a client export of the same `ui.ts`;
-   it receives that export from a Server Component parent as `children` or a prop instead.
-   The import checker sees only the direct target, so the production build is the check (rule 11).
+   A `ui.ts` that publishes such a file has server importers only: a Client Component importing any
+   of its exports fails the build on `server-only`, so a Server Component passes it the export as
+   `children` or a prop. The checker sees only direct imports; the production build enforces this
+   (rule 11).
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
@@ -343,11 +343,10 @@ Normative rules:
      policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
-3. Data that depends on identity or tenant enters plain `'use cache'` only after the channel has
-   authorized the caller and only when every scope that changes what is visible is an argument
-   (rules 1 and 2). Otherwise it uses `'use cache: private'` or stays uncached, and so does data the
-   product's requirements forbid storing on the server even briefly. Plain `'use cache'` is shared
-   across callers, so its arguments are the only isolation.
+3. Plain `'use cache'` is shared across callers; its arguments are the only isolation. Identity or
+   tenant data enters it only after the channel authorized the caller and only when every scope
+   that changes what is visible is an argument (rules 1 and 2). Other identity or tenant data, and
+   data the product must not store on the server, uses `'use cache: private'` or no cache.
    `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
    across requests — only in browser memory — so it is request-time work, not a server cache.
    Verify its availability and limits against the installed Next.js version.
