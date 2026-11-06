@@ -79,8 +79,10 @@ first consumer.
 An independent region may read for itself as an async Server Component under its own Suspense
 boundary. A read that several regions share goes through one
 [`React.cache`](https://nextjs.org/docs/app/getting-started/fetching-data#reusing-data-with-reactcache)
-wrapper in `rsc.ts` with the report inside it, so it runs and reports once per request. Pass it
-primitive arguments: it matches an object by identity, so a fresh `{ tenantId }` misses.
+wrapper in `rsc.ts`, so it runs once per request. Pass it primitive arguments: it matches an object
+by identity, so a fresh `{ tenantId }` misses. When the channel owns the report
+([Failures And Reporting](./runtime-boundaries.md#failures-and-reporting)), it sits inside the
+wrapper; when instrumentation owns it, the wrapper reports nothing.
 
 ## State Placement
 
@@ -133,9 +135,9 @@ Rules:
 - expected validation or conflict outcomes remain serializable data;
 - unexpected failures are reported once at the action boundary;
 - successful writes update or invalidate affected read owners;
-- pending comes from the action lifecycle and lasts until the update is applied: run the write and
-  any `router.refresh()` in one `useTransition`, since a separate boolean clears before the new data
-  shows;
+- pending comes from the action lifecycle and lasts until the update is applied: `<form action>`
+  already does this; an imperative write and its `router.refresh()` run in one `useTransition`,
+  since a separate boolean clears before the new data shows;
 - a deferred callback that needs current state reads it through a ref or an updater, not a stale
   closure; the target the user confirmed stays the value captured when they confirmed it;
 - destructive actions use the product's shared confirmation surface;
