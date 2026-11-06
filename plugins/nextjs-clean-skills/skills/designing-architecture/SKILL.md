@@ -118,7 +118,7 @@ For protected channels, authenticate at entry, authorize product behavior in pol
 applicable ownership or tenant predicates at the store boundary. Validate untrusted input at trust
 entry and provider output when it becomes trusted. Public channels may mark these concerns `N/A`.
 
-Expected outcomes leave the channel as typed values. Let unexpected failures reach one outer capture
+Expected outcomes leave the outer channel as typed values. Let unexpected failures reach one outer capture
 owner. Keep redirect and not-found control flow outside generic catches.
 
 When Next.js is a BFF for an authoritative backend, keep remote policy authoritative instead of

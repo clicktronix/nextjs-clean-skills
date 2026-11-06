@@ -4,7 +4,7 @@
 
 Use a small closed set of semantic failure kinds. Channels translate them; providers do not define
 them. Product codes, their mapping to a kind, and their text belong to the capability that produces
-them. Shared code holds only the mechanism.
+them.
 
 | Kind | Meaning | Carrier at the outer channel |
 | --- | --- | --- |

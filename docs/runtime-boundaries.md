@@ -260,9 +260,9 @@ into a typed value and does not report it as unexpected.
 | stream | pre-commit response or in-band event | report once at the owning stream boundary |
 | job | retry/drop/dead-letter result | report once at the worker boundary |
 
-An RSC route may show a failed read as an explicit local state after one report, so one secondary
-read does not take down the page. A failure never renders as empty. The `catch` still lets framework
-control flow through ([RSC Reads](#rsc-reads)).
+An RSC route may catch a failed secondary read and render an explicit local failure state after one
+report, so the page survives. A failure never renders as empty, and the `catch` follows
+[RSC Reads](#rsc-reads).
 
 "Report once" means one capture owner per failure. When a channel reports and rethrows,
 framework instrumentation may observe the same exception. Either that instrumentation is the sole

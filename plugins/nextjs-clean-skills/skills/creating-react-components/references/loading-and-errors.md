@@ -12,14 +12,13 @@ Routes own framework files; capabilities own the UI they describe.
 | `global-error.tsx` | root-document failure as a last resort |
 | `not-found.tsx` | deliberate `notFound()` UI |
 
-`loading.tsx` streams a Suspense fallback for the segment's page and children. A root boundary is
-coarse; nest boundaries where parts resolve independently.
+A root `loading.tsx` is coarse; nest boundaries where parts resolve independently.
 
 Use inline `<Suspense>` for the smallest independent slow region. Layouts and pages render in
 parallel. Within one component, sequential awaits create a waterfall; start independent requests
 before awaiting them.
 
-An RSC failure has one capture owner, settled in
+An RSC failure has one capture owner, and a region may render a local failure state instead; both are settled in
 [Runtime Boundaries](../../../docs/runtime-boundaries.md#failures-and-reporting). Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
 nested or parallel route with `error.tsx`, or wrap one component with `unstable_catchError(fallback)`
 from `next/error`.

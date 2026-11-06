@@ -27,5 +27,5 @@ Do not fake a local engine when its query, policy, or transaction is the behavio
 An operation with no observable policy to assert fails the deletion test. Test the private store or
 public surface instead.
 
-Moved code is proven by tests written before the move. A test counts only if a named mutation turns
-it red. When logic leaves a Hook, one test of the Hook's wiring stays.
+Prove moved code with tests written before the move, each turned red by a named mutation. When
+logic leaves a Hook, keep one test of the Hook's wiring.

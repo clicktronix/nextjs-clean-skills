@@ -78,12 +78,11 @@ Independent reads may run in parallel. A read that needs IDs or scope from anoth
 sequential. Cross-capability policy does not belong in a page loader merely because the page is its
 first consumer.
 
-A route need not load everything up front. An independent region may read for itself as an async
-Server Component under its own Suspense boundary. A read that several regions share goes through one
+An independent region may read for itself as an async Server Component under its own Suspense
+boundary. A read that several regions share goes through one
 [`React.cache`](https://nextjs.org/docs/app/getting-started/fetching-data#reusing-data-with-reactcache)
-wrapper in `rsc.ts`, called with primitive arguments: `React.cache` matches an object argument by
-identity, so a fresh `{ tenantId }` per region misses. The report sits inside the wrapper, so the
-read runs and reports once per request.
+wrapper in `rsc.ts` with the report inside it, so it runs and reports once per request. Pass it
+primitive arguments: it matches an object by identity, so a fresh `{ tenantId }` misses.
 
 ## State Placement
 
@@ -136,9 +135,9 @@ Rules:
 - expected validation or conflict outcomes remain serializable data;
 - unexpected failures are reported once at the action boundary;
 - successful writes update or invalidate affected read owners;
-- a pending state comes from the action lifecycle, not a duplicate boolean;
-- pending lasts until the update is applied: run the write and any `router.refresh()` in one
-  `useTransition`, because a boolean cleared after the call ends before the new data shows;
+- pending comes from the action lifecycle and lasts until the update is applied: run the write and
+  any `router.refresh()` in one `useTransition`, since a separate boolean clears before the new data
+  shows;
 - a deferred callback that needs current state reads it through a ref or an updater, not a stale
   closure; the target the user confirmed stays the value captured when they confirmed it;
 - destructive actions use the product's shared confirmation surface;
@@ -181,9 +180,9 @@ The split is optional:
 A Hook-free view is a convention established by review and tests, not a guarantee created by its
 filename.
 
-When a browser lifecycle has ordered IO, races, or recovery, its rules live in a module without
-React, behind an injected transport, and the Hook only subscribes. How that module is written is the
-team's choice.
+A browser lifecycle with ordered IO, races, or recovery keeps its rules in a React-free module under
+the capability's `client/`, with the transport injected; the Hook only subscribes. The module's form
+is the team's choice.
 
 ## Component Ownership
 

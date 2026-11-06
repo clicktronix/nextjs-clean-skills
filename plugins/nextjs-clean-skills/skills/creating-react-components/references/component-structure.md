@@ -2,12 +2,9 @@
 
 **Scope: stack (React)**
 
-Call Hooks directly from named Client Components or named custom Hooks. Do not pass Hooks through a
-generic higher-order helper.
-
 Controllers own Hook calls and events; Views render props. A named custom Hook owns one browser
-lifecycle ([complex ones](../../../docs/frontend-composition.md#component-structure)). Keep types
-colocated until reused.
+lifecycle; [one with ordered IO, races, or recovery](../../../docs/frontend-composition.md#component-structure)
+keeps its rules outside React. Keep types colocated until reused.
 
 ```tsx
 'use client'
