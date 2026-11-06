@@ -18,7 +18,7 @@ Use inline `<Suspense>` for the smallest independent slow region. Layouts and pa
 parallel. Within one component, sequential awaits create a waterfall; start independent requests
 before awaiting them.
 
-An RSC failure has one capture owner, and a region may render a local failure state instead; both are settled in
+An RSC failure has one capture owner; a region may report it once and render a local failure state; both are settled in
 [Runtime Boundaries](../../../docs/runtime-boundaries.md#failures-and-reporting). Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
 nested or parallel route with `error.tsx`, or wrap one component with `unstable_catchError(fallback)`
 from `next/error`.
