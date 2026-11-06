@@ -81,8 +81,9 @@ first consumer.
 A route need not load everything up front. An independent region may read for itself as an async
 Server Component under its own Suspense boundary. A read that several regions share goes through one
 [`React.cache`](https://nextjs.org/docs/app/getting-started/fetching-data#reusing-data-with-reactcache)
-wrapper in `rsc.ts`. The report sits inside the wrapper, so the read runs and reports once per
-request.
+wrapper in `rsc.ts`, called with primitive arguments: `React.cache` matches an object argument by
+identity, so a fresh `{ tenantId }` per region misses. The report sits inside the wrapper, so the
+read runs and reports once per request.
 
 ## State Placement
 
@@ -138,7 +139,8 @@ Rules:
 - a pending state comes from the action lifecycle, not a duplicate boolean;
 - pending lasts until the update is applied: run the write and any `router.refresh()` in one
   `useTransition`, because a boolean cleared after the call ends before the new data shows;
-- a deferred callback reads current state, not a value captured by its closure;
+- a deferred callback that needs current state reads it through a ref or an updater, not a stale
+  closure; the target the user confirmed stays the value captured when they confirmed it;
 - destructive actions use the product's shared confirmation surface;
 - notifications use semantic intent, never provider text.
 

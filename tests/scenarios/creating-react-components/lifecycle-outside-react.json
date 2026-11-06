@@ -1,0 +1,18 @@
+{
+  "skills": [
+    "creating-react-components"
+  ],
+  "tests_reference": "references/component-structure.md#component-structure",
+  "query": "A chat capability's useChatSession Hook opens a WebSocket, sends queued messages in order, drops replies that arrive for a superseded request, and reconnects with backoff after a drop while keeping the queue. It is 300 lines of useEffect and refs and its race bugs are hard to test. The same capability also has a useDraftLength Hook that counts the characters of the draft. Restructure both.",
+  "baseline_failure": "RED hypothesis: the agent splits useChatSession into more Hooks and Effects, keeping ordering, superseded-reply and reconnect rules inside React where only rendered tests reach them, or it moves useDraftLength into a store or class as well.",
+  "expected_behavior": [
+    "Moves the session's ordering, superseded-reply and reconnect rules into a module under the capability's client/ that imports no React and receives its transport as an argument",
+    "Leaves useChatSession subscribing to that module and returning its state, with one test of that wiring",
+    "Tests the races against the module with a fake transport, not through rendered components",
+    "Keeps useDraftLength a plain derived value or small Hook"
+  ],
+  "anti_expectation": [
+    "Does NOT create a module or external store for useDraftLength, which has no ordered IO, races or recovery",
+    "Does NOT open the WebSocket inside the module at import time"
+  ]
+}

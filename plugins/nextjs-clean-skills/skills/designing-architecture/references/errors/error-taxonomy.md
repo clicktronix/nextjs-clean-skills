@@ -33,7 +33,7 @@ channel maps the exception to a stable public `contract`, `unavailable`, or `unk
 operations do not return infrastructure outages as ordinary expected values merely because the
 public response uses a semantic kind.
 
-A stream may carry the same kind in-band after commit. The transport changes; the meaning
+A stream may carry the same failure in-band after commit. The transport changes; the meaning
 does not.
 
 Keep the set closed. Adding a kind requires updating every relevant channel mapping and tests.

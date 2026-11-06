@@ -268,8 +268,10 @@ control flow through ([RSC Reads](#rsc-reads)).
 framework instrumentation may observe the same exception. Either that instrumentation is the sole
 capture owner and the channel does not report, or the channel reports and marks the error as
 already reported so the second observer skips it. A channel uses one of the two, not both. On a
-serverless runtime the report must finish sending before the instance freezes: use the SDK's `flush`,
-[`after`](https://nextjs.org/docs/app/api-reference/functions/after), or the platform's equivalent.
+serverless runtime the report must finish sending before the instance freezes. Where the SDK's
+framework integration does not already wait for it, the reporting boundary uses the SDK's `flush`,
+[`after`](https://nextjs.org/docs/app/api-reference/functions/after), or the platform's equivalent;
+other request paths do not flush.
 
 Provider errors are mapped where the provider is understood. Public channels expose stable safe
 codes, never raw provider messages. Inner operations and adapters do not report an error that the
