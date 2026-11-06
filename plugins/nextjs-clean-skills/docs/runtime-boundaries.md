@@ -136,8 +136,11 @@ flowchart TB
   Page --> View
 ```
 
-Keep framework navigation outside generic catches. `redirect`, `permanentRedirect`, and `notFound`
-use framework control flow and must not be normalized as application failures.
+Keep framework control flow outside generic catches. `redirect`, `permanentRedirect`, `notFound`,
+and request-time APIs that bail out of prerendering throw framework exceptions, which must not be
+normalized as application failures. Any `catch` such an exception can reach calls
+`unstable_rethrow(error)` from `next/navigation` first
+([Next.js reference](https://nextjs.org/docs/app/api-reference/functions/unstable_rethrow)).
 
 ## Server Actions
 

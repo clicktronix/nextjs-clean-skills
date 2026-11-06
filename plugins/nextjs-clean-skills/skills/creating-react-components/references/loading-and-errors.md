@@ -12,8 +12,7 @@ Routes own framework files; capabilities own the UI they describe.
 | `global-error.tsx` | root-document failure as a last resort |
 | `not-found.tsx` | deliberate `notFound()` UI |
 
-`loading.tsx` streams a Suspense fallback for the segment's page and children. A root boundary is
-coarse; nest boundaries where parts resolve independently.
+A root `loading.tsx` is coarse; nest boundaries where parts resolve independently.
 
 Use inline `<Suspense>` for the smallest independent slow region. Layouts and pages render in
 parallel. Within one component, sequential awaits create a waterfall; start independent requests
@@ -21,16 +20,17 @@ before awaiting them.
 
 An RSC failure has one capture owner, settled in
 [Runtime Boundaries](../../../docs/runtime-boundaries.md#failures-and-reporting). Suspense scopes pending UI, not errors. To preserve surrounding content after a region fails, use a
-nested or parallel route with `error.tsx`, or wrap one component with `unstable_catchError(fallback)`
-from `next/error`.
+nested or parallel route with `error.tsx`, or wrap one component with `catchError(fallback)` from
+`next/error`.
 
-In Next.js 16.2, `error.tsx` and the fallback receive `error`, `reset` and `unstable_retry`. Prefer
-`unstable_retry()`, which refetches the boundary's Server Component data; `reset()` does not. Check whether the `unstable_` prefix was dropped in the installed
-version (canary documents `retry` and `catchError`).
+`error.tsx` receives `{ error, reset, retry }` as props; a `catchError` fallback gets them as its
+second argument. Prefer `retry()`, which refetches the boundary's Server Component data; `reset()`
+does not. Before Next.js 16.3 the names were
+`unstable_retry` and `unstable_catchError`.
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict
 states, or map them to deliberate framework control flow. Do not swallow `redirect` or `notFound()`
-in a generic catch.
+in a generic catch ([RSC Reads](../../../docs/runtime-boundaries.md#rsc-reads)).
 
 A skeleton preserves final geometry. Use a spinner when shape is unknown and no placeholder for
 immediate content.

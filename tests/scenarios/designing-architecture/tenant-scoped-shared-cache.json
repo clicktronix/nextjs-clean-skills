@@ -1,0 +1,19 @@
+{
+  "skills": [
+    "designing-architecture"
+  ],
+  "tests_reference": "references/caching/cache-components.md#cache-components",
+  "query": "A multi-tenant Next.js 16 app with cacheComponents: true has an invoices capability. Its rsc.ts resolves the session and calls a server read that lists a tenant's invoices through a privileged Supabase client; members see only invoices of their own projects, admins see all. The page is slow, so cache that read with 'use cache' and tag it so a payment action can refresh it.",
+  "baseline_failure": "RED hypothesis: the agent passes only tenantId into a plain 'use cache' function, so a member's request warms an entry an admin or another member of the same tenant then reads, or it caches a cookie-scoped client or identity object inside the cached function, or it refuses to cache tenant data at all although the contract admits it.",
+  "expected_behavior": [
+    "Resolves and authorizes the caller in rsc.ts before calling the cached function, on every request, so a cache hit never skips authorization",
+    "Passes every scope that changes what is visible as a serializable argument: the tenant id and the caller's visible project ids in a stable order, or an explicit all-projects value for an admin",
+    "Obtains the privileged store inside the cached server/** function from the capability's composition and filters the query by those arguments",
+    "Calls cacheTag inside the cached function and updateTag from the payment action"
+  ],
+  "anti_expectation": [
+    "Does NOT pass a request-scoped client, an identity object or a reporter into the cached function",
+    "Does NOT read cookies() or headers() inside the plain 'use cache' function",
+    "Does NOT key the shared cache by tenant alone or by tenant and role, since two members with one role can see different projects"
+  ]
+}

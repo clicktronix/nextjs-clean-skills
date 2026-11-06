@@ -133,10 +133,10 @@ Full details are in
 
 ## Agent Evaluation
 
-The focused inventory contains 20 `designing-architecture` scenarios:
+The focused inventory contains 21 `designing-architecture` scenarios:
 
 - 5 contain recorded baseline observations;
-- 15 remain RED hypotheses;
+- 16 remain RED hypotheses;
 
 Those counts describe the reference-level inventory, not the comparative release matrix below.
 

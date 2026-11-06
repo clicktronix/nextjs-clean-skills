@@ -300,7 +300,7 @@ const capabilityRule = {
       crossCapabilityInternal:
         '{{source}} may import {{targetCapability}} only through a root public surface, not {{target}}.',
       domainDirection:
-        'domain/** is pure and may import only its own domain or admitted shared/kernel code.',
+        "domain/** is pure and may import only its own domain, admitted shared/kernel code, or a neighbour's contracts.ts.",
       applicationDirection:
         'application/** owns framework-neutral policy. Supply runtime adapters instead of importing {{target}}.',
       browserServer:
