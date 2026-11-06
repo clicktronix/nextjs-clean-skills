@@ -32,7 +32,8 @@ its pending state accessibly.
 
 When a form library manually calls a `useActionState` dispatcher, wrap that call in
 `startTransition`. Passing it to `<form action>` or `<button formAction>` starts the transition
-automatically.
+automatically. How long pending lasts is in
+[Forms And Actions](../../../docs/frontend-composition.md#forms-and-actions).
 
 ## Localized Validator Bridge
 
