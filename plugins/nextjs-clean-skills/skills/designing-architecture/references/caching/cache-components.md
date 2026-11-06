@@ -16,7 +16,7 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | what crosses in | ids, tenant, filters: serializable values only |
 | what never crosses | client, reporter, identity object, request context |
 | store access | the capability's own composition, not an argument; no cookies, so no user session |
-| tenant-private read | privileged store bypasses RLS: authorize first, filter by the tenant argument |
+| tenant-private read | privileged store bypasses RLS: authorize first, filter by every scope argument |
 | public read | anonymous store, still under RLS as `anon` |
 | identity or tenant data that misses a condition of contract rule 3, or must not be stored on the server | `'use cache: private'` or uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |
@@ -35,8 +35,9 @@ export async function listForTenant(tenantId: string, filter: Filter) {
 
 The channel resolves identity first and passes `identity.tenantId`, never `identity`. A privileged
 store inside the cache carries the obligations of [Supabase RLS](../outbound/supabase-rls.md): the
-channel authorized the actor, and the query filters by the scope it was given. An anonymous store
-never serves a tenant-private read.
+channel authorized the actor, and the query filters by the scope it was given. A read whose visibility
+narrows inside the tenant, by project or by user, takes that scope too: a key alone isolates nothing
+when the query returns other rows. An anonymous store never serves a tenant-private read.
 
 `query-cache.ts` carries TanStack Query keys only; Next.js tags stay private to `server/**`.
 Application and domain code import nothing from `next/cache`.

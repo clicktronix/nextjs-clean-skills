@@ -12,8 +12,7 @@ Routes own framework files; capabilities own the UI they describe.
 | `global-error.tsx` | root-document failure as a last resort |
 | `not-found.tsx` | deliberate `notFound()` UI |
 
-`loading.tsx` streams a Suspense fallback for the segment's page and children. A root boundary is
-coarse; nest boundaries where parts resolve independently.
+A root `loading.tsx` is coarse; nest boundaries where parts resolve independently.
 
 Use inline `<Suspense>` for the smallest independent slow region. Layouts and pages render in
 parallel. Within one component, sequential awaits create a waterfall; start independent requests
@@ -24,8 +23,9 @@ An RSC failure has one capture owner, settled in
 nested or parallel route with `error.tsx`, or wrap one component with `catchError(fallback)` from
 `next/error`.
 
-`error.tsx` and the fallback receive `error`, `reset` and `retry`. Prefer `retry()`, which refetches
-the boundary's Server Component data; `reset()` does not. Before Next.js 16.3 the names were
+`error.tsx` receives `{ error, reset, retry }` as props; a `catchError` fallback receives them second,
+`fallback(props, { error, reset, retry })`. Prefer `retry()`, which refetches the boundary's Server
+Component data; `reset()` does not. Before Next.js 16.3 the names were
 `unstable_retry` and `unstable_catchError`.
 
 Expected outcomes do not become generic exceptions. Render empty, denied, validation, and conflict

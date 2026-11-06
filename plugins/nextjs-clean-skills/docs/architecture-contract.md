@@ -275,10 +275,10 @@ Normative rules:
    the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
    publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
-   A `ui.ts` that publishes such a file has server importers only: a Client Component importing any
-   of its exports fails the build on `server-only`, so a Server Component renders the export and
-   passes the element, such as `<Badge />`, as `children` or a prop. The checker sees only direct imports; the production build enforces this
-   (rule 11).
+   A `ui.ts` that publishes a file reading `rsc.ts` has server importers only: a Client Component
+   importing any of its exports fails the build on `server-only`, so a Server Component renders the
+   export and passes the element, such as `<Badge />`, as `children` or a prop. The checker sees only
+   direct imports; the production build enforces this (rule 11).
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
@@ -340,7 +340,7 @@ Normative rules:
    from an argument.
    Without cookies there is no user session, so the store is one of two:
    - a tenant-private read uses a privileged store, which bypasses row-level security: the channel
-     authorizes first, and the tenant argument, applied as a query predicate, is the isolation;
+     authorizes first, and every scope argument, applied as a query predicate, is the isolation;
    - an anonymous store stays under row-level security as the `anon` role and serves only data its
      policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user

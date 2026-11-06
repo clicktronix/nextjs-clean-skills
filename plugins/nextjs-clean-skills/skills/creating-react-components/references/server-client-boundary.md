@@ -23,7 +23,7 @@ island. Pass only public-safe values: no class instances, unsupported functions,
 provider rows. Client-visible identity or permission hints are never authority.
 
 Client code never imports a capability's `server.ts`, `rsc.ts`, `server/**`, or a `ui.ts` that
-publishes a Server Component ([rule 8](../../../docs/architecture-contract.md#dependency-direction));
+publishes a file reading `rsc.ts` ([rule 8](../../../docs/architecture-contract.md#dependency-direction));
 a Server Component renders such an export and passes the element as `children` or a prop.
 Mark trusted code with `server-only` and verify the boundary with a production build.
 
