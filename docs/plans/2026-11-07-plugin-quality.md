@@ -25,3 +25,5 @@ Targeted checks passed:
 The full gate will run in hosted PR CI. A foreign long-running stand occupies the local shared heavy slot; no additional slot or service is started. No paid model evaluation or new Next.js integration/build claim is made. The frozen experiment and touch-count limitations are corrected in all active summaries; historical measurements are retained.
 
 Trial integration with the framework-corrections branch was clean. The competing test-policy paragraph in the migration-rules branch was resolved by stacking this change on it, keeping one risk-based test policy. Hosted CI results will be recorded in the PR.
+
+The first hosted attempt stopped at the reference-length check. Both affected references were shortened without changing the limit; the failed lint and their executable JSON/plan examples passed locally afterward. The final hosted result is recorded on the PR.
