@@ -82,7 +82,8 @@
             "path": "src/infrastructure/i18n/locales/en.ts",
             "reason": "The form message added to messages.json also had to be registered in the generated English locale for the repository-wide translation check to pass."
           }
-        ]
+        ],
+        "comparisonLimit": "Candidate production TS and baseline observed paths have different counting units and feature scope; illustrative locality only, not comparative cost."
       }
     },
     {
@@ -110,7 +111,8 @@
         "plannedPaths": 3,
         "observedPaths": 3,
         "matchesPlan": true,
-        "deviations": []
+        "deviations": [],
+        "comparisonLimit": "Candidate production TS and baseline observed paths have different counting units and feature scope; illustrative locality only, not comparative cost."
       }
     },
     {
@@ -174,7 +176,8 @@
             "path": "src/infrastructure/env/server.ts",
             "reason": "The server environment contract must validate and expose the provider endpoint."
           }
-        ]
+        ],
+        "comparisonLimit": "Candidate production TS and baseline observed paths have different counting units and feature scope; illustrative locality only, not comparative cost."
       }
     },
     {
@@ -227,7 +230,7 @@
         "observedPaths": 11,
         "matchesPlan": true,
         "deviations": [],
-        "comparisonLimit": "The baseline has no stream or job channel, so raw path counts are not equivalent."
+        "comparisonLimit": "Candidate production TS and baseline observed paths have different counting units and feature scope; illustrative locality only, not comparative cost. The baseline has no stream or job channel, so raw path counts are not equivalent."
       }
     }
   ],
@@ -240,6 +243,6 @@
     "Request-aware reporting remains channel work: shared semantics do not remove explicit context propagation at each boundary.",
     "A real Next.js pilot derives identity and provider effects inside capability composition, accepts only FormData at the action boundary, exports GET, and passes a production build.",
     "A deliberate Client Component import of the capability server surface fails the production build on server-only as required.",
-    "The baseline replay and real Next.js pilot pass their checks; candidate v3 passed the comparative agent gate and ADR 0001 is Accepted."
+    "Historical baseline/Next.js checks remain revision-bound. The comparative release-v3 gate is withdrawn due to inherited HOME contamination (tests/architecture-evals/README.md, evidence integrity note); ADR acceptance is a maintainer decision."
   ]
 }

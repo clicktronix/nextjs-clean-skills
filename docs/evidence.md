@@ -89,28 +89,34 @@ Three strict TypeScript fixtures cover:
 - remote streaming plus a job over one provider-neutral operation;
 - board orchestration over independent work-items and labels capabilities.
 
-The fixtures contain 33 TypeScript files. Runtime tests cover tenant scope, row mapping, cache
+Runtime tests cover tenant scope, row mapping, cache
 ownership, action and HTTP outcomes, stream commit/cancellation/deadline behavior, job retries,
 report-once behavior, and cross-capability policy.
 
 The original acceptance pilots encode six architecture properties as ten historical mutations.
-Current portable tooling expands the seven-property enforcement floor into 12 mutation-covered
-rule codes with 19 capability mutations, plus 29 boundary mutations and 13
-resolver/cycle/portability canaries. These are coverage counts, not competing architecture
-taxonomies. A real Next.js 16.2.10 pilot on the reference template passes its production
-build and 990 tests. A deliberate Client Component import of `server.ts` fails that build through
+Current portable tooling checks the seven-property floor with boundary mutations and resolver,
+cycle and runtime-marker canaries. The validators emit current counts; they are coverage counts,
+not competing architecture taxonomies. A historical Next.js 16.2.10 pilot at `0a3eeca` recorded a passing production
+build and 990 tests. Its internal request-identity resolution predates the current explicit-identity
+contract; it is not a current integration qualification. A deliberate Client Component import of
+`server.ts` failed that build through
 `server-only`.
 
-Change comparison:
+Illustrative touch sets (different feature scope and counting units; not a cost comparison):
 
 | Change | Capability candidate production files | Layer-first observed paths | Result |
 | --- | ---: | ---: | --- |
-| add `dueAt` | 3 | 9 | candidate more local |
+| add `dueAt` | 3 | 9 | fixture-local edit; scopes differ |
 | add labels HTTP GET | 1 | 3 | route-only channel addition |
 | replace work-item source | 2 | 10 | candidate callers unchanged |
 | request-aware reporting | 12 | 11 | not directly comparable; candidate also covers stream and job |
 
-The provider comparison is valid only after adding a production composition surface. The original
+Candidate counts cover production TS; baseline paths also include tests, stories, JSON/locales
+and SQL. In particular, the candidate form is a mapping helper, not an equivalent rendered React
+form and database migration. Do not infer a cost ratio or architectural superiority from these
+numbers. The provider observation establishes unchanged callers within that candidate.
+
+The provider observation is valid only after adding a production composition surface. The original
 one-file result selected its provider in the test harness and is retained as superseded evidence.
 
 ### Live Migration Workflow
@@ -144,7 +150,10 @@ The first capability-first release gate failed. Its cross-capability instruction
 board policy to remain under `app/**`, omitted report-once in one cell, and contradicted its own
 dependent-call sequencing.
 
-Candidate v3 corrected ownership and passed the frozen replay:
+The historical release-v3 run recorded the following scores. **Its comparative gate is withdrawn:**
+the inherited author HOME exposed installed skills to control arms. The
+[evidence integrity note](../tests/architecture-evals/README.md#evidence-integrity-note--2026-09-10)
+is the authority for this status; no isolated replacement release matrix is recorded here.
 
 | Arm | Mean | Minimum | Negative violations |
 | --- | ---: | ---: | ---: |
@@ -153,8 +162,8 @@ Candidate v3 corrected ownership and passed the frozen replay:
 | released v1.3.2 | 7.917 | 4 | 8 |
 | layer-first checkpoint | 7.625 | 4 | 10 |
 
-The candidate led every control overall and in all three scenarios. It tied or beat released
-`v1.3.2` and layer-first in every paired cell.
+These are historical scores, not valid evidence that the skill outperforms the controls. The
+maintainer architecture decision remains separate from comparative skill acceptance.
 
 Manual review still found:
 
@@ -186,7 +195,9 @@ one-model, one-framing result is targeted evidence rather than a new release gat
 
 ## Limits
 
-- Pilot fixtures are intentionally small.
+- Pilot fixtures are intentionally small and framework-free. Their surface files omit runtime
+  poison markers so they can execute in one Node process; strict compilation is not a Next.js
+  build or proof of full contract conformance. Actual integrations must add and validate markers.
 - Two measured products are private, as is the reference template; the measurements above are
   recorded findings, not reproducible ones, and readers reproduce the tool on their own codebase.
 - Static checks cannot prove semantic depth, authorization policy, report-once behavior, or cache

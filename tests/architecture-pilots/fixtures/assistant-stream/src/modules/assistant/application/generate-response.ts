@@ -36,30 +36,55 @@ export async function* generateResponse(
     throw new GenerationDeadlineError('generation deadline exceeded')
   }
 
-  let tokenCount = 0
-  for await (const rawToken of dependencies.generator.stream({
-    prompt,
-    signal: input.signal,
-  })) {
-    if (input.signal.aborted) {
-      throw new GenerationCancelledError('generation cancelled')
+  const controller = new AbortController()
+  const cancel = () => controller.abort(new GenerationCancelledError('generation cancelled'))
+  input.signal.addEventListener('abort', cancel, { once: true })
+  const timer = setTimeout(
+    () => controller.abort(new GenerationDeadlineError('generation deadline exceeded')),
+    input.deadlineAt - dependencies.clock.now()
+  )
+  let iterator: AsyncIterator<string> | undefined
+  let pending = false
+  try {
+    iterator = dependencies.generator.stream({ prompt, signal: controller.signal })[Symbol.asyncIterator]()
+    let tokenCount = 0
+    while (true) {
+      if (controller.signal.aborted) throw controller.signal.reason
+      if (dependencies.clock.now() >= input.deadlineAt) throw new GenerationDeadlineError('generation deadline exceeded')
+      pending = true
+      const next = iterator.next()
+      void next.then(() => { pending = false }, () => { pending = false })
+      let onAbort = () => {}
+      let result: IteratorResult<string>
+      try {
+        result = await Promise.race([
+          next,
+          new Promise<never>((_, reject) => {
+            onAbort = () => reject(controller.signal.reason)
+            controller.signal.addEventListener('abort', onAbort, { once: true })
+            if (controller.signal.aborted) onAbort()
+          }),
+        ])
+      } finally {
+        controller.signal.removeEventListener('abort', onAbort)
+      }
+      if (controller.signal.aborted) throw controller.signal.reason
+      if (dependencies.clock.now() >= input.deadlineAt) throw new GenerationDeadlineError('generation deadline exceeded')
+      if (result.done) break
+      const text = result.value.replaceAll(/\s+/g, ' ')
+      if (text.length === 0) continue
+      tokenCount += 1
+      yield { type: 'token', text }
     }
-    if (dependencies.clock.now() >= input.deadlineAt) {
-      throw new GenerationDeadlineError('generation deadline exceeded')
-    }
-
-    const text = rawToken.replaceAll(/\s+/g, ' ')
-    if (text.length === 0) continue
-    tokenCount += 1
-    yield { type: 'token', text }
+    yield { type: 'complete', tokenCount }
+  } finally {
+    clearTimeout(timer)
+    input.signal.removeEventListener('abort', cancel)
+    controller.abort(new GenerationCancelledError('generation closed'))
+    const closing = iterator?.return?.()
+    // An adapter must honor AbortSignal to stop its IO. A non-cooperative pending next()
+    // must not hold the channel past its deadline; observe its eventual cleanup rejection.
+    if (pending) void closing?.catch(() => {})
+    else await closing
   }
-
-  if (input.signal.aborted) {
-    throw new GenerationCancelledError('generation cancelled')
-  }
-  if (dependencies.clock.now() >= input.deadlineAt) {
-    throw new GenerationDeadlineError('generation deadline exceeded')
-  }
-
-  yield { type: 'complete', tokenCount }
 }

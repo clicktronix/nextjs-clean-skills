@@ -386,6 +386,77 @@ async function testAssistantStream(load) {
   )
   assert.deepEqual(deadlineJob, { status: 'retry', reason: 'DEADLINE' })
   assert.equal(deadlineJobReports.calls.length, 0)
+
+  // Closing the outer iterator must close the provider, including a break after the first token.
+  let closed = false
+  let upstreamSignal
+  const abandoned = await streamModule.openAssistantStream(input, {
+    clock,
+    generator: { async *stream({ signal }) {
+      upstreamSignal = signal
+      try { yield 'first'; yield 'unused' } finally { closed = true }
+    } },
+    reporter: successReports.reporter,
+    reportingContext: { requestId: 'consumer-close' },
+  })
+  for await (const event of abandoned.events) { assert.equal(event.type, 'token'); break }
+  assert.equal(closed, true)
+  assert.equal(upstreamSignal.aborted, true)
+
+  // An idle provider must not keep either channel waiting past the deadline or cancellation.
+  const bounded = async promise => {
+    let timer
+    try {
+      return await Promise.race([promise, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('channel ignored deadline/cancellation')), 1500)
+      })])
+    } finally { clearTimeout(timer) }
+  }
+  const idleProvider = (started, afterToken = false) => ({ async *stream({ signal }) {
+    try {
+      if (afterToken) yield 'first'
+      await new Promise(resolve => {
+        signal.addEventListener('abort', resolve, { once: true })
+        if (signal.aborted) resolve()
+        started?.()
+      })
+    } finally { closed = true }
+  } })
+  const realInput = () => ({ ...input, deadlineAt: Date.now() + 50 })
+  const dependencies = generator => ({ clock: { now: Date.now }, generator,
+    reporter: successReports.reporter, reportingContext: { requestId: 'idle-provider' } })
+  closed = false
+  const idle = await bounded(streamModule.openAssistantStream(realInput(), dependencies(idleProvider())))
+  assert.equal(idle.status, 504)
+  assert.deepEqual(await collect(idle.events), [{ type: 'error', code: 'DEADLINE' }])
+  assert.equal(closed, true)
+  const idleAfterCommit = await streamModule.openAssistantStream(realInput(), dependencies(idleProvider(undefined, true)))
+  assert.equal(idleAfterCommit.status, 200)
+  assert.deepEqual(await bounded(collect(idleAfterCommit.events)), [{ type: 'token', text: 'first' }, { type: 'error', code: 'DEADLINE' }])
+  assert.deepEqual(await bounded(jobModule.runAssistantJob(realInput(), dependencies(idleProvider()))), { status: 'retry', reason: 'DEADLINE' })
+
+  const cancelIdle = new AbortController()
+  const interrupted = await bounded(streamModule.openAssistantStream(
+    { ...realInput(), deadlineAt: Date.now() + 10_000, signal: cancelIdle.signal },
+    dependencies(idleProvider(() => cancelIdle.abort()))
+  ))
+  assert.equal(interrupted.status, 499)
+  assert.equal(successReports.calls.length, 0, 'expected cancellation/deadline is never reported as a defect')
+
+  // Even a broken adapter ignoring the signal cannot keep the caller blocked. Release it so
+  // this test also verifies eventual cleanup and leaves no pending provider work of its own.
+  let release
+  const blocked = new Promise(resolve => { release = resolve })
+  let didClose
+  const didClosePromise = new Promise(resolve => { didClose = resolve })
+  try {
+    const stubborn = await bounded(streamModule.openAssistantStream(realInput(), dependencies({
+      async *stream() { try { await blocked; yield 'late' } finally { didClose() } },
+    })))
+    assert.equal(stubborn.status, 504)
+  } finally { release() }
+  await bounded(didClosePromise)
+
 }
 
 async function testBoardWorkflow(load) {

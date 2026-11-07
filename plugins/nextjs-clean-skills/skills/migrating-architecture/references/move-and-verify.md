@@ -24,7 +24,8 @@ and read it unfiltered, including unstaged deletions.
 Take and read the record with the commands of Step 6, running the Step 3 check command (chain
 required checks with `&&`). Cite the record's `id` for its command, exit code, tree state and
 output; inspect the diff for behaviour the checks do not cover. `census` verifies the recorded
-artifact hash.
+artifact hash and the coverage produced by `migration.mjs lint` in that run. Missing files, inactive
+rules, suppressed diagnostics or a stale record leave architecture unmeasured, not green.
 
 The check is your child process; the record says when it ended. Silence means look at the
 process, not "stalled". `reviewerBudget` is a turn count, not a runtime limit; on exhaustion the

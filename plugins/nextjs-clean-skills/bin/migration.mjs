@@ -8,10 +8,11 @@
 // `migrating-architecture` calls these subcommands from the session; the two
 // workflows `inventory.js` and `verify.js` only dispatch the judgement calls.
 //
-// Plain Node, no dependencies: this file ships inside the installed plugin and runs
-// against any repository from anywhere.
+// Plain Node for file/plan operations; lint uses the target's installed ESLint.
+// This file ships inside the plugin and resolves paths against the target repository.
 import { createHash, randomBytes } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -40,7 +41,7 @@ export function listSourceFiles(repo, sourceRoot, excluded = EXCLUDED_DIRS) {
         if (!excluded.has(entry.name)) walk(abs)
         continue
       }
-      if (SOURCE_EXTENSIONS.has(path.extname(entry.name))) out.push(posix(path.relative(repo, abs)))
+      if (entry.isFile()) out.push(posix(path.relative(repo, abs)))
     }
   }
   walk(rootAbs)
@@ -51,6 +52,7 @@ export function writeInventory(repo, sourceRoot, options = {}) {
   const files = listSourceFiles(repo, sourceRoot, options.excluded)
   const inventory = {
     sourceRoot,
+    excludedDirectories: [...(options.excluded || EXCLUDED_DIRS)].sort(),
     count: files.length,
     listHash: sha256(files.join('\n')),
     listedAt: new Date().toISOString(),
@@ -144,14 +146,15 @@ export function expandRules(files, rules, unassigned = []) {
 // ─── destination ───
 // The model decides roles; this computes paths. Closed under the capability root and
 // injective across a plan.
-const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const safeRelativePath = (value) => typeof value === 'string' && !/[\\:\0]/.test(value) &&
+  value.split('/').every(part => part !== '' && part !== '.' && part !== '..')
 const CAPABILITY_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/
 // A module root is a project-relative path with no way out of the project; a capability is one
 // kebab-case segment. Both end up in every destination, so a bad value here would be a
 // "verified" path outside the repository.
 export function safeRoots({ moduleRoot, capability }) {
   const problems = []
-  if (typeof moduleRoot !== 'string' || moduleRoot === '' || moduleRoot.startsWith('/') || /(^|\/)\.\.?(\/|$)/.test(moduleRoot) || moduleRoot.endsWith('/')) {
+  if (!safeRelativePath(moduleRoot)) {
     problems.push(`moduleRoot must be a project-relative path without . or .. segments, got ${JSON.stringify(moduleRoot)}`)
   }
   if (typeof capability !== 'string' || !CAPABILITY_NAME.test(capability)) {
@@ -168,8 +171,10 @@ export function destination(move, { moduleRoot, capability, segments, surfaces }
     return `${moduleRoot}/${capability}/${move.surface}.ts`
   }
   if (!segments.includes(move.role)) return null
-  const name = move.basename || String(move.file).split('/').pop()
-  if (!SAFE_NAME.test(name)) return null
+  // relativePath preserves cohesive folders; basename remains compatible with older plans.
+  if (move.relativePath !== undefined && move.basename !== undefined) return null
+  const name = move.relativePath ?? move.basename ?? String(move.file).split('/').pop()
+  if (!safeRelativePath(name) || (move.basename !== undefined && name.includes('/'))) return null
   return `${moduleRoot}/${capability}/${move.role}/${name}`
 }
 
@@ -509,31 +514,78 @@ export function recordFreshness(repo, record) {
 // Counts a boundary census from an ESLint JSON output the record carries. The counter
 // named `capability` is the burndown for one capability; the others are compared with the
 // baseline. A record whose output is not ESLint JSON is reported as such, not as zero.
-export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'clean-architecture/boundaries', baselineKeys = [] } = {}) {
+// Record lint and effective coverage from the same ESLint instance. The expected settings come
+// from the distributed configs (including test exemptions), not another list of rule IDs.
+async function lintWithCoverage(repo, contractPath) {
+  repo = fs.realpathSync(repo)
+  const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'))
+  const expectedFiles = listSourceFiles(repo, contract.sourceRoot)
+    .filter(file => SOURCE_EXTENSIONS.has(path.extname(file)) &&
+      !(contract.generatedRoot && file.startsWith(`${contract.generatedRoot}/`)))
+  const { ESLint } = createRequire(path.join(repo, 'package.json'))('eslint')
+  const rulesDir = path.dirname(contractPath)
+  const base = (await import(pathToFileURL(path.join(rulesDir, 'eslint-boundaries.mjs')))).default
+  const resolved = (await import(pathToFileURL(path.join(rulesDir, 'eslint-boundaries-resolved.mjs')))).default
+  const actual = new ESLint({ cwd: repo })
+  const expected = new ESLint({ cwd: repo, overrideConfigFile: true, overrideConfig: [...base, ...resolved] })
+  const inactive = []
+  const enabled = setting => [1, 2, 'warn', 'error'].includes(Array.isArray(setting) ? setting[0] : setting)
+  for (const file of expectedFiles) {
+    const absolute = path.join(repo, file)
+    const config = await actual.calculateConfigForFile(absolute)
+    const floor = await expected.calculateConfigForFile(absolute)
+    const required = Object.entries(floor?.rules || {}).filter(([, setting]) => enabled(setting)).map(([id]) => id)
+    if (!config || required.length === 0) inactive.push({ file, reason: 'not covered by configuration' })
+    else for (const id of required) {
+      if (!enabled(config.rules?.[id])) inactive.push({ file, ruleId: id })
+    }
+  }
+  const results = await actual.lintFiles([contract.sourceRoot])
+  return { results, coverage: { repo, expectedFiles, inactive } }
+}
+
+export function censusFromEslintJson(text, { moduleRoot, capability, ruleId = 'clean-architecture/boundaries', baselineKeys = [], coverage } = {}) {
   let files
   try {
     const start = text.indexOf('[')
-    files = JSON.parse(text.slice(start === -1 ? 0 : start))
+    const parsed = JSON.parse(text.trim().startsWith('{') ? text : text.slice(start === -1 ? 0 : start))
+    files = Array.isArray(parsed) ? parsed : parsed.results
+    coverage = coverage || parsed.coverage
   } catch {
-    return { ok: false, detail: 'record output is not ESLint JSON; run the check with --format json' }
+    return { ok: false, detail: 'record output is not lint evidence JSON; record migration.mjs lint' }
   }
   if (!Array.isArray(files)) return { ok: false, detail: 'record output is not an ESLint results array' }
+  if (!coverage || typeof coverage.repo !== 'string' || !Array.isArray(coverage.inactive) || !Array.isArray(coverage.expectedFiles) || coverage.expectedFiles.length === 0) {
+    return { ok: false, detail: 'lint coverage is missing or empty; record migration.mjs lint, not bare ESLint JSON' }
+  }
+  const relative = value => posix(path.relative(coverage.repo, path.resolve(coverage.repo, value)))
+  const seen = new Set()
+  for (const file of files) {
+    if (!file || typeof file.filePath !== 'string' || !Array.isArray(file.messages)) return { ok: false, detail: 'malformed ESLint result' }
+    const name = relative(file.filePath)
+    if (seen.has(name)) return { ok: false, detail: `duplicate ESLint result: ${name}` }
+    seen.add(name)
+  }
+  const missing = coverage.expectedFiles.filter(file => !seen.has(file))
+  if (missing.length || coverage.inactive.length) return { ok: false, detail: 'incomplete lint coverage', missing, inactive: coverage.inactive }
+  if (files.some(file => file.fatalErrorCount > 0 || file.messages.some(message => message.fatal) || file.suppressedMessages?.length)) {
+    return { ok: false, detail: 'lint contains fatal or suppressed diagnostics; architecture is not fully measured' }
+  }
   const counts = {}
   let capabilityCount = 0
   const capPrefix = moduleRoot && capability ? `${moduleRoot}/${capability}/` : ''
+  if (capPrefix && !coverage.expectedFiles.some(file => file.startsWith(capPrefix))) {
+    return { ok: false, detail: `no source files measured under ${capPrefix}` }
+  }
   for (const f of files) {
-    const rel = posix(String(f.filePath || ''))
-    for (const m of f.messages || []) {
+    const rel = relative(f.filePath)
+    for (const m of f.messages) {
       const key = m.ruleId === ruleId ? String(m.messageId || m.message || m.ruleId) : String(m.ruleId || 'unknown')
       counts[key] = (counts[key] || 0) + 1
-      if (capPrefix && rel.includes(`/${capPrefix}`)) capabilityCount += 1
+      if (capPrefix && rel.startsWith(capPrefix)) capabilityCount += 1
     }
   }
-  // A counter that was measured and found nothing is 0, not absent: zero-fill every key the
-  // baseline knew, or the last violation fixed reads as an unmeasured counter.
   for (const key of baselineKeys) if (key !== 'capability' && typeof counts[key] !== 'number') counts[key] = 0
-  // Without a capability there is no capability counter to report. Saying 0 would present a
-  // whole-repository baseline as a clean measurement of one slice.
   counts.capability = capPrefix ? capabilityCount : null
   return { ok: true, scope: capPrefix ? 'capability' : 'baseline', counts, files: files.length }
 }
@@ -622,7 +674,7 @@ export async function main(argv) {
     }
     case 'destination': {
       const ctx = contractContext(arg(rest, 'contract'), repo)
-      const move = { role: arg(rest, 'role'), file: arg(rest, 'file', ''), basename: arg(rest, 'basename', ''), surface: arg(rest, 'surface', '') }
+      const move = { role: arg(rest, 'role'), file: arg(rest, 'file', ''), basename: arg(rest, 'basename'), relativePath: arg(rest, 'relative-path'), surface: arg(rest, 'surface', '') }
       const dest = destination(move, { ...ctx, capability: arg(rest, 'capability') })
       print({ dest })
       return dest ? 0 : 1
@@ -668,6 +720,24 @@ export async function main(argv) {
       print(result)
       return result.fresh ? 0 : 3
     }
+    case 'lint': {
+      const contractPath = path.resolve(repo, arg(rest, 'contract', 'rules/architecture-contract.json'))
+      const previousCwd = process.cwd()
+      let evidence
+      try {
+        // Resolver plugins also consult process.cwd(), independently of ESLint's cwd option.
+        process.chdir(repo)
+        evidence = await lintWithCoverage(repo, contractPath)
+      } finally {
+        process.chdir(previousCwd)
+      }
+      const output = arg(rest, 'output-file', '')
+      if (output) fs.writeFileSync(output, JSON.stringify(evidence, null, 2) + '\n')
+      else print(evidence)
+      const census = censusFromEslintJson(JSON.stringify(evidence))
+      if (output) print(census)
+      return !census.ok || evidence.results.some(result => result.errorCount > 0) ? 1 : 0
+    }
     case 'census': {
       const record = readJson(arg(rest, 'record'))
       // One check command can write ESLint's JSON to a file (`--output-file`) beside the rest of
@@ -684,7 +754,12 @@ export async function main(argv) {
       } else {
         text = fs.readFileSync(record.stdoutPath || path.join(repo, record.outPath), 'utf8')
       }
-      const ctx = arg(rest, 'contract', '') ? contractContext(arg(rest, 'contract'), repo) : { moduleRoot: arg(rest, 'module-root', '') }
+      if (!recordFreshness(repo, record).fresh) {
+        print({ ok: false, detail: 'record is stale; coverage must describe the recorded tree', recordId: record.id })
+        return 1
+      }
+      const contractPath = path.resolve(repo, arg(rest, 'contract', 'rules/architecture-contract.json'))
+      const ctx = contractContext(contractPath, repo)
       const baseline = arg(rest, 'baseline', '') ? readJson(arg(rest, 'baseline')) : null
       const baselineKeys = baseline ? Object.keys(baseline.counts || baseline) : []
       const result = censusFromEslintJson(text, { moduleRoot: ctx.moduleRoot, capability: arg(rest, 'capability', ''), baselineKeys })
@@ -696,7 +771,7 @@ export async function main(argv) {
       return 0
     }
     default:
-      console.error('usage: migration.mjs <inventory|expand|destination|plan-check|record|tree-state|record-fresh|census|recommend> [--repo <path>] ...')
+      console.error('usage: migration.mjs <inventory|expand|destination|plan-check|record|tree-state|record-fresh|lint|census|recommend> [--repo <path>] ...')
       return 1
   }
 }

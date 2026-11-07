@@ -34,7 +34,7 @@ const rewrite = (text) =>
 // the target as a set, and omitting one silently would break the checks it defines.
 const DOC_ASSETS = /\.(md|png|svg|jpg|jpeg|gif|webp)$/
 const sources = [
-  ...listFiles('docs', (file) => DOC_ASSETS.test(file)),
+  ...listFiles('docs', (file) => DOC_ASSETS.test(file) && !file.startsWith('docs/plans/')),
   ...listFiles('rules', () => true),
 ].sort()
 

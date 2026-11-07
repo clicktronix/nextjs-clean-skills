@@ -157,9 +157,9 @@ The `migrating-architecture` skill runs the adoption procedure in
 [`docs/adoption-and-enforcement.md`](docs/adoption-and-enforcement.md) inside your session: it
 lists files and writes manifests with `plugins/nextjs-clean-skills/bin/migration.mjs`, runs the
 target's own checks as its own child processes, dispatches subagents only for judgement and
-per-slice moves, and asks you once after the pilot. Two small workflows,
-[`inventory` and `verify`](plugins/nextjs-clean-skills/workflows/README.md), cover the parts that
-need parallel opinions; they require dynamic workflows to be enabled.
+per-slice moves when useful, and asks you once after the pilot. The owner can execute the whole
+procedure sequentially in Codex. Optional [`inventory` and `verify` adapters](plugins/nextjs-clean-skills/workflows/README.md)
+require a client exposing `Workflow`; they are not a prerequisite for migration.
 
 ```text
 /nextjs-clean-skills:migrating-architecture
