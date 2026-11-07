@@ -5,10 +5,11 @@
 `.nextjs-clean-migration/inventory.json` contains `sourceRoot`, `excludedDirectories`, `count`,
 `listHash` and sorted `files`. Cite this list; an agent's differing count is not a measurement.
 
-Inventory includes all regular files: code, CSS, translations, images and MDX. Build directories
-are skipped; `--exclude` adds declared exclusions. Symlinks are not followed. Assets need ownership
-and destinations too. Extra inventory exclusions do not exempt code from lint coverage, which
-uses the current tree and the versioned contract's `generatedRoot`, not an old file list.
+Inventory includes every regular file git sees under the source root (tracked or untracked, not
+ignored): code, CSS, translations, images and MDX. Build directories are skipped; `--exclude` adds
+declared exclusions. Symlinks are not followed. Assets need ownership and destinations too. Lint
+coverage skips no folder by name: it uses the current tree and the versioned contract's
+`generatedRoot`, not an old file list, and inline comments cannot disable a mandatory rule.
 
 ## Coverage rules
 

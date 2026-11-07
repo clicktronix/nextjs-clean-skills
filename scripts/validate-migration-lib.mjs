@@ -326,13 +326,13 @@ try {
   const lintCmd = `printf '%s' ${JSON.stringify(JSON.stringify([{ filePath: `${repo}/src/features/a/f1.ts`, messages: [{ ruleId: 'clean-architecture/boundaries', messageId: 'appInternal' }] }]))} > "$NCS_ARTIFACTS/lint.json"`
   const r10 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', 'lint.json', '--', lintCmd)
   const r10path = JSON.parse(r10.stdout).recordPath
-  const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
+  const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--capability', 'features')
   check(r11.status === 1, `cli census refuses unverified coverage even for a bound artifact: ${r11.stdout.slice(0, 200)} ${r11.stderr.slice(0, 200)}`)
   fs.writeFileSync(path.join(repo, JSON.parse(fs.readFileSync(r10path, 'utf8')).artifacts[0].path), '[]')
-  const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
+  const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--capability', 'features')
   check(r12.status === 1 && /changed since record/.test(r12.stdout), 'cli census refuses a swapped JSON under the same record id')
   const r13 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', 'lint.json', '--', 'echo lint stage skipped')
-  const r14 = cli('census', '--repo', repo, '--record', JSON.parse(r13.stdout).recordPath, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
+  const r14 = cli('census', '--repo', repo, '--record', JSON.parse(r13.stdout).recordPath, '--lint-json', 'lint.json', '--capability', 'features')
   check(r14.status === 1 && /was not written by the command/.test(r14.stdout), 'cli census refuses a record whose command wrote no lint JSON')
   const link = path.join(repo, 'bin-link')
   fs.symlinkSync(path.dirname(LIB), link)

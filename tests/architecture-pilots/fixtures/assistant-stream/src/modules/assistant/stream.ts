@@ -62,6 +62,24 @@ async function* committedEvents(
   }
 }
 
+// An async generator closed before its first read never runs its body or its `finally`, yet the
+// provider is already running here; this close reaches the provider either way.
+function closingProvider(
+  events: AsyncGenerator<AssistantEvent>,
+  provider: AsyncIterator<AssistantEvent>
+): AsyncIterableIterator<AssistantEvent> {
+  return {
+    next: () => events.next(),
+    return: async () => {
+      await provider.return?.()
+      return events.return(undefined)
+    },
+    [Symbol.asyncIterator]() {
+      return this
+    },
+  }
+}
+
 export async function openAssistantStream(
   input: GenerateResponseInput,
   dependencies: GenerateResponseDependencies & {
@@ -78,11 +96,9 @@ export async function openAssistantStream(
     }
     return {
       status: 200,
-      events: committedEvents(
-        first.value,
-        iterator,
-        dependencies.reporter,
-        dependencies.reportingContext
+      events: closingProvider(
+        committedEvents(first.value, iterator, dependencies.reporter, dependencies.reportingContext),
+        iterator
       ),
     }
   } catch (error) {

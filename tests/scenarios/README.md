@@ -38,7 +38,7 @@ into the baseline.
 
 ## Evidence Levels
 
-The release decision uses the frozen four-arm architecture matrix:
+The release decision used the frozen four-arm architecture matrix:
 
 ```text
 no skill | v1.3.2 | layer-first checkpoint | capability-first candidate

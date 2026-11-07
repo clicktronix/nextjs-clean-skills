@@ -82,9 +82,22 @@ export async function* generateResponse(
     input.signal.removeEventListener('abort', cancel)
     controller.abort(new GenerationCancelledError('generation closed'))
     const closing = iterator?.return?.()
-    // An adapter must honor AbortSignal to stop its IO. A non-cooperative pending next()
-    // must not hold the channel past its deadline; observe its eventual cleanup rejection.
-    if (pending) void closing?.catch(() => {})
-    else await closing
+    // An adapter must honor AbortSignal to stop its IO. A non-cooperative adapter must not hold
+    // the channel past its deadline, whether its next() or its cleanup hangs; its eventual
+    // rejection is still observed.
+    void closing?.catch(() => {})
+    if (closing && !pending) {
+      let bound: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          closing,
+          new Promise<void>(resolve => {
+            bound = setTimeout(resolve, Math.max(0, input.deadlineAt - dependencies.clock.now()))
+          }),
+        ])
+      } finally {
+        clearTimeout(bound)
+      }
+    }
   }
 }

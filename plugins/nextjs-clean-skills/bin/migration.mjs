@@ -29,9 +29,19 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 // One walk over the source root, sorted, written once. A 301-file tree with a loose
 // index.ts beside two 150-file children is nothing special here: there is no
 // partition to satisfy because nothing is handed to an agent.
+// In a git checkout the list is git's own view of the tree (tracked and untracked, minus what
+// .gitignore and the global excludes hide), so editor and OS litter is not a capability file.
 export function listSourceFiles(repo, sourceRoot, excluded = EXCLUDED_DIRS) {
   const rootAbs = path.join(repo, sourceRoot)
   if (!fs.existsSync(rootAbs)) throw new Error(`source root ${sourceRoot} does not exist under ${repo}`)
+  const listed = spawnSync('git', ['-C', repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', sourceRoot], { encoding: 'utf8' })
+  if (listed.status === 0) {
+    return listed.stdout.split('\0').filter(file => {
+      if (!file || file.split('/').some(part => excluded.has(part))) return false
+      const stat = fs.lstatSync(path.join(repo, file), { throwIfNoEntry: false })
+      return stat?.isFile() === true
+    }).sort()
+  }
   const out = []
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -514,12 +524,14 @@ export function recordFreshness(repo, record) {
 // Counts a boundary census from an ESLint JSON output the record carries. The counter
 // named `capability` is the burndown for one capability; the others are compared with the
 // baseline. A record whose output is not ESLint JSON is reported as such, not as zero.
-// Record lint and effective coverage from the same ESLint instance. The expected settings come
-// from the distributed configs (including test exemptions), not another list of rule IDs.
+// Record lint and effective coverage from the same ESLint configuration. The expected settings come
+// from the distributed configs (including test exemptions), not another list of rule IDs. Only
+// the build-output names below are skipped: a source folder called `build` is still source.
+const COVERAGE_EXCLUDED_DIRS = new Set(['node_modules', '.git'])
 async function lintWithCoverage(repo, contractPath) {
   repo = fs.realpathSync(repo)
   const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'))
-  const expectedFiles = listSourceFiles(repo, contract.sourceRoot)
+  const expectedFiles = listSourceFiles(repo, contract.sourceRoot, COVERAGE_EXCLUDED_DIRS)
     .filter(file => SOURCE_EXTENSIONS.has(path.extname(file)) &&
       !(contract.generatedRoot && file.startsWith(`${contract.generatedRoot}/`)))
   const { ESLint } = createRequire(path.join(repo, 'package.json'))('eslint')
@@ -529,18 +541,30 @@ async function lintWithCoverage(repo, contractPath) {
   const actual = new ESLint({ cwd: repo })
   const expected = new ESLint({ cwd: repo, overrideConfigFile: true, overrideConfig: [...base, ...resolved] })
   const inactive = []
+  const mandatory = new Set()
   const enabled = setting => [1, 2, 'warn', 'error'].includes(Array.isArray(setting) ? setting[0] : setting)
   for (const file of expectedFiles) {
     const absolute = path.join(repo, file)
     const config = await actual.calculateConfigForFile(absolute)
     const floor = await expected.calculateConfigForFile(absolute)
     const required = Object.entries(floor?.rules || {}).filter(([, setting]) => enabled(setting)).map(([id]) => id)
+    for (const id of required) mandatory.add(id)
     if (!config || required.length === 0) inactive.push({ file, reason: 'not covered by configuration' })
     else for (const id of required) {
       if (!enabled(config.rules?.[id])) inactive.push({ file, ruleId: id })
     }
   }
-  const results = await actual.lintFiles([contract.sourceRoot])
+  // Inline comments are off for this pass, so none can disable a mandatory rule in one file, and
+  // only mandatory rules are kept: the repository's own directives for other rules are its business.
+  const strict = new ESLint({ cwd: repo, overrideConfig: { linterOptions: { noInlineConfig: true } } })
+  const results = (await strict.lintFiles([contract.sourceRoot])).map(result => {
+    const messages = result.messages.filter(message => message.fatal || mandatory.has(message.ruleId))
+    return {
+      ...result, messages, suppressedMessages: [],
+      errorCount: messages.filter(message => message.severity === 2).length,
+      warningCount: messages.filter(message => message.severity === 1).length,
+    }
+  })
   return { results, coverage: { repo, expectedFiles, inactive } }
 }
 

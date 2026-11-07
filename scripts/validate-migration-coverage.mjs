@@ -74,10 +74,32 @@ process.exitCode = result.status ?? 1;`)
   assert.equal(broken.value.counts.domainDirection, 1)
   assert.equal(broken.value.counts.capability, 1)
 
-  write('src/modules/orders/domain/bad.ts', "/* eslint-disable clean-architecture/boundaries */\nimport fs from 'node:fs'; export const read = fs.readFileSync")
-  assert.equal(census().value.ok, false, 'suppressed architecture errors are unmeasured')
+  // Inline comments cannot hide a mandatory rule: a directive or a rule-config comment still counts.
+  for (const comment of ['/* eslint-disable clean-architecture/boundaries */', '/* eslint clean-architecture/boundaries: off */']) {
+    write('src/modules/orders/domain/bad.ts', `${comment}\nimport fs from 'node:fs'; export const read = fs.readFileSync`)
+    const hidden = census()
+    assert.equal(hidden.value.counts?.capability, 1, `${comment}: ${JSON.stringify(hidden.value)}`)
+  }
   write('src/modules/orders/domain/bad.ts', 'export const =')
   assert.equal(census().value.ok, false, 'parse failures are unmeasured')
+
+  // A directory named like a build output is still source when it holds code under the source root.
+  write('src/modules/orders/domain/bad.ts', 'export const value = 1')
+  write('src/modules/orders/domain/build/unchecked.ts', "import fs from 'node:fs'; export const read = fs.readFileSync")
+  config("{ ignores: ['**/build/**'] }")
+  const nested = census()
+  assert.equal(nested.value.ok, false, JSON.stringify(nested.value))
+  assert.ok(nested.value.missing.includes('src/modules/orders/domain/build/unchecked.ts'))
+  fs.rmSync(path.join(repo, 'src/modules/orders/domain/build'), { recursive: true })
+
+  // A directive for an unrelated rule is the repository's business, not a gap in the measurement.
+  config("{ rules: { 'no-console': 'error' } }")
+  write('src/modules/orders/domain/log.ts', '// eslint-disable-next-line no-console\nconsole.log(1)\nexport const logged = 1')
+  const unrelated = census()
+  assert.equal(unrelated.status, 0, JSON.stringify(unrelated.value))
+  assert.equal(unrelated.value.counts.capability, 0)
+  fs.rmSync(path.join(repo, 'src/modules/orders/domain/log.ts'))
+  config()
 
   write('src/modules/orders/domain/bad.ts', 'export const value = 1')
   write('src/modules/orders/domain/value.test.ts', 'export const testValue = 1')
@@ -92,7 +114,12 @@ process.exitCode = result.status ?? 1;`)
 
   // Assets and nested folders survive the same inventory -> assignments -> plan used by agents.
   for (const name of ['Form/index.tsx', 'List/index.tsx', 'Form/Form.module.css', 'Form/messages.json', 'Form/icon.svg', 'List/help.mdx']) write('src/features/orders/' + name, '')
+  // Files git ignores (editor and OS litter) are not part of the capability.
+  write('.gitignore', '.DS_Store\n*.swp\n')
+  write('src/features/orders/.DS_Store', '')
+  write('src/features/orders/Form/index.tsx.swp', '')
   const inventory = JSON.parse(fs.readFileSync(writeInventory(repo, 'src').path, 'utf8'))
+  assert.ok(!inventory.files.some(file => /\.DS_Store$|\.swp$/.test(file)), JSON.stringify(inventory.files))
   const expanded = expandRules(inventory.files, [{ kind: 'prefix', path: 'src', placement: 'capability', capability: 'orders' }])
   assert.deepEqual(expanded.uncovered, [])
   const files = expanded.rows.map(row => row.file).filter(file => file.startsWith('src/features/orders/'))

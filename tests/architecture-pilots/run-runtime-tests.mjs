@@ -403,6 +403,21 @@ async function testAssistantStream(load) {
   assert.equal(closed, true)
   assert.equal(upstreamSignal.aborted, true)
 
+  // The provider already runs once the response exists, so closing it unread must close it too.
+  closed = false
+  const unread = await streamModule.openAssistantStream(input, {
+    clock,
+    generator: { async *stream({ signal }) {
+      upstreamSignal = signal
+      try { yield 'first'; yield 'unused' } finally { closed = true }
+    } },
+    reporter: successReports.reporter,
+    reportingContext: { requestId: 'close-unread' },
+  })
+  await unread.events[Symbol.asyncIterator]().return()
+  assert.equal(closed, true, 'closing an unread response closes the provider')
+  assert.equal(upstreamSignal.aborted, true)
+
   // An idle provider must not keep either channel waiting past the deadline or cancellation.
   const bounded = async promise => {
     let timer
@@ -442,6 +457,12 @@ async function testAssistantStream(load) {
   ))
   assert.equal(interrupted.status, 499)
   assert.equal(successReports.calls.length, 0, 'expected cancellation/deadline is never reported as a defect')
+
+  // A provider whose cleanup hangs and ignores abort cannot hold a consumer that stopped reading.
+  const stuck = await streamModule.openAssistantStream(realInput(), dependencies({
+    async *stream() { try { yield 'first'; yield 'unused' } finally { await new Promise(() => {}) } },
+  }))
+  await bounded((async () => { for await (const event of stuck.events) { assert.equal(event.type, 'token'); break } })())
 
   // Even a broken adapter ignoring the signal cannot keep the caller blocked. Release it so
   // this test also verifies eventual cleanup and leaves no pending provider work of its own.
