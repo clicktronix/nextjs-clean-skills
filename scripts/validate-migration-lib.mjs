@@ -33,9 +33,9 @@ try {
   mk('src/node_modules/dep/index.js')
   mk('src/.next/cache.js')
   const inv = lib.writeInventory(repo, 'src')
-  check(inv.count === 301, `inventory: expected 301 source files, got ${inv.count}`)
+  check(inv.count === 302, `inventory: expected 302 source and asset files, got ${inv.count}`)
   const written = JSON.parse(fs.readFileSync(inv.path, 'utf8'))
-  check(written.files.includes('src/features/index.ts') && !written.files.some((f) => f.includes('node_modules') || f.includes('.next') || f.endsWith('.md')), 'inventory: loose file kept, excluded dirs and non-source dropped')
+  check(written.files.includes('src/features/index.ts') && !written.files.some((f) => f.includes('node_modules') || f.includes('.next')), 'inventory: loose file kept, excluded directories dropped')
   check(written.files.join() === [...written.files].sort().join(), 'inventory: files are sorted')
   let threw = false
   try { lib.listSourceFiles(repo, 'nope') } catch { threw = true }
@@ -50,7 +50,7 @@ try {
   ]
   const unassigned = [{ file: 'src/features/a/f3.ts', why: 'contested', likelyCapability: 'features' }, { file: 'src/gone.ts', why: 'x' }]
   const ex = lib.expandRules(written.files, rules, unassigned)
-  check(ex.ok && ex.rows.length === 301 && ex.uncovered.length === 0, 'expand: every file gets one row')
+  check(ex.ok && ex.rows.length === 302 && ex.uncovered.length === 0, 'expand: every file gets one row')
   const row = (f) => ex.rows.find((r) => r.file === f)
   check(row('src/features/index.ts').capability === 'features', 'expand: broad prefix covers the loose file')
   check(row('src/features/b/g0.tsx').placement === 'shared', 'expand: the longer prefix wins over the shorter')
@@ -61,7 +61,7 @@ try {
   const shuffled = lib.expandRules(written.files, [...rules].reverse(), unassigned)
   check(JSON.stringify(shuffled.rows) === JSON.stringify(ex.rows), 'expand: rule order changes nothing')
   const partial = lib.expandRules(written.files, rules.slice(1), [])
-  check(partial.ok && partial.uncovered.includes('src/features/index.ts') && partial.uncovered.length === 151, `expand: uncovered files are listed, not invented: ${partial.uncovered.length}`)
+  check(partial.ok && partial.uncovered.includes('src/features/index.ts') && partial.uncovered.length === 152, `expand: uncovered files are listed, not invented: ${partial.uncovered.length}`)
   const bad = lib.expandRules(written.files, [{ kind: 'prefix', path: '../etc', placement: 'app' }, { kind: 'prefix', path: 'src/features', surface: 'server' }], [])
   check(!bad.ok && bad.problems.some((p) => p.kind === 'unsafe-rule-path') && bad.problems.some((p) => p.kind === 'surface-on-prefix'), 'expand: unsafe paths and surfaces on prefixes are refused')
 
@@ -70,13 +70,22 @@ try {
   check(d({ role: 'surface', surface: 'server', file: 'x' }) === 'src/modules/work-items/server.ts', 'destination: surface path')
   check(d({ role: 'domain', file: 'src/old/work-item.ts' }) === 'src/modules/work-items/domain/work-item.ts', 'destination: segment keeps the basename')
   check(d({ role: 'domain', file: 'src/old/x.ts', basename: 'renamed.ts' }) === 'src/modules/work-items/domain/renamed.ts', 'destination: explicit basename')
+  check(d({ role: 'ui', file: 'src/copy.json', relativePath: 'Form/[variant]/копия.json' }) === 'src/modules/work-items/ui/Form/[variant]/копия.json', 'destination: safe existing names need no cosmetic rename')
   check(d({ role: 'stay', file: 'x' }) === null && d({ role: 'delete', file: 'x' }) === null, 'destination: stay and delete have none')
   check(d({ role: 'surface', surface: 'lib', file: 'x' }) === null, 'destination: an unknown surface is refused')
   check(d({ role: 'services', file: 'x.ts' }) === null, 'destination: an unknown segment is refused')
   check(d({ role: 'domain', file: 'x', basename: '../escape.ts' }) === null && d({ role: 'domain', file: 'x', basename: 'a/b.ts' }) === null, 'destination: a basename cannot leave the directory')
   check(lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, capability: '../../../outside' }) === null, 'destination: a capability that is not one kebab-case segment is refused')
   check(lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, moduleRoot: '/etc' }) === null && lib.destination({ role: 'domain', file: 'src/a.ts' }, { ...CTX, moduleRoot: 'src/../..' }) === null, 'destination: a module root outside the project is refused')
+  check(lib.destination({ role: 'ui', file: 'x.ts' }, { ...CTX, moduleRoot: 'C:\\outside' }) === null, 'destination: Windows absolute roots cannot escape the project')
   check(!lib.screenPlan({ moves: [], surfaces: [] }, { ...CTX, capability: 'Bad_Cap', assignedFiles: [], consumers: [] }).ok, 'screen: unsafe roots are the first problem reported')
+
+  check(d({ role: 'ui', file: 'src/Form/index.tsx', relativePath: 'Form/index.tsx' }) === 'src/modules/work-items/ui/Form/index.tsx', 'destination: preserve a component folder')
+  check(d({ role: 'ui', file: 'src/Form/index.test.tsx', relativePath: 'Form/__tests__/index.test.tsx' }) === 'src/modules/work-items/ui/Form/__tests__/index.test.tsx', 'destination: preserve colocated tests')
+  for (const relativePath of ['../x.ts', 'a/../x.ts', './x.ts', '/x.ts', 'a//x.ts', 'a/./x.ts', 'a\\x.ts', 'C:/x.ts', '']) {
+    check(d({ role: 'ui', file: 'x.ts', relativePath }) === null, `destination: refuse unsafe relativePath ${relativePath}`)
+  }
+  check(d({ role: 'ui', file: 'x.ts', relativePath: 'Form/x.ts', basename: 'x.ts' }) === null, 'destination: ambiguous names are refused')
 
   // ─── plan screening ───
   const assigned = ['src/old/a.ts', 'src/old/b.ts', 'src/old/c.ts']
@@ -258,14 +267,17 @@ try {
     { filePath: `${repo}/src/app/page.tsx`, messages: [{ ruleId: 'clean-architecture/boundaries', messageId: 'appInternal' }, { ruleId: 'import/no-cycle', message: 'cycle' }] },
     { filePath: `${repo}/src/modules/other/server.ts`, messages: [] },
   ])
-  const c = lib.censusFromEslintJson(`$ eslint\n${eslintJson}`, { moduleRoot: 'src/modules', capability: 'work-items' })
+  const coverage = { repo, expectedFiles: JSON.parse(eslintJson).map(f => path.relative(repo, f.filePath)), inactive: [] }
+  const c = lib.censusFromEslintJson(`$ eslint\n${eslintJson}`, { moduleRoot: 'src/modules', capability: 'work-items', coverage })
   check(c.ok && c.counts.domainDirection === 1 && c.counts.appInternal === 1 && c.counts['import/no-cycle'] === 1 && c.counts.capability === 1, `census: counts per messageId and the capability counter: ${JSON.stringify(c.counts)}`)
+  check(!lib.censusFromEslintJson(eslintJson, { moduleRoot: 'src/modules', capability: 'work-items' }).ok, 'census: raw ESLint JSON without coverage is unmeasured')
   const notJson = lib.censusFromEslintJson('42 problems', {})
   check(!notJson.ok, 'census: non-JSON output is reported, not counted as zero')
-  const baselineScope = lib.censusFromEslintJson(eslintJson, { moduleRoot: 'src/modules' })
+  const baselineScope = lib.censusFromEslintJson(eslintJson, { moduleRoot: 'src/modules', coverage })
   check(baselineScope.ok && baselineScope.scope === 'baseline' && baselineScope.counts.capability === null, 'census: without a capability the capability counter is null, never a clean zero')
-  const zeroFilled = lib.censusFromEslintJson('[]', { moduleRoot: 'src/modules', capability: 'work-items', baselineKeys: ['domainDirection', 'appInternal', 'capability'] })
+  const zeroFilled = lib.censusFromEslintJson(JSON.stringify(JSON.parse(eslintJson).map(f => ({ ...f, messages: [] }))), { moduleRoot: 'src/modules', capability: 'work-items', baselineKeys: ['domainDirection', 'appInternal', 'capability'], coverage })
   check(zeroFilled.counts.domainDirection === 0 && zeroFilled.counts.appInternal === 0 && zeroFilled.counts.capability === 0, 'census: a baseline key with no diagnostics left is a measured zero')
+  check(!lib.censusFromEslintJson('[]', { moduleRoot: 'src/modules', capability: 'work-items', coverage }).ok, 'census: an empty result is unmeasured, not zero')
   const fixedLast = lib.recommend({ ...{ behaviour: { ok: true }, review: { verdict: 'sound', findings: [] }, census: { domainDirection: 1 } }, architecture: { ok: true, counts: { capability: 0 } } })
   check(fixedLast.gate === 'accept', `gate: fixing the last violation of a kind is 1 → 0, not an unmeasured counter: ${fixedLast.gate} ${fixedLast.reason}`)
 
@@ -286,11 +298,11 @@ try {
   // ─── CLI round trip ───
   const cli = (...argv) => spawnSync(process.execPath, [LIB, ...argv], { encoding: 'utf8' })
   const r1 = cli('inventory', '--repo', repo, '--source-root', 'src')
-  check(r1.status === 0 && JSON.parse(r1.stdout).count === 301, `cli inventory: status=${r1.status} out=${JSON.stringify(r1.stdout.slice(0, 400))} err=${r1.stderr.slice(0, 300)}`)
+  check(r1.status === 0 && JSON.parse(r1.stdout).count === 302, `cli inventory: status=${r1.status} out=${JSON.stringify(r1.stdout.slice(0, 400))} err=${r1.stderr.slice(0, 300)}`)
   const rulesFile = path.join(repo, 'rules.json')
   fs.writeFileSync(rulesFile, JSON.stringify({ rules, unassigned: [] }))
   const r2 = cli('expand', '--repo', repo, '--rules', rulesFile)
-  check(r2.status === 0 && JSON.parse(r2.stdout).rows === 301, `cli expand: ${r2.stderr}`)
+  check(r2.status === 0 && JSON.parse(r2.stdout).rows === 302, `cli expand: ${r2.stderr}`)
   fs.writeFileSync(rulesFile, JSON.stringify({ rules: rules.slice(1), unassigned: [] }))
   const r3 = cli('expand', '--repo', repo, '--rules', rulesFile)
   check(r3.status === 2, 'cli expand: uncovered files exit 2 so the owner decides them')
@@ -315,7 +327,7 @@ try {
   const r10 = cli('record', '--repo', repo, '--label', 'lint', '--artifact', 'lint.json', '--', lintCmd)
   const r10path = JSON.parse(r10.stdout).recordPath
   const r11 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
-  check(r11.status === 0 && JSON.parse(r11.stdout).counts.appInternal === 1, `cli census reads the bound artifact: ${r11.stdout.slice(0, 200)} ${r11.stderr.slice(0, 200)}`)
+  check(r11.status === 1, `cli census refuses unverified coverage even for a bound artifact: ${r11.stdout.slice(0, 200)} ${r11.stderr.slice(0, 200)}`)
   fs.writeFileSync(path.join(repo, JSON.parse(fs.readFileSync(r10path, 'utf8')).artifacts[0].path), '[]')
   const r12 = cli('census', '--repo', repo, '--record', r10path, '--lint-json', 'lint.json', '--module-root', 'src/modules', '--capability', 'features')
   check(r12.status === 1 && /changed since record/.test(r12.stdout), 'cli census refuses a swapped JSON under the same record id')
@@ -405,4 +417,4 @@ const jsonExample = (file) => {
 }
 
 fail(errors)
-console.log('migration lib ok (inventory 301 files without an agent, coverage rules, destinations, plan screening, owned records, census, gate)')
+console.log('migration lib ok (inventory includes source assets, coverage rules, destinations, plan screening, owned records, census, gate)')

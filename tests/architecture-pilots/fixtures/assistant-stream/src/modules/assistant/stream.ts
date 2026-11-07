@@ -45,8 +45,8 @@ async function* committedEvents(
   reporter: Reporter,
   reportingContext: ReportingContext
 ): AsyncGenerator<AssistantEvent> {
-  yield first
   try {
+    yield first
     while (true) {
       const next = await iterator.next()
       if (next.done) return
@@ -57,6 +57,8 @@ async function* committedEvents(
       reportUnexpected(reporter, error, 'assistant.stream.after-commit', reportingContext)
     }
     yield expectedErrorEvent(error)
+  } finally {
+    await iterator.return?.()
   }
 }
 

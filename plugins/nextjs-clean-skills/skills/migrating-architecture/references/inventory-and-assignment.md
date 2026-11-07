@@ -3,8 +3,14 @@
 **Scope: stack (Next.js App Router)**
 
 The inventory is a file the script wrote: `.nextjs-clean-migration/inventory.json` with
-`sourceRoot`, `count`, `listHash` and a sorted `files` array. Lenses cite paths from it. If a
+`sourceRoot`, `excludedDirectories`, `count`, `listHash` and a sorted `files` array. Lenses cite paths from it. If a
 lens answers with a count that disagrees with `count`, the lens is wrong, not the file.
+
+All regular files under the source root are included: code, CSS, translations, images and MDX.
+Generated directories are excluded explicitly; symlinks are not followed. Assets receive ownership
+and planned destinations too. Lint coverage separately uses the code extensions on the current
+tree. Extra inventory exclusions do not exempt code from lint coverage; use the versioned
+contract's `generatedRoot` for generated code. An old inventory cannot hide newly moved source files.
 
 ## Coverage rules
 

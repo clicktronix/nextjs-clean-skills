@@ -18,6 +18,11 @@ The measurements in `results.json` stay bound to the commits they were taken at.
 limits. `results.json` binds candidate observations to exact local commits and records the exact
 remote baseline replay commits and paths.
 
+These are framework-free Node fixtures, not copy-ready Next.js modules: runtime poison markers
+are omitted to exercise server and browser surfaces in one process. The old Next.js pilot is
+revision-bound and predates explicit identity at the outer channel. Production build and current
+contract conformance require a product-owned integration check.
+
 ## Measurements
 
 - `sourceFiles`: changed production `.ts`/`.tsx` files.
@@ -29,6 +34,9 @@ remote baseline replay commits and paths.
 - `duplicatedPolicySites`: equivalent auth, cache, reporting, or error-mapping logic repeated across
   channels.
 - `publicSurfaces`: runtime-specific files intentionally imported from outside a capability.
+
+Candidate `sourceFiles` and baseline `observedPaths` use different units and feature scope.
+Keep the numbers as observations; do not compare them as implementation cost.
 
 An architecture root is one declared root in the baseline or one candidate module/app/shared root.
 Nested folders inside one capability do not increase root scatter.

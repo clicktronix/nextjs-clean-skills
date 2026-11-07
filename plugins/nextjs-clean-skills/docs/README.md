@@ -5,7 +5,8 @@
 Human-facing documentation for `nextjs-clean-skills`.
 
 > [ADR 0001: Capability-First Modules](./0001-capability-first-modules.md) is Accepted. Its pilot
-> and comparative agent evidence are retained with the repository.
+> evidence is retained; its comparative skill gate is withdrawn because the controls inherited
+> installed skills. See [Evidence](./evidence.md#agent-evaluation).
 
 ## Reading Path
 
@@ -44,6 +45,8 @@ Human docs are concise and normative:
 - explicit distinction between normative, enforced, review-only, and known-gap rules.
 
 ## Maintenance
+
+Task plans under `docs/plans/` are repository records, not part of the installed contract.
 
 The complete change procedure is in
 [Adoption And Enforcement](./adoption-and-enforcement.md#architecture-change).

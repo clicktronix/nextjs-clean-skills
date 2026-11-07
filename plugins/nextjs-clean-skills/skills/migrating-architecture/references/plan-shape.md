@@ -3,7 +3,7 @@
 **Scope: stack (Next.js App Router)**
 
 The Step 4 agent returns one JSON object. Roles come from the agent; `plan-check` computes every
-destination: `<moduleRoot>/<capability>/<role>/<basename>`, and `<moduleRoot>/<capability>/<surface>.ts`
+destination: `<moduleRoot>/<capability>/<role>/<relativePath>`, and `<moduleRoot>/<capability>/<surface>.ts`
 for a surface.
 
 ```json
@@ -16,7 +16,10 @@ for a surface.
 
 - `moves` — one entry for every file assigned to the capability, none twice. `role` is a contract
   segment (`domain`, `application`, `server`, `client`, `ui`), `surface`, `stay` or `delete`;
-  `basename` renames on arrival. A `stay` move may name a file outside the assigned set; every
+  `relativePath` preserves folders inside the segment (for example `Form/index.tsx` or
+  `Form/__tests__/submit.test.ts`). It defaults to the original basename. Absolute paths, empty
+  segments, `.`/`..`, and backslashes are rejected. Legacy `basename` permits one filename; do not
+  combine it with `relativePath`. Assets and tests belong in the same plan as their owner. A `stay` move may name a file outside the assigned set; every
   other role must name an assigned file.
 - `surfaces` — each root surface with a real consumer, named from `publicSurfaces`. `exports` is
   non-empty. A consumer is a file from `--consumers` (a JSON array of paths outside the capability),
@@ -31,7 +34,7 @@ for a surface.
 
 - `unsafe-roots` — `moduleRoot` or the capability name is not a safe path segment.
 - `malformed-channel-change` — a channel change lacks a field.
-- `invalid-move` — a role the contract lacks, or an unsafe file name.
+- `invalid-move` — a role the contract lacks, or an unsafe/ambiguous relative path.
 - `unknown-surface`, `duplicate-surface`, `empty-surface` — a surface outside `publicSurfaces`,
   declared twice, or without exports.
 - `destination-collision` — two moves share one destination.

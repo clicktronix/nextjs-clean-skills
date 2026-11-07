@@ -10,7 +10,7 @@ Product behavior lives under `<moduleRoot>/<capability>`. Reserved internal segm
 | `application/` | policy, orchestration, projection, owned ports | own domain, a neighbour's `contracts.ts`, classified pure code |
 | `server/` | private stores, providers, server cache, composition | own domain/application, admitted `shared/server` |
 | `client/` | browser async lifecycle | browser-safe own contracts, exact own actions, admitted `shared/client` |
-| `ui/` | reusable capability UI | own domain/client/action surfaces, admitted `shared/ui` |
+| `ui/` | reusable capability UI | own domain/client/action surfaces; Server Components may use own `rsc.ts`; admitted `shared/ui` |
 
 Introduce a segment for an actual responsibility, not to complete a template. A tiny capability
 may keep several roles in one private server file when no dependency rule needs a split.

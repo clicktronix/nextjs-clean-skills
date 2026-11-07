@@ -1,10 +1,10 @@
 export const meta = {
   name: 'inventory',
   description:
-    'Read-only inventory lenses over a Next.js repository whose file list the session already produced with bin/migration.mjs inventory. Dispatches at most six agents, one per lens, in parallel; none of them lists the tree. args: { repo, inventoryPath, contractSource, lenses? }.',
+    'Read-only inventory lenses over a Next.js repository whose file list the session already produced with bin/migration.mjs inventory. Dispatches at most six agents, one per lens, in parallel; none of them lists the tree. args: { repo, inventoryPath, contractSource, lenses }.',
   whenToUse:
     'Called by the migrating-architecture skill after `migration.mjs inventory` wrote .nextjs-clean-migration/inventory.json. Not for listing files — that is mechanical and already done.',
-  phases: [{ title: 'Inventory', detail: 'six read-only lenses: routes, capabilities, runtime, data, deps, roots' }],
+  phases: [{ title: 'Inventory', detail: 'selected read-only inventory lenses' }],
 }
 
 // The file list is an input here, never an output: an agent asked to enumerate a tree
@@ -48,9 +48,12 @@ const ALL_LENSES = [
   { key: 'deps', text: 'Read package.json. For every DIRECT dependency decide whether it is pure (no runtime, no I/O, safe in domain code) or runtime-bound (framework, I/O, provider, telemetry). Put the ones you cannot decide from the package alone in cannotDecide — do not guess.' },
   { key: 'roots', text: 'Read tsconfig.json, next.config.*, any eslint config and the lockfile. Report the source root, app root, path aliases (exact prefixes), the package manager the lockfile names, whether tsconfig.json exists, and any boundary tooling already in place. Do not list files.' },
 ]
-const wanted = Array.isArray(ARGS.lenses) && ARGS.lenses.length > 0 ? ARGS.lenses : ALL_LENSES.map(l => l.key)
-const LENSES = ALL_LENSES.filter(l => wanted.includes(l.key))
-if (LENSES.length === 0) return { error: 'args.lenses names no known lens; known: ' + ALL_LENSES.map(l => l.key).join(', ') }
+const wanted = ARGS.lenses
+if (!Array.isArray(wanted) || wanted.length === 0) return { error: 'args.lenses must explicitly select the topics requiring delegation' }
+if (new Set(wanted).size !== wanted.length || wanted.some(key => !ALL_LENSES.some(lens => lens.key === key))) {
+  return { error: 'args.lenses contains duplicate or unknown topics; known: ' + ALL_LENSES.map(lens => lens.key).join(', ') }
+}
+const LENSES = ALL_LENSES.filter(lens => wanted.includes(lens.key))
 
 phase('Inventory')
 const results = await parallel(LENSES.map(l => () =>
