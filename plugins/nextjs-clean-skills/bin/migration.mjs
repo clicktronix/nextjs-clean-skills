@@ -34,13 +34,19 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 export function listSourceFiles(repo, sourceRoot, excluded = EXCLUDED_DIRS) {
   const rootAbs = path.join(repo, sourceRoot)
   if (!fs.existsSync(rootAbs)) throw new Error(`source root ${sourceRoot} does not exist under ${repo}`)
-  const listed = spawnSync('git', ['-C', repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', sourceRoot], { encoding: 'utf8' })
+  const listed = spawnSync('git', ['-C', repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', sourceRoot], { encoding: 'utf8', maxBuffer: 1 << 30 })
   if (listed.status === 0) {
     return listed.stdout.split('\0').filter(file => {
       if (!file || file.split('/').some(part => excluded.has(part))) return false
       const stat = fs.lstatSync(path.join(repo, file), { throwIfNoEntry: false })
       return stat?.isFile() === true
     }).sort()
+  }
+  // Only a directory outside git walks the tree; a failed listing inside one is an error, since a
+  // walk would add the ignored files the listing leaves out.
+  const inside = spawnSync('git', ['-C', repo, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' })
+  if (inside.status === 0 && inside.stdout.trim() === 'true') {
+    throw new Error(`git ls-files failed under ${repo}: ${listed.error?.message || listed.stderr.trim()}`)
   }
   const out = []
   const walk = (dir) => {
