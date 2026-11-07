@@ -46,10 +46,14 @@ export async function POST(request: Request) {
     const item = await createWorkItem(command)
     return Response.json({ id: item.id }, { status: 201 })
   } catch (error) {
+    unstable_rethrow(error)
     return toHttpResponse(error, reportUnexpected)
   }
 }
 ```
+
+`unstable_rethrow` from `next/navigation` lets a framework exception through; without it a
+`redirect()` becomes a 5xx ([RSC Reads](../../../../docs/runtime-boundaries.md#rsc-reads)).
 
 `toHttpResponse` is the handler's own mapper: an expected failure becomes its public status and
 body; an unexpected one is passed to `reportUnexpected` once and becomes a generic 5xx. Never

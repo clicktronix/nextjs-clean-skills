@@ -186,7 +186,8 @@ with the rule codes and tool details that implement them:
 2. **Acyclic resolution.** Literal imports resolve, computed targets fail closed, and both file and
    capability graphs remain acyclic.
 3. **Purity.** `domain/**` and `application/**` reject runtime packages and wrong-direction imports;
-   domain admits only its own domain, `shared/kernel`, and classified pure packages.
+   domain admits only its own domain, `shared/kernel`, a neighbour's `contracts.ts`, and classified
+   pure packages.
 4. **Runtime separation.** Browser-safe code cannot import server surfaces and server code cannot
    import browser surfaces; `actions.ts` is the explicit browser-to-server mutation boundary; the
    runtime-bound surfaces carry their marker. A `ui/**` file is classified by its `'use client'`

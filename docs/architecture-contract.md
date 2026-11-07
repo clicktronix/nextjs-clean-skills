@@ -259,10 +259,10 @@ Normative rules:
 1. `app/**` imports module root surfaces, not module internals.
 2. A capability imports another capability only through its root public surface.
 3. Module dependencies are acyclic.
-4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, or dependencies
-   explicitly classified by the product as pure.
-5. `application/**` imports its domain, pure helpers, and capability-owned port types. It imports
-   no Next.js, React, database SDK, provider SDK, or concrete adapter.
+4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, a neighbour's
+   `contracts.ts`, or dependencies explicitly classified by the product as pure.
+5. `application/**` imports its domain, pure helpers, capability-owned port types, and a neighbour's
+   `contracts.ts`. It imports no Next.js, React, database SDK, provider SDK, or concrete adapter.
 6. `server/**` implements server-side driving and driven adapters for its capability.
    It does not import its own root public surfaces; `server.ts`, `rsc.ts`, and `actions.ts` depend
    inward on private server implementation.
@@ -273,6 +273,10 @@ Normative rules:
    the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
    publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
    narrowing — nor another capability's internals; the checker reports `serverUiReach`.
+   A `ui.ts` that publishes a file reading `rsc.ts` has server importers only: a Client Component
+   importing any of its exports fails the build on `server-only`, so a Server Component renders the
+   export and passes the element, such as `<Badge />`, as `children` or a prop. The checker sees only
+   direct imports; the production build enforces this (rule 11).
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
@@ -334,13 +338,15 @@ Normative rules:
    from an argument.
    Without cookies there is no user session, so the store is one of two:
    - a tenant-private read uses a privileged store, which bypasses row-level security: the channel
-     authorizes first, and the tenant argument, applied as a query predicate, is the isolation;
+     authorizes first, and every scope argument, applied as a query predicate, is the isolation;
    - an anonymous store stays under row-level security as the `anon` role and serves only data its
      policies make public.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
-3. Per-user data uses `'use cache: private'` or stays uncached. Plain `'use cache'` is a shared,
-   prerenderable cache; data one identity may see and another may not never enters it.
+3. Plain `'use cache'` is shared across callers; its arguments are the only isolation. Identity or
+   tenant data enters it only after the channel authorized the caller and only when every scope
+   that changes what is visible is an argument (rules 1 and 2). Other identity or tenant data, and
+   data the product must not store on the server, uses `'use cache: private'` or no cache.
    `'use cache: private'` may read `cookies()` and `headers()` and is not stored on the server
    across requests — only in browser memory — so it is request-time work, not a server cache.
    Verify its availability and limits against the installed Next.js version.

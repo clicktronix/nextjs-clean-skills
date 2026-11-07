@@ -8,7 +8,7 @@
   "expected_behavior": [
     "Keeps navigation in the Next.js runtime surface: the capability returns not_found or a value, then rsc.ts or actions.ts calls notFound() or redirect()",
     "Keeps application operations free of Next.js control-flow exceptions",
-    "Avoids a mixed catch; treats unstable_rethrow only as a limited migration workaround that the docs mark unstable and not recommended for production",
+    "Avoids a mixed catch where it can; a catch that a framework exception can still pass through calls unstable_rethrow(error) first",
     "Adds tests asserting that redirect and not-found rendering survive the capability call"
   ],
   "anti_expectation": [

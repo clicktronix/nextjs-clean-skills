@@ -6,8 +6,8 @@ Product behavior lives under `<moduleRoot>/<capability>`. Reserved internal segm
 
 | Segment | Owns | May depend on |
 | --- | --- | --- |
-| `domain/` | pure invariants and calculations | own domain, admitted `shared/kernel`, classified pure packages |
-| `application/` | policy, orchestration, projection, owned ports | own domain and classified pure code |
+| `domain/` | pure invariants and calculations | own domain, admitted `shared/kernel`, a neighbour's `contracts.ts`, classified pure packages |
+| `application/` | policy, orchestration, projection, owned ports | own domain, a neighbour's `contracts.ts`, classified pure code |
 | `server/` | private stores, providers, server cache, composition | own domain/application, admitted `shared/server` |
 | `client/` | browser async lifecycle | browser-safe own contracts, exact own actions, admitted `shared/client` |
 | `ui/` | reusable capability UI | own domain/client/action surfaces, admitted `shared/ui` |
