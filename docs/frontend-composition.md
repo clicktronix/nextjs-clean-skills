@@ -32,8 +32,9 @@ subscriptions, event handlers, or browser-owned async lifecycle.
 ```mermaid
 flowchart TB
   accTitle: Server-first page composition
-  accDescr: A route reads through a capability RSC surface, renders plain values, and introduces focused client islands only where browser behavior exists.
+  accDescr: A route or an independent async region reads through a capability RSC surface, renders plain values, and introduces focused client islands only where browser behavior exists.
   Route["app route<br/>Server Component"]
+  Region["Independent async<br/>Server Component"]
   Rsc["module/rsc.ts"]
   Values["React-serializable<br/>capability values"]
   View["Route-private or<br/>capability view"]
@@ -42,6 +43,8 @@ flowchart TB
   Action["module/actions.ts"]
 
   Route --> Rsc
+  Route --> Region
+  Region --> Rsc
   Rsc --> Values
   Values --> View
   View --> Island
@@ -72,6 +75,14 @@ The capability owns product behavior:
 Independent reads may run in parallel. A read that needs IDs or scope from another result is
 sequential. Cross-capability policy does not belong in a page loader merely because the page is its
 first consumer.
+
+An independent region may read for itself as an async Server Component under its own Suspense
+boundary. A read that several regions share goes through one
+[`React.cache`](https://nextjs.org/docs/app/getting-started/fetching-data#reusing-data-with-reactcache)
+wrapper in `rsc.ts`, so it runs once per request. Pass it primitive arguments: it matches an object
+by identity, so a fresh `{ tenantId }` misses. When the channel owns the report
+([Failures And Reporting](./runtime-boundaries.md#failures-and-reporting)), it sits inside the
+wrapper; when instrumentation owns it, the wrapper reports nothing.
 
 ## State Placement
 
@@ -124,7 +135,11 @@ Rules:
 - expected validation or conflict outcomes remain serializable data;
 - unexpected failures are reported once at the action boundary;
 - successful writes update or invalidate affected read owners;
-- a pending state comes from the action lifecycle, not a duplicate boolean;
+- pending comes from the action lifecycle and lasts until the update is applied: `<form action>`
+  already does this; an imperative write and its `router.refresh()` run in one `useTransition`,
+  since a separate boolean clears before the new data shows;
+- a deferred callback that needs current state reads it through a ref or an updater, not a stale
+  closure; the target the user confirmed stays the value captured when they confirmed it;
 - destructive actions use the product's shared confirmation surface;
 - notifications use semantic intent, never provider text.
 
@@ -165,6 +180,10 @@ The split is optional:
 A Hook-free view is a convention established by review and tests, not a guarantee created by its
 filename.
 
+A browser lifecycle with ordered IO, races, or recovery keeps its rules in a React-free module under
+the capability's `client/`, with the transport injected; the Hook only subscribes. The module's form
+is the team's choice.
+
 ## Component Ownership
 
 | Used by | Placement |
@@ -187,9 +206,9 @@ Use a capability client surface only when the browser owns the lifecycle:
 - optimistic updates;
 - one async cache shared by several client islands.
 
-Initial data normally arrives as RSC props. Browser reads use a cacheable `GET` or stream, not a
-Server Action. The client surface returns browser-safe values and never imports server modules or
-provider credentials.
+Initial data normally reaches a Client Component as props from a Server Component. Browser reads use
+a cacheable `GET` or stream, not a Server Action. The client surface returns browser-safe values and
+never imports server modules or provider credentials.
 
 ## Styling, Content, And Accessibility
 

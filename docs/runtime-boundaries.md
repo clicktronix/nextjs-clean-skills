@@ -247,23 +247,34 @@ HTTP status, stream commit, or form state.
 Channels share semantic primitives, not one universal wrapper:
 
 ```text
-expected application outcome -> typed value
+expected application outcome -> typed value at the outer channel
 unexpected defect or outage  -> exception
 framework control flow        -> framework boundary
 ```
 
+An expected failure may cross an internal boundary as a typed exception. The outer channel turns it
+into a typed value and does not report it as unexpected.
+
 | Channel | Expected outcome | Unexpected failure |
 | --- | --- | --- |
-| RSC | renderable value or state | report once, then throw |
+| RSC | renderable value or state | report once, then throw or render a local failure state |
 | Server Action | serializable action state | report once, then throw |
 | HTTP | status, headers, public body | report once, return generic 5xx |
 | stream | pre-commit response or in-band event | report once at the owning stream boundary |
 | job | retry/drop/dead-letter result | report once at the worker boundary |
 
+An RSC route may catch a failed secondary read and render an explicit local failure state after one
+report, so the page survives. A failure never renders as empty, and the `catch` follows
+[RSC Reads](#rsc-reads).
+
 "Report once" means one capture owner per failure. When a channel reports and rethrows,
 framework instrumentation may observe the same exception. Either that instrumentation is the sole
 capture owner and the channel does not report, or the channel reports and marks the error as
-already reported so the second observer skips it. A channel uses one of the two, not both.
+already reported so the second observer skips it. A channel uses one of the two, not both. On a
+serverless runtime the report must finish sending before the instance freezes. Where the SDK's
+framework integration does not already wait for it, the reporting boundary uses the SDK's `flush`,
+[`after`](https://nextjs.org/docs/app/api-reference/functions/after), or the platform's equivalent;
+other request paths do not flush.
 
 Provider errors are mapped where the provider is understood. Public channels expose stable safe
 codes, never raw provider messages. Inner operations and adapters do not report an error that the

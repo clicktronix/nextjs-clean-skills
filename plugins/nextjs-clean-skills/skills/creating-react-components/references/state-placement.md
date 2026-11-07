@@ -7,8 +7,9 @@ Put state where its owner lives. Do not pick a store by preference. The state-ki
 escalation and decomposition.
 
 Browser-owned server data belongs to the capability's `client/` lifecycle. Do not use a server-state
-library for local UI state. Selectors, persistence, or measured update pressure must justify an
-external store. Compute derived values; do not synchronize them into state with an Effect.
+library for local UI state. Selectors, persistence, measured update pressure, or lifecycle rules
+kept outside React ([Component Structure](../../../docs/frontend-composition.md#component-structure))
+must justify an external store. Compute derived values; do not synchronize them into state with an Effect.
 
 When Client islands share UI state, start with a colocated Context provider. Move to a store when
 profiling shows Context churn or persistence, devtools, or selectors are real requirements. Do not

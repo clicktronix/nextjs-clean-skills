@@ -26,3 +26,6 @@ Do not fake a local engine when its query, policy, or transaction is the behavio
 
 An operation with no observable policy to assert fails the deletion test. Test the private store or
 public surface instead.
+
+Prove moved logic with tests written before the move, reusing a fitting test and naming the mutation
+that turns each red. When logic leaves a Hook, keep one test of the Hook's wiring.

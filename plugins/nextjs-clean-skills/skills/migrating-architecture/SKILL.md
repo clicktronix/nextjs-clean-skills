@@ -91,7 +91,9 @@ problem it names. Destinations come from `destination`, never from an agent.
 ## Step 5 — Move (per-slice subagents, you accept by diff)
 
 Read [move and verify](references/move-and-verify.md) first: it holds the mover's brief and the
-cleanup rules.
+cleanup rules. Before a slice moves logic, record the proof in
+[Testing By Capability Surface](../designing-architecture/references/quality/testing-by-capability.md)
+on the source tree; a move that only rewrites imports needs none.
 
 One mover per slice: internals first, then consumers onto the new surfaces. A mover that finds
 a wrong role or a missing surface returns `{replan: …}`: revise through `plan-check` and
@@ -109,7 +111,8 @@ contractSource: PLUGIN, ordinaryChange, baselineRadius } })` returns the review 
 radius.
 
 Behaviour evidence is the record's exit code; it covers the checks, not product behaviour, which the
-reviewer and the real user path cover. Architecture evidence is `census` over a JSON lint record.
+reviewer and the real user path cover. The tests recorded before the move run again here.
+Architecture evidence is `census` over a JSON lint record.
 Nobody re-runs the check to form an opinion. A change that affects the check invalidates the record:
 take a new one.
 

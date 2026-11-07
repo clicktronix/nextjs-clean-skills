@@ -95,6 +95,7 @@ Rows marked `hypothesis` below have no accepted observed run.
 | outbound/supabase-rls | supabase-identity-modes | GREEN invalidated 2026-07-30; rerun pending |
 | react/component-structure | compound-provider-split | corrected ownership RED not reproduced; hypothesis |
 | react/component-structure | static-hook-calls | GREEN invalidated 2026-07-30; rerun pending |
+| react/component-structure | lifecycle-outside-react | hypothesis |
 | react/forms-and-actions | imported-server-action-module | hypothesis |
 | react/state-placement | explicit-variants-over-mode | GREEN invalidated 2026-07-30; rerun pending |
 | react/notifications-and-feedback | global-mutation-error-notifier | hypothesis |
