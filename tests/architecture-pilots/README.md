@@ -67,3 +67,8 @@ recorded in `results.json`; the replay branch is a research control, not a produ
 
 Each fixture must compile and must test the runtime contract it claims. Directory diagrams alone are
 not pilot evidence.
+
+The stream fixture aborts upstream when its public iterator closes, including during a pending
+read. Its injected `clock` owns both `now()` and `schedule(callback, delayMs)`; scheduling returns a
+cancellation function. The same clock bounds generation and cleanup, so tests can advance time
+without sleeping. This is a generation deadline, not a stream-specific sliding idle policy.

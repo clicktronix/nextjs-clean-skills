@@ -27,3 +27,17 @@ The full gate will run in hosted PR CI. A foreign long-running stand occupies th
 Trial integration with the framework-corrections branch was clean. The competing test-policy paragraph in the migration-rules branch was resolved by stacking this change on it, keeping one risk-based test policy. Hosted CI results will be recorded in the PR.
 
 The first hosted attempt stopped at the reference-length check. Both affected references were shortened without changing the limit; the failed lint and their executable JSON/plan examples passed locally afterward. The final hosted result is recorded on the PR.
+
+## Follow-up: pending reads and controlled time
+
+The subsequent review reproduced closing an events iterator while its next read was pending:
+`return()` queued behind `next()`, leaving the cooperative provider running until the deadline.
+The channel now aborts its own derived signal before awaiting iterator cleanup, including unread
+responses. The generation clock now supplies both `now()` and cancellable scheduling, so deadline
+and cleanup wakeups use the same time source.
+
+The new pending-read assertion failed on `d786249`; after the cancellation fix, the injected-time
+assertion failed until the timers also used the clock. `node tests/architecture-pilots/run-runtime-tests.mjs`
+then passed, including stream/job fake-time deadlines, bounded fake-time cleanup and the existing
+unread/break, before/after-commit and non-cooperative-provider controls. Full hosted validation and
+the reviewed head are recorded in the PR; no merge is authorized by this follow-up.

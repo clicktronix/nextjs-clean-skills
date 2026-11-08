@@ -8,6 +8,8 @@ import type { TextGenerator } from './ports/text-generator.js'
 
 export type Clock = {
   now(): number
+  // Use the same time source for deadline checks and wakeups; return a cancellation function.
+  schedule(callback: () => void, delayMs: number): () => void
 }
 
 export type GenerateResponseInput = {
@@ -39,7 +41,7 @@ export async function* generateResponse(
   const controller = new AbortController()
   const cancel = () => controller.abort(new GenerationCancelledError('generation cancelled'))
   input.signal.addEventListener('abort', cancel, { once: true })
-  const timer = setTimeout(
+  const cancelTimer = dependencies.clock.schedule(
     () => controller.abort(new GenerationDeadlineError('generation deadline exceeded')),
     input.deadlineAt - dependencies.clock.now()
   )
@@ -78,7 +80,7 @@ export async function* generateResponse(
     }
     yield { type: 'complete', tokenCount }
   } finally {
-    clearTimeout(timer)
+    cancelTimer()
     input.signal.removeEventListener('abort', cancel)
     controller.abort(new GenerationCancelledError('generation closed'))
     const closing = iterator?.return?.()
@@ -87,16 +89,16 @@ export async function* generateResponse(
     // rejection is still observed.
     void closing?.catch(() => {})
     if (closing && !pending) {
-      let bound: ReturnType<typeof setTimeout> | undefined
+      let cancelBound: (() => void) | undefined
       try {
         await Promise.race([
           closing,
           new Promise<void>(resolve => {
-            bound = setTimeout(resolve, Math.max(0, input.deadlineAt - dependencies.clock.now()))
+            cancelBound = dependencies.clock.schedule(resolve, Math.max(0, input.deadlineAt - dependencies.clock.now()))
           }),
         ])
       } finally {
-        clearTimeout(bound)
+        cancelBound?.()
       }
     }
   }

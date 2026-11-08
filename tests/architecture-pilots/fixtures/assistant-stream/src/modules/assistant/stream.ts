@@ -66,13 +66,19 @@ async function* committedEvents(
 // provider is already running here; this close reaches the provider either way.
 function closingProvider(
   events: AsyncGenerator<AssistantEvent>,
-  provider: AsyncIterator<AssistantEvent>
+  provider: AsyncIterator<AssistantEvent>,
+  cancel: () => void
 ): AsyncIterableIterator<AssistantEvent> {
   return {
     next: () => events.next(),
     return: async () => {
-      await provider.return?.()
-      return events.return(undefined)
+      // return() queues behind a pending next(); abort first so that next() can finish.
+      cancel()
+      try {
+        return await events.return(undefined)
+      } finally {
+        await provider.return?.()
+      }
     },
     [Symbol.asyncIterator]() {
       return this
@@ -87,7 +93,11 @@ export async function openAssistantStream(
     reportingContext: ReportingContext
   }
 ): Promise<AssistantStreamResponse> {
-  const iterator = generateResponse(input, dependencies)
+  const controller = new AbortController()
+  const iterator = generateResponse(
+    { ...input, signal: AbortSignal.any([input.signal, controller.signal]) },
+    dependencies
+  )
 
   try {
     const first = await iterator.next()
@@ -98,7 +108,8 @@ export async function openAssistantStream(
       status: 200,
       events: closingProvider(
         committedEvents(first.value, iterator, dependencies.reporter, dependencies.reportingContext),
-        iterator
+        iterator,
+        () => controller.abort(new GenerationCancelledError('stream closed'))
       ),
     }
   } catch (error) {

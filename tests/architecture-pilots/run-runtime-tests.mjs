@@ -39,6 +39,26 @@ async function collect(iterable) {
   return values
 }
 
+function createClock(initial = 0) {
+  let now = initial
+  const timers = new Map()
+  return {
+    now: () => now,
+    schedule(callback, delayMs) {
+      const id = Symbol()
+      timers.set(id, { at: now + delayMs, callback })
+      return () => timers.delete(id)
+    },
+    advance(ms) {
+      now += ms
+      for (const [id, timer] of timers) {
+        if (timer.at <= now) { timers.delete(id); timer.callback() }
+      }
+    },
+    pending: () => timers.size,
+  }
+}
+
 async function testWorkItems(load) {
   const serverModule = await load('work-items/src/modules/work-items/server.js')
   const rscModule = await load('work-items/src/modules/work-items/rsc.js')
@@ -267,7 +287,7 @@ async function testAssistantStream(load) {
   )
   const streamModule = await load('assistant-stream/src/modules/assistant/stream.js')
   const jobModule = await load('assistant-stream/src/modules/assistant/job.js')
-  const clock = { now: () => 10 }
+  const clock = createClock(10)
   const input = {
     prompt: 'Explain the result',
     signal: new AbortController().signal,
@@ -438,8 +458,98 @@ async function testAssistantStream(load) {
     } finally { closed = true }
   } })
   const realInput = () => ({ ...input, deadlineAt: Date.now() + 50 })
-  const dependencies = generator => ({ clock: { now: Date.now }, generator,
+  const realClock = { now: Date.now, schedule(callback, delayMs) {
+    const timer = setTimeout(callback, delayMs)
+    return () => clearTimeout(timer)
+  } }
+  const dependencies = generator => ({ clock: realClock, generator,
     reporter: successReports.reporter, reportingContext: { requestId: 'idle-provider' } })
+
+  // A close during next() must abort immediately, before awaiting a generator's queued return().
+  let startedWaiting
+  const waiting = new Promise(resolve => { startedWaiting = resolve })
+  const closeController = new AbortController()
+  const closingResponse = await streamModule.openAssistantStream(
+    { ...input, signal: closeController.signal, deadlineAt: Date.now() + 60_000 },
+    dependencies({ async *stream({ signal }) {
+      upstreamSignal = signal
+      try {
+        yield 'first'
+        await new Promise(resolve => {
+          signal.addEventListener('abort', resolve, { once: true })
+          startedWaiting()
+        })
+      } finally { closed = true }
+    } })
+  )
+  closed = false
+  const reading = closingResponse.events[Symbol.asyncIterator]()
+  await reading.next()
+  const pendingRead = reading.next()
+  await waiting
+  const closingRead = reading.return()
+  try {
+    assert.equal(upstreamSignal.aborted, true, 'close during pending next aborts before waiting for cleanup')
+    const [pendingEvent] = await bounded(Promise.all([pendingRead, closingRead]))
+    assert.equal(pendingEvent.value.code, 'CANCELLED')
+    assert.equal(closed, true)
+  } finally {
+    closeController.abort()
+    await bounded(Promise.all([pendingRead, closingRead]))
+  }
+
+  // Advancing only the injected time must expire an idle provider, in both channels.
+  for (const channel of ['stream', 'job']) {
+    const time = createClock(10)
+    const stop = new AbortController()
+    let ready
+    const started = new Promise(resolve => { ready = resolve })
+    let signal
+    const deps = { ...dependencies({ async *stream({ signal: upstream }) {
+      signal = upstream
+      await new Promise(resolve => { upstream.addEventListener('abort', resolve, { once: true }); ready() })
+    } }), clock: time }
+    const request = { ...input, signal: stop.signal, deadlineAt: 60_010 }
+    const result = channel === 'stream'
+      ? streamModule.openAssistantStream(request, deps)
+      : jobModule.runAssistantJob(request, deps)
+    try {
+      await started
+      time.advance(59_999)
+      assert.equal(signal.aborted, false)
+      time.advance(1)
+      assert.equal(signal.aborted, true, `${channel} deadline uses the injected timer`)
+      const outcome = await bounded(result)
+      if (channel === 'stream') assert.equal(outcome.status, 504)
+      else assert.deepEqual(outcome, { status: 'retry', reason: 'DEADLINE' })
+      assert.equal(time.pending(), 0, 'deadline timer cleaned up')
+    } finally {
+      stop.abort()
+      await bounded(result)
+    }
+  }
+
+  // Cleanup has the same injected deadline. Release the broken adapter after checking its bound.
+  const cleanupClock = createClock()
+  let cleanupStarted, releaseCleanup
+  const cleanupReady = new Promise(resolve => { cleanupStarted = resolve })
+  const cleanupBlocked = new Promise(resolve => { releaseCleanup = resolve })
+  const held = await streamModule.openAssistantStream({ ...input, deadlineAt: 60_000 }, {
+    ...dependencies({ async *stream() {
+      try { yield 'first' } finally { cleanupStarted(); await cleanupBlocked }
+    } }), clock: cleanupClock,
+  })
+  const closeHeld = held.events[Symbol.asyncIterator]().return()
+  try {
+    await cleanupReady
+    cleanupClock.advance(60_000)
+    await bounded(closeHeld)
+    assert.equal(cleanupClock.pending(), 0, 'cleanup timer cleaned up')
+  } finally {
+    releaseCleanup()
+    await closeHeld
+  }
+
   closed = false
   const idle = await bounded(streamModule.openAssistantStream(realInput(), dependencies(idleProvider())))
   assert.equal(idle.status, 504)
