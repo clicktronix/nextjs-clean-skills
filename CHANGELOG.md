@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [4.7.2](https://github.com/clicktronix/nextjs-clean-skills/compare/v4.7.1...v4.7.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* correct Next.js 16.3 APIs and contract contradictions ([#49](https://github.com/clicktronix/nextjs-clean-skills/issues/49)) ([3443c86](https://github.com/clicktronix/nextjs-clean-skills/commit/3443c867314090b0b75bd60b4d7f82c92f57188f))
+* repair migration, streaming, and evidence contracts ([#53](https://github.com/clicktronix/nextjs-clean-skills/issues/53)) ([c673d32](https://github.com/clicktronix/nextjs-clean-skills/commit/c673d32cc49c558002c3261699be0cc0e6e4922d))
+
+
+### Documentation
+
+* add rules from a large application migration ([#50](https://github.com/clicktronix/nextjs-clean-skills/issues/50)) ([1338c2d](https://github.com/clicktronix/nextjs-clean-skills/commit/1338c2d67d8e07a10e79208d37bcccabbd78aaef))
+
 ## [4.7.1] - 2026-10-25
 
 ### Changed
