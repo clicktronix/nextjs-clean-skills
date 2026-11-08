@@ -27,5 +27,9 @@ Do not fake a local engine when its query, policy, or transaction is the behavio
 An operation with no observable policy to assert fails the deletion test. Test the private store or
 public surface instead.
 
-Prove moved logic with tests written before the move, reusing a fitting test and naming the mutation
-that turns each red. When logic leaves a Hook, keep one test of the Hook's wiring.
+## Moving existing behaviour
+
+Record the relevant existing tests on the source tree and rerun them after the move. Add negative
+cases where the move risks changing policy, ordering, cancellation, mapping or runtime wiring.
+Use a mutation when it proves an otherwise uncertain assertion; do not require a named mutation
+for every moved test. Keep a Hook wiring test when behaviour moves out of React.

@@ -1,16 +1,15 @@
 # Capability-First Pilot Results
 
-Status: **PASS**. Candidate fixtures, the baseline replay, and a real Next.js integration pilot
-pass their checks. The corrected provider replay includes a production composition surface.
-Candidate v3 also passed the comparative agent gate; see
-[`RELEASE_V3_RESULTS.md`](../architecture-evals/RELEASE_V3_RESULTS.md).
+Status: **historical pilot checks recorded; comparative skill gate withdrawn**. The recorded
+fixtures and historical Next.js pilot do not qualify the current integration contract. The
+release-v3 controls inherited installed skills; see the authoritative
+[integrity note](../architecture-evals/README.md#evidence-integrity-note--2026-09-10).
+ADR acceptance is a maintainer decision, not a replacement isolated experiment.
 
 ## Evidence
 
-- 39 strict TypeScript fixture files across `work-items`, `assistant-stream`, and
-  `board-workflow` (34 at the 2026-07-27 measurement; the 2026-09-11 revisions in
-  `candidate-plan.json` added five to `work-items` and removed the forwarding adapter from
-  `board-workflow`).
+- Strict TypeScript fixtures across `work-items`, `assistant-stream`, and `board-workflow`;
+  `results.json` records the file count checked against the tree by the pilot validator.
 - Runtime checks cover tenant scoping, provider-row mapping, cache invalidation, expected action
   outcomes, HTTP mapping, stream commit state, cancellation, deadlines, job retries, reporting
   once, and cross-capability orchestration.
@@ -27,14 +26,18 @@ Candidate v3 also passed the comparative agent gate; see
   `fullstack-ai-template@research/capability-next-pilot`, head `0a3eeca`. It passes `bun run check`,
   `990` tests, and a Next.js 16.2.10 production build.
 
-## Change Cost
+## Illustrative Change Touch Sets
 
 | Change | Candidate production | Candidate test | Baseline observed paths | Result |
 | --- | ---: | ---: | ---: | --- |
-| add `dueAt` | 3 | 1 | 9 | candidate is more local; baseline needed one unplanned locale update |
+| add `dueAt` | 3 | 1 | 9 | illustrative only; baseline includes UI/locales/SQL absent from the fixture |
 | add labels HTTP GET | 1 | 1 | 3 | candidate route is local; baseline adds handler, route export, and test |
 | replace work-item source | 2 | 1 | 10 | capability composition and adapter changed; channel callers did not |
 | request-aware reporting | 12 | 1 | 11 | not directly comparable; candidate also covers stream and job |
+
+The units and feature scope differ: candidate production TS excludes tests and assets; baseline
+observed paths include them. The candidate form is a value-mapping helper, not a rendered React
+form with localization and a database migration. These counts do not establish comparative cost.
 
 The replay found two preregistration errors. `add-due-at` also changed the English locale.
 `replace-work-item-source` also changed `.env.example`, the server env contract, an unlisted
@@ -55,18 +58,21 @@ test-isolation fix because a Bun module mock polluted the full suite.
 7. A provider-swap claim requires a production composition surface. With that control present, the
    source change touched `server.ts` and `server/store.ts`, not the RSC, action, or HTTP callers.
 8. The first plain TypeScript fixture was not valid Next.js evidence. The follow-up App Router pilot
-   closes that gap: its action accepts `FormData`, identity and effects are resolved inside the
-   capability, and `route.ts` exports `GET`.
+   demonstrated the older integration contract: its action accepts `FormData`, identity and effects
+   are resolved inside the
+   capability, and `route.ts` exports `GET`. Its internal identity lookup predates the current
+   explicit-identity contract; the framework-free fixtures omit poison markers. Neither qualifies
+   a current Next.js integration.
 9. Server/client poisoning is build-enforced. A Client Component import of `server.ts` makes
    Turbopack reject both the public server surface and private store through `server-only`.
 10. Cache ownership and cache runtime are separate. The command returns a server-only cache scope;
     the Server Action applies `updateTag`, leaving HTTP and job boundaries free to use their native
     invalidation semantics.
 
-## Closed Gates
+## Decision And Evidence Status
 
-- Corrected provider composition reviewed and retained as the valid comparison.
+- Corrected provider composition reviewed and retained as an observation of unchanged callers.
 - Candidate smoke showed signal.
 - The first release matrix failed cross-capability ownership.
-- Candidate v3 passed the frozen replay and manual architecture review.
-- ADR 0001 is Accepted.
+- Release-v3 scores are historical; the comparative gate is withdrawn by the integrity note.
+- ADR 0001 remains Accepted as a maintainer architecture decision.

@@ -23,7 +23,7 @@ const docs = listFiles('docs', (file) => file.endsWith('.md')).sort()
 // second markdown file added there ships to installed users. Naming one file walked exactly one
 // file no matter what the mirror actually carried.
 const rulesDocs = listFiles('rules', (file) => file.endsWith('.md')).sort()
-const shipped = [...docs, ...rulesDocs].map((file) => `${PLUGIN}/${file}`)
+const shipped = [...docs.filter(file => !file.startsWith('docs/plans/')), ...rulesDocs].map((file) => `${PLUGIN}/${file}`)
 // plugins/nextjs-clean-skills/workflows/README.md links into docs/ and rules/; unchecked, a renamed
 // section there would rot silently like any other doc in this repo.
 const files = ['README.md', `${PLUGIN}/workflows/README.md`, ...docs, ...rulesDocs, ...shipped]
@@ -186,7 +186,7 @@ for (const file of files) {
 
 const docsIndex = fs.readFileSync(path.join(root, 'docs/README.md'), 'utf8')
 for (const file of docs) {
-  if (file === 'docs/README.md') continue
+  if (file === 'docs/README.md' || file.startsWith('docs/plans/')) continue
   const relative = `./${path.basename(file)}`
   if (!docsIndex.includes(`](${relative})`)) {
     errors.push(`docs/README.md does not link ${relative}`)

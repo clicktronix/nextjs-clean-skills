@@ -45,8 +45,8 @@ async function* committedEvents(
   reporter: Reporter,
   reportingContext: ReportingContext
 ): AsyncGenerator<AssistantEvent> {
-  yield first
   try {
+    yield first
     while (true) {
       const next = await iterator.next()
       if (next.done) return
@@ -57,6 +57,32 @@ async function* committedEvents(
       reportUnexpected(reporter, error, 'assistant.stream.after-commit', reportingContext)
     }
     yield expectedErrorEvent(error)
+  } finally {
+    await iterator.return?.()
+  }
+}
+
+// An async generator closed before its first read never runs its body or its `finally`, yet the
+// provider is already running here; this close reaches the provider either way.
+function closingProvider(
+  events: AsyncGenerator<AssistantEvent>,
+  provider: AsyncIterator<AssistantEvent>,
+  cancel: () => void
+): AsyncIterableIterator<AssistantEvent> {
+  return {
+    next: () => events.next(),
+    return: async () => {
+      // return() queues behind a pending next(); abort first so that next() can finish.
+      cancel()
+      try {
+        return await events.return(undefined)
+      } finally {
+        await provider.return?.()
+      }
+    },
+    [Symbol.asyncIterator]() {
+      return this
+    },
   }
 }
 
@@ -67,7 +93,11 @@ export async function openAssistantStream(
     reportingContext: ReportingContext
   }
 ): Promise<AssistantStreamResponse> {
-  const iterator = generateResponse(input, dependencies)
+  const controller = new AbortController()
+  const iterator = generateResponse(
+    { ...input, signal: AbortSignal.any([input.signal, controller.signal]) },
+    dependencies
+  )
 
   try {
     const first = await iterator.next()
@@ -76,11 +106,10 @@ export async function openAssistantStream(
     }
     return {
       status: 200,
-      events: committedEvents(
-        first.value,
+      events: closingProvider(
+        committedEvents(first.value, iterator, dependencies.reporter, dependencies.reportingContext),
         iterator,
-        dependencies.reporter,
-        dependencies.reportingContext
+        () => controller.abort(new GenerationCancelledError('stream closed'))
       ),
     }
   } catch (error) {

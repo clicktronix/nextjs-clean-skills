@@ -256,8 +256,8 @@ if (files.includes(INVENTORY)) {
   // args. Hand it one — small and large — and assert it neither changes the agent count nor
   // appears in any prompt.
   const listOf = (n) => Array.from({ length: n }, (_, i) => `src/features/f${i}.ts`)
-  const small = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(10), count: 10 } })
-  const large = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(3000), count: 3000 } })
+  const small = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(10), count: 10, lenses: ['capabilities'] } })
+  const large = await runBody(source, { args: { repo: REPO, inventoryPath: `${REPO}/.nextjs-clean-migration/inventory.json`, contractSource: SRC, files: listOf(3000), count: 3000, lenses: ['capabilities'] } })
   check(small.calls.length > 0 && small.calls.length <= 6, `${INVENTORY}: expected 1–6 lens agents, got ${small.calls.length}`)
   check(small.calls.length === large.calls.length, `${INVENTORY}: agent count must not depend on inventory size (10 → ${small.calls.length}, 3000 → ${large.calls.length})`)
   check(large.prompts.every(p => !p.prompt.includes('src/features/f2999.ts') && !p.prompt.includes('src/features/f0.ts')), `${INVENTORY}: a file list handed in args must not be forwarded to any agent`)
@@ -270,6 +270,10 @@ if (files.includes(INVENTORY)) {
   check(noPath.calls.length === 0 && noPath.result && typeof noPath.result.error === 'string', `${INVENTORY}: a missing inventoryPath must be refused before any agent`)
   const noSrc = await runBody(source, { args: { repo: REPO, inventoryPath: '/x/inventory.json' } })
   check(noSrc.calls.length === 0 && noSrc.result && /contractSource/.test(noSrc.result.error || ''), `${INVENTORY}: a missing contractSource must be refused before any agent`)
+  for (const lenses of [undefined, [], ['missing'], ['deps', 'deps'], ['deps', 'missing']]) {
+    const invalid = await runBody(source, { args: { repo: REPO, inventoryPath: '/x/inventory.json', contractSource: SRC, lenses } })
+    check(invalid.calls.length === 0 && invalid.result.error, `${INVENTORY}: missing/invalid selection cannot launch agents`)
+  }
   const subset = await runBody(source, { args: { repo: REPO, inventoryPath: '/x/inventory.json', contractSource: SRC, lenses: ['deps', 'roots'] } })
   check(subset.calls.length === 2, `${INVENTORY}: args.lenses selects a subset, got ${subset.calls.length}`)
   const silent = await runBody(source, { args: { repo: REPO, inventoryPath: '/x/inventory.json', contractSource: SRC, lenses: ['deps', 'roots'] }, overrides: { 'lens:deps': null } })

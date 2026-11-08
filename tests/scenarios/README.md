@@ -38,17 +38,16 @@ into the baseline.
 
 ## Evidence Levels
 
-The release decision uses the frozen four-arm architecture matrix:
+The release decision used the frozen four-arm architecture matrix:
 
 ```text
 no skill | v1.3.2 | layer-first checkpoint | capability-first candidate
 ```
 
-The accepted candidate v3 scored `239/240`, had no negative or fatal cells, and led every scenario
-across 24 candidate cells. See
-[`../architecture-evals/RELEASE_V3_RESULTS.md`](../architecture-evals/RELEASE_V3_RESULTS.md).
-That matrix provides comparative evidence for three load-bearing workflows; it does not validate
-every reference rule.
+The historical release-v3 scores (`239/240` for the candidate) do not clear the comparative gate.
+Control arms inherited the author's installed skills; see the authoritative
+[integrity note](../architecture-evals/README.md#evidence-integrity-note--2026-09-10).
+No isolated replacement release matrix is recorded here; ADR acceptance is a maintainer decision.
 
 Reference scenarios answer a narrower question: whether one paragraph changes one recurring agent
 decision. Historical results remain useful only for the behavior they actually tested:

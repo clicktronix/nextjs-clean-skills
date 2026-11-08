@@ -1,6 +1,6 @@
 # ADR 0001: Capability-First Modules
 
-- Status: Accepted
+- Status: Accepted (maintainer architecture decision; comparative skill gate withdrawn)
 - Date: 2026-07-27
 - Accepted: 2026-07-28
 - Decision owner: nextjs-clean-skills maintainers
@@ -60,6 +60,13 @@ universal channel boundary combinator.
 
 ## Validation
 
+The historical release-v3 scores below do not establish skill superiority: the control arms
+inherited installed skills. See the authoritative
+[integrity note](../tests/architecture-evals/README.md#evidence-integrity-note--2026-09-10).
+No isolated replacement matrix is recorded here. The pilot touch sets also differ in scope and
+counting units; they illustrate locality, not comparative cost. Framework-free fixtures and the
+old Next.js pilot do not qualify the current runtime/identity contract.
+
 Three isolated fixtures test the decision before it becomes skill guidance:
 
 1. `work-items`: store-backed CRUD with RSC, browser query, Server Action, and HTTP channels;
@@ -82,8 +89,8 @@ resolved inside capability composition, its `route.ts` exports `GET`, and a Next
 production build passes. A deliberate Client Component import of the server surface fails that
 build through `server-only`.
 
-The architecture gate required, and the pilots showed: every capability discoverable under one
-root; simple CRUD adding no forwarding operation; application behavior independent of framework and
+The original architecture gate required (evidence is limited as described above): every capability
+discoverable under one root; simple CRUD adding no forwarding operation; application behavior independent of framework and
 provider; a data source replaceable without touching application callers; channel-specific failures
 keeping native Next.js semantics; auth enforced at channel, policy, and store; RSC and browser reads
 with one owner and no Server Action as read transport; cross-capability composition through public
@@ -99,8 +106,9 @@ the topology-independent correctness fixes), and the layer-first checkpoint:
 4 arms x 3 scenarios x 2 model tiers x 2 framings x 2 repeats = 96 runs
 ```
 
-Candidate v3 scored 239/240 after one registered blind adjudication, had no fatal or negative
-cells, and led every control in every scenario
+The contaminated historical run recorded candidate v3 at 239/240 after one registered blind
+adjudication, with no fatal or negative cells. Its ranking is not a valid comparison between
+isolated arms
 ([`RELEASE_V3_RESULTS.md`](../tests/architecture-evals/RELEASE_V3_RESULTS.md)). Disputed judge
 cells received one additional blind pass over the same frozen outputs; generation was not repeated
 to resolve scoring. Manual review added three release regressions: no speculative persistence or

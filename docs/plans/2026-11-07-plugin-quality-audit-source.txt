@@ -1,0 +1,151 @@
+Audit snapshot; the unrelated private workspace name is redacted.
+
+# Аудит качества nextjs-clean-skills · 7 ноября 2026
+
+Ядро capability-first архитектуры имеет понятную пользу: локальный владелец поведения, необязательные слои, явные runtime-каналы и ограничения импортов. Переписывать его на другую архитектуру оснований не нашёл. Миграционный инструмент и доказательства качества требуют исправлений: подтверждены **шесть P2 и один P3**. Особенно опасна для доверия к инструменту возможность получить `accept`, когда проверяемая capability вообще не попала в ESLint.
+
+Это отдельный аудит продукта, включая существующий код. Он не ограничен diff двух новых PR и не является аудитом работающего продуктового приложения. Исправления из [предыдущего ревью](2026-11-07-plugin-pr-review.md) не перечисляются повторно.
+
+## Ревизии и метод
+
+| Снимок | Ревизия |
+|---|---|
+| Опубликованная линия 4.7.1, `main` | `1ae3e45006caba78baa21177305accb788e592b5` |
+| [#49 — fix: correct Next.js 16.3 APIs and contract contradictions](https://github.com/clicktronix/nextjs-clean-skills/pull/49) | `b11689999db1333ac5bf5362779d276dc0f15e83`, Open |
+| [#50 — docs: add rules from a large application migration](https://github.com/clicktronix/nextjs-clean-skills/pull/50) | `5aaa5292ae4f05c727b41a09242fa6bed42ff399`, Open |
+| Изолированный снимок объединённого кандидата | tree `8294f8cfd38aa148ac40049c79ea8eecafb96887` |
+| Исторический реальный Next.js pilot в fullstack-ai-template | `0a3eeca514896f6efd67b8a773c0230b839cb251` |
+
+Основная проверка выполнена на объединённом кандидате, чтобы не выдавать уже исправленные API и cache-проблемы за новые. Все семь замечаний ниже сохраняются и в опубликованной линии. Remote refs и состояния обоих PR повторно проверены перед отчётом.
+
+Использованы `codebase-design` для глубины интерфейсов и стоимости изменений, `writing-for-agents` для маршрутизации инструкций и `openai-docs` для контракта Codex-плагина. Рассматривались полезность для потребителя, локальность изменений, корректность поведения и пределы доказательств, а не число файлов или зелёных assertions.
+
+## Подтверждённые замечания
+
+### Q1 · P2 · Приёмка миграции принимает отсутствие проверки за ноль нарушений
+
+[Код census](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/plugins/nextjs-clean-skills/bin/migration.mjs#L512-L538) принимает любой JSON-массив ESLint. Он считает сообщения, но не проверяет, что в результат вошли файлы выбранной capability и на них были включены обязательные правила.
+
+В disposable-проекте создал запрещённый импорт `node:fs` из `src/modules/orders/domain/bad.ts`, затем исключил `src/modules/orders/**` глобальным ignore. Настоящий ESLint проверил только `src/app/page.ts` и завершился без ошибок. Получено:
+
+```json
+{
+  "architecture": {"ok": true, "counts": {"capability": 0}, "files": 1},
+  "decision": {"gate": "accept", "unmeasured": []}
+}
+```
+
+В контрольном запуске без ignore тот же импорт дал `domainDirection`. Даже пустой `[]` сейчас превращается в измеренный ноль. Наличие record и совпадение его hash доказывают происхождение файла, но не полноту проверки.
+
+**Исправление:** сопоставлять lint coverage с инвентарём мигрируемой capability и проверять применимость обязательных правил. Отсутствие охвата — `inconclusive`, а не `accept`. Проверять только непустоту всего массива недостаточно.
+
+### Q2 · P2 · Inventory теряет необходимые файлы компонента
+
+[Inventory](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/plugins/nextjs-clean-skills/bin/migration.mjs#L20-L43) включает только JS/TS-расширения. CSS Modules, JSON с переводами, SVG и MDX не могут пройти обычную цепочку inventory → assignments → plan.
+
+Проверен компонент с импортами `Form.module.css` и `messages.json`. Inventory содержит только `Form.tsx`; `expand` сообщает `uncovered: []`. Попытка включить CSS и JSON в план даёт `unknown-source` для обоих файлов.
+
+Следование процедуре вынуждает оставить часть capability по старым путям либо выйти за пределы вычисленного плана. Это противоречит переносу цельной capability и удалению её obsolete paths.
+
+**Исправление:** учитывать необходимые colocated assets и отдельно обозначать генерируемые/внешние файлы. Их перемещение должно проходить ту же проверку ownership и destination, а не выполняться неучтённым ручным шагом.
+
+### Q3 · P2 · Планировщик принудительно выравнивает внутреннюю структуру
+
+[Destination](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/plugins/nextjs-clean-skills/bin/migration.mjs#L163-L173) умеет только `<capability>/<role>/<basename>`. В `basename` запрещён разделитель пути. При этом skill требует брать destination только из скрипта, а mover не вправе выбирать его сам.
+
+Для `Form/index.tsx` и `List/index.tsx` получен один путь `modules/orders/ui/index.tsx` и `destination-collision`. Попытка сохранить `Form/index.tsx` через basename возвращает `null`.
+
+Это уже архитектурное противоречие: [Internal Cohesion](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/docs/architecture-contract.md#L113-L128) разрешает группировать операцию в файл или каталог, держать тесты рядом и избегать переименований без пользы. Мигратор же требует переименовывать или расплющивать корректные группы.
+
+**Исправление:** разрешить проверенный относительный путь внутри выбранного сегмента, сохранив запрет выхода из capability и проверку коллизий. Выбор внутренней группировки должен оставаться архитектурным решением.
+
+### Q4 · P2 · Заявленная переносимость миграции в Codex не обеспечена
+
+[Step 1](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/plugins/nextjs-clean-skills/skills/migrating-architecture/SKILL.md#L34-L39) и Step 6 требуют `Workflow(...)`. Скрипты используют специальные globals `agent`, `parallel`, `phase` и top-level return. В проверенной Codex-сессии соответствующего инструмента нет; установлен CLI `0.166.0`. Инструкция не содержит ветки для такого клиента.
+
+Codex-manifest объявляет `skills`, но не поставляет исполняющий эти workflow механизм. Обычный `node --check workflows/inventory.js` завершается `Illegal return statement`: запуск через Node не является готовым fallback. При этом `validate-workflows.mjs` зелёный, поскольку подставляет собственные mock globals и исполняет преобразованный async body. Он проверяет внутренний контракт сценария, а не наличие host runtime.
+
+[Официальный контракт упаковки OpenAI](https://developers.openai.com/plugins/build/plugins) описывает skills, MCP и hooks; сам по себе каталог этих JS-workflows не создаёт инструмент `Workflow`. Это вывод для проверенного клиента и поставки, а не утверждение о всех будущих версиях Codex.
+
+**Исправление:** дать переносимый путь через нативную делегацию клиента или последовательное выполнение тех же briefs владельцем сессии. Проверку capability runtime выполнить до изменения target repo. Новый собственный workflow engine для этого не нужен.
+
+### Q5 · P2 · Streaming pilot не выполняет заявленный контракт времени жизни
+
+Два прямых воспроизведения на скомпилированном коде fixture:
+
+- Потребитель прекращает чтение после первого события. `committedEvents` не закрывает исходный iterator; `finally` provider не выполнился, сигнал не был отменён. [Обёртка](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/stream.ts#L42-L61).
+- Provider зависает до первого токена. Через 100 ms при deadline через 25 ms `openAssistantStream` всё ещё pending. [Операция](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/tests/architecture-pilots/fixtures/assistant-stream/src/modules/assistant/application/generate-response.ts#L35-L48) проверяет часы только до и после yield, но не прерывает ожидание.
+
+Это дефекты примера и его доказательств; утечка в deployed-приложении не наблюдалась. Существующий cancellation test сам отменяет сигнал из генератора между токенами; deadline test передаёт уже истёкший deadline. Они не проверяют два случая выше. Между тем reference требует upstream abort, cleanup и idle timeout, а Evidence заявляет coverage cancellation/deadline.
+
+**Исправление:** обеспечить cleanup iterator и upstream cancellation при закрытии потребителем; прерывать зависшее ожидание по deadline. Stream idle timeout и job deadline должны остаться разными политиками. Добавить эти отрицательные случаи через публичную поверхность.
+
+### Q6 · P2 · Отозванное сравнительное evidence продолжает выглядеть действующим
+
+[Integrity note](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/tests/architecture-evals/README.md#L73-L95) прямо признаёт: release-v3 унаследовал авторский HOME, no-skill arm мог читать установленные skills, выводы не воспроизводимы в заявленном виде. Новый изолированный release replay там не предъявлен.
+
+Однако [основной Evidence](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/docs/evidence.md#L147-L157), ADR, pilot RESULTS и scenarios README продолжают опираться на прошедший gate и преимущество candidate. Предупреждение есть в глубоком историческом файле, но отсутствует рядом с действующими сводными утверждениями.
+
+**Исправление:** сохранить исторические числа, но пометить их статус в каждой актуальной сводке и отделить архитектурное решение maintainer от доказанного преимущества skill. Новый платный прогон — отдельное решение; для исправления достоверности документации он не требуется. Самостоятельно сырые старые model traces в этом аудите не переоценивались.
+
+### Q7 · P3 · Сравнение стоимости изменений использует разные единицы и объём поведения
+
+Таблица [«3 против 9»](https://github.com/clicktronix/nextjs-clean-skills/blob/1ae3e45006caba78baa21177305accb788e592b5/docs/evidence.md#L105-L111) сравнивает candidate production TypeScript files с baseline observed paths.
+
+В `results.json` baseline включает Storybook, SQL migration, messages JSON и locale registry. Candidate меняет три TS-файла; его `ui/form.ts` — преобразование значений формы, а не эквивалентная React-форма с локализацией и миграцией БД. Числа записаны честно, но вывод о сравнительной стоимости архитектур из такого набора не следует.
+
+**Исправление:** сравнивать одинаковые виды файлов и одинаковый feature scope либо подписать это как иллюстрацию locality на fixtures разной полноты. Доказанный факт о неизменившихся callers при замене provider полезен сам по себе и не требует обещания кратного снижения стоимости.
+
+## Оценка самой архитектуры
+
+| Решение | Что показала трассировка | Оценка |
+|---|---|---|
+| Capability как владелец поведения | CRUD проходит action → service → store; policy и mapping находятся внутри work-items | Сохранять. Граница определяется продуктом, а не таблицей |
+| Необязательные domain/application/ports | CRUD действительно обходится без application; board имеет projection; generation переиспользуется stream и job | Обоснованное различие. Не создавать одинаковую структуру каждому модулю |
+| Runtime-specific surfaces | Action устанавливает scope, server остаётся silent, outer channel переводит результат | Полезный контракт; перенос между каналами требует проверки поведения, не только импортов |
+| Cross-capability composition | Board получает публичные типы sibling-capabilities и собирает projection | Реальное поведение есть; критерии forbidden/missing joins не доказаны этим упрощённым happy-path fixture |
+| Identity отдельно от effects | Action не принимает actor/tenant от браузера; service проверяет capability role | Хорошая граница. Наличие tenant-параметра само по себе не доказывает изоляцию БД |
+| Cache ownership | Action передаёт invalidation primitive владельцу тегов | Согласовано в коде. Общий cache/auth контракт исправлен в проверенном кандидате; реальный cache runtime здесь не воспроизводился |
+| Shared admission | Есть условия общей семантики и обратного переноса к владельцу | Полезное review-правило; счётчик потребителей не заменяет семантическую оценку |
+| UI и browser lifecycle | Разделение view/controller, Context и store условное; существующий UI stack сохраняется | В целом соразмерно. Извлечение lifecycle не должно дублировать механизм уже принятой query/form библиотеки |
+
+Настоящий Next.js pilot прочитан на закреплённом SHA: page → RSC → server → store и form → action → server → invalidation, плюс HTTP GET. Это не только диаграмма: есть `server-only`, настоящий `FormData`, Supabase adapter и framework exports. Но pilot исторический: его `server.ts` самостоятельно разрешает request identity, тогда как нынешний контракт требует explicit identity от outer channel; mapping также повторно парсит уже преобразованные значения. Он подтверждает конкретную старую интеграцию, а не полное соответствие нынешнему контракту.
+
+Framework-free work-items fixture при применении текущих base + resolved rules получает три `missingRuntimeMarker`: server, rsc и client. Это ожидаемое ограничение его запуска без Next.js, но такие fixtures нельзя считать текущим build proof. Полезное улучшение — один поддерживаемый интеграционный specimen с нынешним контрактом и его обычными rules/build, вместо расширения числа синтетических canaries.
+
+## Skills, противоречия, дубли и сложность
+
+Прочитаны три skill body и 38 references, нормативные документы, ключевые исполняемые rules, migration CLI/workflows и четыре потока в трёх pilot fixtures. Descriptions разделяют архитектурное решение, component work и явную миграцию. Adoption boundary сохраняет чужую архитектуру при обычном изменении. Отдельные skills для cache/error/ports не нужны.
+
+Generated mirrors `docs/` и `rules/` внутри plugin — оправданная поставочная копия, за которой следит sync check. Семантические дубли опаснее: повторение evidence-статуса уже разошлось в Q6; повтор внутренней модели каталогов в CLI стал сильнее нормативного правила в Q3. Одного prose-similarity lint для таких конфликтов недостаточно.
+
+Есть более низкие по приоритету возможности упрощения:
+
+- Inventory по умолчанию разворачивает шесть lenses; выбирать необходимые по размеру и неопределённости задачи дешевле, чем всегда переносить один процесс на любую миграцию. Это рекомендация: сравнительный эффект такого упрощения не измерялся.
+- Требование named mutation для каждого теста переносимой логики сильнее требования подтвердить риск переноса. Достаточно повторно использовать поведенческие тесты и добавлять отрицательные проверки для действительно рискованных границ.
+- `ui.ts`, публикующий server-dependent UI, становится неудобен для клиентских consumers других экспортов. Ограничение теперь честно описано; при реальной смешанной UI-поверхности product profile должен явно решить её разделение. Это известный компромисс, а не новый обнаруженный build bug.
+- Таблица зависимостей в `references/placement/modules-and-imports.md` всё ещё не называет разрешённый normative contract импорт `ui/** → rsc.ts`. Нормативный источник приоритетнее, но краткую таблицу стоит согласовать с ним.
+
+## Покрытие и проверка
+
+| Область | Выполнено | Чего это не доказывает |
+|---|---|---|
+| Architecture и procedures | ownership/deletion-test review; rule → guidance → code traces; migration negative cases | Оптимальность архитектуры для любого продукта |
+| Portable rules | `validate-rules.mjs`: 52 clean fixtures, 57 boundary mutations, 18 resolver/cycle/marker/portability canaries | Auth policy, реальную БД, capture once |
+| Workflows | `validate-workflows.mjs`: 2 scripts, parse/metadata/stub execution | Исполнение в реальном Claude/Codex host |
+| Pilot code | strict tsc для 38 TS-файлов; consumer cancellation и idle deadline probes; conformance check work-items | Полный runtime-suite, HTTP disconnect, live provider и production build |
+| Skills routing | Descriptions и 18 trigger prompts прочитаны; в repo сохранён Claude 18/18 от 22 октября | Новый trigger eval и поведение Codex |
+| Historical evidence | Sources, measurement categories, invalidation note и реальный Next pilot code сопоставлены | Повтор старых model runs и независимое воспроизведение private baseline |
+| Packaging | Claude/Codex manifests, marketplace, YAML metadata, reference paths и runtime dependency inspected | Fresh install/reload в другом клиенте |
+
+Полный локальный `npm run validate` не запускался: общий heavy slot занимал чужой работающий стенд [unrelated private project]. Его процессы не трогал; набор узких проверок выше не выдаётся за full gate. Model eval и платные API-вызовы не запускались. UI-превью, контейнеры и серверы не создавались. Проверка архитектуры не заменяет последующий аудит конкретного продукта с БД и браузером.
+
+[Сохранённый reproducer](audits/2026-11-07-nextjs-clean-skills/probes.mjs) воспроизводит Q1, Q2, Q3 и обе части Q5, используя существующие devDependencies репозитория. Он создаёт и удаляет свою временную директорию, исходники не меняет:
+
+```sh
+node docs/audits/2026-11-07-nextjs-clean-skills/probes.mjs /absolute/path/to/nextjs-clean-skills
+```
+
+Сначала исправлять Q1–Q4: это корректность и переносимость миграционного пути. Затем Q5 и актуальный интеграционный specimen; Q6–Q7 исправляют статус уже опубликованных доказательств без новой исследовательской кампании. Архитектурное ядро при этом можно сохранить. Ни один из перечисленных дефектов не требует новой иерархии skills, универсального runtime-wrapper или дополнительного orchestration framework.
+
+Исходники и рабочие деревья nextjs-clean-skills и fullstack-ai-template сохранены. Commit, push и merge не выполнялись. [План аудита](plans/2026-11-07-nextjs-clean-skills-quality-audit.md).
