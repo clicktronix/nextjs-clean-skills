@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [4.7.3](https://github.com/clicktronix/nextjs-clean-skills/compare/v4.7.2...v4.7.3) (2026-11-22)
+
+
+### Bug Fixes
+
+* trim framework restatements from creating-react-components ([#54](https://github.com/clicktronix/nextjs-clean-skills/issues/54)) ([3cf6fe6](https://github.com/clicktronix/nextjs-clean-skills/commit/3cf6fe66bce3c85221b714fcd0203aadead55823))
+
 ## [4.7.2](https://github.com/clicktronix/nextjs-clean-skills/compare/v4.7.1...v4.7.2) (2026-11-08)
 
 
