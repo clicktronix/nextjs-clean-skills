@@ -26,19 +26,15 @@ Elsewhere, put the component where its neighbours live, call the repository's ex
 action modules, and introduce no `modules/`, `shared/ui` or root surface. What holds in any App
 Router project: the Server/Client split, state ownership, and the action shape.
 
-- Start with a Server Component.
-- Add `'use client'` only for events, client-only Hooks, refs, browser APIs, or browser-owned async
-  lifecycle.
-- Call Hooks directly from named components or named custom Hooks.
 - Keep route-private UI under `app/<route>/_components`.
 - Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
 - Promote capability-neutral UI to `shared/ui` only through
   [Shared Admission](../../docs/architecture-contract.md#shared-admission).
-- Pass React-serializable props from RSC to Client Components.
 - Use a dedicated top-level `'use server'` module for UI commands.
 
-For a non-obvious split, read [Server/Client Boundary](references/server-client-boundary.md) or
-[Component Structure](references/component-structure.md).
+For what may cross the Server/Client boundary and which imports client code may not make, read
+[Server/Client Boundary](references/server-client-boundary.md). For a non-obvious view/controller
+split, read [Component Structure](references/component-structure.md).
 
 ## State Placement
 
@@ -50,9 +46,9 @@ For state or browser cache ownership, read [State Placement](references/state-pl
 
 ## Component Structure
 
-Extract `WorkItemsView` when independent rendering tests or server reuse justify it. It shares its
-controller's `'use client'` file only while that stays readable and no Server Component reuses it;
-otherwise give it a file without the directive.
+Extract a presentational view from its client controller when independent rendering tests or server
+reuse justify it. The view shares the controller's `'use client'` file only while that stays
+readable and no Server Component reuses it; otherwise give it a file without the directive.
 
 Do not add `memo`, `useMemo`, or `useCallback` by default. Keep them for a measured identity or
 rerender requirement.
@@ -77,9 +73,8 @@ or [Error Taxonomy](../designing-architecture/references/errors/error-taxonomy.m
   without nested boundaries, the covered content reveals as one unit.
 - Use inline `<Suspense>` around a region that is genuinely slower than its siblings, not around
   every read.
-- `error.tsx` is a Client Component. Retry that must refetch RSC data calls `retry()`
-  (`unstable_retry()` before Next.js 16.3), not `reset()`; `catchError` is in the reference below.
-- `global-error.tsx` is the root-only last resort.
+- A retry that must refetch RSC data calls `retry()` (`unstable_retry()` before Next.js 16.3), not
+  `reset()`; `catchError` is in the reference below.
 - Render expected outcomes as states or deliberate framework control flow. Generic error boundaries
   are for unexpected exceptions.
 - Match a placeholder to the final layout's main geometry when that shape is known.
@@ -88,7 +83,6 @@ For boundary details, read [Loading And Errors](references/loading-and-errors.md
 
 ## Forms And Feedback
 
-- Client validation provides early feedback; server validation is authoritative.
 - Action props manage their transition. Wrap a manual `useActionState` dispatch in `startTransition`.
 - Expected validation and conflict outcomes remain serializable action state.
 - Field errors stay associated with their controls.
