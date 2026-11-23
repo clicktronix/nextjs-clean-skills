@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [4.8.0](https://github.com/clicktronix/nextjs-clean-skills/compare/v4.7.3...v4.8.0) (2026-11-23)
+
+
+### Features
+
+* tighten the boundary floor and install rules from the plugin ([#56](https://github.com/clicktronix/nextjs-clean-skills/issues/56)) ([fda6a67](https://github.com/clicktronix/nextjs-clean-skills/commit/fda6a674453cc7b086a1d2e3ac841731195eb10d))
+
 ## [4.7.3](https://github.com/clicktronix/nextjs-clean-skills/compare/v4.7.2...v4.7.3) (2026-11-22)
 
 
