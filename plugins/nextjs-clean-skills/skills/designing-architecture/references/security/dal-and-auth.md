@@ -16,8 +16,11 @@ Rules:
 
 - derive actor, role, tenant, and price/ownership data on the server;
 - treat each Server Action as a public HTTP entrypoint;
+- authenticate before decoding input; permission that depends on the decoded resource follows
+  validation;
 - pass established identity and scope into trusted `server.ts` and private store functions; those
-  functions do not rediscover the current user through an auth provider;
+  functions do not rediscover the current user through an auth provider, and a channel never
+  assembles identity from input: the type is nominal and only `shared/server` constructs it;
 - keep shared failure types and policy contracts inward; private `server/**` never imports
   `actions.ts`, `rsc.ts`, or another root channel surface;
 - keep secrets and service-role clients in server-only modules;

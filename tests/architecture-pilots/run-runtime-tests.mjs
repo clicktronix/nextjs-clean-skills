@@ -108,12 +108,17 @@ async function testWorkItems(load) {
   }
   // The application's root composition configures the capability once; channel roots read it.
   const server = serverModule.configureWorkItemsRuntime(runtimeOptions)
-  const identity = {
+  // Identity is opaque: the request-scope module is the one place that constructs it.
+  const identity = scopeModule.establishRequestIdentity({
     actorId: 'actor-a',
     tenantId: 'tenant-a',
     requestId: 'request-a',
-  }
-  const viewer = { ...identity, actorId: 'actor-b', requestId: 'request-b' }
+  })
+  const viewer = scopeModule.establishRequestIdentity({
+    actorId: 'actor-b',
+    tenantId: 'tenant-a',
+    requestId: 'request-b',
+  })
   const reports = createReporter()
   const invalidated = []
   // The stand-in for the framework's request scope: cookies(), headers() and updateTag in Next.js.
@@ -192,13 +197,53 @@ async function testWorkItems(load) {
   assert.equal(forbiddenResponse.headers.get('x-request-id'), 'request-b')
   assert.equal(reports.calls.length, 0)
 
-  const clientItems = await clientModule.fetchWorkItems((pathname) =>
-    routeModule.getWorkItems(
-      new Request(`https://fixture.test${pathname}`),
-      httpDependencies
-    )
-  )
+  // The stand-in for the App Router: a pathname reaches the handler only when a route file is
+  // mounted there, so a contract path that names no route is a 404 here as it is in the app.
+  const dispatch = (pathname) =>
+    fs.existsSync(path.join(pilotRoot, 'fixtures/work-items/src/app', pathname, 'route.ts'))
+      ? routeModule.getWorkItems(new Request(`https://fixture.test${pathname}`), httpDependencies)
+      : new Response(null, { status: 404 })
+  const clientItems = await clientModule.fetchWorkItems(dispatch)
   assert.equal(clientItems.length, 2)
+
+  // An identity cannot be edited in place, and a copy with another actor is not one the request
+  // scope issued: the trusted surface refuses it, whatever its static type says.
+  assert.throws(() => Object.assign(viewer, { actorId: 'actor-a' }), TypeError)
+  await assert.rejects(
+    () => server.list(Object.assign({}, viewer, { actorId: 'actor-a' })),
+    /was not issued by the request scope/
+  )
+
+  // A session provider that fails is an unexpected failure of the HTTP channel like any other:
+  // one report and a generic 5xx, not an unhandled rejection.
+  const authOutageReports = createReporter()
+  const authOutage = await routeModule.getWorkItems(new Request('https://fixture.test/api/work-items'), {
+    ...httpDependencies,
+    authenticate: async () => { throw new Error('session provider unavailable') },
+    reporter: authOutageReports.reporter,
+  })
+  assert.equal(authOutage.status, 500)
+  assert.equal(authOutageReports.calls.length, 1)
+
+  // One owner for the HTTP contract: the handler builds its body and the browser reads it through
+  // the same published path and parser, so neither side can drift alone.
+  const contractsModule = await load('work-items/src/modules/work-items/contracts.js')
+  const requestedPaths = []
+  await clientModule.fetchWorkItems((pathname) => {
+    requestedPaths.push(pathname)
+    return dispatch(pathname)
+  })
+  assert.deepEqual(requestedPaths, [contractsModule.WORK_ITEMS_PATH])
+  const body = await response.json()
+  assert.deepEqual(contractsModule.parseWorkItemsResponse(body), body)
+  await assert.rejects(
+    () => clientModule.fetchWorkItems(async () => Response.json({ items: clientItems })),
+    contractsModule.WorkItemsResponseError
+  )
+  // The schema that reads the response also writes it, so a field the store carries and the
+  // contract does not name never leaves the server.
+  const projected = contractsModule.toWorkItemsResponse([{ ...clientItems[0], internalNote: 'private' }], 'request-a')
+  assert.deepEqual(projected.data[0], clientItems[0])
 
   const form = uiModule.createWorkItemFormModel(clientItems[0])
   assert.equal(form.initialValues.priority, true)
@@ -735,6 +780,24 @@ try {
     ['--project', path.join(pilotRoot, 'tsconfig.json'), '--outDir', output],
     { cwd: root, encoding: 'utf8' }
   )
+  // Only the request-scope module makes an identity. A literal with the right fields is not one,
+  // and neither is a copy of a real one with another tenant: the scope cannot be edited in place.
+  const identityType = JSON.stringify(path.join(pilotRoot, 'fixtures/work-items/src/shared/kernel/request-identity.js'))
+  for (const [name, body] of [
+    ['forged-identity', "export const forged: RequestIdentity = { actorId: 'a', tenantId: 't', requestId: 'r' }"],
+    ['altered-identity', "declare const real: RequestIdentity\nexport const altered: RequestIdentity = { ...real, tenantId: 'tenant-b' }"],
+  ]) {
+    const probe = path.join(output, `${name}.ts`)
+    fs.writeFileSync(probe, `import type { RequestIdentity } from ${identityType}\n${body}\n`)
+    const result = spawnSync(
+      tsc,
+      ['--noEmit', '--strict', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--target', 'ES2022', '--skipLibCheck', probe],
+      { cwd: root, encoding: 'utf8' }
+    )
+    assert.notEqual(result.status, 0, `${name}: the compiler accepted it as RequestIdentity`)
+    assert.match(result.stdout, new RegExp(`${name}\\.ts.*RequestIdentity`, 's'))
+  }
+
   if (compile.status !== 0) {
     process.stderr.write(compile.stdout)
     process.stderr.write(compile.stderr)

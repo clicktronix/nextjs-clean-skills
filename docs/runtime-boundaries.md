@@ -43,7 +43,7 @@ flowchart TB
 | --- | --- | --- |
 | initial or server-rendered read | Server Component | `rsc.ts` or trusted `server.ts` |
 | UI command | Server Action | `actions.ts` |
-| browser-owned read lifecycle | `GET` Route Handler | `client.ts` consumes the HTTP contract |
+| browser-owned read lifecycle | `GET` Route Handler | `client.ts` consumes the HTTP contract published in `contracts.ts` |
 | external API or webhook | Route Handler | trusted `server.ts` |
 | SSE or long-lived HTTP response | Route Handler | `stream.ts` |
 | durable background work | queue or workflow | `job.ts` |
@@ -71,31 +71,39 @@ Roles are not part of it. The role vocabulary belongs to the capability that dec
 channel or trusted server operation resolves the actor's roles for that operation and passes them
 to its policy.
 
+Identity is a nominal value that only `shared/server` constructs
+([Shared Admission](./architecture-contract.md#shared-admission)); a channel obtains it from the
+request-scope resolver and never assembles one from input.
+
 Database clients, provider clients, reporter, clock, and other effects are dependencies, not
 identity. Keep them separate even when one runtime factory resolves both.
 
 ```mermaid
 flowchart TB
   accTitle: Request composition
-  accDescr: A channel verifies the caller, creates identity and effects separately, and supplies only the required values to capability behavior.
+  accDescr: A channel authenticates the caller before it decodes input, creates identity and effects separately, and supplies only the required values to capability behavior.
   Input["Channel input"]
-  Compose["Channel composition"]
-  Decode["Decode and validate"]
   Auth["Authenticate caller and<br/>establish entry scope"]
+  Decode["Decode and validate"]
+  Compose["Channel composition"]
   Identity["Request identity"]
   Effects["Runtime effects"]
   Capability["Capability surface"]
 
-  Input --> Decode
-  Decode --> Auth
+  Input --> Auth
   Auth --> Identity
-  Auth --> Compose
+  Auth --> Decode
+  Decode --> Compose
   Compose --> Effects
   Identity --> Capability
   Effects --> Capability
 ```
 
-Authentication and entry-level permission happen at every protected server entry. Business
+Authentication comes first at every protected server entry: an unauthenticated caller gets no
+validation feedback to map the schema with, and a webhook signature is verified over the raw body
+before that body is parsed. Permission that depends on the decoded input, such as which resource
+is addressed, follows validation. Authentication runs inside the channel's failure boundary: a
+session provider that fails is an unexpected failure of that channel, reported once like any other. Business
 authorization belongs to domain or application policy. Tenant and ownership predicates remain
 enforced at the store or RLS boundary. Proxy, middleware, layouts, and hidden UI are not sufficient
 authorization boundaries.
@@ -113,7 +121,10 @@ substituted into the user-scoped context.
 ## RSC Reads
 
 `rsc.ts` is a current-request surface. It may resolve request identity, wire private server
-dependencies, invoke the capability, and translate expected outcomes for rendering.
+dependencies, invoke the capability, and translate expected outcomes for rendering. It also
+publishes the capability's Server Components that make such a read; their implementation is
+private `server/**` code that renders a `ui/**` view
+([rule 8](./architecture-contract.md#dependency-direction)).
 
 ```mermaid
 flowchart TB
@@ -149,8 +160,8 @@ browser reads. Its export constraints are in
 
 The action:
 
-1. parses serializable input or `FormData`;
-2. re-authenticates and establishes entry-level permission;
+1. re-authenticates the caller from trusted server state;
+2. parses serializable input or `FormData` and establishes entry-level permission;
 3. invokes business authorization and behavior through the capability;
 4. maps expected outcomes to serializable action state;
 5. reports an unexpected failure once;
@@ -169,8 +180,10 @@ Endpoint-only schemas stay with the route; reusable contracts are deliberately p
 narrow root surface. Failure classifiers required by the handler are part of that root contract,
 not imports from private `application/**`.
 
-`GET` owns browser-readable query parameters, status, headers, cache policy, and public response
-shape. `client.ts` owns the browser-side fetch or subscription contract. Neither surface owns
+`GET` owns browser-readable query parameters, status, headers and cache policy. `client.ts` owns
+the browser-side fetch or subscription lifecycle. The path and the response schema the two share
+are published once, in the capability's `contracts.ts`: the handler builds its body from that
+schema and `client.ts` parses with it, so neither side restates the other. Neither surface owns
 business authorization or provider rows.
 
 Do not create an HTTP round trip for an RSC merely to reuse a Route Handler. Reuse the capability

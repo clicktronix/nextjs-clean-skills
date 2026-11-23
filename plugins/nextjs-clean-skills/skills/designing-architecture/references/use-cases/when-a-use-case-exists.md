@@ -46,5 +46,6 @@ it moves filtering, grouping, authorization consequences, projection, transactio
 sequencing into the route, create an orchestrating capability. Its operation may take a sibling's
 public `server.ts` contract as a type; a port in its own vocabulary plus a private mapping adapter
 is required only when the mapping carries policy. Source capabilities never import the orchestrator
-or one another. Sequence calls when a later input depends on an earlier result. Authorization-sensitive joins
+or one another; a reaction to a source's write (a notification, an audit entry) is the
+orchestrator's operation, not a call the source makes after writing. Sequence calls when a later input depends on an earlier result. Authorization-sensitive joins
 follow [Runtime Boundaries § Validation](../../../../docs/runtime-boundaries.md#validation).

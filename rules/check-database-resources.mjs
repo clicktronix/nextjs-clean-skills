@@ -203,6 +203,29 @@ for (const resource of resources) {
   })
 }
 
+// With no client identifier no call is scanned, so a clean result would be a measurement of
+// nothing. A project that depends on Supabase has calls to scan and must say how to find them;
+// any other project is told the check did not run.
+if (errors.length === 0 && clientIdentifiers.size === 0) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+  const supabase = Object.keys({
+    ...manifest.dependencies,
+    ...manifest.devDependencies,
+    ...manifest.optionalDependencies,
+    ...manifest.peerDependencies,
+  }).find(
+    (name) => name.startsWith('@supabase/')
+  )
+  if (supabase) {
+    console.error(
+      `databaseClientIdentifiers is empty while package.json depends on ${supabase}: no .from() or .rpc() call was checked. List the identifiers of the Supabase clients.`
+    )
+    process.exit(1)
+  }
+  console.log('database resource ownership not configured: databaseClientIdentifiers is empty, nothing was checked')
+  process.exit(0)
+}
+
 for (const file of listSources(sourceRoot)) {
   const subject = subjectFor(file, paths)
   const relative = path.relative(root, file).split(path.sep).join('/')

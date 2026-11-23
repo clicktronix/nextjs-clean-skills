@@ -8,9 +8,9 @@ Product behavior lives under `<moduleRoot>/<capability>`. Reserved internal segm
 | --- | --- | --- |
 | `domain/` | pure invariants and calculations | own domain, admitted `shared/kernel`, a neighbour's `contracts.ts`, classified pure packages |
 | `application/` | policy, orchestration, projection, owned ports | own domain, a neighbour's `contracts.ts`, classified pure code |
-| `server/` | private stores, providers, server cache, composition | own domain/application, admitted `shared/server` |
+| `server/` | private stores, providers, server cache, composition, reading Server Components | own domain/application, own `ui/` views, admitted `shared/server` |
 | `client/` | browser async lifecycle | browser-safe own contracts, exact own actions, admitted `shared/client` |
-| `ui/` | reusable capability UI | own domain/client/action surfaces; Server Components may use own `rsc.ts`; admitted `shared/ui` |
+| `ui/` | reusable capability views | own domain/client/action surfaces, admitted `shared/ui`; no server code |
 
 Introduce a segment for an actual responsibility, not to complete a template. A tiny capability
 may keep several roles in one private server file when no dependency rule needs a split.
@@ -27,8 +27,10 @@ acyclic.
 `app/**` owns routes and route-private presentation. It composes public surfaces but does not own
 product policy.
 
-Browser code never imports `server.ts`, `rsc.ts`, or `server/**`. The deliberate exception is an
-exact Server Action imported from top-level `'use server'` `actions.ts`.
+Browser code and `ui/**` never import `server.ts`, `rsc.ts`, or `server/**`, except an exact
+Server Action from top-level `'use server'` `actions.ts`. Server code calls a neighbour through
+`server.ts`, not a channel surface. Provider packages belong to adapters, nothing imports from
+`app/**`, and a type import follows the value rules (contract rules 14–18).
 
 Runtime calls and compile-time imports are different graphs:
 
@@ -39,8 +41,7 @@ Browser    -> GET handler -> server.ts
 Worker     -> job.ts     -> application operation -> provider adapter
 ```
 
-That runtime reaches a concrete adapter does not let application code import it. Server Components
-call server code directly, never their own Route Handler over HTTP.
+That runtime reaches a concrete adapter does not let application code import it.
 
 Use `server-only` and `client-only` markers, path checks, and a production build. Path legality and
 bundle safety are separate guarantees.

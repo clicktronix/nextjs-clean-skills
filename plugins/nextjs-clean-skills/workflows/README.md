@@ -47,6 +47,7 @@ exhaustion yields no verdict.
 ## The script
 
 ```
+node <plugin>/bin/migration.mjs install-rules --repo R                            # rule files, contract docs, AGENTS.md pointer; also the update
 node <plugin>/bin/migration.mjs inventory    --repo R --source-root src
 node <plugin>/bin/migration.mjs expand       --repo R --rules rules.json          # exit 2 = uncovered files to decide
 node <plugin>/bin/migration.mjs destination  --repo R --contract rules/architecture-contract.json --capability C --role domain --file src/x.ts

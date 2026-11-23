@@ -23,6 +23,7 @@ subscriptions, event handlers, or browser-owned async lifecycle.
 | --- | --- |
 | route, metadata, params, and server rendering | `app/**` |
 | current-request data and authorization | capability `rsc.ts` |
+| capability Server Component that reads | capability `server/**`, published by `rsc.ts` |
 | route-private presentation | `app/<route>/_components/**` |
 | reusable capability presentation | `modules/<capability>/ui/**` through `ui.ts` |
 | browser async lifecycle | `modules/<capability>/client/**` through `client.ts` |
@@ -113,7 +114,7 @@ flowchart TB
   Form["Client form"]
   Early["Client validation<br/>for early feedback"]
   Action["module/actions.ts<br/>top-level use server"]
-  Auth["Validate and authorize<br/>trusted server scope"]
+  Auth["Authenticate, validate,<br/>then authorize"]
   Behavior["Server service or<br/>application operation"]
   Result["Serializable action state"]
   Update["Update read owner<br/>or navigate"]
@@ -130,8 +131,8 @@ flowchart TB
 Rules:
 
 - server validation remains authoritative;
-- the action derives applicable actor and tenant from trusted server state, then authorizes the
-  command;
+- the action derives applicable actor and tenant from trusted server state before it parses
+  input, then authorizes the command;
 - expected validation or conflict outcomes remain serializable data;
 - unexpected failures are reported once at the action boundary;
 - successful writes update or invalidate affected read owners;

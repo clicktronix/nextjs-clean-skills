@@ -29,15 +29,19 @@ A disagreement is a defect. Correct every affected surface rather than choosing 
 
 Portable tooling must protect seven named properties:
 
-1. **Ownership:** cross-capability and route imports use public root surfaces.
+1. **Ownership:** cross-capability and route imports use public root surfaces; nothing depends
+   back on a route, and no source file outside the source root is imported.
 2. **Acyclic resolution:** imports resolve, hidden targets fail closed, and dependency graphs remain
    acyclic.
-3. **Purity:** domain and application reject wrong-direction and runtime dependencies.
-4. **Runtime separation:** browser and server code cannot import across unsafe runtime boundaries.
+3. **Purity:** domain and application reject wrong-direction and runtime dependencies, as types
+   and as values, and import only packages classified as pure.
+4. **Runtime separation:** browser and server code cannot import across unsafe runtime boundaries,
+   and a capability's server code does not import a neighbour's channel surface.
 5. **Surface contracts:** public files use the admitted vocabulary and publish narrow contracts.
 6. **Shared neutrality:** admitted shared roots are runtime-specific and capability-neutral.
 7. **Declared effects:** direct packages and configured database resources have explicit
-   classifications, owners, and consumers.
+   classifications, owners, and consumers; store and provider packages are imported only by
+   adapters.
 
 Each invariant needs one mutation that fails for the intended reason. Assertion count is not a
 quality metric.
@@ -102,7 +106,9 @@ Move a file only when ownership changes. A re-export does not launder an illegal
 4. Record its current files and the touch set for one ordinary follow-up change.
 5. Move product behavior under one module root; introduce only segments with actual responsibilities.
 6. Publish only the runtime surfaces used by real consumers.
-7. Enable module-boundary and server/client checks for the pilot. In a half-migrated repository,
+7. Install the rules with the plugin's `install-rules` command, which also leaves a pointer to the
+   contract in the repository's instruction file, and enable module-boundary and server/client
+   checks for the pilot. In a half-migrated repository,
    warn everywhere and error only on migrated roots ([`rules/README.md`](../rules/README.md#census-scope)).
 8. Run the repository’s applicable checks (types, lint, tests, build) and the real workflow.
 9. Compare change radius, forwarding wrappers, auth/reporting duplication, and runtime behavior.
@@ -178,7 +184,8 @@ flowchart TB
   Tests -->|No| Block
 ```
 
-Do not copy this map into `AGENTS.md`, `CLAUDE.md`, or a system prompt. Link this document.
+Do not copy this map into `AGENTS.md`, `CLAUDE.md`, or a system prompt. Link this document; the
+pointer block `install-rules` writes is that link.
 
 ## Architecture Change
 

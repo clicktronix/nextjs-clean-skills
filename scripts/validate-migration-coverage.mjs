@@ -34,7 +34,8 @@ const census = () => {
 }
 
 try {
-  fs.cpSync(path.join(root, 'rules'), path.join(repo, 'rules'), { recursive: true })
+  // The target gets its rules the way a consumer does: from the plugin's own installer.
+  assert.equal(spawnSync(process.execPath, [lib, 'install-rules', '--repo', repo], { encoding: 'utf8' }).status, 0)
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(repo, 'node_modules'), 'dir')
   write('package.json', '{"type":"module"}')
   write('tsconfig.json', '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","baseUrl":".","paths":{"@/*":["src/*"]}},"include":["src"]}')

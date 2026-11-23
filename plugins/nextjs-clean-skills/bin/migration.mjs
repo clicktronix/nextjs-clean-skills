@@ -18,6 +18,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { contractProblems } from '../rules/contract-keys.mjs'
+
 export const STATE_DIR = '.nextjs-clean-migration'
 export const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts'])
 export const EXCLUDED_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'out', '.turbo'])
@@ -540,6 +542,8 @@ async function lintWithCoverage(repo, contractPath) {
   const expectedFiles = listSourceFiles(repo, contract.sourceRoot, COVERAGE_EXCLUDED_DIRS)
     .filter(file => SOURCE_EXTENSIONS.has(path.extname(file)) &&
       !(contract.generatedRoot && file.startsWith(`${contract.generatedRoot}/`)))
+  // The floor is the rule files installed in the target, bound to the target the way its own
+  // config binds them, so coverage is judged against the copy that runs in its lint.
   const { ESLint } = createRequire(path.join(repo, 'package.json'))('eslint')
   const rulesDir = path.dirname(contractPath)
   const base = (await import(pathToFileURL(path.join(rulesDir, 'eslint-boundaries.mjs')))).default
@@ -656,6 +660,143 @@ export function recommend(input) {
   if (musts.length > 0) return { gate: 'revise', unmeasured, reason: `${musts.length} must-fix review finding(s)`, notes }
   if (review.verdict === 'revise') return { gate: 'revise', unmeasured, reason: 'the review asked for revision', notes }
   return { gate: 'accept', unmeasured, reason: 'behaviour green, architecture at zero with no regression, review sound', notes }
+}
+
+// ─── Rules installation ───
+// A plugin lives in a cache keyed by its version, which a project's lint and CI can neither import
+// nor rely on, so the rules a project runs are files in its own repository. The plugin puts them
+// there, and the same command is the update: rule files and contract documents are replaced, the
+// project's contract and the rest of its instruction file are left alone.
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const INSTALLED_DOCS = ['architecture-contract.md', 'runtime-boundaries.md', 'frontend-composition.md', 'adoption-and-enforcement.md']
+const INSTALL_MANIFEST = 'rules/.installed.json'
+const BLOCK_START = '<!-- nextjs-clean-skills:start -->'
+const BLOCK_END = '<!-- nextjs-clean-skills:end -->'
+
+// A link to an installed file is re-pointed at where that file landed; any other relative link
+// would dangle in the project, so it becomes the public URL of the same file at this release.
+function relinkMarkdown(text, source, destination, installed, releaseUrl) {
+  return text.replace(/\]\(([^)\s]+)\)/g, (whole, target) => {
+    if (/^(https?:|mailto:|#)/.test(target)) return whole
+    const [file, fragment] = target.split('#')
+    const pointed = path.posix.normalize(path.posix.join(path.posix.dirname(source), file))
+    const landed = installed.get(pointed)
+    const rewritten = landed
+      ? path.posix.relative(path.posix.dirname(destination), landed)
+      : `${releaseUrl}/${path.posix.normalize(path.posix.join('plugins/nextjs-clean-skills', pointed))}`
+    return `](${rewritten}${fragment === undefined ? '' : `#${fragment}`})`
+  })
+}
+
+function instructionBlock(version) {
+  return [
+    BLOCK_START,
+    '## Architecture contract',
+    '',
+    `This repository follows the capability-first architecture contract of nextjs-clean-skills ${version}.`,
+    'The files under `rules/` are installed by that plugin and replaced on update;',
+    "`rules/architecture-contract.json` is this project's own configuration.",
+    '',
+    '- Before adding or moving behaviour across modules, read `rules/docs/architecture-contract.md`.',
+    '- Before adding a channel (RSC read, Server Action, Route Handler, stream, job), read',
+    '  `rules/docs/runtime-boundaries.md`. For component structure, read',
+    '  `rules/docs/frontend-composition.md`.',
+    '- What lint enforces and what it leaves to review: `rules/README.md`.',
+    "- Check a change with the project's lint, `node rules/check-module-cycles.mjs` and",
+    '  `node rules/check-dependency-classification.mjs`.',
+    BLOCK_END,
+  ].join('\n')
+}
+
+export function installRules(repo, { instructions = 'AGENTS.md' } = {}) {
+  // The version is the one stamped into the rules being installed; the repository address comes
+  // from whichever host manifest this copy of the plugin carries.
+  const version = readJson(path.join(PLUGIN_ROOT, 'rules', 'architecture-contract.json')).contractVersion
+  const hostManifest = ['.claude-plugin', '.codex-plugin']
+    .map((directory) => path.join(PLUGIN_ROOT, directory, 'plugin.json'))
+    .find((file) => fs.existsSync(file))
+  if (!hostManifest) throw new Error(`no plugin manifest under ${PLUGIN_ROOT}`)
+  const releaseUrl = `${readJson(hostManifest).homepage}/blob/v${version}`
+  // The project's contract is checked with the loader's own test before anything is written. A
+  // contract these rules would refuse leaves the project its working lint and the list of what
+  // to add; choosing a missing classification is the project's decision, not the installer's.
+  const contractPath = path.join(repo, 'rules', 'architecture-contract.json')
+  const exists = fs.existsSync(contractPath)
+  const current = exists ? readJson(contractPath) : null
+  const problems = exists ? contractProblems(repo, current) : []
+  if (problems.length > 0) {
+    return { ok: false, version, written: [], replaced: [], removed: [], contract: 'refused', contractProblems: problems, instructions }
+  }
+
+  // What an earlier run of this installer wrote. A file found here that it did not write was
+  // copied by hand, as every project did before the installer existed, and may carry changes.
+  const manifestPath = path.join(repo, INSTALL_MANIFEST)
+  const previous = fs.existsSync(manifestPath) ? readJson(manifestPath).files ?? [] : []
+  const replaced = []
+
+  const installed = new Map()
+  for (const name of fs.readdirSync(path.join(PLUGIN_ROOT, 'rules')).sort()) {
+    if (name !== 'architecture-contract.json') installed.set(`rules/${name}`, `rules/${name}`)
+  }
+  for (const name of INSTALLED_DOCS) installed.set(`docs/${name}`, `rules/docs/${name}`)
+
+  for (const [source, destination] of installed) {
+    let text = fs.readFileSync(path.join(PLUGIN_ROOT, source), 'utf8')
+    if (source.endsWith('.md')) {
+      text = relinkMarkdown(text, source, destination, installed, releaseUrl).replace(
+        /^<!-- Generated by [^\n]*-->/,
+        `<!-- Installed by nextjs-clean-skills ${version}. Do not edit here: re-run \`migration.mjs install-rules\` to update. -->`
+      )
+    }
+    const target = path.join(repo, destination)
+    if (!previous.includes(destination) && fs.existsSync(target) && fs.readFileSync(target, 'utf8') !== text) {
+      // Writing through a link, of the file or of a directory above it, changes the file the
+      // link leads to, and that is the one whose diff shows it.
+      replaced.push(path.relative(fs.realpathSync(repo), fs.realpathSync(target)).split(path.sep).join('/'))
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, text)
+  }
+
+  // The installer removes only what an earlier run recorded writing, so a file a release dropped
+  // does not stay behind as a checker nobody maintains, and a file the project added under
+  // rules/ is never touched.
+  const written = [...installed.values()]
+  const removed = previous.filter(
+    (file) => !written.includes(file) && file.startsWith('rules/') && !file.split('/').includes('..')
+  )
+  for (const file of removed) fs.rmSync(path.join(repo, file), { force: true })
+  fs.writeFileSync(manifestPath, JSON.stringify({ version, files: written }, null, 2) + '\n')
+
+  // The contract is the project's file: created once from the template, then only stamped with
+  // the release whose rules it now runs.
+  if (!exists) {
+    fs.copyFileSync(path.join(PLUGIN_ROOT, 'rules', 'architecture-contract.json'), contractPath)
+  } else if (current.contractVersion !== version) {
+    fs.writeFileSync(contractPath, JSON.stringify({ ...current, contractVersion: version }, null, 2) + '\n')
+  }
+
+  const instructionsPath = path.join(repo, instructions)
+  const existing = fs.existsSync(instructionsPath) ? fs.readFileSync(instructionsPath, 'utf8') : ''
+  const block = instructionBlock(version)
+  const start = existing.indexOf(BLOCK_START)
+  const end = existing.indexOf(BLOCK_END)
+  const next =
+    start !== -1 && end > start
+      ? existing.slice(0, start) + block + existing.slice(end + BLOCK_END.length)
+      : `${existing.trimEnd()}${existing.trim() ? '\n\n' : ''}${block}\n`
+  if (next !== existing) fs.writeFileSync(instructionsPath, next)
+
+  return {
+    ok: true,
+    version,
+    written,
+    replaced,
+    removed,
+    contract: exists ? 'kept' : 'created',
+    contractProblems: [],
+    instructions,
+  }
 }
 
 // ─── CLI ───
@@ -796,12 +937,17 @@ export async function main(argv) {
       print({ ...result, recordId: record.id, exitCode: record.exitCode })
       return result.ok ? 0 : 1
     }
+    case 'install-rules': {
+      const result = installRules(repo, { instructions: arg(rest, 'instructions', 'AGENTS.md') })
+      print(result)
+      return result.ok ? 0 : 1
+    }
     case 'recommend': {
       print(recommend(readJson(arg(rest, 'input'))))
       return 0
     }
     default:
-      console.error('usage: migration.mjs <inventory|expand|destination|plan-check|record|tree-state|record-fresh|lint|census|recommend> [--repo <path>] ...')
+      console.error('usage: migration.mjs <install-rules|inventory|expand|destination|plan-check|record|tree-state|record-fresh|lint|census|recommend> [--repo <path>] ...')
       return 1
   }
 }

@@ -9,7 +9,7 @@ Mutation forms are UI boundaries around server commands, not business logic cont
 - rich client editing: the project form library, with authoritative server validation.
 
 Do not rely on client validation, hidden fields, disabled buttons, or bound args for authority.
-Each Server Action validates its payload, derives identity and tenant from trusted state, authorizes
+Each Server Action derives identity and tenant from trusted state, validates its payload, authorizes
 the command, calls capability behavior, invalidates (contract rule 5: tags; `refresh()` only for
 uncached data), and returns a public-safe result.
 

@@ -104,6 +104,8 @@ For a non-obvious operation or dependency seam, read only the relevant reference
 - Server Component reads call server-owned capability code directly; do not fetch the app's own
   Route Handler.
 - Server Actions are for UI mutations, not browser-owned reads.
+- A capability's server code calls a neighbour through `server.ts`, never through its channel
+  surfaces (`rsc.ts`, `actions.ts`, `stream.ts`, `job.ts`).
 - Route Handlers own HTTP contracts, external callers, browser `GET` reads, callbacks, and streams.
 - Streams own commit state, cancellation, timeout, resume, and post-commit failures.
 - Jobs own retry, deadline, idempotency, and dead-letter behavior.
@@ -114,7 +116,7 @@ For an HTTP, stream, or failure boundary, read only the relevant reference:
 [capture ownership](references/errors/failure-at-the-boundary.md), or
 [error taxonomy](references/errors/error-taxonomy.md).
 
-For protected channels, authenticate at entry, authorize product behavior in policy, and enforce
+For protected channels, authenticate at entry before decoding input, authorize product behavior in policy, and enforce
 applicable ownership or tenant predicates at the store boundary. Validate untrusted input at trust
 entry and provider output when it becomes trusted. Public channels may mark these concerns `N/A`.
 

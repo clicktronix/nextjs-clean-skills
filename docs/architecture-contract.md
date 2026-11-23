@@ -42,12 +42,17 @@ src/modules/<capability>/
 Framework routes, metadata, layouts, and route-private presentation remain under `src/app/**`.
 Capability-neutral code must pass the shared-admission gate before entering `src/shared/**`.
 Nothing else lives under `src/` except the files Next.js finds there by name (`proxy.ts`,
-`instrumentation.ts` and their kin), which compose capabilities the way `app/**` does.
+`instrumentation.ts` and their kin), which compose capabilities the way `app/**` does. Source
+code outside the source root is read by no rule, so nothing under it imports a source file from
+there; data and declaration files are not code and may be imported from anywhere.
 These are default paths, not hidden assumptions in the tooling. A product records `sourceRoot`,
 `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliases` in
 `rules/architecture-contract.json`; aliases also remain configured in `tsconfig.json`. Alias
 prefixes must end with `/` — `"@"` would claim every package name starting with `@`, and the tools
-refuse that shape instead of resolving it.
+refuse that shape instead of resolving it. Imports are resolved the way the project's TypeScript
+resolves them, so a `paths` mapping the contract does not repeat or a bare specifier found through
+`baseUrl` is a project import all the same, and an undeclared alias cannot carry an import past
+the rules.
 
 ```mermaid
 flowchart TB
@@ -151,10 +156,10 @@ src/modules/work-items/
 ├── client/            # optional, private
 ├── ui/                # optional, private
 ├── server.ts          # silent trusted composition API with explicit identity
-├── rsc.ts             # current-request RSC read surface
+├── rsc.ts             # current-request RSC reads and the Server Components that make them
 ├── actions.ts         # top-level 'use server'; UI commands
 ├── client.ts          # browser-safe read or subscription surface
-├── ui.ts              # reusable capability UI
+├── ui.ts              # reusable capability UI, safe for a browser importer
 ├── contracts.ts       # runtime-neutral: types, schemas and pure domain functions
 ├── query-cache.ts     # shared serializable query-key identity for prefetch and hydration
 ├── stream.ts          # stream-channel contract
@@ -207,7 +212,9 @@ wrapper's result at load time.
 
 `contracts.ts` publishes what other code may depend on without depending on how the capability
 works: its types, the schemas that witness them, and the pure functions of its `domain/**` — a price
-rule, a status-transition check. A neighbour's `domain/**` and `application/**`, a server operation
+rule, a status-transition check. When the browser reads the capability over HTTP, the path and the
+response schema belong here too: the handler under `app/**` builds its body from them and
+`client.ts` parses with them, so the path and the envelope have one owner. A neighbour's `domain/**` and `application/**`, a server operation
 and browser code may all import it, so one rule has one owner instead of a copy per runtime. It
 imports only its own `domain/**`, admitted `shared/kernel`, and packages the contract classifies as
 pure; everything it publishes is therefore pure by what it can import, and the direction rules
@@ -231,7 +238,7 @@ The module is the unit of ownership. Segments express dependency direction insid
 ```mermaid
 flowchart TB
   accTitle: Capability dependency direction
-  accDescr: Framework entrypoints consume public capability surfaces; private server and client adapters depend inward on application and domain policy.
+  accDescr: Framework entrypoints consume public capability surfaces; private server and client adapters depend inward on application and domain policy, and server code may render a view.
   App["app route"]
   Public["module root surfaces"]
   Server["server adapters"]
@@ -247,6 +254,7 @@ flowchart TB
   Public --> UI
   Server --> Application
   Server --> Domain
+  Server -->|"view without use client"| UI
   Server --> External
   Client --> Domain
   UI --> Client
@@ -262,40 +270,64 @@ Normative rules:
 4. `domain/**` is pure and imports only its own domain, admitted `shared/kernel`, a neighbour's
    `contracts.ts`, or dependencies explicitly classified by the product as pure.
 5. `application/**` imports its domain, pure helpers, capability-owned port types, and a neighbour's
-   `contracts.ts`. It imports no Next.js, React, database SDK, provider SDK, or concrete adapter.
+   `contracts.ts`. It imports no Next.js, React, database SDK, provider SDK, or concrete adapter,
+   as a value or as a type (rule 14).
 6. `server/**` implements server-side driving and driven adapters for its capability.
    It does not import its own root public surfaces; `server.ts`, `rsc.ts`, and `actions.ts` depend
    inward on private server implementation.
 7. `client/**` imports only browser-safe values and the exact `actions.ts` mutations it needs.
-8. `ui/**` is a directory, not a runtime, and the `'use client'` directive classifies its files. A
-   file there **with** the directive imports its own domain/client values and, when required, its
-   exact action surface, and never `server.ts`, `rsc.ts`, or `server/**`. A file there **without**
-   the directive is a Server Component: it may read its own capability's `rsc.ts`, and `ui.ts` may
-   publish it. It may not reach its own `server/**` or another server surface — `rsc.ts` is the
-   narrowing — nor another capability's internals; the checker reports `serverUiReach`.
-   A `ui.ts` that publishes a file reading `rsc.ts` has server importers only: a Client Component
-   importing any of its exports fails the build on `server-only`, so a Server Component renders the
-   export and passes the element, such as `<Badge />`, as `children` or a prop. The checker sees only
-   direct imports; the production build enforces this (rule 11).
+8. `ui/**` holds views, and no file there imports what only a server can load: not `server.ts`,
+   `rsc.ts`, `server/**` or `shared/server`, not a Node builtin, not an entry point the
+   contract lists in `serverPackages` — with or without the `'use client'` directive. A file
+   **with** the directive in its prologue is a Client Component; it imports its own domain/client
+   values and, when required, an exact action. A file **without** it is a view that takes props and
+   renders in either runtime, so it imports no browser-only code either (`client.ts`, `client/**`,
+   `shared/client`): a view that needs it is a Client Component and says so. What `ui.ts` publishes
+   is thereby safe for a browser importer as far as imports can show; a package outside those
+   lists that only one runtime can load is caught by the production build (rule 11).
+   A Server Component that reads is server code: it lives in `server/**`, reads through the
+   capability's private composition, renders a `ui/**` view, and is published by `rsc.ts`. Server
+   code may import a view without the directive and never names a Client Component; the view
+   imports the client island it needs. A neighbour does not import that component (rule 16): the
+   route composes it, passing the element as `children` or a prop.
 9. Both server and browser paths may import `query-cache.ts`; it cannot import runtime code and is
    invalid with consumers on only one side.
 10. Runtime surfaces carry a `server-only` / `client-only` marker in addition to path rules;
     `actions.ts` is excluded. Mechanics: [Runtime Markers](../rules/README.md#runtime-markers).
 11. A production build must fail when a Client Component imports a server surface.
-12. Every direct runtime dependency is classified as pure or runtime-bound; unclassified packages
-    fail closed until the product updates its contract.
+12. Every direct runtime dependency is classified as pure or runtime-bound. The pure zones —
+    `domain/**`, `application/**`, `shared/kernel`, `contracts.ts`, `query-cache.ts` — import only
+    packages classified as pure, so an unclassified one fails at the import, whichever dependency
+    list it came from.
 13. Literal database resources are declared with an owner. Undeclared, dynamic, or unauthorized
     `.from()`/`.rpc()` calls fail the portable Supabase ownership canary; what it sees and misses is
     in [`rules/README.md`](../rules/README.md). RLS, grants, migration review and integration tests
     remain separate guarantees.
 14. A type-only edge — `import type`, `import { type X }`, `export type … from`, or `import(…)` in a
-    type position — is erased by the compiler, so it does not carry a runtime direction: the
-    browser/server, purity and neutrality rules do not apply to it. Ownership does. Importing a
+    type position — is erased by the compiler, so it carries nothing into a bundle: the
+    browser/server rules do not apply to it. It still carries vocabulary and ownership. Importing a
     neighbour's private file as a type is the same coupling as importing it as a value, and fails
-    the same way.
+    the same way. In the pure zones of rule 12 a type is admitted from where a value is, and
+    additionally from a capability's public root surface, which is what lets an orchestrating
+    operation name a sibling's `server.ts` contract. A type from a framework or provider package,
+    or from the capability's own `server/**` or `client/**`, is that technology's vocabulary inside
+    policy and fails as the value would. Under `verbatimModuleSyntax` only a declaration-level
+    `import type` or `export type` is a type-only edge: `import { type X } from` is kept as an
+    empty import and still loads the module.
 15. A table's *writes* belong to the owner of its invariants. `consumers` admits reads and the
     owner's public RPCs; an optional `writers` list narrows `insert`/`update`/`upsert`/`delete` to
     the subjects that may decide what the table contains. A writer must already be a consumer.
+16. `rsc.ts`, `actions.ts`, `stream.ts` and `job.ts` are channel surfaces: each resolves identity
+    and reports for the request it owns. Composition (`app/**` and the framework root files)
+    imports them, and browser code imports an action. A capability's server code never imports a
+    neighbour's channel surface — nested under another channel it would resolve identity and
+    report a second time — and calls the neighbour's `server.ts` with explicit identity.
+17. A store or provider package is named only by an adapter, as a type or as a value: a
+    capability's private `server/**` or `client/**`, `shared/server` and `shared/client`, and
+    generated provider contracts under `generatedRoot`. A route, a view or a root surface reaches
+    the store through the capability, and a root surface does not re-export a provider's type.
+18. Nothing outside `app/**` imports from it. What two routes or a capability reuse belongs to a
+    capability or an admitted shared root.
 
 Within one capability, channel roots such as `rsc.ts` and `actions.ts` may call its trusted
 `server.ts` surface or the same private composition. This is inward reuse, not a license for
@@ -336,11 +368,17 @@ Normative rules:
    function. It cannot be a key, and a cookie-scoped client cached once would serve one user's rows
    to the next. The cached function obtains its store from the capability's own composition, not
    from an argument.
-   Without cookies there is no user session, so the store is one of two:
-   - a tenant-private read uses a privileged store, which bypasses row-level security: the channel
-     authorizes first, and every scope argument, applied as a query predicate, is the isolation;
-   - an anonymous store stays under row-level security as the `anon` role and serves only data its
-     policies make public.
+   Without cookies there is no user session, so row-level security cannot see the user. Prefer, in
+   this order:
+   - no shared server cache for identity or tenant data: an uncached read, or
+     `'use cache: private'` (rule 3), keeps the user-scoped client and its policies;
+   - an anonymous store, which stays under row-level security as the `anon` role and serves only
+     data its policies make public;
+   - a privileged store, for a tenant-private read whose measured cost justifies a shared cache.
+     It bypasses row-level security: the channel authorizes first, and every scope argument,
+     applied as a query predicate, is the only isolation left. Each such read has a named owner
+     and an isolation test against the real engine: seeded with two scopes, a call with one scope
+     returns no row of the other.
 2. Every input that changes the result is an argument. A read whose result depends on tenant or user
    takes that scope as a parameter, so the scope enters the key by construction.
 3. Plain `'use cache'` is shared across callers; its arguments are the only isolation. Identity or
@@ -476,6 +514,13 @@ Source capabilities do not import the orchestrator or one another. Their trusted
 surfaces accept explicit identity, enforce their own policy, and remain silent so the outer runtime
 channel owns the one unexpected-error report.
 
+A write another capability must react to — a notification, an audit entry, a search index — has
+the same shape. The reaction is the orchestrator's policy: the UI command belongs to the
+orchestrating capability, whose operation performs the write through the source's `server.ts` and
+then the reaction. The source does not import the reacting capability to call it after its own
+write. When the reaction must survive a crash between the two, the write and an outbox record
+commit in one stored function, and the reacting capability's `job.ts` consumes the record.
+
 Sequence dependent calls. If label IDs come from work-items, load work-items before labels.
 Authorization-sensitive joins follow [Runtime Boundaries § Validation](./runtime-boundaries.md#validation).
 
@@ -508,6 +553,16 @@ runtime, such as `shared/server/<provider>.ts`, a request-scope resolver, or the
 carries a named maintainer and a narrow contract, and is demoted the day a capability becomes its
 natural owner. A capability's domain identity — its ids and its role vocabulary — is not
 `RequestIdentity` and is never lent to a neighbour.
+
+`RequestIdentity` is nominal. The kernel declares it with a private member, which an object
+literal cannot write and a spread drops, so neither a look-alike nor a copy of a real identity
+with another tenant is one. `shared/server` constructs it: the
+request-scope resolver from a verified session, and, where a job or privileged task needs one, a
+separately named factory that takes the reason. The type stops a look-alike written by accident, not a deliberate copy made with
+a cast or `Object.assign`, so the constructors also freeze the identity and remember the ones
+they issued, and a trusted `server.ts` checks that the identity it was handed is one of them. It
+therefore received it from a channel, and the callers of those constructors are every place trust
+enters.
 
 Demote shared code when consumers diverge or one capability becomes the natural owner. Broad
 `utils`, `services`, or migration buckets are invalid.

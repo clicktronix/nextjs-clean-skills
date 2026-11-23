@@ -7,12 +7,13 @@ import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 import { fail, root } from './_lib.mjs'
-import { loadArchitecturePaths, moduleEdges, moduleSpecifiers } from '../rules/contract-paths.mjs'
+import { loadArchitecturePaths, moduleEdges, moduleSpecifiers, resolveEdgeTargets } from '../rules/contract-paths.mjs'
 
 const BASE = 'rules/eslint-boundaries.mjs'
 const STRICT = 'rules/eslint-boundaries-resolved.mjs'
 const CONTRACT = 'rules/architecture-contract.json'
 const PATHS = 'rules/contract-paths.mjs'
+const KEYS = 'rules/contract-keys.mjs'
 const CYCLES = 'rules/check-module-cycles.mjs'
 const CENSUS = 'rules/census-scope.mjs'
 const SEVERITY = { warn: 1, error: 2 }
@@ -96,6 +97,7 @@ export const workItemsRscQueryKey = workItemKeys.list()
 export async function readWorkItems() {
   return getWorkItems()
 }
+export { ServerList } from './server/views/server-list.js'
 `,
   'src/modules/work-items/actions.ts': `
 'use server'
@@ -121,6 +123,7 @@ import 'client-only'
 export { mutation } from './client/query.js'
 `,
   'src/modules/work-items/ui/view.ts': `
+'use client'
 import { mutation } from '../client.js'
 export const viewModel = mutation
 `,
@@ -129,7 +132,6 @@ export const NestedWorkItemsView = () => null
 `,
   'src/modules/work-items/ui.ts': `
 export { viewModel } from './ui/view.js'
-export { ServerList } from './ui/ServerList.js'
 `,
   'src/modules/board/server/adapters.ts': `
 import { listLabels } from '../../labels/server.js'
@@ -494,7 +496,7 @@ export const quote = (lines: readonly Line[]) => ({ totalCents: totalCents(lines
 import { cookies } from 'next/headers'
 export const session = cookies
 `,
-  // A Server Component under ui/** reads rsc.ts, not the private server segment behind it.
+  // ui/** imports no server code under either directive: a file there is a view that takes props.
   'src/modules/work-items/ui/BadServerReach.tsx': `
 import { store } from '../server/store.js'
 export const BadServerReach = () => store
@@ -526,10 +528,30 @@ const name = 'store'
 export const load = () => import(\`./\${name}.js\`)
 `,
 
-  // ui/** is a directory, not a runtime: without the directive the file is a Server Component.
-  'src/modules/work-items/ui/ServerList.tsx': `
+  // A Server Component that reads lives in server/**, renders a ui/** view that takes props, and is
+  // published by rsc.ts. The view imports no server code, so ui.ts can never publish a file that
+  // only a server importer survives.
+  'src/modules/work-items/ui/ListView.tsx': `
+export const ListView = (props: { items: unknown[] }) => props.items.length
+`,
+  'src/modules/work-items/server/views/server-list.tsx': `
+import { getWorkItems } from '../store.js'
+import { ListView } from '../../ui/ListView.js'
+export const ServerList = async () => ListView({ items: getWorkItems() })
+`,
+  'src/modules/work-items/ui/ReadsRsc.tsx': `
 import { readWorkItems } from '../rsc.js'
-export const ServerList = async () => readWorkItems()
+export const ReadsRsc = async () => readWorkItems()
+`,
+  'src/modules/work-items/ui/Island.tsx': `
+'use client'
+export const Island = () => null
+`,
+  // The directive classifies the target too: a view without it is importable from server code, a
+  // Client Component is not named by a private server file.
+  'src/modules/work-items/server/views/bad-island.tsx': `
+import { Island } from '../../ui/Island.js'
+export const BadIsland = Island
 `,
   'src/modules/work-items/ui/ClientList.tsx': `
 'use client'
@@ -664,6 +686,500 @@ export { seed } from './data.mock'
 import { getWorkItems } from '../../work-items/server/store.js'
 export default getWorkItems
 `,
+
+  // A type-only edge is erased from the bundle, not from the vocabulary. Policy typed with a
+  // provider row or a framework request is the layer leak a port exists to prevent, so pure zones
+  // admit a type from a public root surface and from nowhere else.
+  'src/modules/typed-policy/server/store.ts': `
+export type PolicyRow = { id: string }
+export const rows = (): PolicyRow[] => []
+`,
+  'src/modules/typed-policy/server.ts': `
+import 'server-only'
+export { rows } from './server/store.js'
+export type { PolicyRow } from './server/store.js'
+`,
+  'src/modules/typed-policy/application/own-surface-type.ts': `
+import type { PolicyRow } from '../server.js'
+export type Admitted = PolicyRow
+`,
+  'src/modules/typed-policy/application/bad-adapter-type.ts': `
+import type { PolicyRow } from '../server/store.js'
+export type Leaked = PolicyRow
+`,
+  'src/modules/typed-policy/application/bad-provider-type.ts': `
+import type { SupabaseClient } from '@supabase/supabase-js'
+export type Leaked = SupabaseClient
+`,
+  'src/modules/typed-policy/domain/bad-adapter-type.ts': `
+import type { PolicyRow } from '../server/store.js'
+export type Leaked = PolicyRow
+`,
+  'src/modules/typed-policy/domain/bad-framework-type.ts': `
+import type { NextRequest } from 'next/server'
+export type Leaked = NextRequest
+`,
+  'src/modules/typed-policy/contracts.ts': `
+export type { PolicyRow } from './server/store.js'
+`,
+  'src/shared/kernel/bad-server-type.ts': `
+import type { log } from '../server/logger.js'
+export type Leaked = typeof log
+`,
+  // Fail closed at the import, not at the manifest: a devDependency or a hoisted transitive package
+  // is in no dependency list the classification check reads.
+  'src/modules/typed-policy/domain/bad-unclassified.ts': `
+import { parse } from 'yaml'
+export default parse
+`,
+
+  // A channel surface resolves identity and reports for the request it owns. Called from under
+  // another channel it does both a second time, so a neighbour's server code takes server.ts.
+  'src/modules/board/server/bad-neighbour-rsc.ts': `
+import { readWorkItems } from '../../work-items/rsc.js'
+export default readWorkItems
+`,
+  'src/modules/board/server/bad-neighbour-action.ts': `
+import { createLabel } from '../../labels/actions.js'
+export default createLabel
+`,
+  'src/modules/board/client/use-label.ts': `
+'use client'
+import { createLabel } from '../../labels/actions.js'
+export const create = createLabel
+`,
+
+  // A store or provider package is named by an adapter and by nothing else.
+  'src/app/bad-provider/page.ts': `
+import pg from 'pg'
+export default pg
+`,
+  'src/modules/work-items/ui/BadProvider.tsx': `
+'use client'
+import { createClient } from '@supabase/supabase-js'
+export default createClient
+`,
+  'src/modules/work-items/server/pool.ts': `
+import pg from 'pg'
+export default pg
+`,
+  'src/modules/work-items/client/realtime.ts': `
+'use client'
+import { createClient } from '@supabase/supabase-js'
+export const subscribe = createClient
+`,
+
+  // The route composes capabilities; nothing depends back on a route.
+  'src/app/work-items/_components/Row.ts': `
+export const Row = () => null
+`,
+  'src/modules/work-items/ui/BadAppImport.tsx': `
+import { Row } from '@/app/work-items/_components/Row'
+export const BadAppImport = Row
+`,
+  'src/shared/ui/bad-app-import.ts': `
+import { Row } from '@/app/work-items/_components/Row'
+export const BadAppImport = Row
+`,
+
+  // A specifier the rules cannot resolve is read as a package and checked by nothing. Whatever
+  // the project's own tsconfig resolves to a project file is a project import: a `paths` mapping
+  // the contract does not declare, and a bare specifier the catch-all mapping finds under src/.
+  'src/app/bad-undeclared-alias/page.ts': `
+import { getWorkItems } from '~/modules/work-items/server/store'
+export default getWorkItems
+`,
+  'src/app/bad-bare-specifier/page.ts': `
+import { getWorkItems } from 'modules/work-items/server/store'
+export default getWorkItems
+`,
+
+  // The resolver is TypeScript's: the candidate that exists, the mapping that matches best, the
+  // entry a directory's package.json names.
+  'src/app/only-in-app.ts': `
+export const onlyInApp = 1
+`,
+  'src/modules/work-items/server/bad-fallback-alias.ts': `
+import { onlyInApp } from '@work/only-in-app'
+export default onlyInApp
+`,
+  'src/app/bad-outside-alias/page.ts': `
+import { getWorkItems } from '@lib/bridge'
+export default getWorkItems
+`,
+  'lib/pkg-bridge/package.json': `
+{ "main": "bridge.ts" }
+`,
+  'lib/pkg-bridge/bridge.ts': `
+export { getWorkItems } from '../../src/modules/work-items/server/store.js'
+`,
+  'src/app/bad-outside-main/page.ts': `
+import { getWorkItems } from '../../../lib/pkg-bridge'
+export default getWorkItems
+`,
+
+  // The directive prologue decides, on both sides of an import, and nothing that merely contains
+  // the words does.
+  'src/modules/work-items/ui/StrictIsland.tsx': `
+'use strict'
+'use client'
+export const StrictIsland = () => null
+`,
+  'src/modules/work-items/server/views/bad-strict-island.tsx': `
+import { StrictIsland } from '../../ui/StrictIsland.js'
+export const BadStrictIsland = StrictIsland
+`,
+  'src/modules/work-items/ui/NotADirective.tsx': `
+export const label = 'use client' + ' is not a directive here'
+export const NotADirective = () => label
+`,
+  'src/modules/work-items/server/views/uses-plain-view.tsx': `
+import { NotADirective } from '../../ui/NotADirective.js'
+export const UsesPlainView = NotADirective
+`,
+  'src/app/late-directive/page.ts': `
+import { getWorkItems } from '@/modules/work-items/server'
+'use client'
+export default getWorkItems
+`,
+
+  // A view is published to the browser by ui.ts, so it may not load what only a server can, and a
+  // view that reaches browser-only code is a Client Component and has to say so.
+  'src/modules/work-items/ui/BadNodeView.tsx': `
+import fs from 'node:fs'
+export const BadNodeView = () => fs
+`,
+  'src/modules/work-items/ui/BadHeadersView.tsx': `
+import { cookies } from 'next/headers'
+export const BadHeadersView = () => cookies
+`,
+  'src/modules/work-items/ui/BadUnmarkedView.ts': `
+import { mutation } from '../client.js'
+export const unmarked = mutation
+`,
+
+  // A declaration beside a JavaScript file describes that file. TypeScript resolves the import to
+  // the declaration, and the runtime loads the implementation, so the rules judge the latter.
+  'lib/typed-bridge.js': `
+export { getWorkItems } from '../src/modules/work-items/server/store.js'
+`,
+  'lib/typed-bridge.d.ts': `
+export declare const getWorkItems: () => unknown[]
+`,
+  'src/app/bad-outside-declared/page.ts': `
+import { getWorkItems } from '../../../lib/typed-bridge.js'
+export default getWorkItems
+`,
+  'src/modules/work-items/ui/DeclaredIsland.js': `
+'use client'
+export const DeclaredIsland = () => null
+`,
+  'src/modules/work-items/ui/DeclaredIsland.d.ts': `
+export declare const DeclaredIsland: () => null
+`,
+  'src/modules/work-items/server/views/bad-declared-island.tsx': `
+import { DeclaredIsland } from '../../ui/DeclaredIsland.js'
+export const BadDeclaredIsland = DeclaredIsland
+`,
+  // A parenthesised string is an expression, not a directive, and a view that loads the
+  // browser-only marker itself is browser-only.
+  'src/modules/work-items/ui/BadParenView.ts': `
+('use client')
+import { mutation } from '../client.js'
+export const paren = mutation
+`,
+  'src/modules/work-items/ui/BadClientOnlyView.ts': `
+import 'client-only'
+export const marked = 1
+`,
+  // An alias that names one project file for `import` and another for `require` is refused: the
+  // rules would have to guess which one loads, and here one of the two is not importable.
+  'src/modules/work-items/server/bad-split-alias.ts': `
+import { id } from '#split'
+export default id
+`,
+  // A package reached through a `package.json` imports alias is still that package.
+  'src/app/bad-provider-alias/page.ts': `
+import pool from '#driver'
+export default pool
+`,
+  // A JavaScript surface with a declaration beside it is the same public surface when a type
+  // edge resolves to the declaration.
+  'src/modules/js-surface/server.js': `
+import 'server-only'
+export const listPlain = () => []
+`,
+  'src/modules/js-surface/server.d.ts': `
+export declare const listPlain: () => unknown[]
+export type Plain = { id: string }
+`,
+  'src/modules/typed-policy/application/js-surface-type.ts': `
+import type { Plain } from '../../js-surface/server.js'
+export type Admitted = Plain
+`,
+  // Only a real declaration suffix names another file's surface: `server.d.js` is a file called
+  // `server.d`, and an action declaration describes signatures without being an action module.
+  'src/modules/js-surface/rsc.d.js': `
+export const notASurface = 1
+`,
+  'src/modules/js-surface/server/save.js': `
+export async function save() {
+  return { ok: true }
+}
+`,
+  'src/modules/js-surface/actions.js': `
+'use server'
+import { save as saveImpl } from './server/save.js'
+export async function save() {
+  return saveImpl()
+}
+`,
+  'src/modules/js-surface/actions.d.ts': `
+export { save } from './server/save.js'
+`,
+  // A declaration file loads nothing: its re-export is a type edge, not a browser importing a server.
+  'src/modules/js-surface/client.d.ts': `
+export { listPlain } from './server.js'
+`,
+  // A relative path into node_modules names a file, not the entry point the contract classifies.
+  'src/app/bad-provider-relative/page.ts': `
+import pg from '../../../node_modules/pg/index.js'
+export default pg
+`,
+  // A package installed under another name (`"db": "npm:pg@8"`) is still the package it is.
+  'src/app/bad-provider-npm-alias/page.ts': `
+import db from 'db'
+export default db
+`,
+  // A package manager that links packages out of a store (pnpm) leaves the installed name on the
+  // link and the package's own name on the real directory; the entry point answers to both.
+  'src/modules/work-items/ui/BadLinkedServerView.tsx': `
+import { read } from 'store-alias/server'
+export const BadLinkedServerView = () => read
+`,
+  // A restriction the contract writes against an alias spelling holds for that spelling.
+  'src/modules/work-items/ui/BadListedAliasView.tsx': `
+import { edge } from '@vendor/plain-sdk/edge.js'
+export const BadListedAliasView = () => edge
+`,
+  // ...and behind a package `imports` alias, where no file stands for it.
+  'src/modules/work-items/ui/BadAliasedBuiltinView.tsx': `
+import { readFile } from '#fs'
+export const BadAliasedBuiltinView = () => readFile
+`,
+  // A Node builtin is the same module with or without the `node:` prefix.
+  'src/modules/work-items/ui/BadBareBuiltinView.tsx': `
+import fs from 'fs'
+export const BadBareBuiltinView = () => fs
+`,
+  // An entry point is the file it loads, however the import spells it: with the extension the
+  // contract entry omits, or through a tsconfig `paths` mapping into node_modules.
+  'src/modules/work-items/ui/BadDeepServerView.tsx': `
+import { read } from 'plain-sdk/server.js'
+export const BadDeepServerView = () => read
+`,
+  'src/modules/work-items/ui/BadVendorPathView.tsx': `
+import { read } from '@vendor/store-alias/index.js'
+export const BadVendorPathView = () => read
+`,
+  // A linked workspace package is a package, also behind an alias: its real directory has no
+  // node_modules in its path, the link it was found through does.
+  'src/app/linked-workspace/page.ts': `
+import { linked } from '#linked'
+export default linked
+`,
+  // The name a package is installed under is the project's spelling of it: it can restrict, and
+  // it cannot make another package pure.
+  'src/modules/work-items/domain/bad-pure-alias.ts': `
+import { read } from 'pure-alias'
+export default read
+`,
+  // Two entry points of one package behind one alias are two targets: the classified entry
+  // cannot answer for the other.
+  'src/modules/work-items/domain/bad-entry-alias.ts': `
+import { read } from '#entry'
+export default read
+`,
+  // An erased import of the marker loads nothing, so it marks nothing.
+  'src/modules/work-items/ui/ErasedMarkerView.ts': `
+import type {} from 'client-only'
+export const erased = 1
+`,
+  // A server-only entry point is not pure, whatever a contract also lists it as.
+  'src/modules/typed-policy/domain/bad-server-package.ts': `
+import { secret } from 'server-pure-conflict'
+export default secret
+`,
+
+  // A provider's vocabulary is named by an adapter, as a type too: re-exported from a root
+  // surface it would reach policy as a published type.
+  'src/app/bad-provider-type/page.ts': `
+import type { SupabaseClient } from '@supabase/supabase-js'
+export type Leaked = SupabaseClient
+`,
+  'src/modules/provider-leak/server.ts': `
+import 'server-only'
+export type { SupabaseClient } from '@supabase/supabase-js'
+`,
+
+  // Code a framework hook loads runs in production, so it lives where the rules read it. A
+  // config file beside package.json is outside the source root for a hook as for a route
+  // (what instrumentation loads belongs under a contract root such as shared/server).
+  'reporting.config.ts': `
+export const configured = 1
+`,
+  'src/instrumentation-client.ts': `
+import '../reporting.config'
+`,
+  'src/app/bad-root-config/page.ts': `
+import { configured } from '../../../reporting.config'
+export default configured
+`,
+  // The framework loads its root files by name. Nothing imports one: a route that did would
+  // take a hook's runtime and whatever the hook loads along with it.
+  'src/app/bad-hook-import/page.ts': `
+import { register } from '../../instrumentation'
+export default register
+`,
+  // A bundler follows `new URL('./file', import.meta.url)` to the file, which is how a worker is
+  // loaded: it is an edge like an import. A computed name or an asset is not a module the rule
+  // can place, and is left alone.
+  'src/app/bad-worker/page.ts': `
+export const worker = () => new Worker(new URL('../../modules/work-items/server/store.js', import.meta.url))
+`,
+  // A URL without a leading dot is still relative to the module, and the base may be written
+  // with brackets.
+  'src/app/bad-worker-bare/demo.fixture.ts': `
+export const demo = 1
+`,
+  'src/app/bad-worker-bare/page.ts': `
+export const worker = () => new Worker(new URL('demo.fixture.js', import.meta.url))
+`,
+  'src/app/bad-worker-bracket/page.ts': `
+export const worker = () => new Worker(new URL('../../modules/work-items/server/store.js', import.meta['url']))
+`,
+  // An assertion the compiler erases leaves the same expression for the bundler, and a path
+  // from the root is resolved against the project by Next's webpack configuration.
+  'src/app/bad-worker-cast/page.ts': `
+export const worker = () =>
+  new Worker(new URL('../../modules/work-items/server/store.js' as const, import.meta.url as string))
+`,
+  'src/app/bad-worker-rooted/page.ts': `
+export const worker = () => new Worker(new URL('/src/modules/work-items/server/store.js', import.meta.url))
+`,
+  // A rooted path may name a directory, loaded through its index like any other; and the
+  // constructor may carry an assertion the compiler erases.
+  'src/modules/work-items/server/worker/index.ts': `
+export const run = 1
+`,
+  'src/app/bad-worker-directory/page.ts': `
+export const worker = () => new Worker(new URL('/src/modules/work-items/server/worker', import.meta.url))
+`,
+  'src/app/bad-worker-constructor/page.ts': `
+export const worker = () =>
+  new Worker(new (URL as typeof URL)('../../modules/work-items/server/store.js', import.meta['url' as const]))
+`,
+  // A rooted path is resolved as the same path written relatively would be: a trailing slash
+  // names the directory and not the file beside it, and a directory may name its entry in a
+  // manifest.
+  'src/modules/work-items/client/index.ts': `
+export const inner = 1
+`,
+  'src/app/bad-worker-slash/page.ts': `
+export const worker = () => new Worker(new URL('/src/modules/work-items/client/', import.meta.url))
+`,
+  'src/modules/work-items/server/packaged/package.json': `
+{ "main": "run.js" }
+`,
+  'src/modules/work-items/server/packaged/run.ts': `
+export const run = 1
+`,
+  // A bundler also enters a directory through the `module` field, which TypeScript does not read.
+  'src/modules/work-items/server/esm-worker/package.json': `
+{ "module": "./run.js" }
+`,
+  'src/modules/work-items/server/esm-worker/run.ts': `
+export const run = 1
+`,
+  'src/app/bad-worker-module/page.ts': `
+export const worker = () => new Worker(new URL('/src/modules/work-items/server/esm-worker', import.meta.url))
+`,
+  // A manifest that names one file in `main` and another in `module`: which one loads depends
+  // on the build, so the rule refuses to guess, as it does for import and require.
+  'src/modules/work-items/server/dual/package.json': `
+{ "main": "./a.js", "module": "./b.js" }
+`,
+  'src/modules/work-items/server/dual/a.ts': `
+export const which = 'a'
+`,
+  'src/modules/work-items/server/dual/b.ts': `
+export const which = 'b'
+`,
+  'src/modules/work-items/server/bad-dual-entry.ts': `
+import { which } from './dual'
+export default which
+`,
+  'src/app/bad-worker-main/page.ts': `
+export const worker = () => new Worker(new URL('/src/modules/work-items/server/packaged', import.meta.url))
+`,
+  'src/app/asset-url/page.ts': `
+export const logo = new URL('./logo.png', import.meta.url)
+export const icon = (name: string) => new URL(name, import.meta.url)
+export const remote = new URL('https://example.test/worker.js', import.meta.url)
+export const rooted = new URL('/worker.js', import.meta.url)
+// new.target is not import.meta: its url is whatever a subclass put there.
+export class Loader {
+  constructor() {
+    const base = new.target as unknown as { url: string; webpackContext(directory: string): unknown }
+    void new URL('../../modules/work-items/server/store.js', (new.target as unknown as { url: string }).url)
+    void base.webpackContext('./parts')
+    void (new.target as unknown as { webpackContext(directory: string): unknown }).webpackContext('./parts')
+  }
+}
+`,
+  // A declaration beside the source root's files is not a file the framework loads.
+  'src/middleware.d.ts': `
+export type Matcher = { source: string }
+`,
+  'src/app/hook-types/page.ts': `
+import type { Matcher } from '../../middleware'
+export type Admitted = Matcher
+`,
+  // A context loader names a directory, not a module: what it loads is hidden from every check,
+  // a development artifact included.
+  'src/app/bad-context/page.ts': `
+declare const require: { context(directory: string, deep: boolean): unknown }
+export default require.context('./parts', true)
+`,
+  'src/app/bad-context-meta/page.ts': `
+export default (import.meta as unknown as { webpackContext(directory: string): unknown }).webpackContext('./parts')
+`,
+  // The bundler reads a literal member name in brackets as it reads one after a dot.
+  'src/app/bad-context-bracket/page.ts': `
+declare const require: { context(directory: string, deep: boolean): unknown }
+export default require['context']('./parts', true)
+`,
+  'src/app/bad-context-meta-bracket/page.ts': `
+export default (import.meta as unknown as { webpackContext(directory: string): unknown })['webpackContext']('./parts')
+`,
+  // A story ships nowhere: what it imports from outside the source root reaches no production
+  // file, because none may import a development artifact.
+  'src/modules/work-items/ui/WorkItemsView.stories.ts': `
+import { getWorkItems } from '../../../../lib/bridge.js'
+export const fixture = getWorkItems
+`,
+  // A source file outside sourceRoot is linted by nobody, so it launders any import it re-exports.
+  'lib/bridge.ts': `
+export { getWorkItems } from '../src/modules/work-items/server/store.js'
+`,
+  'src/app/bad-outside/page.ts': `
+import { getWorkItems } from '../../../lib/bridge.js'
+export default getWorkItems
+`,
+  'src/app/outside-data/page.ts': `
+import manifest from '../../../package.json'
+export default manifest
+`,
 }
 
 const expectedBase = new Map([
@@ -713,7 +1229,71 @@ const expectedBase = new Map([
   // The same import as a value is the runtime edge the type-only form is not.
   ['src/modules/type-consumer/client/bad-value.ts', 'browserServer'],
   ['src/modules/billing/contracts.ts', 'neutralDirection'],
-  ['src/modules/work-items/ui/BadServerReach.tsx', 'serverUiReach'],
+  ['src/modules/work-items/ui/BadServerReach.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/ReadsRsc.tsx', 'browserServer'],
+  ['src/modules/work-items/server/views/bad-island.tsx', 'serverClient'],
+  ['src/modules/typed-policy/application/bad-adapter-type.ts', 'applicationDirection'],
+  ['src/modules/typed-policy/application/bad-provider-type.ts', 'applicationDirection'],
+  ['src/modules/typed-policy/domain/bad-adapter-type.ts', 'domainDirection'],
+  ['src/modules/typed-policy/domain/bad-framework-type.ts', 'domainDirection'],
+  ['src/modules/typed-policy/contracts.ts', 'neutralDirection'],
+  ['src/shared/kernel/bad-server-type.ts', 'sharedKernelDirection'],
+  ['src/modules/typed-policy/domain/bad-unclassified.ts', 'unclassifiedPackage'],
+  ['src/modules/board/server/bad-neighbour-rsc.ts', 'foreignChannel'],
+  ['src/modules/board/server/bad-neighbour-action.ts', 'foreignChannel'],
+  ['src/app/bad-provider/page.ts', 'providerOutsideAdapter'],
+  ['src/modules/work-items/ui/BadProvider.tsx', 'providerOutsideAdapter'],
+  ['src/modules/work-items/ui/BadAppImport.tsx', 'appIsLeaf'],
+  ['src/shared/ui/bad-app-import.ts', 'appIsLeaf'],
+  ['src/app/bad-outside/page.ts', 'outsideSourceRoot'],
+  ['src/app/bad-undeclared-alias/page.ts', 'appInternal'],
+  ['src/app/bad-bare-specifier/page.ts', 'appInternal'],
+  ['src/modules/work-items/server/bad-fallback-alias.ts', 'appIsLeaf'],
+  ['src/app/bad-outside-alias/page.ts', 'outsideSourceRoot'],
+  ['src/app/bad-root-config/page.ts', 'outsideSourceRoot'],
+  ['src/instrumentation-client.ts', 'outsideSourceRoot'],
+  ['src/app/bad-hook-import/page.ts', 'frameworkRootImport'],
+  ['src/app/bad-worker/page.ts', 'appInternal'],
+  ['src/app/bad-worker-bare/page.ts', 'devArtifactInProduction'],
+  ['src/app/bad-worker-bracket/page.ts', 'appInternal'],
+  ['src/app/bad-worker-cast/page.ts', 'appInternal'],
+  ['src/app/bad-worker-rooted/page.ts', 'appInternal'],
+  ['src/app/bad-worker-directory/page.ts', 'appInternal'],
+  ['src/app/bad-worker-slash/page.ts', 'appInternal'],
+  ['src/modules/work-items/client/index.ts', 'shadowedSegmentIndex'],
+  ['src/app/bad-worker-main/page.ts', 'appInternal'],
+  ['src/app/bad-worker-module/page.ts', 'appInternal'],
+  ['src/modules/work-items/server/bad-dual-entry.ts', 'ambiguousResolution'],
+  ['src/app/bad-worker-constructor/page.ts', 'appInternal'],
+  ['src/app/bad-context/page.ts', 'hiddenDynamicImport'],
+  ['src/app/bad-context-meta/page.ts', 'hiddenDynamicImport'],
+  ['src/app/bad-context-bracket/page.ts', 'hiddenDynamicImport'],
+  ['src/app/bad-context-meta-bracket/page.ts', 'hiddenDynamicImport'],
+  ['src/app/bad-outside-main/page.ts', 'outsideSourceRoot'],
+  ['src/modules/work-items/server/views/bad-strict-island.tsx', 'serverClient'],
+  ['src/modules/work-items/ui/BadNodeView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadHeadersView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadUnmarkedView.ts', 'clientBoundaryMissing'],
+  ['src/app/bad-provider-type/page.ts', 'providerOutsideAdapter'],
+  ['src/app/bad-provider-alias/page.ts', 'providerOutsideAdapter'],
+  ['src/app/bad-provider-relative/page.ts', 'packageByPath'],
+  ['src/app/bad-provider-npm-alias/page.ts', 'providerOutsideAdapter'],
+  ['src/modules/work-items/ui/BadLinkedServerView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadVendorPathView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadDeepServerView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadBareBuiltinView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadListedAliasView.tsx', 'browserServer'],
+  ['src/modules/work-items/ui/BadAliasedBuiltinView.tsx', 'browserServer'],
+  ['src/modules/work-items/domain/bad-entry-alias.ts', 'unclassifiedPackage'],
+  ['src/modules/work-items/domain/bad-pure-alias.ts', 'unclassifiedPackage'],
+  ['src/modules/work-items/server/bad-split-alias.ts', 'ambiguousResolution'],
+  ['src/modules/js-surface/rsc.d.js', 'unknownSurface'],
+  ['src/app/bad-outside-declared/page.ts', 'outsideSourceRoot'],
+  ['src/modules/work-items/server/views/bad-declared-island.tsx', 'serverClient'],
+  ['src/modules/work-items/ui/BadParenView.ts', 'clientBoundaryMissing'],
+  ['src/modules/work-items/ui/BadClientOnlyView.ts', 'clientBoundaryMissing'],
+  ['src/modules/typed-policy/domain/bad-server-package.ts', 'domainDirection'],
+  ['src/modules/provider-leak/server.ts', 'providerOutsideAdapter'],
   ['src/modules/import-equals/domain/bad-internal.ts', 'crossCapabilityInternal'],
   ['src/modules/import-equals/domain/bad-module-require.ts', 'domainDirection'],
   ['src/modules/work-items/domain/bad-subpath.ts', 'domainDirection'],
@@ -749,6 +1329,15 @@ const expectedStrict = new Map([
 
 const clean = new Set([
   'src/generated/provider-api.ts',
+  'src/modules/work-items/server/packaged/run.ts',
+  'src/modules/work-items/server/esm-worker/run.ts',
+  'src/modules/work-items/server/dual/a.ts',
+  'src/modules/work-items/server/dual/b.ts',
+  'src/modules/work-items/server/worker/index.ts',
+  'src/app/asset-url/page.ts',
+  'src/app/hook-types/page.ts',
+  'src/modules/work-items/ui/WorkItemsView.stories.ts',
+  'src/app/linked-workspace/page.ts',
   // The permitting half of generatedProviderLeak: a private server adapter IS where a provider row
   // is translated, so this import must stay clean or the rule only proves it can say no.
   'src/modules/work-items/server/rows.ts',
@@ -790,7 +1379,26 @@ const clean = new Set([
   'src/modules/pricing/contracts.ts',
   'src/modules/checkout/domain/quote.ts',
   'src/modules/work-items/domain/template-import.ts',
-  'src/modules/work-items/ui/ServerList.tsx',
+  'src/modules/work-items/ui/ListView.tsx',
+  'src/modules/work-items/ui/ErasedMarkerView.ts',
+  'src/modules/js-surface/server.d.ts',
+  'src/modules/js-surface/actions.d.ts',
+  'src/modules/js-surface/client.d.ts',
+  'src/modules/typed-policy/application/js-surface-type.ts',
+  'src/modules/work-items/ui/StrictIsland.tsx',
+  'src/modules/work-items/ui/NotADirective.tsx',
+  'src/modules/work-items/server/views/uses-plain-view.tsx',
+  'src/app/late-directive/page.ts',
+  'src/app/only-in-app.ts',
+  'src/modules/work-items/ui/Island.tsx',
+  'src/modules/work-items/server/views/server-list.tsx',
+  'src/modules/typed-policy/server.ts',
+  'src/modules/typed-policy/application/own-surface-type.ts',
+  'src/modules/board/client/use-label.ts',
+  'src/modules/work-items/server/pool.ts',
+  'src/modules/work-items/client/realtime.ts',
+  'src/app/work-items/_components/Row.ts',
+  'src/app/outside-data/page.ts',
   'src/modules/marker/rsc.ts',
   // The permitting half of unknownRoot and the widened appInternal: a framework root file reading a
   // public surface, and the files outside the roots that have no product owner to find.
@@ -809,18 +1417,80 @@ const clean = new Set([
 
 if (ESLint) {
   const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'capability-rules-')))
+  const sibling = `${sandbox}-sibling`
   const previousCwd = process.cwd()
   try {
-    fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
-    fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
-    for (const source of [BASE, STRICT, CONTRACT, PATHS, CYCLES, CENSUS]) {
-      fs.copyFileSync(path.join(root, source), path.join(sandbox, path.basename(source)))
+    // A real node_modules: the repository's packages by link, plus the few the fixtures import and
+    // this repository does not install. They are packages to the rules because that is what they
+    // are here, not because a tsconfig mapping hides a project file behind a package name.
+    fs.mkdirSync(path.join(sandbox, 'node_modules'))
+    for (const entry of fs.readdirSync(path.join(root, 'node_modules'))) {
+      fs.symlinkSync(path.join(root, 'node_modules', entry), path.join(sandbox, 'node_modules', entry))
+    }
+    const stubPackage = (directoryName, js, dts, manifest = {}) => {
+      const directory = path.join(sandbox, 'node_modules', directoryName)
+      fs.mkdirSync(directory, { recursive: true })
+      fs.writeFileSync(path.join(directory, 'package.json'), `${JSON.stringify({ name: directoryName, version: '0.0.0', main: 'index.js', types: 'index.d.ts', ...manifest })}\n`)
+      fs.writeFileSync(path.join(directory, 'index.js'), js)
+      fs.writeFileSync(path.join(directory, 'index.d.ts'), dts)
+    }
+    stubPackage('server-only', 'export {}\n', 'export {}\n')
+    stubPackage('client-only', 'export {}\n', 'export {}\n')
+    stubPackage('pg', 'export default {}\n', 'declare const pg: object\nexport default pg\n')
+    stubPackage('@supabase/supabase-js', 'export const createClient = () => null\n', 'export declare const createClient: () => null\nexport type SupabaseClient = object\n')
+    stubPackage(
+      'valibot',
+      'export const object = (shape) => shape\nexport const array = (item) => item\nexport const string = () => null\nexport const pipe = (...steps) => steps\n',
+      'export declare const object: (shape: unknown) => unknown\nexport declare const array: (item: unknown) => unknown\nexport declare const string: () => null\nexport declare const pipe: (...steps: unknown[]) => unknown[]\n'
+    )
+    // Installed as `db`, named `pg` by its own manifest: what `"db": "npm:pg@8"` leaves on disk.
+    stubPackage('db', 'export default {}\n', 'declare const db: object\nexport default db\n', { name: 'pg' })
+    // Installed under a name the sandbox contract lists as pure; its manifest names another package.
+    stubPackage('pure-alias', 'export const read = () => null\n', 'export declare const read: () => null\n', { name: 'impure-real' })
+    // One package, two entry points; the sandbox contract classifies only `entry-sdk/schema`.
+    stubPackage('entry-sdk', 'export const read = () => null\n', 'export declare const read: () => null\n', {
+      exports: { './schema': './index.js', './io': './io.js' },
+    })
+    fs.writeFileSync(path.join(sandbox, 'node_modules/entry-sdk/io.js'), 'export const read = () => null\n')
+    fs.writeFileSync(path.join(sandbox, 'node_modules/entry-sdk/io.d.ts'), 'export declare const read: () => null\n')
+    // No export map: `plain-sdk/server` and `plain-sdk/server.js` are one file.
+    stubPackage('plain-sdk', 'export {}\n', 'export {}\n')
+    fs.writeFileSync(path.join(sandbox, 'node_modules/plain-sdk/server.js'), 'export const read = () => null\n')
+    fs.writeFileSync(path.join(sandbox, 'node_modules/plain-sdk/server.d.ts'), 'export declare const read: () => null\n')
+    fs.writeFileSync(path.join(sandbox, 'node_modules/plain-sdk/edge.js'), 'export const edge = () => null\n')
+    fs.writeFileSync(path.join(sandbox, 'node_modules/plain-sdk/edge.d.ts'), 'export declare const edge: () => null\n')
+    // An installed package named like a builtin does not change what Node loads for that name.
+    stubPackage('fs', 'export default {}\n', 'declare const fs: object\nexport default fs\n')
+    // A store layout: the real package outside the top-level node_modules, a link under another name.
+    stubPackage('.store/store-sdk@1.0.0/node_modules/store-sdk', 'export const read = () => null\n', 'export declare const read: () => null\n', {
+      name: 'store-sdk',
+      exports: { './server': './index.js' },
+    })
+    fs.symlinkSync(path.join(sandbox, 'node_modules/.store/store-sdk@1.0.0/node_modules/store-sdk'), path.join(sandbox, 'node_modules/store-alias'), 'dir')
+    // A workspace package: a directory of the repository, linked into node_modules.
+    fs.mkdirSync(path.join(sandbox, 'packages/linked'), { recursive: true })
+    fs.writeFileSync(path.join(sandbox, 'packages/linked/package.json'), '{"name":"linked","version":"0.0.0","type":"module","main":"index.js"}\n')
+    fs.writeFileSync(path.join(sandbox, 'packages/linked/index.js'), 'export const linked = 1\n')
+    fs.symlinkSync(path.join(sandbox, 'packages/linked'), path.join(sandbox, 'node_modules/linked'), 'dir')
+    // `#driver` is a package behind a project-local name: the contract classifies the package.
+    fs.writeFileSync(
+      path.join(sandbox, 'package.json'),
+      `${JSON.stringify({
+        private: true,
+        type: 'module',
+        // `#split` names a kernel file for `import` and a route-private one for `require`.
+        imports: { '#driver': 'pg', '#fs': 'fs/promises', '#linked': 'linked', '#entry': { import: 'entry-sdk/schema', require: 'entry-sdk/io' }, '#split': { import: './src/shared/kernel/id.ts', require: './src/app/only-in-app.ts' } },
+      })}\n`
+    )
+    fs.mkdirSync(path.join(sandbox, 'rules'))
+    for (const source of [BASE, STRICT, CONTRACT, PATHS, KEYS, CYCLES, CENSUS]) {
+      fs.copyFileSync(path.join(root, source), path.join(sandbox, 'rules', path.basename(source)))
     }
     // `generatedRoot` is deliberately absent from the shipped contract: declared there, every repo
     // adopting the floor would inherit a generated root it never has. The sandbox declares it so the
     // rule has something to bind to; the inert-when-absent case is asserted separately below.
     fs.writeFileSync(
-      path.join(sandbox, 'architecture-contract.json'),
+      path.join(sandbox, 'rules', 'architecture-contract.json'),
       `${JSON.stringify(
         (() => {
           const shipped = JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8'))
@@ -829,6 +1499,9 @@ if (ESLint) {
             generatedRoot: 'src/generated',
             // A package name, not a scope: the subpath fixture proves `@scope/pkg/sub` inherits it.
             runtimePackages: [...shipped.runtimePackages, '@scope/pkg'],
+            // A contradiction the dependency check refuses; the rule still treats it as server-only.
+            purePackages: [...shipped.purePackages, 'server-pure-conflict', 'entry-sdk/schema', 'pure-alias'],
+            serverPackages: [...shipped.serverPackages, 'server-pure-conflict', 'store-sdk/server', 'plain-sdk/server', '@vendor/plain-sdk/edge.js'],
           }
         })(),
         null,
@@ -843,13 +1516,18 @@ if (ESLint) {
             baseUrl: '.',
             paths: {
               '@/*': ['./src/*'],
-              // Stubs, not dependencies. The rules must see these specifiers as packages — the
-              // boundary rule resolves no alias for them — while the resolver tier still has a
-              // file to find, or `import/no-unresolved` would fail every clean fixture that
-              // carries a runtime marker or builds a schema.
-              'server-only': ['./stubs/server-only.ts'],
-              'client-only': ['./stubs/client-only.ts'],
-              valibot: ['./stubs/valibot.ts'],
+              // A mapping the contract does not repeat. TypeScript resolves it into the source
+              // root all the same, so the rules must too, or it launders every boundary.
+              '~/*': ['./src/*'],
+              // TypeScript takes the first candidate that exists, so the rules must as well: the
+              // file below exists only under app/.
+              '@work/*': ['./src/shared/kernel/*', './src/app/*'],
+              // A mapping to source outside the source root is still a project import.
+              '@lib/*': ['./lib/*'],
+              '@vendor/*': ['./node_modules/*'],
+              // A catch-all: every package name is tried under src/ first and found in
+              // node_modules, which must leave it a package.
+              '*': ['./src/*'],
             },
             module: 'esnext',
             moduleResolution: 'bundler',
@@ -862,34 +1540,20 @@ if (ESLint) {
       )}\n`
     )
 
-    fs.mkdirSync(path.join(sandbox, 'stubs'), { recursive: true })
-    fs.writeFileSync(path.join(sandbox, 'stubs', 'server-only.ts'), 'export {}\n')
-    fs.writeFileSync(path.join(sandbox, 'stubs', 'client-only.ts'), 'export {}\n')
-    fs.writeFileSync(
-      path.join(sandbox, 'stubs', 'valibot.ts'),
-      [
-        'export const object = (shape: unknown) => shape',
-        'export const array = (item: unknown) => item',
-        'export const string = () => null',
-        'export const pipe = (...steps: unknown[]) => steps',
-        '',
-      ].join('\n')
-    )
-
     const parser = `import parser from '@typescript-eslint/parser'\nconst ts = { files: ['src/**/*.{ts,tsx,mts,cts}'], languageOptions: { parser } }\n`
     fs.writeFileSync(
       path.join(sandbox, 'eslint.config.base.mjs'),
-      `${parser}import boundaries from './eslint-boundaries.mjs'\nexport default [ts, ...boundaries]\n`
+      `${parser}import boundaries from './rules/eslint-boundaries.mjs'\nexport default [ts, ...boundaries]\n`
     )
     fs.writeFileSync(
       path.join(sandbox, 'eslint.config.strict.mjs'),
-      `${parser}import boundaries from './eslint-boundaries.mjs'\nimport strict from './eslint-boundaries-resolved.mjs'\nexport default [ts, ...boundaries, ...strict]\n`
+      `${parser}import boundaries from './rules/eslint-boundaries.mjs'\nimport strict from './rules/eslint-boundaries-resolved.mjs'\nexport default [ts, ...boundaries, ...strict]\n`
     )
 
     // The census layout of the migration procedure: warn everywhere, error only under work-items.
     fs.writeFileSync(
       path.join(sandbox, 'eslint.config.census.mjs'),
-      `${parser}import boundaries from './eslint-boundaries.mjs'\nimport strict from './eslint-boundaries-resolved.mjs'\nimport { censusScope } from './census-scope.mjs'\nexport default [ts, ...censusScope([...boundaries, ...strict], ['src/modules/work-items/**'])]\n`
+      `${parser}import boundaries from './rules/eslint-boundaries.mjs'\nimport strict from './rules/eslint-boundaries-resolved.mjs'\nimport { censusScope } from './rules/census-scope.mjs'\nexport default [ts, ...censusScope([...boundaries, ...strict], ['src/modules/work-items/**'])]\n`
     )
 
     for (const [relative, source] of Object.entries(files)) {
@@ -897,6 +1561,16 @@ if (ESLint) {
       fs.mkdirSync(path.dirname(absolute), { recursive: true })
       fs.writeFileSync(absolute, `${source.trim()}\n`)
     }
+    // A source file in a sibling project sits outside the project root as well as the source
+    // root; a relative path reaches it all the same.
+    fs.mkdirSync(sibling)
+    fs.writeFileSync(path.join(sibling, 'store.ts'), 'export const foreign = 1\n')
+    fs.mkdirSync(path.join(sandbox, 'src/app/bad-sibling'), { recursive: true })
+    fs.writeFileSync(
+      path.join(sandbox, 'src/app/bad-sibling/page.ts'),
+      `import { foreign } from '../../../../${path.basename(sibling)}/store'\nexport default foreign\n`
+    )
+    expectedBase.set('src/app/bad-sibling/page.ts', 'outsideSourceRoot')
 
     const nestedCwd = path.join(sandbox, 'src', 'app', 'work-items')
     process.chdir(nestedCwd)
@@ -946,7 +1620,7 @@ if (ESLint) {
       { files: ['**/*.test.js'], rules: { 'no-debugger': 'off' } },
       { files: ['**/*.js'], ignores: ['**/ignored.js'], settings: { marker: 1 }, languageOptions: { sourceType: 'module' }, rules: { 'no-var': 'error' } },
     ]
-    const { censusScope } = await import(pathToFileURL(path.join(sandbox, 'census-scope.mjs')).href)
+    const { censusScope } = await import(pathToFileURL(path.join(sandbox, 'rules', 'census-scope.mjs')).href)
     const lintSynthetic = async (blockingFiles) => {
       const eslint = new ESLint({ cwd: sandbox, overrideConfigFile: true, overrideConfig: censusScope(syntheticConfigs, blockingFiles) })
       const results = await eslint.lintFiles(['census-synthetic'])
@@ -1088,7 +1762,7 @@ if (ESLint) {
       }
     }
 
-    const graphResult = spawnSync(process.execPath, [path.join(sandbox, path.basename(CYCLES))], {
+    const graphResult = spawnSync(process.execPath, [path.join(sandbox, 'rules', path.basename(CYCLES))], {
       cwd: nestedCwd,
       encoding: 'utf8',
     })
@@ -1160,7 +1834,7 @@ if (ESLint) {
 
       const namedCapabilityGraph = spawnSync(
         process.execPath,
-        [path.join(sandbox, path.basename(CYCLES))],
+        [path.join(sandbox, 'rules', path.basename(CYCLES))],
         { cwd: nestedCwd, encoding: 'utf8' }
       )
       const namedCapabilityOutput = `${namedCapabilityGraph.stdout}${namedCapabilityGraph.stderr}`
@@ -1178,7 +1852,7 @@ if (ESLint) {
 
     const cleanGraphResult = spawnSync(
       process.execPath,
-      [path.join(sandbox, path.basename(CYCLES))],
+      [path.join(sandbox, 'rules', path.basename(CYCLES))],
       {
         cwd: nestedCwd,
         encoding: 'utf8',
@@ -1216,7 +1890,7 @@ if (ESLint) {
 
     const portable = path.join(sandbox, 'portable-layout')
     fs.mkdirSync(path.join(portable, 'rules'), { recursive: true })
-    for (const source of [BASE, STRICT, PATHS, CYCLES]) {
+    for (const source of [BASE, STRICT, PATHS, KEYS, CYCLES]) {
       fs.copyFileSync(path.join(root, source), path.join(portable, 'rules', path.basename(source)))
     }
     fs.writeFileSync(path.join(portable, 'package.json'), '{"private":true,"type":"module"}\n')
@@ -1242,6 +1916,8 @@ if (ESLint) {
           compilerOptions: {
             baseUrl: '.',
             paths: { '~/*': ['./product/*'] },
+            // Under this option `import { type X } from` still loads the module.
+            verbatimModuleSyntax: true,
             module: 'esnext',
             moduleResolution: 'bundler',
             target: 'esnext',
@@ -1261,6 +1937,10 @@ if (ESLint) {
       'product/capabilities/labels/server/store.ts': 'export const listLabels = () => []',
       'product/capabilities/labels/server.ts':
         "export { listLabels } from './server/store.js'",
+      'product/capabilities/labels/client/inline-type.ts':
+        "'use client'\nimport { type listLabels } from '../server.js'\nexport type Local = typeof listLabels",
+      'product/capabilities/labels/client/declared-type.ts':
+        "'use client'\nimport type { listLabels } from '../server.js'\nexport type Local = typeof listLabels",
       'product/routes/bad/page.ts':
         "import { listLabels } from '~/capabilities/labels/server/store'\nexport default listLabels",
       'product/capabilities/cycle-a/server.ts':
@@ -1298,6 +1978,15 @@ if (ESLint) {
       )
     }
 
+    const portableMessages = (suffix) =>
+      portableResults.find((result) => result.filePath.endsWith(path.join(...suffix)))?.messages ?? []
+    if (!portableMessages(['labels', 'client', 'inline-type.ts']).some((message) => message.messageId === 'browserServer')) {
+      errors.push('verbatimModuleSyntax: an inline type specifier was read as an erased edge')
+    }
+    if (portableMessages(['labels', 'client', 'declared-type.ts']).some((message) => message.messageId === 'browserServer')) {
+      errors.push('verbatimModuleSyntax: a declaration-level import type was read as a runtime edge')
+    }
+
     const portableGraph = spawnSync(
       process.execPath,
       [path.join(portable, 'rules', path.basename(CYCLES))],
@@ -1317,6 +2006,7 @@ if (ESLint) {
   } finally {
     process.chdir(previousCwd)
     fs.rmSync(sandbox, { recursive: true, force: true })
+    fs.rmSync(sibling, { recursive: true, force: true })
   }
 }
 
@@ -1352,6 +2042,28 @@ for (const [generatedRoot, expected] of [
   }
 }
 
+// A classification the contract does not carry is an inactive rule, not an empty one: a contract
+// copied before the key existed must stop the tools instead of passing them with nothing to check.
+for (const key of ['purePackages', 'providerPackages', 'serverPackages', 'channelSurfaces']) {
+  const sandbox = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'missing-contract-key-')))
+  try {
+    fs.writeFileSync(path.join(sandbox, 'package.json'), '{"private":true,"type":"module"}\n')
+    fs.mkdirSync(path.join(sandbox, 'rules'))
+    const { [key]: _removed, ...partial } = JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8'))
+    fs.writeFileSync(path.join(sandbox, 'rules/architecture-contract.json'), `${JSON.stringify(partial)}\n`)
+    try {
+      loadArchitecturePaths(import.meta.url, sandbox)
+      errors.push(`a contract without ${key} was accepted`)
+    } catch (error) {
+      if (!String(error.message).includes(`${key} must be an array of strings`)) {
+        errors.push(`a contract without ${key} failed for the wrong reason: ${error.message}`)
+      }
+    }
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true })
+  }
+}
+
 // The cycle checker consumes the shared AST extractor directly. Keep its uncommon static module
 // forms covered here even when no other checker needs them.
 for (const [label, source, expected] of [
@@ -1372,6 +2084,486 @@ for (const [label, source] of [
   const edges = moduleEdges(parsed)
   if (!edges.some((edge) => edge.specifier === '@/modules/a/contracts' && edge.typeOnly)) {
     errors.push(`${label} was not extracted as a type-only edge`)
+  }
+}
+// A package `imports` mapping can name different files for `import` and `require`. The rules must
+// follow the one the edge loads, or they inspect a file the runtime never opens.
+{
+  const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'resolution-mode-')))
+  try {
+    fs.mkdirSync(path.join(project, 'rules'))
+    fs.mkdirSync(path.join(project, 'src'))
+    // The entries a loaded file is tested against: an entry point is named by the contract entry
+    // that loads the same file, not by how the import spells it.
+    const shippedContract = JSON.parse(fs.readFileSync(path.join(root, CONTRACT), 'utf8'))
+    fs.writeFileSync(
+      path.join(project, 'rules/architecture-contract.json'),
+      `${JSON.stringify({
+        ...shippedContract,
+        serverPackages: [...shippedContract.serverPackages, 'entry-sdk/schema', 'pg-real/sub', 'store-sdk/server', 'same-sdk/schema', 'dual-sdk/server', '@acme/dual/server', 'native-edge/schema', 'alias-driver/server', 'plain-driver/server', 'guarded/schema', 'entry-sdk/missing', 'typed-versions/server', 'null-driver/server', 'outward/server', '@acme/inner/server', 'cased/server', 'ancestor-sdk/metadata', 'legacy-sdk/server', 'legacy-escaped/server'],
+      })}\n`
+    )
+    fs.writeFileSync(
+      path.join(project, 'package.json'),
+      `${JSON.stringify({
+        private: true,
+        type: 'module',
+        // The project is itself a package named like one it has installed.
+        name: 'selfsame',
+        exports: { './server': './src/for-import.ts' },
+        imports: {
+          '#target': { import: './src/for-import.ts', require: './src/for-require.ts' },
+          '#bridge': { types: './types/bridge.d.ts', default: './lib/bridge.mjs' },
+          '#driver': 'typescript',
+          '#subpath': 'typescript/lib/typescript.js',
+          '#ts/*': 'typescript/*',
+          '#schema': { import: 'typescript', require: 'acorn' },
+          '#entry': { import: 'entry-sdk/schema', require: 'entry-sdk/io' },
+          '#linked': 'linked',
+          '#fs': 'fs/promises',
+          '#rawfs': 'fs',
+          '#typedfs': { types: './types/bridge.d.ts', default: 'fs/promises' },
+          '#optfs': { 'opt-in': 'os', import: './src/for-import.ts', require: null },
+          '#node/*': 'node:*',
+          '#library': 'nullish',
+          '#crafted': './.node-builtin/0.ts',
+          '#choice': { import: 'buffer', types: 'os' },
+          '#typed-versioned': 'typed-versions/server',
+          '#same': { import: 'same-sdk/schema', require: 'same-sdk/io' },
+          '#pk/*': 'acorn',
+          '#pk/*.lib': 'typescript/lib/*.js',
+          '#edge': { types: './src/modules/first/types.d.ts', default: './src/modules/second/server.ts' },
+        },
+      })}\n`
+    )
+    fs.mkdirSync(path.join(project, 'node_modules'))
+    for (const name of ['typescript', 'acorn']) {
+      fs.symlinkSync(path.join(root, 'node_modules', name), path.join(project, 'node_modules', name), 'dir')
+    }
+    for (const [directory, manifest, files] of [
+      ['entry-sdk', { name: 'entry-sdk', exports: { './schema': './schema.js', './io': './io.js' } }, ['schema.js', 'io.js', 'build/addon.node']],
+      ['db', { name: 'pg-real', exports: { '.': './index.js', './sub': './sub.js' } }, ['index.js', 'sub.js']],
+      ['.store/store-sdk@1.0.0/node_modules/store-sdk', { name: 'store-sdk', exports: { './server': './server.js' } }, ['server.js']],
+      ['../packages/linked', { name: 'linked', main: 'index.js' }, ['index.js']],
+      ['fs', { name: 'fs' }, ['index.js']],
+      // The same package twice: at the top and inside another package, each its own file.
+      ['dual-sdk', { name: 'dual-sdk' }, ['index.js', 'server.js']],
+      ['wrapper/node_modules/dual-sdk', { name: 'dual-sdk' }, ['index.js', 'server.js']],
+      // A package installed under another name that holds a copy of the package it is named as.
+      ['outer', { name: '@acme/dual', exports: { './server': './server.js' } }, ['server.js']],
+      ['outer/node_modules/@acme/dual', { name: '@acme/dual', exports: { './server': './server.js' } }, ['server.js']],
+      ['native-edge', { name: 'native-edge', exports: { './schema': './schema.js', './io': './io.js' } }, ['schema.js', 'io.js']],
+      // A package installed under an alias that depends on another version of itself under the
+      // same alias, with an export map and without one.
+      ['driver-alias', { name: 'alias-driver', exports: { './server': './server.js' } }, ['server.js']],
+      ['driver-alias/node_modules/driver-alias', { name: 'alias-driver', exports: { './server': './server.js' } }, ['server.js']],
+      ['plain-alias', { name: 'plain-driver' }, ['index.js', 'server.js']],
+      ['plain-alias/node_modules/plain-alias', { name: 'plain-driver' }, ['index.js', 'server.js']],
+      // Declarations whose subpaths `typesVersions` redirects, with a decoy where the path would point.
+      [
+        '@types/typed-versions',
+        { name: '@types/typed-versions', typesVersions: { '*': { server: ['types/server.d.ts'] } } },
+        ['types/server.d.ts', 'server.d.ts'],
+      ],
+      // An entry whose declaration lives in a sibling package, with a fallback beside it that
+      // the real installation never loads.
+      ['outward', { name: 'outward' }, ['index.js', 'server/index.d.ts']],
+      ['outward-types', { name: 'outward-types' }, ['server.d.ts']],
+      ['cased', { name: 'cased' }, ['index.js', 'server.js']],
+      ['selfsame', { name: 'selfsame', exports: { './server': './server.js' } }, ['server.js']],
+      // A package that ships JavaScript and redirects the same subpath's declaration elsewhere.
+      [
+        'legacy-sdk',
+        { name: 'legacy-sdk', typesVersions: { '*': { server: ['types/server.d.ts'] } } },
+        ['index.js', 'server.js', 'types/server.d.ts'],
+      ],
+      // A generated manifest that writes `null` for a field it does not use.
+      ['nullish', { name: 'nullish', main: 'main.js', imports: null }, ['main.js']],
+      // An entry whose `main` is the manifest of the project that holds the package.
+      ['ancestor-sdk', { name: 'ancestor-sdk' }, ['index.js', 'metadata/index.js']],
+      // `exports: null` is no export map; the package also holds a package named as it is.
+      ['null-alias', { name: 'null-driver', exports: null }, ['server.js']],
+      ['null-alias/node_modules/null-driver', { name: 'null-driver' }, ['server.js']],
+      // An export map decides what an entry is: `./schema` is lib/schema.js, not the file beside the manifest.
+      ['guarded', { name: 'guarded', exports: { './schema': './lib/schema.js' } }, ['lib/schema.js', 'schema.js']],
+      // Two public subpaths that load the same file under each condition are one entry point.
+      [
+        'same-sdk',
+        {
+          name: 'same-sdk',
+          exports: {
+            './schema': { import: './schema.mjs', require: './io.cjs' },
+            './io': { import: './schema.mjs', require: './io.cjs' },
+          },
+        },
+        ['schema.mjs', 'io.cjs'],
+      ],
+    ]) {
+      for (const relative of files) {
+        fs.mkdirSync(path.dirname(path.join(project, 'node_modules', directory, relative)), { recursive: true })
+        fs.writeFileSync(path.join(project, 'node_modules', directory, relative), 'export {}\n')
+      }
+      fs.writeFileSync(path.join(project, 'node_modules', directory, 'package.json'), `${JSON.stringify({ version: '1.0.0', ...manifest })}\n`)
+    }
+    fs.symlinkSync(path.join(project, 'node_modules/.store/store-sdk@1.0.0/node_modules/store-sdk'), path.join(project, 'node_modules/store-alias'), 'dir')
+    fs.symlinkSync(path.join(project, 'packages/linked'), path.join(project, 'node_modules/linked'), 'dir')
+    fs.writeFileSync(path.join(project, 'node_modules/outward/server/package.json'), '{"types":"../../outward-types/server.d.ts"}\n')
+    fs.writeFileSync(path.join(project, 'node_modules/ancestor-sdk/metadata/package.json'), '{"main":"../../../package.json"}\n')
+    // The same redirection with the key spelled through an escape, which JSON reads as the key.
+    for (const relative of ['server.js', 'types/server.d.ts']) {
+      fs.mkdirSync(path.dirname(path.join(project, 'node_modules/legacy-escaped', relative)), { recursive: true })
+      fs.writeFileSync(path.join(project, 'node_modules/legacy-escaped', relative), 'export {}\n')
+    }
+    fs.writeFileSync(
+      path.join(project, 'node_modules/legacy-escaped/package.json'),
+      '{"name":"legacy-escaped","version":"1.0.0","types\\u0056ersions":{"*":{"server":["types/server.d.ts"]}}}\n'
+    )
+    // A linked workspace package in which two names lead to one file.
+    fs.mkdirSync(path.join(project, 'packages/inner'))
+    fs.writeFileSync(path.join(project, 'packages/inner/package.json'), '{"name":"@acme/inner","version":"1.0.0"}\n')
+    fs.writeFileSync(path.join(project, 'packages/inner/server.js'), 'export {}\n')
+    fs.symlinkSync(path.join(project, 'packages/inner/server.js'), path.join(project, 'packages/inner/alternate.js'))
+    fs.mkdirSync(path.join(project, 'node_modules/@acme'), { recursive: true })
+    fs.symlinkSync(path.join(project, 'packages/inner'), path.join(project, 'node_modules/@acme/inner'), 'dir')
+    // A workspace package without a version, linked under another name.
+    fs.mkdirSync(path.join(project, 'packages/bare'))
+    fs.writeFileSync(path.join(project, 'packages/bare/package.json'), '\uFEFF{"name":"bare-real","main":"index.js"}\n')
+    fs.writeFileSync(path.join(project, 'packages/bare/index.js'), 'export {}\n')
+    fs.symlinkSync(path.join(project, 'packages/bare'), path.join(project, 'node_modules/bare-alias'), 'dir')
+    fs.mkdirSync(path.join(project, 'types'))
+    fs.mkdirSync(path.join(project, 'lib'))
+    fs.writeFileSync(path.join(project, 'types/bridge.d.ts'), 'export declare const bridged: 1\n')
+    // A `paths` candidate that leads nowhere but is a manifest with builtin targets of its own.
+    fs.mkdirSync(path.join(project, 'aliases/choice'), { recursive: true })
+    fs.writeFileSync(path.join(project, 'aliases/choice/package.json'), '{"imports":{"#x":"fs"}}\n')
+    // A real file where a builtin's marker would otherwise be allocated.
+    fs.mkdirSync(path.join(project, '.node-builtin'))
+    fs.writeFileSync(path.join(project, '.node-builtin/0.ts'), 'export const real = 1\n')
+    fs.writeFileSync(path.join(project, 'lib/bridge.mjs'), 'export const bridged = 1\n')
+    fs.writeFileSync(path.join(project, 'src/declared.js'), 'export const declared = 1\n')
+    fs.writeFileSync(path.join(project, 'src/declared.d.ts'), 'export declare const declared: 1\n')
+    fs.writeFileSync(path.join(project, 'tsconfig.json'), '{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","verbatimModuleSyntax":true,"paths":{"@vendor/*":["./node_modules/*"],"@nested/*":["./node_modules/wrapper/node_modules/*"],"@scoped/*":["./node_modules/outer/node_modules/*"],"dual-sdk/server":["./node_modules/dual-sdk/server.js"],"native-edge/schema":["./node_modules/native-edge/io.js"],"#choice":["./aliases/choice"],"@src/*":["./src/*"],"@exact":["./src/main-module"],"@suffix/*/entry":["./src/*"],"@slash":["./src/main-module/"]}}}\n')
+    fs.writeFileSync(path.join(project, 'src/for-import.ts'), 'export const loaded = 1\n')
+    fs.writeFileSync(path.join(project, 'src/for-require.ts'), 'export const loaded = 2\n')
+    const projectPaths = loadArchitecturePaths(import.meta.url, project)
+    const importer = path.join(project, 'src/entry.mts')
+    const targets = (specifier, options, from = importer) =>
+      resolveEdgeTargets(projectPaths, from, specifier, options)
+        .map((target) =>
+          target.ambiguous
+            ? `ambiguous:${target.ambiguous.map((file) => path.basename(file)).sort().join('|')}`
+            : target.file
+              ? path.basename(target.file)
+              : `package:${[...target.names].sort().join('+')}${target.aliases?.size ? `(as ${[...target.aliases].sort().join('+')})` : ''}${target.byPath ? '(by path)' : ''}`
+        )
+        .sort()
+        .join()
+    // Which condition a runtime picks depends on how the edge is written, on the importing file
+    // and on an explicit resolution mode. The rules do not guess: a specifier that names
+    // different project files for `import` and for `require` is reported as ambiguous.
+    for (const [specifier, options, expected] of [
+      ['#target', {}, 'ambiguous:for-import.ts|for-require.ts'],
+      ['#target', { typeOnly: true }, 'ambiguous:for-import.ts|for-require.ts'],
+      // A value edge loads the implementation; only a type edge reads the declaration, wherever a
+      // `types` condition or a neighbouring file puts it.
+      ['#bridge', {}, 'bridge.mjs'],
+      ['#bridge', { typeOnly: true }, 'bridge.d.ts'],
+      ['./declared.js', {}, 'declared.js'],
+      ['./declared.js', { typeOnly: true }, 'declared.d.ts'],
+      // A package reached through an alias keeps its own name, which is what the contract classifies.
+      ['#driver', {}, 'package:typescript'],
+      // A package answers to its own name, however the specifier or an alias target spells the
+      // file inside it; an entry point is named only by a contract entry that loads that file.
+      ['#subpath', {}, 'package:typescript'],
+      ['#ts/lib/typescript.js', {}, 'package:typescript'],
+      // A path into node_modules names a file, not an entry point, so the target says so and the
+      // rule refuses it instead of classifying a package it cannot fully identify.
+      ['../node_modules/typescript/lib/typescript.js', {}, 'package:typescript(by path)'],
+      // Two packages behind one alias are two targets: one that is classified cannot answer for
+      // the other. So are two entry points of one package, of which the contract names one.
+      ['#schema', {}, 'package:acorn,package:typescript'],
+      ['#entry', {}, 'package:entry-sdk,package:entry-sdk+entry-sdk/schema'],
+      ['entry-sdk/schema', {}, 'package:entry-sdk+entry-sdk/schema'],
+      ['entry-sdk/io', {}, 'package:entry-sdk'],
+      // A package installed under another name is the package its manifest names, entry point
+      // included; the installed name is kept apart, as the project's spelling of it.
+      ['db', {}, 'package:pg-real(as db)'],
+      ['db/sub', {}, 'package:pg-real+pg-real/sub(as db)'],
+      // A package linked out of a store is installed under the link's name and named by its own
+      // manifest; a linked workspace package is a package although its real path has no node_modules.
+      ['store-alias/server', {}, 'package:store-sdk+store-sdk/server(as store-alias)'],
+      ['#linked', {}, 'package:linked'],
+      ['linked', {}, 'package:linked'],
+      // The manifest names the package whether or not it carries a version.
+      ['bare-alias', {}, 'package:bare-real(as bare-alias)'],
+      // A `paths` mapping into node_modules loads the entry point's file, so it is that entry
+      // point; a relative path is too, and is refused for being a path.
+      ['@vendor/entry-sdk/schema.js', {}, 'package:entry-sdk+entry-sdk/schema'],
+      ['../node_modules/entry-sdk/schema.js', {}, 'package:entry-sdk+entry-sdk/schema(by path)'],
+      // A classified specifier names whatever it loads under each condition. Here the alias loads,
+      // in either mode, the file the classified entry loads in that mode.
+      ['#same', {}, 'package:same-sdk+same-sdk/schema'],
+      ['same-sdk/schema', {}, 'package:same-sdk+same-sdk/schema'],
+      // A path into node_modules is refused even where TypeScript cannot resolve the file.
+      ['../node_modules/entry-sdk/build/addon.node', {}, 'package:entry-sdk(by path)'],
+      // Among patterns with the same prefix the longer key wins, as in Node's own matching.
+      ['#pk/typescript.lib', {}, 'package:typescript'],
+      ['acorn', { typeOnly: true }, 'package:acorn'],
+      ['typescript', {}, 'package:typescript'],
+      ['not-installed/sub', {}, 'package:not-installed/sub'],
+      ['fs/promises', {}, 'package:fs/promises+node:fs/promises'],
+      // `typesVersions` redirects declarations; what a value edge loads is the JavaScript.
+      ['legacy-sdk/server', {}, 'package:legacy-sdk+legacy-sdk/server'],
+      ['legacy-sdk/server.js', {}, 'package:legacy-sdk+legacy-sdk/server'],
+      ['legacy-sdk/server', { typeOnly: true }, 'package:legacy-sdk+legacy-sdk/server'],
+      ['legacy-escaped/server.js', {}, 'package:legacy-escaped+legacy-escaped/server'],
+      // An alias whose target is a builtin is that builtin, installed namesake or not.
+      ['#fs', {}, 'package:#fs+node:fs/promises'],
+      ['#rawfs', {}, 'package:#rawfs+node:fs'],
+      ['#node/fs', {}, 'package:#node/fs+node:fs'],
+      ['#library', {}, 'package:nullish'],
+      // The value pass and the declaration pass may read manifests a different number of times;
+      // a builtin is still the one its own pass selected.
+      ['#choice', {}, 'package:#choice+node:buffer,package:#choice+node:os'],
+      // A real file is never taken for a builtin's marker: the marker is allocated beside it.
+      ['#crafted', {}, '0.ts'],
+      // The branch a mode selects decides: a declaration beside a builtin does not hide it from
+      // a value edge, and a builtin under a condition that is not active is not there.
+      ['#typedfs', {}, 'package:#typedfs+node:fs/promises'],
+      ['#typedfs', { typeOnly: true }, 'bridge.d.ts'],
+      ['#optfs', {}, 'for-import.ts'],
+      // Node loads the builtin for a builtin's name whatever is installed under it.
+      ['fs', {}, 'package:fs+node:fs'],
+      // A contract entry is asked of the copy of the package that supplied the file.
+      ['@nested/dual-sdk/server.js', {}, 'package:dual-sdk+dual-sdk/server'],
+      ['dual-sdk/server.js', {}, 'package:dual-sdk+dual-sdk/server'],
+      // ...and of that copy's own manifest: neither the name of the package that holds it nor a
+      // `paths` mapping of the entry's spelling can send the question elsewhere.
+      ['@scoped/@acme/dual/server.js', {}, 'package:@acme/dual+@acme/dual/server'],
+      // An entry is asked of the copy that supplied the file even when that copy holds another
+      // one under the very name it is installed as.
+      ['driver-alias/server', {}, 'package:alias-driver+alias-driver/server(as driver-alias)'],
+      ['plain-alias/server.js', {}, 'package:plain-driver+plain-driver/server(as plain-alias)'],
+      // The entry is whatever TypeScript's own package resolution makes of it in that copy:
+      // `typesVersions` redirects it, and `exports: null` is no export map.
+      ['#typed-versioned', { typeOnly: true }, 'package:typed-versions+typed-versions/server'],
+      ['typed-versions/server', { typeOnly: true }, 'package:typed-versions+typed-versions/server'],
+      ['null-alias/server.js', {}, 'package:null-driver+null-driver/server(as null-alias)'],
+      // What an entry reaches outside its own directory is there in a real installation, so it
+      // is there when the entry is asked: the fallback beside the manifest is not the entry.
+      ['@vendor/outward/server/index.d.ts', { typeOnly: true }, 'package:outward'],
+      // ...including a manifest above the package, which is a file like any other.
+      ['@vendor/ancestor-sdk/metadata/index.js', {}, 'package:ancestor-sdk'],
+      // One file is one file, by whichever link inside the package it is reached.
+      ['@acme/inner/alternate.js', {}, 'package:@acme/inner+@acme/inner/server'],
+      // Where an export map governs, a file it does not export under the entry is not the entry.
+      ['guarded/schema', {}, 'package:guarded+guarded/schema'],
+      ['@vendor/guarded/schema.js', {}, 'package:guarded'],
+      // A contract entry names what the package exports under it. A compiler mapping of that
+      // spelling to another file gives the other file no claim to the entry.
+      ['native-edge/io', {}, 'package:native-edge'],
+      ['native-edge/schema', {}, 'package:native-edge'],
+      ['node:fs', {}, 'package:node:fs'],
+    ]) {
+      if (targets(specifier, options) !== expected) {
+        errors.push(`${specifier} ${JSON.stringify(options)} resolved ${targets(specifier, options)}; expected ${expected}`)
+      }
+    }
+    const edges = moduleEdges(ts.createSourceFile('edges.cts', "const a = require('./a')\nimport b = require('./b')\nconst c = import('./c')\n", ts.ScriptTarget.Latest, true))
+    // A directory a bundler enters through `module`: both readers get the file it names.
+    fs.mkdirSync(path.join(project, 'src/esm-entry'))
+    fs.writeFileSync(path.join(project, 'src/esm-entry/package.json'), '{"module":"./run.js"}\n')
+    fs.writeFileSync(path.join(project, 'src/esm-entry/run.ts'), 'export {}\n')
+    if (targets('./esm-entry', {}) !== 'run.ts') errors.push(`a directory entered through module resolved ${targets('./esm-entry', {})}; expected run.ts`)
+    // Fields that name different files are different answers for different builds; a type edge
+    // reads none of them.
+    for (const [directory, manifest] of [
+      ['main-module', { main: './a.js', module: './b.js' }],
+      ['browser-module', { browser: './a.js', module: './b.js' }],
+      ['agreeing', { main: './a.js', module: './a.js' }],
+      // `main` leads out of the directory; the bundler's field stays inside it.
+      ['outward-main', { main: '../for-import.ts', module: './b.js' }],
+    ]) {
+      fs.mkdirSync(path.join(project, 'src', directory))
+      fs.writeFileSync(path.join(project, 'src', directory, 'package.json'), `${JSON.stringify(manifest)}\n`)
+      for (const name of ['a.ts', 'b.ts']) fs.writeFileSync(path.join(project, 'src', directory, name), 'export {}\n')
+    }
+    fs.mkdirSync(path.join(project, 'src/suffixed-entry'))
+    fs.writeFileSync(path.join(project, 'src/suffixed-entry/package.json'), '{"main":"./a.js","module":"./b.ts"}\n')
+    for (const name of ['a.ts', 'b.ts']) fs.writeFileSync(path.join(project, 'src/suffixed-entry', name), 'export {}\n')
+    fs.mkdirSync(path.join(project, 'src/typed-entry'))
+    fs.writeFileSync(path.join(project, 'src/typed-entry/package.json'), '{"types":"./worker.d.ts","module":"./worker.js"}\n')
+    fs.writeFileSync(path.join(project, 'src/typed-entry/worker.d.ts'), 'export {}\n')
+    fs.writeFileSync(path.join(project, 'src/typed-entry/worker.js'), 'export {}\n')
+    // An alias that names the directory with a trailing slash, used from inside that directory:
+    // the manifest is then also one of the importing file's own package scopes.
+    const fromInside = targets('@slash', {}, path.join(project, 'src/main-module/inner.ts'))
+    if (fromInside !== 'ambiguous:a.ts|b.ts') errors.push(`a directory-only alias used from inside resolved ${fromInside}; expected ambiguous:a.ts|b.ts`)
+    // ...while an ordinary import from inside that directory enters nothing.
+    const sibling = targets('./a.js', {}, path.join(project, 'src/main-module/inner.ts'))
+    if (sibling !== 'a.ts') errors.push(`a sibling import inside a directory with bundler entries resolved ${sibling}; expected a.ts`)
+    for (const [specifier, options, expected] of [
+      ['./main-module', {}, 'ambiguous:a.ts|b.ts'],
+      ['./main-module', { typeOnly: true }, 'a.ts'],
+      ['./browser-module', {}, 'ambiguous:a.ts|b.ts'],
+      ['./agreeing', {}, 'a.ts'],
+      // The directory that counts is the one the request enters, wherever TypeScript's answer
+      // lies and however the request is spelled.
+      ['./outward-main', {}, 'ambiguous:b.ts|for-import.ts'],
+      ['@src/main-module', {}, 'ambiguous:a.ts|b.ts'],
+      ['@src/agreeing', {}, 'a.ts'],
+      // An alias with no wildcard, one with the wildcard in the middle, and a trailing slash.
+      ['@exact', {}, 'ambiguous:a.ts|b.ts'],
+      ['@suffix/main-module/entry', {}, 'ambiguous:a.ts|b.ts'],
+      ['./main-module/', {}, 'ambiguous:a.ts|b.ts'],
+      // A declaration the manifest names is no second runtime file beside the one in module.
+      ['./typed-entry', {}, 'worker.js'],
+      ['./typed-entry', { typeOnly: true }, 'worker.d.ts'],
+    ]) {
+      if (targets(specifier, options) !== expected) {
+        errors.push(`${specifier} ${JSON.stringify(options)} resolved ${targets(specifier, options)}; expected ${expected}`)
+      }
+    }
+    fs.mkdirSync(path.join(project, 'src/rooted'))
+    fs.writeFileSync(path.join(project, 'src/rooted/index.ts'), 'export {}\n')
+    // The cycle checker reads the same edges as lint: a module a bundler loads through a URL
+    // relative to the importing module is one of them, an absolute URL and a computed one are not.
+    const urlEdges = moduleEdges(
+      ts.createSourceFile(
+        'worker.ts',
+        [
+          "new Worker(new URL('../fourth/worker.js', import.meta.url))",
+          "new Worker(new URL('local.js?worker', import.meta['url']))",
+          "new URL('https://example.test/x.js', import.meta.url)",
+          "new URL('/x.js', import.meta.url)",
+          'new URL(name, import.meta.url)',
+          "new URL('./plain.js', base)",
+          "new URL('./cast.js' as const, import.meta.url as string)",
+          "new URL('./subclass.js', new.target.url)",
+          "new URL('/src/for-import.ts', import.meta.url)",
+          "new URL('/public-only.js', import.meta.url)",
+          "new (URL)('./paren.js', import.meta['url' as const])",
+          "new URL('/src/rooted', import.meta.url)",
+          "new URL('/src/rooted/', import.meta.url)",
+          "new URL('/src/esm-entry', import.meta.url)",
+        ].join('\n'),
+        ts.ScriptTarget.Latest,
+        true
+      ),
+      { ...projectPaths, importer: path.join(project, 'src/modules/third/worker.ts') }
+    )
+    if (urlEdges.map((edge) => edge.specifier).join() !== '../fourth/worker.js,./local.js,./cast.js,../../for-import.ts,./paren.js,../../rooted,../../rooted/,../../esm-entry') {
+      errors.push(`URL edges were not extracted as lint reads them: ${JSON.stringify(urlEdges)}`)
+    }
+    // An alias belongs to the package scope of the file that uses it, not to the project root.
+    fs.mkdirSync(path.join(project, 'src/nested'))
+    fs.writeFileSync(path.join(project, 'src/nested/package.json'), '{"type":"module","imports":{"#driver":"acorn"}}\n')
+    const nested = targets('#driver', {}, path.join(project, 'src/nested/entry.mts'))
+    if (nested !== 'package:acorn') errors.push(`an alias in a nested package scope resolved ${nested}; expected package:acorn`)
+    // A name the outer package resolves to itself is the installed package from a scope that is
+    // not that package; an answer remembered for one directory is not an answer for another.
+    const own = targets('selfsame/server', {})
+    const installed = targets('selfsame/server', {}, path.join(project, 'src/nested/entry.mts'))
+    if (own !== 'for-import.ts' || installed !== 'package:selfsame') {
+      errors.push(`a self reference and the installed namesake resolved ${own} and ${installed}; expected for-import.ts and package:selfsame`)
+    }
+    // Every edge of a declaration file is a type edge, whatever it is written as.
+    const declared = moduleEdges(ts.createSourceFile('actions.d.ts', "export { save } from './impl.js'\n", ts.ScriptTarget.Latest, true))
+    if (declared.some((edge) => !edge.typeOnly)) errors.push('an edge of a declaration file was read as a runtime edge')
+    // The cycle checker reads the same edges. Under `verbatimModuleSyntax` an inline type import
+    // still loads the module, and what it loads is the implementation in the other capability,
+    // not the declaration beside the importer.
+    for (const source of [PATHS, KEYS, CYCLES]) {
+      fs.copyFileSync(path.join(root, source), path.join(project, 'rules', path.basename(source)))
+    }
+    for (const [relative, source] of [
+      ['src/modules/first/types.d.ts', 'export type Second = { id: string }\n'],
+      ['src/modules/first/server.ts', "import { type Second } from '#edge'\nexport type Local = Second\n"],
+      ['src/modules/second/server.ts', "import '../first/server.js'\nexport type Second = { id: string }\n"],
+    ]) {
+      fs.mkdirSync(path.dirname(path.join(project, relative)), { recursive: true })
+      fs.writeFileSync(path.join(project, relative), source)
+    }
+    const hiddenCycle = spawnSync(process.execPath, [path.join(project, 'rules', path.basename(CYCLES))], { cwd: project, encoding: 'utf8' })
+    if (hiddenCycle.status === 0 || !`${hiddenCycle.stdout}${hiddenCycle.stderr}`.includes('first -> second -> first')) {
+      errors.push(`a cycle through an inline type import under verbatimModuleSyntax was missed: ${hiddenCycle.stdout}${hiddenCycle.stderr}`.trim())
+    }
+    // However an edge is written, it is an edge: the form no longer selects a resolution mode.
+    if (edges.map((edge) => edge.specifier).join() !== './a,./b,./c') {
+      errors.push(`require and import() edges were not all extracted: ${JSON.stringify(edges)}`)
+    }
+    // On a filesystem that ignores case TypeScript keeps the spelling it was asked with, and the
+    // file is the same file.
+    if (fs.existsSync(path.join(project, 'PACKAGE.JSON'))) {
+      const cased = targets('cased/SERVER.js', {})
+      if (cased !== 'package:cased+cased/server') errors.push(`cased/SERVER.js resolved ${cased}; expected package:cased+cased/server`)
+    }
+    // A project that turns export maps off loads an entry as a path, and the entry is asked the
+    // same way: by the project's own resolution, whatever it is set to.
+    const entryCases = [
+      ['guarded/schema', 'package:guarded+guarded/schema'],
+      ['driver-alias/server', 'package:alias-driver+alias-driver/server(as driver-alias)'],
+    ]
+    for (const [label, options, cases] of [
+      ['node10', { module: 'CommonJS', moduleResolution: 'Node10' }, entryCases],
+      ['exports off', { module: 'ESNext', moduleResolution: 'Bundler', resolvePackageJsonExports: false }, entryCases],
+      // A builtin is named by the alias target, not by a file name the project's suffixes try.
+      [
+        'moduleSuffixes',
+        { module: 'NodeNext', moduleResolution: 'NodeNext', moduleSuffixes: ['.server', ''] },
+        [
+          ['#rawfs', 'package:#rawfs+node:fs'],
+          ['#fs', 'package:#fs+node:fs/promises'],
+        ],
+      ],
+      [
+        'suffixes cleared',
+        { module: 'NodeNext', moduleResolution: 'NodeNext', moduleSuffixes: [] },
+        [
+          ['#rawfs', 'package:#rawfs+node:fs'],
+          ['#typedfs', 'package:#typedfs+node:fs/promises'],
+        ],
+      ],
+      [
+        'suffix only',
+        { module: 'NodeNext', moduleResolution: 'NodeNext', moduleSuffixes: ['.server'] },
+        [
+          ['#rawfs', 'package:#rawfs+node:fs'],
+          ['#typedfs', 'package:#typedfs+node:fs/promises'],
+          // The marker by which a directory is known to be entered exists under the suffix too:
+          // with no `a.server` file TypeScript finds nothing, and the bundler's field still counts.
+          ['./suffixed-entry', 'b.ts'],
+        ],
+      ],
+      // A project that keeps links apart loads each as its own module, so each is its own file.
+      [
+        'preserveSymlinks',
+        { module: 'NodeNext', moduleResolution: 'NodeNext', preserveSymlinks: true },
+        [
+          ['@acme/inner/server.js', 'package:@acme/inner+@acme/inner/server'],
+          ['@acme/inner/alternate.js', 'package:@acme/inner'],
+        ],
+      ],
+    ]) {
+      fs.writeFileSync(path.join(project, 'tsconfig.json'), `${JSON.stringify({ compilerOptions: options })}\n`)
+      const otherPaths = loadArchitecturePaths(import.meta.url, project)
+      for (const [specifier, expected] of cases) {
+        const [target] = resolveEdgeTargets(otherPaths, importer, specifier)
+        const got = target.file
+          ? path.basename(target.file)
+          : `package:${[...(target.names ?? [])].sort().join('+')}${target.aliases?.size ? `(as ${[...target.aliases].sort().join('+')})` : ''}`
+        if (got !== expected) errors.push(`${specifier} under ${label} resolved ${got}; expected ${expected}`)
+      }
+    }
+  } finally {
+    fs.rmSync(project, { recursive: true, force: true })
+  }
+}
+{
+  const parsed = ts.createSourceFile('inline.ts', "import { type A } from '@/modules/a/server'\nexport { type B } from '@/modules/b/server'\n", ts.ScriptTarget.Latest, true)
+  if (moduleEdges(parsed).some((edge) => !edge.typeOnly)) errors.push('an inline type specifier was a value edge without verbatimModuleSyntax')
+  if (moduleEdges(parsed, { verbatimModuleSyntax: true }).some((edge) => edge.typeOnly)) {
+    errors.push('an inline type specifier was erased under verbatimModuleSyntax')
   }
 }
 {

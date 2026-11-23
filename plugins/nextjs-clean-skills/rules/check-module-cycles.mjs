@@ -7,14 +7,14 @@ import ts from 'typescript'
 import {
   loadArchitecturePaths,
   relativeParts,
-  resolveProjectImport,
-  moduleSpecifiers,
+  resolveEdgeTargets,
+  moduleEdges,
   isDevelopmentArtifactDirectory,
   isDevelopmentArtifactFile,
   SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
-const paths = loadArchitecturePaths(import.meta.url)
+const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { moduleRoot: modulesRoot } = paths
 
 // One source inventory for cycle detection. Immediate children of moduleRoot are capability names,
@@ -42,7 +42,7 @@ function importsFrom(file) {
   const source = fs.readFileSync(file, 'utf8')
   // The AST extractor includes no-substitution templates and `module.require`, so a
   // cycle hidden behind one of them is a cycle this canary reported as absent.
-  return moduleSpecifiers(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true))
+  return moduleEdges(ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true), { ...paths, importer: file })
 }
 
 const graph = new Map()
@@ -51,10 +51,15 @@ for (const file of sources) {
   const source = capabilityOf(file)
   if (!source) continue
   graph.set(source, graph.get(source) ?? new Set())
-  for (const specifier of importsFrom(file)) {
-    const targetPath = resolveProjectImport(paths, file, specifier)
-    const target = targetPath ? capabilityOf(targetPath) : null
-    if (target && target !== source) graph.get(source).add(target)
+  for (const edge of importsFrom(file)) {
+    for (const resolved of resolveEdgeTargets(paths, file, edge.specifier, edge)) {
+      // An ambiguous specifier is the lint rule's to refuse; here every file it may load counts,
+      // so a cycle cannot hide behind the branch that was not followed.
+      for (const loaded of resolved.ambiguous ?? (resolved.file ? [resolved.file] : [])) {
+        const target = capabilityOf(loaded)
+        if (target && target !== source) graph.get(source).add(target)
+      }
+    }
   }
 }
 

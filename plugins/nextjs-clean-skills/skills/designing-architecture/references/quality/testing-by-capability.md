@@ -9,6 +9,7 @@ Tests cross the same surface as production callers:
 | domain | pure invariants and calculations | no runtime |
 | application operation | policy and projection outcomes | narrow dependency fakes |
 | local private store | queries, policies, transactions, row mapping | real local engine |
+| privileged cached read | a call with one scope returns no row of another | real local engine seeded with two scopes |
 | remote adapter | timeout, retry, auth, mapping, cancellation | fake server/provider contract |
 | trusted `server.ts` surface | explicit identity, policy, mapping, silent propagation | private collaborators |
 | RSC, Route Handler, or action | channel decoding, native result, report once | capability surface |

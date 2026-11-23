@@ -64,10 +64,17 @@ shape and the meaning of each expansion field.
 Prerequisites: the target uses ESLint flat config and has `eslint-plugin-import` and
 `eslint-import-resolver-typescript` installed — the resolved tier needs both.
 
-1. Copy `$PLUGIN/rules/` into the target.
+1. `install-rules` writes the rule files, the contract documents and a pointer block in the
+   target's `AGENTS.md` (`--instructions <file>` when its instruction file has another name), so
+   agents without this plugin find the contract. Re-run it after a plugin update; it keeps the
+   target's contract, and before writing anything it refuses one the new rules would reject,
+   naming what to add. Files it lists under `replaced` were copied by hand before: read their
+   `git diff` and carry over any local change the target still needs.
 2. Draft `rules/architecture-contract.json`: roots and aliases from the roots lens, every direct
    dependency classified as `purePackages` or `runtimePackages` from the deps lens (ask the user
-   about the ones the lens could not decide), and for Supabase repositories `databaseClientIdentifiers`
+   about the ones the lens could not decide), store and provider SDKs in `providerPackages`,
+   server-only entry points in `serverPackages`, and
+   for Supabase repositories `databaseClientIdentifiers`
    and `databaseResources` from the data lens.
 3. Spread both ESLint configs after the target's own through `censusScope`
    (`$PLUGIN/rules/README.md` § Census Scope). The blocking list holds only roots already migrated and is
