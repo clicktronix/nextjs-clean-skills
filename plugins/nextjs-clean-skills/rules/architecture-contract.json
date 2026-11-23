@@ -39,6 +39,12 @@
     "stream",
     "job"
   ],
+  "channelSurfaces": [
+    "rsc",
+    "actions",
+    "stream",
+    "job"
+  ],
   "clientSurfaces": [
     "client",
     "ui"
@@ -75,6 +81,22 @@
     "mongodb",
     "redis",
     "ioredis"
+  ],
+  "providerPackages": [
+    "@supabase",
+    "@prisma",
+    "drizzle-orm",
+    "pg",
+    "postgres",
+    "mysql2",
+    "mongodb",
+    "redis",
+    "ioredis"
+  ],
+  "serverPackages": [
+    "server-only",
+    "next/headers",
+    "next/cache"
   ],
   "databaseClientIdentifiers": [],
   "databaseResources": []

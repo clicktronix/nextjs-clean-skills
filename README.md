@@ -96,8 +96,8 @@ This is a fallback for greenfield or explicitly opted-in repositories. Existing 
 their local equivalents unless the task requests a migration.
 
 - **Framework**: Next.js 16 App Router, React 19, TypeScript.
-- **Rules**: [`rules/`](./rules/) ships an executable ESLint boundaries config for the capability
-  contract, plus a note on the depth failures no lint rule can catch.
+- **Rules**: [`rules/`](./rules/) ships an executable ESLint boundaries config and checkers for the
+  capability contract, installed into the project by the plugin's `install-rules` command, plus a note on the depth failures no lint rule can catch.
 - **Architecture**: Product capabilities under `src/modules/<capability>`, optional
   domain/application/server/client/UI segments, narrow runtime-specific public surfaces, and
   route-private framework composition under `app/**`.

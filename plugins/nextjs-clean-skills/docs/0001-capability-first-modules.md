@@ -44,7 +44,7 @@ that now states it normatively:
 | 1 | The module is the primary unit; route-private glue stays under `app/**` | [Physical Model](./architecture-contract.md#physical-model), [Capability Granularity](./architecture-contract.md#capability-granularity) |
 | 2 | Segments are reserved but optional; introduce them for actual responsibilities | [Optional Internal Segments](./architecture-contract.md#optional-internal-segments) |
 | 3 | Public surfaces are runtime-specific root files; `export *` and forwarding wrappers are rejected; `actions.ts` is compiler-constrained | [Public Surfaces](./architecture-contract.md#public-surfaces) |
-| 4 | Dependency direction is small and module-aware; a type-only edge keeps ownership, not direction | [Dependency Direction](./architecture-contract.md#dependency-direction) |
+| 4 | Dependency direction is small and module-aware; a type-only edge keeps ownership and vocabulary, not bundle direction | [Dependency Direction](./architecture-contract.md#dependency-direction) |
 | 5 | Application behavior keeps the deletion test | [Application Operations](./architecture-contract.md#application-operations) |
 | 6 | Ports are capability-owned and appear only for real volatility; an orchestrator may take a sibling's public contract as a type | [Ports](./architecture-contract.md#ports), [Cross-Capability Workflows](./architecture-contract.md#cross-capability-workflows) |
 | 7 | Boundary policy is shared, channel behavior is not: typed expected outcomes, exceptions for defects, one report per channel, no universal result wrapper | [Failures And Reporting](./runtime-boundaries.md#failures-and-reporting) |
@@ -135,3 +135,37 @@ Costs and risks:
 - `shared/**` requires active demotion, not only promotion;
 - migration from layer-first placement is a breaking topology change; the layer-first 2.0
   implementation is withdrawn as a release candidate and retained as a research control.
+
+## Amendment 2026-11-23
+
+A review of release 4.7.3 ran the shipped rules against a disposable project and found the
+executable floor narrower than the contract in seven places; two reviews of the fix added the
+last two rows. Each is an observed pass, now a failing mutation:
+
+| Observed | Decision |
+| --- | --- |
+| policy typed with a framework request or a provider row linted clean, because every type-only edge skipped the purity rules | a type edge skips only the bundle rules; pure zones admit a type from a public root surface and judge every other as a value (rule 14) |
+| `domain/**` imported a devDependency and a hoisted transitive package unreported | pure zones import only `purePackages`; the manifest check is no longer the only gate (rule 12) |
+| a neighbour's private server code imported `rsc.ts` and `actions.ts` | channel surfaces are for composition and the browser; server code calls `server.ts` (rule 16) |
+| a route and a Client Component imported a database driver | provider packages are named only by adapters (rule 17) |
+| capabilities and `shared/ui` imported route-private components | nothing outside `app/**` imports from it (rule 18) |
+| a file outside the source root re-exported a private store to a route; an alias in `tsconfig.json` that the contract did not declare carried a deep import past every rule | imports are resolved by the project's TypeScript, and a source file outside the source root is not importable |
+| a view imported `next/headers`, and a view without `'use client'` imported `client.ts` | `ui/**` imports nothing only a server can load, and a view that needs browser-only code declares the directive (rule 8) |
+| the database canary printed `ok` with no client identifier configured | an unconfigured canary says it measured nothing, and fails beside a Supabase dependency |
+
+Four decisions change the contract rather than its enforcement:
+
+- `ui/**` imports no server code. A Server Component that reads lives in `server/**` and is
+  published by `rsc.ts`, so the runtime of `ui.ts` follows from its name again. The previous
+  rule let `ui.ts` publish a file reading `rsc.ts`, which only a production build caught.
+- The HTTP path and response schema are published in `contracts.ts`. They had two owners, the
+  handler and `client.ts`, joined by a string and a cast.
+- `RequestIdentity` is nominal, frozen and constructed only in `shared/server`, and a trusted
+  `server.ts` checks that it was issued there. The model rested on a type any caller could write
+  as a literal or copy with another tenant.
+- A shared server cache over tenant-private data is the last choice, with a named owner and an
+  isolation test, because it is the one read path without row-level security.
+
+Channel entry order is corrected to authenticate before decoding, and a reaction to a
+neighbour's write is named as orchestrator policy. No comparative agent evaluation was run for
+this amendment.

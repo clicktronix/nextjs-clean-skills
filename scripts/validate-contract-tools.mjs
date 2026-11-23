@@ -31,6 +31,7 @@ try {
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
   for (const script of [
     'contract-paths.mjs',
+    'contract-keys.mjs',
     'check-dependency-classification.mjs',
     'check-database-resources.mjs',
   ]) {
@@ -38,6 +39,7 @@ try {
   }
 
   const contract = {
+    ...JSON.parse(fs.readFileSync(path.join(root, 'rules', 'architecture-contract.json'), 'utf8')),
     sourceRoot: 'src',
     moduleRoot: 'src/modules',
     appRoot: 'src/app',
@@ -45,6 +47,9 @@ try {
     importAliases: { '@/': 'src/' },
     purePackages: ['valibot'],
     runtimePackages: ['@supabase'],
+    providerPackages: ['@supabase'],
+    serverPackages: ['server-only'],
+    channelSurfaces: ['rsc', 'actions', 'stream', 'job'],
     databaseClientIdentifiers: ['supabase'],
     databaseResources: [
       { kind: 'table', name: 'work_items', owner: 'work-items' },
@@ -252,6 +257,103 @@ try {
   )
   contract.appRoot = 'src/app'
 
+  // A provider package the contract does not also call runtime-bound would be admitted into a
+  // pure zone by one list and kept out of routes by the other.
+  contract.providerPackages = ['@supabase', 'pg']
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-dependency-classification.mjs'),
+    'provider package outside runtimePackages',
+    'pg is a provider package but is not classified in runtimePackages'
+  )
+  contract.providerPackages = ['@supabase']
+
+  // A package cannot be both pure and server-only: one list would admit it to `domain/**`.
+  contract.purePackages = ['valibot', 'server-only']
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-dependency-classification.mjs'),
+    'a package both pure and server-only',
+    'server-only is classified as both pure and server-only'
+  )
+  contract.purePackages = ['valibot']
+
+  // The same contradiction through a scope: the rule would refuse `@company/sdk` as server-only
+  // while the contract calls it pure.
+  contract.purePackages = ['valibot', '@company/sdk']
+  contract.serverPackages = ['@company']
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-dependency-classification.mjs'),
+    'a pure package under a server-only scope',
+    '@company/sdk is classified as both pure and server-only'
+  )
+  // And through a subpath of a scoped package, which the rule matches by package identity.
+  contract.purePackages = ['valibot', '@company/sdk']
+  contract.serverPackages = ['@company/sdk/server']
+  fs.writeFileSync(
+    path.join(sandbox, 'rules', 'architecture-contract.json'),
+    `${JSON.stringify(contract, null, 2)}\n`
+  )
+  expect(
+    run('check-dependency-classification.mjs'),
+    'a server-only subpath of a pure scoped package',
+    '@company/sdk is classified as both pure and server-only'
+  )
+  contract.purePackages = ['valibot']
+  contract.serverPackages = ['server-only']
+
+  // No client identifiers means no call is scanned. With a Supabase dependency that is an
+  // unconfigured check, not a clean one; without it the check says it measured nothing.
+  const writeUnconfigured = (dependencies, section = 'dependencies') => {
+    fs.writeFileSync(
+      path.join(sandbox, 'rules', 'architecture-contract.json'),
+      `${JSON.stringify({ ...contract, databaseClientIdentifiers: [], databaseResources: [] }, null, 2)}\n`
+    )
+    fs.writeFileSync(
+      path.join(sandbox, 'package.json'),
+      `${JSON.stringify({ private: true, type: 'module', [section]: dependencies }, null, 2)}\n`
+    )
+  }
+  // Whichever manifest section names it, the project has Supabase calls to scan.
+  for (const section of ['optionalDependencies', 'peerDependencies', 'devDependencies']) {
+    writeUnconfigured({ '@supabase/supabase-js': '1.0.0' }, section)
+    expect(
+      run('check-database-resources.mjs'),
+      `empty client identifiers with Supabase in ${section}`,
+      'databaseClientIdentifiers is empty while package.json depends on @supabase/supabase-js'
+    )
+  }
+  writeUnconfigured({ '@supabase/supabase-js': '1.0.0', valibot: '1.0.0' })
+  expect(
+    run('check-database-resources.mjs'),
+    'empty client identifiers with a Supabase dependency',
+    'databaseClientIdentifiers is empty while package.json depends on @supabase/supabase-js'
+  )
+  writeUnconfigured({ valibot: '1.0.0' })
+  const unconfigured = run('check-database-resources.mjs')
+  const unconfiguredOutput = `${unconfigured.stdout}${unconfigured.stderr}`
+  if (
+    unconfigured.status !== 0 ||
+    !unconfiguredOutput.includes('not configured') ||
+    unconfiguredOutput.includes('ownership ok')
+  ) {
+    errors.push(`unconfigured database check must say it measured nothing: received ${unconfiguredOutput.trim()}`)
+  }
+  fs.writeFileSync(
+    path.join(sandbox, 'package.json'),
+    `${JSON.stringify({ private: true, type: 'module', dependencies: { '@supabase/supabase-js': '1.0.0', valibot: '1.0.0' } }, null, 2)}\n`
+  )
+
   // A separatorless prefix does not fail loudly on its own: `@` claims `@supabase/...` as a
   // project path and turns the remainder of `@/modules/x` into an absolute `/modules/x`, so
   // cross-capability and cycle checks stop matching and report clean. Refuse the shape.
@@ -270,4 +372,4 @@ try {
 }
 
 fail(errors)
-console.log('contract tools ok (4 clean checks, 8 failing mutations)')
+console.log('contract tools ok (5 clean checks, 16 failing mutations)')

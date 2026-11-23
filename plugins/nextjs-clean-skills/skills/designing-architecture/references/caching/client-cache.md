@@ -26,7 +26,7 @@ it. One browser query plus one server prefetch is what `query-cache.ts` exists f
 browser query the key stays private to the server; with no server reader it stays under `client/`.
 
 Browser reads call a `GET` Route Handler with an explicit HTTP cache policy, or a stream, through
-`client.ts`. They do not call Server Actions, private stores, provider adapters, or server surfaces.
+`client.ts`, at the path and with the response schema the capability publishes in `contracts.ts`. They do not call Server Actions, private stores, provider adapters, or server surfaces.
 
 Mutations call exact functions from top-level `'use server'` `actions.ts` when the command belongs
 to this UI. Invalidate only browser-owned reads. Server-owned reads use server cache invalidation.

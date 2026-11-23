@@ -13,7 +13,7 @@ import {
   SOURCE_EXTENSIONS,
 } from './contract-paths.mjs'
 
-const paths = loadArchitecturePaths(import.meta.url)
+const paths = loadArchitecturePaths(import.meta.url, process.argv[2])
 const { moduleRoot, sharedRoot, sourceRoot } = paths
 
 const LIB_FILE = new RegExp(`^lib\\.(${SOURCE_EXTENSIONS.join('|')})$`)

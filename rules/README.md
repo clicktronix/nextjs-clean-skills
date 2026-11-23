@@ -6,6 +6,7 @@ try to infer business meaning from path names.
 | File | Purpose |
 | --- | --- |
 | `architecture-contract.json` | reserved surfaces, dependency classes, and database ownership |
+| `contract-keys.mjs` | contract validation without dependencies, shared by the loader and the installer |
 | `contract-paths.mjs` | validated source roots, aliases, and import resolution shared by every check |
 | `eslint-boundaries.mjs` | capability ownership, purity, and server/client direction |
 | `census-scope.mjs` | `censusScope(configs, blockingFiles)`: warn everywhere, error only under the listed globs |
@@ -26,8 +27,27 @@ try to infer business meaning from path names.
 
 ## Install
 
-Copy the rule files into the consuming repository, then spread both configs after the base flat
-ESLint configs:
+The plugin installs these files into the project. A plugin lives in a cache keyed by its version,
+which the project's lint and CI can neither import nor rely on, so the rules a project runs are
+files in its own repository:
+
+```bash
+node "$PLUGIN/bin/migration.mjs" install-rules --repo .
+```
+
+`$PLUGIN` is the installed plugin root. The command writes the rule files and this README to
+`rules/`, the contract documents to `rules/docs/` with their links re-pointed, the contract
+template to `rules/architecture-contract.json` when the project has none, and a short pointer
+block to `AGENTS.md` (`--instructions <file>` names another instruction file), so an agent that
+does not have the plugin still learns that the contract exists, where its text is and how it is
+checked. The same command is the update: it replaces everything it installed, keeps the project's
+contract and stamps it with the installed release. A contract the new rules would refuse stops it
+before anything is written: it exits non-zero naming what the contract lacks, and the project keeps
+its working lint until the contract is completed. `rules/.installed.json` records what it wrote, so a file a later release drops is
+removed and a file the project keeps under `rules/` is not.
+
+Spread both configs after the base flat ESLint configs. The project is the nearest `package.json`
+above `rules/` and the contract is `rules/architecture-contract.json`:
 
 ```js
 import boundaries from './rules/eslint-boundaries.mjs'
@@ -49,10 +69,33 @@ Configure `sourceRoot`, `moduleRoot`, `appRoot`, `sharedRoot`, and `importAliase
 Alias prefixes must end with `/` (`"@/"`, not `"@"`): a separatorless prefix claims every package
 whose name starts with the same characters, so the tools refuse it rather than resolve `@supabase/…`
 to a project path.
+Imports are resolved the way the project's TypeScript resolves them, with its `tsconfig.json`: a
+`paths` mapping `importAliases` does not repeat, a bare specifier found through `baseUrl` and a
+directory whose `package.json` names its entry all lead to the file that is loaded, and only what
+TypeScript finds in `node_modules` is a package. A value edge is resolved to the
+implementation the runtime loads, a type edge to the declaration. A package `imports` or `exports`
+mapping may name one project file for `require` and another for `import`, and a directory's
+manifest one file in `main` and another in `module` or `browser`, which a client build and a
+server build order differently. The rules resolve every edge every way and refuse a specifier
+whose answers differ (`ambiguousResolution`) instead of guessing which one loads: such an alias
+or manifest points every condition and field at one file. What an edge loads from
+`node_modules` is identified by the file the resolver selected, not by how the import spells it.
+It is the package its own manifest names, and it is every contract entry under which that copy
+of the package exports the loaded file, so `next/headers` in `serverPackages` is matched by
+`next/headers.js`, by a `#` alias, by a `paths` mapping and by a link alike. Two packages, or
+two entry points of one package, behind one alias are judged separately. What the project calls
+a package is kept apart: the name it is installed under (`"db": "npm:pg@8"` is `pg`, called
+`db`) and the spelling of the import. The restricting lists (`runtimePackages`,
+`providerPackages`, `serverPackages`) match either, so an entry written against an alias holds;
+`purePackages` admits a package only for what it is, so list a pure package by its manifest
+name. A relative or absolute path into `node_modules` is refused (`packageByPath`): a package
+is imported by name. A Node builtin is the same module with or without its `node:` prefix
+and behind a `#` alias, whatever package is installed under its name. Every edge of a declaration file is a type edge. `importAliases` places what TypeScript cannot
+resolve, such as an asset.
 All ESLint globs, ownership checks, cycle checks, and database subjects derive from these fields.
 `contractVersion` records the originating rules release and is maintained by `sync-version.mjs`.
 
-Add the capability graph check to the same CI command:
+Add the checkers to the same CI command:
 
 ```bash
 node rules/check-module-cycles.mjs
@@ -79,7 +122,21 @@ Before enabling the rules, classify every direct runtime dependency in
 `architecture-contract.json` as `purePackages` or `runtimePackages`. Run
 `check-dependency-classification.mjs`; a newly installed package fails closed until the product
 decides which side it belongs to. Static analysis cannot infer package semantics from an npm name.
+The pure zones (`domain/**`, `application/**`, `shared/kernel`, `contracts.ts`, `query-cache.ts`)
+import only `purePackages`, so a package in no list — a devDependency, a hoisted transitive one —
+is reported at the import (`unclassifiedPackage`).
 
+List store and provider SDKs in `providerPackages`; each must also be a runtime package. They
+are importable only from a capability's `server/**` or `client/**` and from `shared/server` or
+`shared/client`, and from generated provider contracts under `generatedRoot`
+(`providerOutsideAdapter`). `serverPackages` lists entry points only a server can load; browser
+code and every `ui/**` file may not import them, nor a Node builtin. `channelSurfaces` names
+the surfaces that own a request. `purePackages`, `runtimePackages`, `providerPackages`,
+`serverPackages` and `channelSurfaces` are required: a contract written before a key existed stops every tool rather than leaving its rule
+with nothing to match.
+
+With no client identifier the database check scans nothing. It then prints that it is not
+configured instead of `ok`, and fails when `package.json` depends on `@supabase/*`.
 For Supabase projects, list the identifiers used for Supabase clients in
 `databaseClientIdentifiers`, declare literal `.from()` and `.rpc()` resources in
 `databaseResources`, and run `check-database-resources.mjs`. `consumers` is read-and-RPC
@@ -163,11 +220,15 @@ tier will also report them unresolved.
 
 Type-only edges (rule 14 of the [contract](../docs/architecture-contract.md#dependency-direction);
 `import type`, `import { type X }`, `export type … from`, `import('…').X`, `typeof import('…')`)
-skip the runtime and purity rules: `browserServer`, `serverClient`, `domainDirection`,
-`applicationDirection`, `neutralDirection`, `sharedKernelDirection`. The ownership rules report them
-exactly as they report a value edge: `appInternal`, `crossCapabilityInternal`, `sharedImportsModule`,
-`generatedProviderLeak` and `privateServerBackedge`. A partly type-only import
-(`import { type A, b }`) is a value edge.
+skip the bundle rules: `browserServer`, `serverClient`, `clientBoundaryMissing`, `foreignChannel`.
+The vocabulary rules — `domainDirection`, `applicationDirection`, `neutralDirection`,
+`sharedKernelDirection`, `unclassifiedPackage` — admit a type from a capability's public root
+surface and judge every other type as they judge a value. The ownership rules report a type
+exactly as a value edge: `appInternal`, `crossCapabilityInternal`, `sharedImportsModule`,
+`generatedProviderLeak`, `privateServerBackedge`, `providerOutsideAdapter`, `appIsLeaf`,
+`toolingImport` and `outsideSourceRoot`. A partly type-only import (`import { type A, b }`) is a value edge. Under
+`verbatimModuleSyntax` the compiler keeps `import { type A } from` as an empty import that still
+loads the module, so there only a declaration-level `import type` or `export type` is type-only.
 
 ## Enforced Invariants
 
@@ -180,16 +241,31 @@ with the rule codes and tool details that implement them:
    import for a route. Private server code points inward, and a private segment cannot shadow a
    same-named root surface. A file under `sourceRoot` outside the module, app, shared and generated
    roots is reported (`unknownRoot`), except those root files, declaration files, and development
-   artifacts.
-2. **Acyclic resolution.** Literal imports resolve, computed targets fail closed, and both file and
+   artifacts. With the project root as the source root, the installed `rules/` and the config files
+   beside `package.json` are tooling: not reported, still read like a route, and not importable by product code
+   (`toolingImport`). Nothing outside
+   `app/**` imports from it (`appIsLeaf`), and a source file outside
+   `sourceRoot` is not importable (`outsideSourceRoot`); data and declaration files are. A
+   development artifact such as a story may import a fixture from outside the source root: no
+   production file may import the artifact, so the edge carries nothing into the product. Code a
+   framework root file loads runs in production, so it lives under a contract root: what
+   `instrumentation.ts` loads belongs in `shared/server`, not in a config file beside
+   `package.json`, where nobody lints it. Nothing imports a framework root file itself (`frameworkRootImport`).
+2. **Acyclic resolution.** Literal imports resolve, a literal `new URL('./file', import.meta.url)`
+   is read as the edge a bundler makes of it (a worker), computed targets and context loaders
+   (`require.context`, `import.meta.webpackContext`) fail closed, and both file and
    capability graphs remain acyclic.
-3. **Purity.** `domain/**` and `application/**` reject runtime packages and wrong-direction imports;
-   domain admits only its own domain, `shared/kernel`, a neighbour's `contracts.ts`, and classified
-   pure packages.
+3. **Purity.** `domain/**` and `application/**` reject runtime packages, packages not classified
+   as pure, and wrong-direction imports, as types and as values; domain admits only its own domain,
+   `shared/kernel`, a neighbour's `contracts.ts`, and classified pure packages.
 4. **Runtime separation.** Browser-safe code cannot import server surfaces and server code cannot
    import browser surfaces; `actions.ts` is the explicit browser-to-server mutation boundary; the
-   runtime-bound surfaces carry their marker. A `ui/**` file is classified by its `'use client'`
-   directive, not by its directory.
+   runtime-bound surfaces carry their marker. No `ui/**` file imports server code, a Node
+   builtin or a `serverPackages` entry; one without the `'use client'` directive imports no
+   browser-only code either, the `client-only` marker included (`clientBoundaryMissing`). The directive is read from the prologue on
+   both sides of an import: as a target a `ui/**` file is a Client Component only with it, so
+   server code may render a view and never names a Client Component. A capability's server code does not
+   import a neighbour's channel surface (`foreignChannel`).
 5. **Surface contracts.** Module-root files use the admitted runtime vocabulary; named re-exports
    are allowed, `export *` is not. `actions.ts` opens with `'use server'`, re-exports no values, and
    exports nothing syntax proves is not an async function (`actionDirective`, `actionReexport`,
@@ -197,8 +273,9 @@ with the rule codes and tool details that implement them:
    remains runtime-neutral, and a contract surface imports only pure code.
 6. **Shared neutrality.** Shared code uses an admitted runtime-specific root and cannot depend on a
    product capability.
-7. **Declared effects.** Every direct dependency is classified, and configured Supabase client
-   calls use resources with declared owners and consumers.
+7. **Declared effects.** Every direct dependency is classified, provider packages are imported
+   only by adapters, and configured Supabase client calls use resources with declared owners and
+   consumers.
 
 Tests and test fixtures may cross these boundaries deliberately. The capability rule ignores test
 files; the strict tier disables only cycle checking for them.
@@ -214,4 +291,6 @@ would create a false guarantee. Tool-specific additions:
   really a schema rather than behaviour with a schema's shape;
 - which of a table's writes preserve its invariants: `writers` says who may write, not whether a
   given write is correct;
-- resource ownership hidden in raw SQL, ORM expressions, migrations, or provider wrappers.
+- resource ownership hidden in raw SQL, ORM expressions, migrations, or provider wrappers;
+- imports written in files the rules do not parse, such as an MDX page: what such a file loads
+  is seen by no boundary rule.

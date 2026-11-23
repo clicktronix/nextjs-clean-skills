@@ -5,9 +5,12 @@
 Pass only public-safe values across the boundary: no class instances, unsupported functions,
 secrets, or raw provider rows. Client-visible identity or permission hints are never authority.
 
-Client code never imports a capability's `server.ts`, `rsc.ts`, `server/**`, or a `ui.ts` that
-publishes a file reading `rsc.ts` ([rule 8](../../../docs/architecture-contract.md#dependency-direction));
-a Server Component renders such an export and passes the element as `children` or a prop.
+Client code and every file under `ui/**` never import a capability's `server.ts`, `rsc.ts` or
+`server/**` ([rule 8](../../../docs/architecture-contract.md#dependency-direction)). A Server
+Component that reads lives in `server/**`, renders a `ui/**` view that takes props, and is
+published by `rsc.ts`; the route renders it and passes the element as `children` or a prop. A view
+without `'use client'` imports no browser-only code: one that needs `client.ts` opens with the
+directive.
 Mark trusted code with `server-only` and verify the boundary with a production build.
 
 Reference: [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).

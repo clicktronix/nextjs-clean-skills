@@ -17,9 +17,10 @@ instead accepts explicit identity and remains silent when nested under another c
 Keep identity separate from effects:
 
 ```ts
-type RequestIdentity = {
-  actorId: string; tenantId: string
-  requestId: string; traceId: string
+declare abstract class RequestIdentity {
+  private readonly established: true
+  readonly actorId: string; readonly tenantId: string
+  readonly requestId: string; readonly traceId: string
 }
 type Dependencies = {
   generator: TextGenerator; clock: Clock
@@ -27,7 +28,8 @@ type Dependencies = {
 ```
 
 `RequestIdentity` is the one identity type admitted in `shared/kernel`: actor, tenant, request, and
-trace. A capability's domain identity — its ids, its role vocabulary — is never lent to a neighbour;
+trace. The private member makes it nominal: a literal cannot write it and a spread drops it, so
+only the request-scope resolver and a named trusted-scope factory in `shared/server` construct it. A capability's domain identity — its ids, its role vocabulary — is never lent to a neighbour;
 an orchestrator maps it separately for each source.
 
 Repeated wiring is a signal to extract a capability-local factory, not a global service locator.

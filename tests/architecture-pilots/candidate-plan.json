@@ -9,6 +9,8 @@
         "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/actions.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/client.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/contracts.ts",
+        "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/http-contract.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/work-item.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/rsc.ts",
         "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server.ts",
@@ -46,6 +48,18 @@
             "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/contracts.ts",
             "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/server/service.ts",
             "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/request-identity.ts"
+          ]
+        },
+        {
+          "revisedAt": "2026-11-23",
+          "reason": "Contract reconciliation, not a measured change: the HTTP path and response envelope get one owner in contracts.ts, read by the handler and by client.ts, and RequestIdentity becomes an opaque type constructed only in shared/server/request-scope.ts.",
+          "changed": [
+            "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/contracts.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/domain/http-contract.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/app/api/work-items/route.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/modules/work-items/client.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/shared/kernel/request-identity.ts",
+            "tests/architecture-pilots/fixtures/work-items/src/shared/server/request-scope.ts"
           ]
         }
       ]

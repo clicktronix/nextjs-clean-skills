@@ -27,7 +27,9 @@ action modules, and introduce no `modules/`, `shared/ui` or root surface. What h
 Router project: the Server/Client split, state ownership, and the action shape.
 
 - Keep route-private UI under `app/<route>/_components`.
-- Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`.
+- Keep reusable capability UI under `modules/<capability>/ui` and publish it through `ui.ts`. No
+  file there imports server code; a Server Component that reads lives in `server/**` and is
+  published by `rsc.ts`.
 - Promote capability-neutral UI to `shared/ui` only through
   [Shared Admission](../../docs/architecture-contract.md#shared-admission).
 - Use a dedicated top-level `'use server'` module for UI commands.
@@ -59,8 +61,8 @@ rerender requirement.
 - Browser-owned reads call the capability's `client.ts`, backed by `GET` or a stream.
 - Client reads do not use Server Actions.
 - UI commands import exact functions from capability `actions.ts`.
-- Every action validates its input and re-derives applicable identity, role, and tenant on the
-  server.
+- Every action re-derives applicable identity, role, and tenant on the server, then validates its
+  input.
 - Successful writes update or invalidate affected read owners.
 
 For mutation mechanics, read [Forms And Actions](references/forms-and-actions.md). For failure

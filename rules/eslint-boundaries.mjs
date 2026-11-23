@@ -1,8 +1,7 @@
 /**
  * Capability ownership and runtime boundaries.
  *
- * Copy this file with architecture-contract.json and spread the exported array after the base
- * flat ESLint configs. The rule deliberately protects a small architectural floor. Semantic
+ * Spread the exported array after the base flat ESLint configs. The rule deliberately protects a small architectural floor. Semantic
  * depth, authorization, cache ownership, and report-once behavior require review and runtime tests.
  */
 
@@ -11,16 +10,20 @@ import { builtinModules } from 'node:module'
 import path from 'node:path'
 
 import {
+  fileDirectives,
   isDevelopmentArtifactDirectory,
   isDevelopmentArtifactFile,
   isWithin,
   loadArchitecturePaths,
   posix,
   relativeParts,
-  resolveProjectImport,
+  resolveEdgeTargets,
+  sourceFileAt,
   sourceFilesPattern,
   SOURCE_EXTENSIONS,
+  urlSpecifier,
 } from './contract-paths.mjs'
+import { isClassified } from './contract-keys.mjs'
 
 const paths = loadArchitecturePaths(import.meta.url)
 const {
@@ -48,6 +51,15 @@ const CONTRACT_SURFACES = new Set(contract.contractSurfaces ?? [])
 const isGeneratedFile = absolute => GENERATED_ROOT !== null && isWithin(GENERATED_ROOT, absolute)
 const SHARED_ROOTS = new Set(contract.sharedRoots)
 const RUNTIME_PACKAGES = new Set(contract.runtimePackages)
+const PURE_PACKAGES = new Set(contract.purePackages)
+// Store and provider SDKs. Only an adapter names one: a capability's private `server/` or `client/`
+// segment, or the shared root of the same runtime.
+const PROVIDER_PACKAGES = new Set(contract.providerPackages)
+// Entry points only a server can load. `node:` builtins are refused the same way without a list.
+const SERVER_PACKAGES = new Set(contract.serverPackages)
+// The surfaces that own a request: each resolves identity and reports for it. `server.ts` is the
+// one server surface that does neither, which is why a neighbour's server code takes that one.
+const CHANNEL_SURFACES = new Set(contract.channelSurfaces)
 const NODE_BUILTINS = new Set(builtinModules.map((name) => name.replace(/^node:/, '')))
 
 // `actions.ts` is compiler-constrained, not just path-constrained: every value export of a
@@ -77,7 +89,13 @@ const ACTION_NON_FUNCTION_NODES = new Set([
 const ACTION_TYPE_WRAPPERS = new Set(['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'])
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
 
-const stem = (value) => path.basename(value).replace(SOURCE_EXT, '')
+// A declaration beside a JavaScript surface names the same surface: `server.d.ts` is `server`.
+// Only a real declaration suffix does; `server.d.js` is a file called `server.d`.
+const DECLARATION_EXT = /\.d\.[cm]?ts$/
+const stem = (value) => {
+  const name = path.basename(value)
+  return DECLARATION_EXT.test(name) ? name.replace(DECLARATION_EXT, '') : name.replace(SOURCE_EXT, '')
+}
 
 function moduleLocation(absolute) {
   const parts = relativeParts(MODULE_ROOT, absolute)
@@ -134,10 +152,22 @@ function isFrameworkRootFile(absolute) {
  */
 function isUnownedFile(absolute) {
   const parts = relativeParts(SOURCE_ROOT, absolute)
-  if (!parts || isFrameworkRootFile(absolute)) return false
+  if (!parts || isFrameworkRootFile(absolute) || isToolingFile(absolute)) return false
   if ([MODULE_ROOT, APP_ROOT, SHARED_ROOT].some((root) => isWithin(root, absolute))) return false
   if (isGeneratedFile(absolute) || /\.d\.[cm]?ts$/.test(absolute)) return false
   return !isDevelopmentArtifactPath(absolute)
+}
+
+/**
+ * Tooling the project keeps beside its source when the project root is the source root: the
+ * installed rules and the config files next to package.json. It is not product source that lacks
+ * an owner, so it is not reported; it is still read like a route, so a file there cannot carry a
+ * deep import for one.
+ */
+function isToolingFile(absolute) {
+  if (isWithin(path.join(PROJECT_ROOT, 'rules'), absolute)) return true
+  const parts = relativeParts(SOURCE_ROOT, absolute)
+  return SOURCE_ROOT === PROJECT_ROOT && parts?.length === 1 && /\.config\.[cm]?[jt]s$/.test(parts[0])
 }
 
 /**
@@ -161,47 +191,49 @@ function isDevelopmentArtifactPath(absolute) {
 // `.js` swapped for one), or a directory's index; a directory specifier (trailing separator) names
 // only the index. Anything else is returned unchanged, so a directory the resolver enters some
 // other way (`package.json` `main`) is judged as a directory.
-function resolveSourceFile(absolute) {
-  const stripped = absolute.replace(SOURCE_EXT, '')
-  const index = SOURCE_EXTENSIONS.map((extension) => path.join(absolute, `index.${extension}`))
-  const candidates = absolute.endsWith(path.sep)
-    ? index
-    : [
-        absolute,
-        ...SOURCE_EXTENSIONS.map((extension) => `${absolute}.${extension}`),
-        ...SOURCE_EXTENSIONS.map((extension) => `${stripped}.${extension}`),
-        ...index,
-      ]
-  return candidates.find((candidate) => fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) ?? absolute
-}
+const resolveSourceFile = (absolute) => sourceFileAt(absolute) ?? absolute
 
 // Composition reads capabilities through their root public surfaces: `app/**`, the framework root
 // files and any unowned file, which would otherwise launder a deep import for `app/**`.
 const isCompositionFile = (absolute) =>
-  isAppFile(absolute) || isFrameworkRootFile(absolute) || isUnownedFile(absolute)
-
-// A package's identity is its name, and a scoped name is two segments. Returning `@scope` made
-// every subpath of a forbidden `@scope/pkg` inherit the class of the *scope*, so `@scope/pkg/sub`
-// matched nothing the contract listed and walked into `domain/`.
-function packageRoot(specifier) {
-  const parts = specifier.split('/')
-  if (specifier.startsWith('@')) return parts.slice(0, 2).join('/')
-  return parts[0]
-}
-
-// The contract may classify a scope (`@supabase`), a package (`@scope/pkg`) or an exact specifier;
-// a subpath inherits the class of the package and of the scope above it.
-function packageIdentities(specifier) {
-  const bare = specifier.replace(/^node:/, '')
-  const identities = [specifier, bare, packageRoot(bare)]
-  if (bare.startsWith('@')) identities.push(bare.split('/')[0])
-  return identities
-}
+  isAppFile(absolute) || isFrameworkRootFile(absolute) || isUnownedFile(absolute) || isToolingFile(absolute)
 
 function isRuntimePackage(specifier) {
   const builtin = specifier.replace(/^node:/, '').split('/')[0]
   if (NODE_BUILTINS.has(builtin)) return true
-  return packageIdentities(specifier).some((identity) => RUNTIME_PACKAGES.has(identity))
+  return isClassified(specifier, RUNTIME_PACKAGES)
+}
+
+function isAdapterLocation(module, shared) {
+  return ['server', 'client'].includes(module?.segment) || ['server', 'client'].includes(shared?.root)
+}
+
+// `ui/` is a directory, not a runtime: a file there with the directive in its prologue is a
+// Client Component, one without it is a view any runtime may render.
+function isClientTarget(module, shared, absolute) {
+  if (module?.segment === 'ui') return fileDirectives(resolveSourceFile(absolute)).includes('use client')
+  return isClientLocation(module, shared)
+}
+
+// Code only a browser may load: the capability's browser lifecycle and its marked surface.
+function isBrowserOnlyTarget(module, shared) {
+  return (
+    module?.segment === 'client' ||
+    shared?.root === 'client' ||
+    Boolean(module?.surface && CLIENT_SURFACES.has(module.surface) && module.surface !== 'ui')
+  )
+}
+
+// The directives a program opens with, as the compiler reads them: string statements before the
+// first statement of another kind.
+function programDirectives(programNode) {
+  const directives = []
+  for (const statement of programNode.body) {
+    // The parser marks a directive; a parenthesised string is the same literal without the mark.
+    if (statement.type !== 'ExpressionStatement' || typeof statement.directive !== 'string') break
+    directives.push(statement.directive)
+  }
+  return directives
 }
 
 function isServerLocation(module, shared) {
@@ -244,6 +276,9 @@ function isForeignContract(sourceModule, targetModule) {
  */
 function isTypeOnlyEdge(node) {
   if (node.importKind === 'type' || node.exportKind === 'type') return true
+  // Under `verbatimModuleSyntax` an inline `type` specifier leaves `import {} from '…'` behind,
+  // which still loads the module.
+  if (paths.verbatimModuleSyntax) return false
   const specifiers = node.specifiers ?? []
   // `every()` on an empty list is true, and `import {} from './x'` still loads the module for its
   // side effects. Only a non-empty, wholly type-only specifier list erases the edge.
@@ -279,6 +314,29 @@ function isRequireCallee(callee) {
     : callee.property.type === 'Identifier' && callee.property.name === 'require'
 }
 
+// `require.context(…)` and `import.meta.webpackContext(…)` load every module a directory holds.
+// What the compiler leaves of an expression once its assertions are erased.
+function erased(node) {
+  let inner = node
+  while (['TSAsExpression', 'TSNonNullExpression', 'TSSatisfiesExpression', 'TSTypeAssertion'].includes(inner?.type)) {
+    inner = inner.expression
+  }
+  return inner
+}
+
+// The name of a member, written after a dot or as a literal in brackets; a bundler reads both.
+const memberName = (member) => (member.computed ? constantSpecifier(erased(member.property)) : member.property.name)
+
+// `import.meta`, and not `new.target`, which is the same kind of node.
+const isImportMeta = (node) => node?.type === 'MetaProperty' && node.meta.name === 'import' && node.property.name === 'meta'
+
+function isContextLoader(callee) {
+  if (callee.type !== 'MemberExpression') return false
+  const object = erased(callee.object)
+  if (memberName(callee) === 'context') return object.type === 'Identifier' && object.name === 'require'
+  return memberName(callee) === 'webpackContext' && isImportMeta(object)
+}
+
 function isTestFile(filename) {
   return /(?:^|\/)__tests__(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/.test(posix(filename))
 }
@@ -304,11 +362,29 @@ const capabilityRule = {
       applicationDirection:
         'application/** owns framework-neutral policy. Supply runtime adapters instead of importing {{target}}.',
       browserServer:
-        'Browser-safe code must not import the server surface {{target}}.',
+        'Browser-safe code, including every file under ui/**, must not import the server surface {{target}}.',
       serverClient:
         'Server capability code must not import the browser surface {{target}}.',
-      serverUiReach:
-        'A Server Component under ui/** reads its capability through rsc.ts only; {{target}} is private server code or another server surface.',
+      clientBoundaryMissing:
+        "{{target}} is browser-only code. A ui/** file that imports it is a Client Component and opens with 'use client'; a view without the directive renders in either runtime.",
+      unclassifiedPackage:
+        '{{target}} is not classified in purePackages. domain/**, application/**, shared/kernel and runtime-neutral surfaces import only packages the contract classifies as pure.',
+      foreignChannel:
+        "{{target}} is another capability's channel surface: it resolves identity and reports for its own request. Server code calls the neighbour's server.ts with explicit identity.",
+      providerOutsideAdapter:
+        '{{target}} is a store or provider package. Import it from a private server/ or client/ segment or from shared/server or shared/client, and reach it through the capability surface.',
+      appIsLeaf:
+        'Nothing outside app/** imports from it; {{target}} is route-private. Move what is reused into a capability or an admitted shared root.',
+      packageByPath:
+        '{{target}} reaches into node_modules by path, which names a file and not the entry point the contract classifies. Import the package by its name.',
+      ambiguousResolution:
+        'This specifier resolves to different project files depending on how it is loaded ({{files}}), and the rules do not guess which one loads. Point every condition and entry field at one file, or import the file by its path.',
+      frameworkRootImport:
+        '{{target}} is loaded by the framework under its own name. Nothing imports it: move what is reused into a capability or an admitted shared root.',
+      toolingImport:
+        '{{target}} is tooling beside the source, not product code. Import the capability surface it was reaching instead.',
+      outsideSourceRoot:
+        '{{target}} is a source file outside sourceRoot, where no boundary rule reads it. Move it under a contract root.',
       privateServerBackedge:
         'Private server implementation must not import its own public surface {{target}}. Move shared contracts inward.',
       generatedProviderLeak:
@@ -334,7 +410,7 @@ const capabilityRule = {
       actionValueExport:
         '{{name}} is a value export from actions.ts that is not an async function. A top-level use server module exposes only async functions; Next.js rejects some other values at build time and the rest at runtime.',
       hiddenDynamicImport:
-        'A computed import hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
+        'A computed import or a context loader hides its target from architecture checks. Use a literal specifier or an explicit reviewed exception.',
     },
   },
 
@@ -344,6 +420,9 @@ const capabilityRule = {
 
     const sourceModule = moduleLocation(filename)
     const sourceShared = sharedLocation(filename)
+    // `actions.d.ts` describes the signatures of `actions.js`. It is a surface for ownership, and
+    // not a `'use server'` module: the export rules of one do not apply to it.
+    const isActionModule = sourceModule?.surface === 'actions' && !DECLARATION_EXT.test(filename)
     let sourceIsClientDirective = false
 
     const reportImport = (node, specifier, { typeOnly = false } = {}) => {
@@ -351,31 +430,82 @@ const capabilityRule = {
         context.report({ node, messageId: 'hiddenDynamicImport' })
         return
       }
+      // An edge is judged against every target it can load; which one a runtime picks depends on
+      // conditions the rule would otherwise have to guess.
+      // A declaration file is erased whole, so every edge in it is a type edge.
+      const erased = typeOnly || DECLARATION_EXT.test(filename)
+      for (const target of resolveEdgeTargets(paths, filename, specifier, { typeOnly: erased })) {
+        judgeTarget(node, target, erased)
+      }
+    }
 
-      const targetPath = resolveProjectImport(paths, filename, specifier)
+    const judgeTarget = (node, { file: targetPath = null, package: specifier, names, aliases = [], byPath, ambiguous }, typeOnly) => {
+      if (ambiguous) {
+        context.report({
+          node,
+          messageId: 'ambiguousResolution',
+          data: { files: ambiguous.map((file) => posix(path.relative(PROJECT_ROOT, file))).sort().join(', ') },
+        })
+        return
+      }
+      if (!targetPath && byPath) {
+        context.report({ node, messageId: 'packageByPath', data: { target: specifier } })
+        return
+      }
       if (!targetPath) {
-        if (typeOnly) return
-        // A runtime-neutral surface is held to the same package rule as `domain/`: a package the
-        // contract classifies as pure is admitted, a runtime-bound one is not. Refusing every
-        // package made `contracts.ts` unable to import the schema library that witnesses its own
-        // types, which is the only reason the surface exists.
+        // A package answers to every name the resolution gave it; a list that names any of them
+        // classifies it. A restriction holds as well for what the project calls the package —
+        // the name it is installed under and the spelling of the import — so an entry the
+        // contract writes against an alias is not ignored. A permission is earned by what was
+        // loaded and never by what it is called.
+        const classified = (list) => [...names].some((name) => isClassified(name, list))
+        const called = [...names, ...aliases, specifier]
+        const restricted = (list) => called.some((name) => isClassified(name, list))
+        // The pure zones are held to an allow-list, for a type as much as for a value: a signature
+        // typed with a provider client is that provider's vocabulary inside policy, and a package
+        // the contract never classified is not known to be pure. A runtime-neutral surface is a
+        // pure zone too, which is what lets `contracts.ts` import the schema library that
+        // witnesses its own types.
+        const pureZone =
+          sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)
+            ? 'neutralDirection'
+            : sourceModule?.segment === 'domain' || sourceShared?.root === 'kernel'
+              ? 'domainDirection'
+              : sourceModule?.segment === 'application'
+                ? 'applicationDirection'
+                : null
+        if (pureZone) {
+          if (called.some(isRuntimePackage) || restricted(SERVER_PACKAGES)) {
+            context.report({ node, messageId: pureZone, data: { target: specifier } })
+          } else if (!classified(PURE_PACKAGES)) {
+            context.report({ node, messageId: 'unclassifiedPackage', data: { target: specifier } })
+          }
+          return
+        }
+        // The browser-only marker makes whatever imports it browser-only: a view that loads it
+        // could no longer be rendered by a server file.
+        if (!typeOnly && sourceModule?.segment === 'ui' && !sourceIsClientDirective && names.has('client-only')) {
+          context.report({ node, messageId: 'clientBoundaryMissing', data: { target: specifier } })
+          return
+        }
+        // What only a server can load never reaches a browser bundle: ui.ts publishes every
+        // ui/** file to the browser, so a view is held to this with or without the directive.
         if (
-          sourceModule?.surface &&
-          NEUTRAL_SURFACES.has(sourceModule.surface) &&
-          isRuntimePackage(specifier)
+          !typeOnly &&
+          (sourceIsClientDirective || isClientLocation(sourceModule, sourceShared)) &&
+          ([...names].some((name) => name.startsWith('node:')) || restricted(SERVER_PACKAGES))
         ) {
-          context.report({ node, messageId: 'neutralDirection' })
-        } else if (
-          (sourceModule?.segment === 'domain' || sourceShared?.root === 'kernel') &&
-          isRuntimePackage(specifier)
+          context.report({ node, messageId: 'browserServer', data: { target: specifier } })
+          return
+        }
+        // A provider's types are its vocabulary, so the rule holds for a type edge as well: a
+        // provider type re-exported by a root surface would reach policy as a published type.
+        if (
+          restricted(PROVIDER_PACKAGES) &&
+          !isAdapterLocation(sourceModule, sourceShared) &&
+          !isGeneratedFile(filename)
         ) {
-          context.report({ node, messageId: 'domainDirection' })
-        } else if (sourceModule?.segment === 'application' && isRuntimePackage(specifier)) {
-          context.report({
-            node,
-            messageId: 'applicationDirection',
-            data: { target: specifier },
-          })
+          context.report({ node, messageId: 'providerOutsideAdapter', data: { target: specifier } })
         }
         return
       }
@@ -383,6 +513,38 @@ const capabilityRule = {
       const targetModule = moduleLocation(targetPath)
       const targetShared = sharedLocation(targetPath)
       const targetLabel = posix(path.relative(PROJECT_ROOT, targetPath))
+      // The vocabulary rules below let one kind of type edge through: a type a capability
+      // publishes from a root surface. Every other type edge names something private or
+      // provider-shaped, and is judged as the value edge would be.
+      const publishedType =
+        typeOnly && Boolean(targetModule?.surface && PUBLIC_SURFACES.has(targetModule.surface))
+
+      // Tooling beside the source is read like a route and is not a way round a rule that only
+      // names its target, so product code does not import it.
+      if (isToolingFile(targetPath) && !isToolingFile(filename)) {
+        context.report({ node, messageId: 'toolingImport', data: { target: targetLabel } })
+        return
+      }
+
+      // The framework loads its root files by name and in a runtime of its own choosing. An
+      // import of one takes that runtime and everything the file loads along with it. A
+      // declaration of the same name is not a file the framework loads.
+      if (isFrameworkRootFile(targetPath) && !DECLARATION_EXT.test(targetPath) && !isToolingFile(filename)) {
+        context.report({ node, messageId: 'frameworkRootImport', data: { target: targetLabel } })
+        return
+      }
+
+      // A file outside sourceRoot matches no rule and is linted by nobody, so a re-export there
+      // launders any import into production. Data and declaration files carry no behaviour to
+      // launder, and a development artifact is not production: no production file may import
+      // one, so what it reaches outside the source root stays outside.
+      if (!isWithin(SOURCE_ROOT, targetPath) && !isDevelopmentArtifactPath(filename)) {
+        const targetFile = resolveSourceFile(targetPath)
+        if (SOURCE_EXT.test(targetFile) && !/\.d\.[cm]?ts$/.test(targetFile)) {
+          context.report({ node, messageId: 'outsideSourceRoot', data: { target: targetLabel } })
+          return
+        }
+      }
 
       // Exempting development artifacts by name left a bridge — `mocks/bridge.ts` re-exporting a
       // private file, imported by a route — outside every check: the bridge was unowned but
@@ -397,7 +559,14 @@ const capabilityRule = {
         return
       }
 
-      if (!typeOnly && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
+      // The route composes capabilities and owns nothing that outlives it, so no dependency
+      // points back at one, as a type or as a value.
+      if (isAppFile(targetPath) && !isAppFile(filename)) {
+        context.report({ node, messageId: 'appIsLeaf', data: { target: targetLabel } })
+        return
+      }
+
+      if (!publishedType && sourceModule?.surface && NEUTRAL_SURFACES.has(sourceModule.surface)) {
         const ownDomain =
           targetModule?.capability === sourceModule.capability && targetModule.segment === 'domain'
         if (!ownDomain && targetShared?.root !== 'kernel') {
@@ -459,7 +628,19 @@ const capabilityRule = {
         return
       }
 
-      if (!typeOnly && sourceModule?.segment === 'domain') {
+      if (
+        !typeOnly &&
+        targetModule?.surface &&
+        CHANNEL_SURFACES.has(targetModule.surface) &&
+        sourceModule &&
+        sourceModule.capability !== targetModule.capability &&
+        isServerSourceLocation(sourceModule, sourceShared)
+      ) {
+        context.report({ node, messageId: 'foreignChannel', data: { target: targetLabel } })
+        return
+      }
+
+      if (!publishedType && sourceModule?.segment === 'domain') {
         const ownDomain =
           targetModule?.capability === sourceModule.capability && targetModule.segment === 'domain'
         if (
@@ -472,7 +653,7 @@ const capabilityRule = {
         }
       }
 
-      if (!typeOnly && sourceShared?.root === 'kernel') {
+      if (!publishedType && sourceShared?.root === 'kernel') {
         const sameKernel = targetShared?.root === 'kernel'
         if (!sameKernel) {
           context.report({ node, messageId: 'sharedKernelDirection' })
@@ -480,7 +661,7 @@ const capabilityRule = {
         }
       }
 
-      if (!typeOnly && sourceModule?.segment === 'application') {
+      if (!publishedType && sourceModule?.segment === 'application') {
         const ownPolicy =
           targetModule?.capability === sourceModule.capability &&
           ['domain', 'application'].includes(targetModule.segment)
@@ -498,33 +679,24 @@ const capabilityRule = {
         }
       }
 
-      // `ui/` is a directory, not a runtime. Under the App Router a file there without a
-      // `'use client'` directive is a Server Component, and reading its own capability's `rsc.ts`
-      // is what it is for. Classifying the directory as browser code forced every server-rendered
-      // capability view into `server/`, where `ui.ts` may not publish it. `client/` stays browser
-      // code by contract: it holds browser lifecycle, which has no server reading.
-      const sourceIsClient =
-        sourceIsClientDirective ||
-        (sourceModule?.segment !== 'ui' && isClientLocation(sourceModule, sourceShared))
+      // A file under `ui/` imports no server code under either directive, so everything `ui.ts`
+      // publishes is safe for a browser importer. As a target the directive decides: a view
+      // without it is renderable from `server/**`, where the Server Component that reads lives
+      // and from where `rsc.ts` publishes it; a Client Component is not named by server code.
+      const sourceIsClient = sourceIsClientDirective || isClientLocation(sourceModule, sourceShared)
       const sourceIsServer = isServerSourceLocation(sourceModule, sourceShared)
-      const targetIsClient = isClientLocation(targetModule, targetShared)
+      const targetIsClient = isClientTarget(targetModule, targetShared, targetPath)
       const targetIsServer = isServerLocation(targetModule, targetShared)
 
-      // A Server Component under ui/** reads its capability through rsc.ts and nothing else on the
-      // server side: private server/** and the other server surfaces are what rsc.ts exists to
-      // narrow, and the directive-based classification above must not widen them.
+      // A view that reaches browser-only code stops being renderable on the server, and the
+      // marker in that code would fail the build of whatever server file renders the view.
       if (
         !typeOnly &&
         sourceModule?.segment === 'ui' &&
         !sourceIsClientDirective &&
-        targetModule?.capability === sourceModule.capability &&
-        (targetModule.segment === 'server' || (targetModule.surface && targetIsServer && targetModule.surface !== 'rsc'))
+        isBrowserOnlyTarget(targetModule, targetShared)
       ) {
-        context.report({
-          node,
-          messageId: 'serverUiReach',
-          data: { target: targetLabel },
-        })
+        context.report({ node, messageId: 'clientBoundaryMissing', data: { target: targetLabel } })
         return
       }
 
@@ -593,12 +765,9 @@ const capabilityRule = {
     const checkActionExports = (programNode) => {
       // Only the directive prologue counts: a string statement after the first import is an
       // expression the compiler ignores, not a directive.
-      let prologueHasDirective = false
-      for (const statement of programNode.body) {
-        if (statement.type !== 'ExpressionStatement' || statement.expression.type !== 'Literal') break
-        if (statement.expression.value === 'use server') prologueHasDirective = true
+      if (!programDirectives(programNode).includes('use server')) {
+        context.report({ node: programNode, messageId: 'actionDirective' })
       }
-      if (!prologueHasDirective) context.report({ node: programNode, messageId: 'actionDirective' })
 
       const reportValue = (node, name, value = node) => {
         const kind = classifyActionValue(value, programNode)
@@ -639,14 +808,10 @@ const capabilityRule = {
 
     return {
       Program(node) {
-        sourceIsClientDirective = node.body.some(
-          (statement) =>
-            statement.type === 'ExpressionStatement' &&
-            statement.expression.type === 'Literal' &&
-            statement.expression.value === 'use client'
-        )
+        sourceIsClientDirective = programDirectives(node).includes('use client')
 
-        if (sourceModule?.surface === 'actions') checkActionExports(node)
+        // A declaration file describes a surface; it carries no directive and exports no action.
+        if (isActionModule) checkActionExports(node)
 
         if (isUnownedFile(filename)) {
           context.report({
@@ -719,7 +884,7 @@ const capabilityRule = {
       ExportNamedDeclaration(node) {
         if (node.source) {
           if (
-            sourceModule?.surface === 'actions' &&
+            isActionModule &&
             node.exportKind !== 'type' &&
             node.specifiers.some((specifier) => specifier.exportKind !== 'type')
           ) {
@@ -730,7 +895,7 @@ const capabilityRule = {
       },
 
       ExportAllDeclaration(node) {
-        if (sourceModule?.surface === 'actions' && node.exportKind !== 'type') {
+        if (isActionModule && node.exportKind !== 'type') {
           context.report({ node, messageId: 'actionReexport' })
         } else if (sourceModule?.surface) {
           context.report({ node, messageId: 'broadSurface' })
@@ -753,7 +918,25 @@ const capabilityRule = {
         reportImport(literal ?? node, literal ? constantSpecifier(literal) : null, { typeOnly: true })
       },
 
+      // `new URL('./worker.ts', import.meta.url)` is how a bundler is told to load a file, a
+      // worker above all: an edge like an import when the path is a literal. A computed path
+      // names an asset chosen at run time and is not a module the rule can place.
+      NewExpression(node) {
+        const callee = erased(node.callee)
+        if (callee.type !== 'Identifier' || callee.name !== 'URL' || node.arguments.length !== 2) return
+        const [target, base] = node.arguments.map(erased)
+        if (base.type !== 'MemberExpression' || !isImportMeta(erased(base.object)) || memberName(base) !== 'url') return
+        const reference = constantSpecifier(target)
+        const specifier = typeof reference === 'string' ? urlSpecifier(reference, filename, paths) : null
+        if (specifier !== null) reportImport(target, specifier)
+      },
+
       CallExpression(node) {
+        // A context loader names a directory: which modules it loads is hidden from every check.
+        if (isContextLoader(node.callee)) {
+          context.report({ node, messageId: 'hiddenDynamicImport' })
+          return
+        }
         if (!isRequireCallee(node.callee)) return
         const argument = node.arguments[0]
         reportImport(argument ?? node, argument ? constantSpecifier(argument) : null)

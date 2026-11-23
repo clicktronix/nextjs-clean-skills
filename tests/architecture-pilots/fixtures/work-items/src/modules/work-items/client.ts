@@ -1,13 +1,12 @@
-import type { WorkItem } from './domain/work-item.js'
+import { parseWorkItemsResponse, WORK_ITEMS_PATH, type WorkItem } from './contracts.js'
 
 export type WorkItemsFetcher = (path: string) => Promise<Response>
 
 export async function fetchWorkItems(fetcher: WorkItemsFetcher): Promise<WorkItem[]> {
-  const response = await fetcher('/api/work-items')
+  const response = await fetcher(WORK_ITEMS_PATH)
   if (!response.ok) {
     throw new Error(`work-items request failed with ${response.status}`)
   }
 
-  const payload = (await response.json()) as { data: WorkItem[] }
-  return payload.data
+  return parseWorkItemsResponse(await response.json()).data
 }

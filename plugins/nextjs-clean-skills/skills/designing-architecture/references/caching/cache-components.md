@@ -16,7 +16,7 @@ be serializable. The cache boundary therefore sits below the identity boundary.
 | what crosses in | ids, tenant, filters: serializable values only |
 | what never crosses | client, reporter, identity object, request context |
 | store access | the capability's own composition, not an argument; no cookies, so no user session |
-| tenant-private read | privileged store bypasses RLS: authorize first, filter by every scope argument |
+| tenant-private read | prefer uncached or `'use cache: private'`; a privileged store bypasses RLS: authorize first, filter by every scope argument, test isolation |
 | public read | anonymous store, still under RLS as `anon` |
 | identity or tenant data that misses a condition of contract rule 3, or must not be stored on the server | `'use cache: private'` or uncached |
 | tags and lifetimes | `cacheTag`/`cacheLife` inside the function; names in a private `server/**` module |

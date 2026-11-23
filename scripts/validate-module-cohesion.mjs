@@ -50,18 +50,24 @@ try {
   fs.mkdirSync(path.join(sandbox, 'rules'), { recursive: true })
   fs.mkdirSync(path.join(sandbox, 'src', 'modules', 'work-items'), { recursive: true })
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'dir')
-  for (const script of ['contract-paths.mjs', 'check-module-cohesion.mjs']) {
+  for (const script of ['contract-paths.mjs', 'contract-keys.mjs', 'check-module-cohesion.mjs']) {
     fs.copyFileSync(path.join(root, 'rules', script), path.join(sandbox, 'rules', script))
   }
   fs.writeFileSync(
     path.join(sandbox, 'rules', 'architecture-contract.json'),
     `${JSON.stringify(
       {
+        ...JSON.parse(fs.readFileSync(path.join(root, 'rules', 'architecture-contract.json'), 'utf8')),
         sourceRoot: 'src',
         moduleRoot: 'src/modules',
         appRoot: 'src/app',
         sharedRoot: 'src/shared',
         importAliases: { '@/': 'src/' },
+        purePackages: [],
+        runtimePackages: [],
+        providerPackages: [],
+        serverPackages: [],
+        channelSurfaces: [],
       },
       null,
       2

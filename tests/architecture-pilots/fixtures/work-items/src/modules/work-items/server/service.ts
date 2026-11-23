@@ -1,5 +1,6 @@
 import { forbidden, type Forbidden } from '../../../shared/kernel/failure.js'
 import type { RequestIdentity } from '../../../shared/kernel/request-identity.js'
+import { assertIssuedIdentity } from '../../../shared/server/request-scope.js'
 import type { CreateWorkItemInput, WorkItem } from '../domain/work-item.js'
 import type { WorkItemsRole, WorkItemsServerDependencies } from './contracts.js'
 
@@ -11,6 +12,7 @@ export async function listAuthorizedWorkItems(
   identity: RequestIdentity,
   dependencies: WorkItemsServerDependencies
 ): Promise<WorkItem[] | Forbidden> {
+  assertIssuedIdentity(identity)
   if (!canManageWorkItems(await dependencies.access.rolesOf(identity))) return forbidden()
   return dependencies.store.list(identity.tenantId)
 }
@@ -20,6 +22,7 @@ export async function createAuthorizedWorkItem(
   input: CreateWorkItemInput,
   dependencies: WorkItemsServerDependencies
 ): Promise<WorkItem | Forbidden> {
+  assertIssuedIdentity(identity)
   if (!canManageWorkItems(await dependencies.access.rolesOf(identity))) return forbidden()
   return dependencies.store.create(identity.tenantId, input)
 }

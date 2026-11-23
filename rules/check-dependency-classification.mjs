@@ -1,37 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-function findProjectRoot(start) {
-  let current = start
-  while (true) {
-    if (
-      fs.existsSync(path.join(current, 'package.json')) &&
-      fs.existsSync(path.join(current, 'rules', 'architecture-contract.json'))
-    ) {
-      return current
-    }
-    const parent = path.dirname(current)
-    if (parent === current) {
-      throw new Error('Cannot find package.json and rules/architecture-contract.json')
-    }
-    current = parent
-  }
-}
+import { isClassified, sameFamily } from './contract-keys.mjs'
+import { loadArchitecturePaths } from './contract-paths.mjs'
 
-const packageRoot = (name) => name.split('/')[0]
-
-function matchesClassification(name, admitted) {
-  return admitted.has(name) || admitted.has(packageRoot(name))
-}
-
-const root = process.argv[2]
-  ? path.resolve(process.argv[2])
-  : findProjectRoot(path.dirname(fileURLToPath(import.meta.url)))
-const contract = JSON.parse(
-  fs.readFileSync(path.join(root, 'rules', 'architecture-contract.json'), 'utf8')
-)
+const { contract, projectRoot: root } = loadArchitecturePaths(import.meta.url, process.argv[2])
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const errors = []
 
@@ -50,13 +24,20 @@ const runtimePackages = stringSet('runtimePackages')
 
 for (const pureName of purePackages) {
   for (const runtimeName of runtimePackages) {
-    if (
-      pureName === runtimeName ||
-      packageRoot(pureName) === runtimeName ||
-      packageRoot(runtimeName) === pureName
-    ) {
+    if (sameFamily(pureName, runtimeName)) {
       errors.push(`${pureName} is classified as both pure and runtime-bound`)
     }
+  }
+  for (const serverName of stringSet('serverPackages')) {
+    if (sameFamily(pureName, serverName)) {
+      errors.push(`${pureName} is classified as both pure and server-only`)
+    }
+  }
+}
+
+for (const provider of stringSet('providerPackages')) {
+  if (!isClassified(provider, runtimePackages)) {
+    errors.push(`${provider} is a provider package but is not classified in runtimePackages`)
   }
 }
 
@@ -68,8 +49,8 @@ const dependencies = {
 
 for (const name of Object.keys(dependencies).sort()) {
   if (
-    !matchesClassification(name, purePackages) &&
-    !matchesClassification(name, runtimePackages)
+    !isClassified(name, purePackages) &&
+    !isClassified(name, runtimePackages)
   ) {
     errors.push(
       `${name} is unclassified; add its exact package name or scope to purePackages or runtimePackages`
